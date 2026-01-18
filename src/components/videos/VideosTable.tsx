@@ -36,6 +36,7 @@ import {
   Loader2,
   ExternalLink,
   Plus,
+  Upload,
 } from 'lucide-react';
 
 interface VideosTableProps {
@@ -48,6 +49,7 @@ interface VideosTableProps {
   onGenerateVideo: (video: Video) => void;
   onGenerateCover: (video: Video) => void;
   onAddVideo: () => void;
+  onImportVideos: () => void;
   filters: {
     advisorId?: string;
     playlistId?: string;
@@ -77,6 +79,7 @@ export function VideosTable({
   onGenerateVideo,
   onGenerateCover,
   onAddVideo,
+  onImportVideos,
   filters,
   onFilterChange,
 }: VideosTableProps) {
@@ -173,6 +176,10 @@ export function VideosTable({
           </SelectContent>
         </Select>
 
+        <Button variant="outline" onClick={onImportVideos}>
+          <Upload className="w-4 h-4 mr-2" />
+          Импорт
+        </Button>
         <Button onClick={onAddVideo}>
           <Plus className="w-4 h-4 mr-2" />
           Новый ролик

@@ -6,6 +6,7 @@ import { AdvisorsGrid } from '@/components/advisors/AdvisorsGrid';
 import { PlaylistsGrid } from '@/components/playlists/PlaylistsGrid';
 import { VideosTable } from '@/components/videos/VideosTable';
 import { VideoEditorDialog } from '@/components/videos/VideoEditorDialog';
+import { VideoImportDialog } from '@/components/videos/VideoImportDialog';
 import { useAdvisors } from '@/hooks/useAdvisors';
 import { usePlaylists } from '@/hooks/usePlaylists';
 import { useVideos, Video, VideoFilters } from '@/hooks/useVideos';
@@ -24,10 +25,11 @@ export default function Index() {
   const [videoFilters, setVideoFilters] = useState<VideoFilters>({});
   const [editingVideo, setEditingVideo] = useState<Video | null>(null);
   const [showVideoEditor, setShowVideoEditor] = useState(false);
+  const [showImportDialog, setShowImportDialog] = useState(false);
 
   const { advisors, loading: advisorsLoading, addAdvisor, updateAdvisor, deleteAdvisor, addPhoto, deletePhoto, setPrimaryPhoto, updatePhotoAssetId } = useAdvisors();
   const { playlists, loading: playlistsLoading, addPlaylist, updatePlaylist, deletePlaylist } = usePlaylists();
-  const { videos, loading: videosLoading, addVideo, updateVideo, deleteVideo, refetch: refetchVideos } = useVideos(videoFilters);
+  const { videos, loading: videosLoading, addVideo, updateVideo, deleteVideo, refetch: refetchVideos, bulkImport } = useVideos(videoFilters);
 
   const { title, subtitle } = headerTitles[activeTab] || { title: '', subtitle: '' };
 
@@ -146,6 +148,7 @@ export default function Index() {
                 onGenerateVideo={handleGenerateVideo}
                 onGenerateCover={handleGenerateCover}
                 onAddVideo={() => { setEditingVideo(null); setShowVideoEditor(true); }}
+                onImportVideos={() => setShowImportDialog(true)}
                 filters={videoFilters}
                 onFilterChange={setVideoFilters}
               />
@@ -156,6 +159,13 @@ export default function Index() {
                 open={showVideoEditor}
                 onClose={() => { setShowVideoEditor(false); setEditingVideo(null); }}
                 onSave={handleSaveVideo}
+              />
+              <VideoImportDialog
+                open={showImportDialog}
+                onClose={() => setShowImportDialog(false)}
+                onImport={bulkImport}
+                advisors={advisors}
+                playlists={playlists}
               />
             </>
           )}
