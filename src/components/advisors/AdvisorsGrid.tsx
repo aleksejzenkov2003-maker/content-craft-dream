@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -6,8 +6,10 @@ import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from '@/components/ui/dialog';
 import { Advisor, AdvisorPhoto } from '@/hooks/useAdvisors';
-import { Plus, Trash2, Star, Upload, Image, Loader2, Settings } from 'lucide-react';
+import { Plus, Trash2, Star, Upload, Image, Loader2, Settings, ImagePlus } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { supabase } from '@/integrations/supabase/client';
+import { toast } from 'sonner';
 
 interface AdvisorsGridProps {
   advisors: Advisor[];
@@ -34,10 +36,13 @@ export function AdvisorsGrid({
 }: AdvisorsGridProps) {
   const [showAddDialog, setShowAddDialog] = useState(false);
   const [selectedAdvisor, setSelectedAdvisor] = useState<Advisor | null>(null);
+  const [uploadingAdvisorId, setUploadingAdvisorId] = useState<string | null>(null);
   const [newName, setNewName] = useState('');
   const [newDisplayName, setNewDisplayName] = useState('');
   const [newPhotoUrl, setNewPhotoUrl] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isUploading, setIsUploading] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const handleAddAdvisor = async () => {
     if (!newName.trim()) return;
@@ -63,6 +68,72 @@ export function AdvisorsGrid({
     }
   };
 
+  const handleFileUpload = async (advisorId: string, file: File) => {
+    if (!file) return;
+    
+    // Validate file type
+    if (!file.type.startsWith('image/')) {
+      toast.error('Выберите изображение');
+      return;
+    }
+
+    // Validate file size (max 5MB)
+    if (file.size > 5 * 1024 * 1024) {
+      toast.error('Файл слишком большой (макс. 5MB)');
+      return;
+    }
+
+    setIsUploading(true);
+    try {
+      // Generate unique filename
+      const ext = file.name.split('.').pop() || 'jpg';
+      const fileName = `advisors/${advisorId}/${Date.now()}.${ext}`;
+
+      // Upload to Supabase Storage
+      const { data, error } = await supabase.storage
+        .from('media-files')
+        .upload(fileName, file, {
+          cacheControl: '3600',
+          upsert: false,
+        });
+
+      if (error) throw error;
+
+      // Get public URL
+      const { data: urlData } = supabase.storage
+        .from('media-files')
+        .getPublicUrl(fileName);
+
+      if (!urlData.publicUrl) throw new Error('Failed to get public URL');
+
+      // Add photo to database
+      await onAddPhoto(advisorId, urlData.publicUrl, false);
+      toast.success('Фото загружено');
+    } catch (error: any) {
+      console.error('Upload error:', error);
+      toast.error('Ошибка загрузки: ' + (error.message || 'Unknown error'));
+    } finally {
+      setIsUploading(false);
+      setUploadingAdvisorId(null);
+    }
+  };
+
+  const triggerFileInput = (advisorId: string) => {
+    setUploadingAdvisorId(advisorId);
+    fileInputRef.current?.click();
+  };
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file && uploadingAdvisorId) {
+      handleFileUpload(uploadingAdvisorId, file);
+    }
+    // Reset input
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
+    }
+  };
+
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
@@ -73,6 +144,15 @@ export function AdvisorsGrid({
 
   return (
     <div className="space-y-6">
+      {/* Hidden file input for uploads */}
+      <input
+        type="file"
+        ref={fileInputRef}
+        className="hidden"
+        accept="image/*"
+        onChange={handleFileChange}
+      />
+      
       <div className="flex items-center justify-between">
         <h2 className="text-xl font-semibold">Духовники ({advisors.length})</h2>
         <Dialog open={showAddDialog} onOpenChange={setShowAddDialog}>
@@ -224,6 +304,34 @@ export function AdvisorsGrid({
                         <DialogTitle>Добавить фото для {advisor.name}</DialogTitle>
                       </DialogHeader>
                       <div className="space-y-4 py-4">
+                        {/* Upload from PC */}
+                        <div className="space-y-2">
+                          <Label>Загрузить с компьютера</Label>
+                          <Button
+                            variant="outline"
+                            className="w-full"
+                            onClick={() => triggerFileInput(advisor.id)}
+                            disabled={isUploading}
+                          >
+                            {isUploading && uploadingAdvisorId === advisor.id ? (
+                              <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                            ) : (
+                              <ImagePlus className="w-4 h-4 mr-2" />
+                            )}
+                            Выбрать файл
+                          </Button>
+                        </div>
+
+                        <div className="relative">
+                          <div className="absolute inset-0 flex items-center">
+                            <span className="w-full border-t" />
+                          </div>
+                          <div className="relative flex justify-center text-xs uppercase">
+                            <span className="bg-background px-2 text-muted-foreground">или</span>
+                          </div>
+                        </div>
+
+                        {/* URL input */}
                         <div className="space-y-2">
                           <Label>URL фото</Label>
                           <Input
@@ -236,7 +344,7 @@ export function AdvisorsGrid({
                       <DialogFooter>
                         <Button onClick={() => handleAddPhoto(advisor.id)} disabled={isSubmitting || !newPhotoUrl.trim()}>
                           {isSubmitting && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
-                          Добавить
+                          Добавить по URL
                         </Button>
                       </DialogFooter>
                     </DialogContent>
