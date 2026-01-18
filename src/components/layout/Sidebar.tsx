@@ -2,54 +2,43 @@ import { useState } from 'react';
 import { cn } from '@/lib/utils';
 import {
   LayoutDashboard,
-  Rss,
-  FileText,
   Video,
   Settings,
-  TrendingUp,
-  Zap,
   ChevronLeft,
   ChevronRight,
-  Bug,
-  Sparkles,
-  Volume2,
+  Zap,
+  Users,
+  ListVideo,
 } from 'lucide-react';
 
 interface NavItem {
   id: string;
   label: string;
   icon: React.ElementType;
-  badgeKey?: 'sources' | 'content' | 'videos' | 'rewrites' | 'voiceovers';
+  badgeKey?: 'advisors' | 'videos' | 'playlists';
 }
 
 const navItems: NavItem[] = [
   { id: 'dashboard', label: 'Дашборд', icon: LayoutDashboard },
-  { id: 'sources', label: 'Источники', icon: Rss, badgeKey: 'sources' },
-  { id: 'parsed', label: 'Контент', icon: FileText, badgeKey: 'content' },
-  { id: 'rewrite', label: 'Рерайт', icon: Sparkles, badgeKey: 'rewrites' },
-  { id: 'voiceover', label: 'Озвучка', icon: Volume2, badgeKey: 'voiceovers' },
-  { id: 'videos', label: 'Видео', icon: Video, badgeKey: 'videos' },
-  { id: 'pipeline', label: 'Пайплайн', icon: Zap },
-  { id: 'debug', label: 'Отладка', icon: Bug },
-  { id: 'analytics', label: 'Аналитика', icon: TrendingUp },
+  { id: 'advisors', label: 'Духовники', icon: Users, badgeKey: 'advisors' },
+  { id: 'videos', label: 'Ролики', icon: Video, badgeKey: 'videos' },
+  { id: 'playlists', label: 'Плейлисты', icon: ListVideo, badgeKey: 'playlists' },
 ];
 
 interface SidebarProps {
   activeTab: string;
   onTabChange: (tab: string) => void;
   counts?: {
-    sources?: number;
-    content?: number;
+    advisors?: number;
     videos?: number;
-    rewrites?: number;
-    voiceovers?: number;
+    playlists?: number;
   };
 }
 
 export function Sidebar({ activeTab, onTabChange, counts = {} }: SidebarProps) {
   const [isCollapsed, setIsCollapsed] = useState(false);
 
-  const getBadge = (key?: 'sources' | 'content' | 'videos' | 'rewrites' | 'voiceovers') => {
+  const getBadge = (key?: 'advisors' | 'videos' | 'playlists') => {
     if (!key) return undefined;
     const count = counts[key];
     return count !== undefined && count > 0 ? count : undefined;
@@ -69,8 +58,8 @@ export function Sidebar({ activeTab, onTabChange, counts = {} }: SidebarProps) {
         </div>
         {!isCollapsed && (
           <div className="flex flex-col">
-            <span className="text-lg font-bold gradient-text">ContentFlow</span>
-            <span className="text-xs text-muted-foreground">Автоматизация</span>
+            <span className="text-lg font-bold gradient-text">VideoFlow</span>
+            <span className="text-xs text-muted-foreground">Генерация видео</span>
           </div>
         )}
       </div>
