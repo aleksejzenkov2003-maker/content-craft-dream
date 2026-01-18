@@ -62,6 +62,74 @@ export type Database = {
         }
         Relationships: []
       }
+      advisor_photos: {
+        Row: {
+          advisor_id: string
+          created_at: string
+          heygen_asset_id: string | null
+          id: string
+          is_primary: boolean | null
+          photo_url: string
+        }
+        Insert: {
+          advisor_id: string
+          created_at?: string
+          heygen_asset_id?: string | null
+          id?: string
+          is_primary?: boolean | null
+          photo_url: string
+        }
+        Update: {
+          advisor_id?: string
+          created_at?: string
+          heygen_asset_id?: string | null
+          id?: string
+          is_primary?: boolean | null
+          photo_url?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "advisor_photos_advisor_id_fkey"
+            columns: ["advisor_id"]
+            isOneToOne: false
+            referencedRelation: "advisors"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      advisors: {
+        Row: {
+          created_at: string
+          display_name: string | null
+          elevenlabs_voice_id: string | null
+          id: string
+          is_active: boolean | null
+          name: string
+          speech_speed: number | null
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          display_name?: string | null
+          elevenlabs_voice_id?: string | null
+          id?: string
+          is_active?: boolean | null
+          name: string
+          speech_speed?: number | null
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          display_name?: string | null
+          elevenlabs_voice_id?: string | null
+          id?: string
+          is_active?: boolean | null
+          name?: string
+          speech_speed?: number | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
       channels: {
         Row: {
           created_at: string
@@ -201,6 +269,33 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      playlists: {
+        Row: {
+          created_at: string
+          description: string | null
+          id: string
+          name: string
+          updated_at: string
+          video_count: number | null
+        }
+        Insert: {
+          created_at?: string
+          description?: string | null
+          id?: string
+          name: string
+          updated_at?: string
+          video_count?: number | null
+        }
+        Update: {
+          created_at?: string
+          description?: string | null
+          id?: string
+          name?: string
+          updated_at?: string
+          video_count?: number | null
+        }
+        Relationships: []
       }
       prompt_history: {
         Row: {
@@ -448,6 +543,111 @@ export type Database = {
             columns: ["rewritten_content_id"]
             isOneToOne: false
             referencedRelation: "rewritten_content"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      videos: {
+        Row: {
+          advisor_answer: string | null
+          advisor_id: string | null
+          answer_prompt: string | null
+          answer_status: string | null
+          cover_prompt: string | null
+          cover_url: string | null
+          created_at: string
+          facebook_url: string | null
+          generation_status: string | null
+          heygen_video_id: string | null
+          heygen_video_url: string | null
+          hook: string | null
+          id: string
+          instagram_url: string | null
+          main_photo_url: string | null
+          pinterest_url: string | null
+          playlist_id: string | null
+          question: string | null
+          question_id: number | null
+          reddit_url: string | null
+          safety_score: string | null
+          tiktok_url: string | null
+          updated_at: string
+          video_number: number | null
+          video_path: string | null
+          video_title: string | null
+          youtube_url: string | null
+        }
+        Insert: {
+          advisor_answer?: string | null
+          advisor_id?: string | null
+          answer_prompt?: string | null
+          answer_status?: string | null
+          cover_prompt?: string | null
+          cover_url?: string | null
+          created_at?: string
+          facebook_url?: string | null
+          generation_status?: string | null
+          heygen_video_id?: string | null
+          heygen_video_url?: string | null
+          hook?: string | null
+          id?: string
+          instagram_url?: string | null
+          main_photo_url?: string | null
+          pinterest_url?: string | null
+          playlist_id?: string | null
+          question?: string | null
+          question_id?: number | null
+          reddit_url?: string | null
+          safety_score?: string | null
+          tiktok_url?: string | null
+          updated_at?: string
+          video_number?: number | null
+          video_path?: string | null
+          video_title?: string | null
+          youtube_url?: string | null
+        }
+        Update: {
+          advisor_answer?: string | null
+          advisor_id?: string | null
+          answer_prompt?: string | null
+          answer_status?: string | null
+          cover_prompt?: string | null
+          cover_url?: string | null
+          created_at?: string
+          facebook_url?: string | null
+          generation_status?: string | null
+          heygen_video_id?: string | null
+          heygen_video_url?: string | null
+          hook?: string | null
+          id?: string
+          instagram_url?: string | null
+          main_photo_url?: string | null
+          pinterest_url?: string | null
+          playlist_id?: string | null
+          question?: string | null
+          question_id?: number | null
+          reddit_url?: string | null
+          safety_score?: string | null
+          tiktok_url?: string | null
+          updated_at?: string
+          video_number?: number | null
+          video_path?: string | null
+          video_title?: string | null
+          youtube_url?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "videos_advisor_id_fkey"
+            columns: ["advisor_id"]
+            isOneToOne: false
+            referencedRelation: "advisors"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "videos_playlist_id_fkey"
+            columns: ["playlist_id"]
+            isOneToOne: false
+            referencedRelation: "playlists"
             referencedColumns: ["id"]
           },
         ]
