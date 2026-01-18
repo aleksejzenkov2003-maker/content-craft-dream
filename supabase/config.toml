@@ -1,1 +1,43 @@
 project_id = "mtyukrnliaefhvkhbuva"
+
+[functions.parse-content]
+verify_jwt = false
+
+[functions.rewrite-content]
+verify_jwt = false
+
+[functions.test-prompt]
+verify_jwt = false
+
+[functions.generate-voiceover]
+verify_jwt = false
+
+[functions.get-elevenlabs-voices]
+verify_jwt = false
+
+[functions.create-heygen-video]
+verify_jwt = false
+
+[functions.check-heygen-status]
+verify_jwt = false
+
+[functions.get-heygen-avatars]
+verify_jwt = false
+
+[functions.send-to-submagic]
+verify_jwt = false
+
+[functions.check-submagic-status]
+verify_jwt = false
+
+[functions.recalculate-relevance]
+verify_jwt = false
+
+[functions.upload-heygen-photo]
+verify_jwt = false
+
+[functions.generate-video-heygen]
+verify_jwt = false
+
+[functions.check-video-status]
+verify_jwt = false

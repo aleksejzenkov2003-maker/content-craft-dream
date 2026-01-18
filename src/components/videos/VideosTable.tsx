@@ -37,6 +37,7 @@ import {
   ExternalLink,
   Plus,
   Upload,
+  Eye,
 } from 'lucide-react';
 
 interface VideosTableProps {
@@ -50,6 +51,7 @@ interface VideosTableProps {
   onGenerateCover: (video: Video) => void;
   onAddVideo: () => void;
   onImportVideos: () => void;
+  onViewVideo: (video: Video) => void;
   filters: {
     advisorId?: string;
     playlistId?: string;
@@ -80,6 +82,7 @@ export function VideosTable({
   onGenerateCover,
   onAddVideo,
   onImportVideos,
+  onViewVideo,
   filters,
   onFilterChange,
 }: VideosTableProps) {
@@ -210,7 +213,11 @@ export function VideosTable({
               </TableRow>
             ) : (
               videos.map((video) => (
-                <TableRow key={video.id}>
+                <TableRow 
+                  key={video.id}
+                  className="cursor-pointer hover:bg-muted/50"
+                  onClick={() => onViewVideo(video)}
+                >
                   <TableCell className="font-mono text-sm">
                     {video.video_number || '—'}
                   </TableCell>
@@ -268,7 +275,7 @@ export function VideosTable({
                       )}
                     </div>
                   </TableCell>
-                  <TableCell>
+                  <TableCell onClick={(e) => e.stopPropagation()}>
                     <DropdownMenu>
                       <DropdownMenuTrigger asChild>
                         <Button variant="ghost" size="icon" className="h-8 w-8">
@@ -276,6 +283,10 @@ export function VideosTable({
                         </Button>
                       </DropdownMenuTrigger>
                       <DropdownMenuContent align="end">
+                        <DropdownMenuItem onClick={() => onViewVideo(video)}>
+                          <Eye className="w-4 h-4 mr-2" />
+                          Просмотр
+                        </DropdownMenuItem>
                         <DropdownMenuItem onClick={() => onEditVideo(video)}>
                           <Edit className="w-4 h-4 mr-2" />
                           Редактировать

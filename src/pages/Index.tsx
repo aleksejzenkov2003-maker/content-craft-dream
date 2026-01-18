@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Sidebar } from '@/components/layout/Sidebar';
 import { Header } from '@/components/layout/Header';
 import { StatsCard } from '@/components/dashboard/StatsCard';
@@ -7,9 +7,11 @@ import { PlaylistsGrid } from '@/components/playlists/PlaylistsGrid';
 import { VideosTable } from '@/components/videos/VideosTable';
 import { VideoEditorDialog } from '@/components/videos/VideoEditorDialog';
 import { VideoImportDialog } from '@/components/videos/VideoImportDialog';
+import { VideoDetailModal } from '@/components/videos/VideoDetailModal';
 import { useAdvisors } from '@/hooks/useAdvisors';
 import { usePlaylists } from '@/hooks/usePlaylists';
 import { useVideos, Video, VideoFilters } from '@/hooks/useVideos';
+import { useVideoGeneration } from '@/hooks/useVideoGeneration';
 import { Users, ListVideo, Video as VideoIcon, CheckCircle, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
 
@@ -24,12 +26,26 @@ export default function Index() {
   const [activeTab, setActiveTab] = useState('dashboard');
   const [videoFilters, setVideoFilters] = useState<VideoFilters>({});
   const [editingVideo, setEditingVideo] = useState<Video | null>(null);
+  const [viewingVideo, setViewingVideo] = useState<Video | null>(null);
   const [showVideoEditor, setShowVideoEditor] = useState(false);
+  const [showVideoDetail, setShowVideoDetail] = useState(false);
   const [showImportDialog, setShowImportDialog] = useState(false);
 
   const { advisors, loading: advisorsLoading, addAdvisor, updateAdvisor, deleteAdvisor, addPhoto, deletePhoto, setPrimaryPhoto, updatePhotoAssetId } = useAdvisors();
   const { playlists, loading: playlistsLoading, addPlaylist, updatePlaylist, deletePlaylist } = usePlaylists();
   const { videos, loading: videosLoading, addVideo, updateVideo, deleteVideo, refetch: refetchVideos, bulkImport } = useVideos(videoFilters);
+  
+  const { 
+    isGenerating, 
+    uploadPhotoToHeygen, 
+    generateVideo, 
+    cleanup: cleanupGeneration 
+  } = useVideoGeneration({ onVideoUpdated: refetchVideos });
+
+  // Cleanup on unmount
+  useEffect(() => {
+    return () => cleanupGeneration();
+  }, [cleanupGeneration]);
 
   const { title, subtitle } = headerTitles[activeTab] || { title: '', subtitle: '' };
 
@@ -44,14 +60,21 @@ export default function Index() {
     // TODO: Implement HeyGen upload
   };
 
-  const handleGenerateVideo = async (video: Video) => {
-    toast.info('Генерация видео будет реализована');
-    // TODO: Implement video generation
+  const handleGenerateVideo = async (video: Video, photoAssetId: string) => {
+    await generateVideo(video, photoAssetId);
+  };
+
+  const handleUploadPhotoToHeygen = async (photo: any) => {
+    return await uploadPhotoToHeygen(photo);
   };
 
   const handleGenerateCover = async (video: Video) => {
     toast.info('Генерация обложки будет реализована');
-    // TODO: Implement cover generation
+  };
+
+  const handleViewVideo = (video: Video) => {
+    setViewingVideo(video);
+    setShowVideoDetail(true);
   };
 
   const handleSaveVideo = async (id: string | null, data: Partial<Video>) => {
@@ -145,10 +168,11 @@ export default function Index() {
                 loading={videosLoading}
                 onEditVideo={(video) => { setEditingVideo(video); setShowVideoEditor(true); }}
                 onDeleteVideo={deleteVideo}
-                onGenerateVideo={handleGenerateVideo}
+                onGenerateVideo={(video) => handleViewVideo(video)}
                 onGenerateCover={handleGenerateCover}
                 onAddVideo={() => { setEditingVideo(null); setShowVideoEditor(true); }}
                 onImportVideos={() => setShowImportDialog(true)}
+                onViewVideo={handleViewVideo}
                 filters={videoFilters}
                 onFilterChange={setVideoFilters}
               />
@@ -166,6 +190,16 @@ export default function Index() {
                 onImport={bulkImport}
                 advisors={advisors}
                 playlists={playlists}
+              />
+              <VideoDetailModal
+                open={showVideoDetail}
+                onOpenChange={(open) => { setShowVideoDetail(open); if (!open) setViewingVideo(null); }}
+                video={viewingVideo}
+                advisors={advisors}
+                onUpdateVideo={updateVideo}
+                onGenerateVideo={handleGenerateVideo}
+                onUploadPhotoToHeygen={handleUploadPhotoToHeygen}
+                isGenerating={isGenerating}
               />
             </>
           )}
