@@ -8,6 +8,7 @@ import { VideosTable } from '@/components/videos/VideosTable';
 import { VideoEditorDialog } from '@/components/videos/VideoEditorDialog';
 import { VideoImportDialog } from '@/components/videos/VideoImportDialog';
 import { VideoDetailModal } from '@/components/videos/VideoDetailModal';
+import { VideoSidePanel } from '@/components/videos/VideoSidePanel';
 import { PublishingChannelsGrid } from '@/components/publishing/PublishingChannelsGrid';
 import { PublicationsTable } from '@/components/publishing/PublicationsTable';
 import { ScenesMatrix } from '@/components/scenes/ScenesMatrix';
@@ -16,6 +17,7 @@ import { usePlaylists } from '@/hooks/usePlaylists';
 import { useVideos, Video, VideoFilters } from '@/hooks/useVideos';
 import { useVideoGeneration } from '@/hooks/useVideoGeneration';
 import { usePublications } from '@/hooks/usePublications';
+import { usePublishingChannels } from '@/hooks/usePublishingChannels';
 import { Users, ListVideo, Video as VideoIcon, CheckCircle, Loader2, Send, HelpCircle, Image, Globe } from 'lucide-react';
 import { toast } from 'sonner';
 import { Card, CardContent } from '@/components/ui/card';
@@ -40,13 +42,15 @@ export default function Index() {
   const [viewingVideo, setViewingVideo] = useState<Video | null>(null);
   const [showVideoEditor, setShowVideoEditor] = useState(false);
   const [showVideoDetail, setShowVideoDetail] = useState(false);
+  const [showSidePanel, setShowSidePanel] = useState(false);
   const [showImportDialog, setShowImportDialog] = useState(false);
   const [publicationsTab, setPublicationsTab] = useState('by-channel');
 
   const { advisors, loading: advisorsLoading, addAdvisor, updateAdvisor, deleteAdvisor, addPhoto, deletePhoto, setPrimaryPhoto, updatePhotoAssetId } = useAdvisors();
   const { playlists, loading: playlistsLoading, addPlaylist, updatePlaylist, deletePlaylist } = usePlaylists();
   const { videos, loading: videosLoading, addVideo, updateVideo, deleteVideo, refetch: refetchVideos, bulkImport } = useVideos(videoFilters);
-  const { publications, loading: publicationsLoading } = usePublications();
+  const { publications, loading: publicationsLoading, addPublication } = usePublications();
+  const { channels: publishingChannels } = usePublishingChannels();
   
   const { 
     isGenerating, 
@@ -88,7 +92,22 @@ export default function Index() {
 
   const handleViewVideo = (video: Video) => {
     setViewingVideo(video);
-    setShowVideoDetail(true);
+    setShowSidePanel(true);
+  };
+
+  const handlePublishVideo = async (video: Video, channelIds: string[]) => {
+    try {
+      for (const channelId of channelIds) {
+        await addPublication({
+          video_id: video.id,
+          channel_id: channelId,
+          publication_status: 'pending',
+        });
+      }
+      toast.success(`Добавлено ${channelIds.length} публикаций`);
+    } catch (error) {
+      console.error('Error publishing video:', error);
+    }
   };
 
   const handleSaveVideo = async (id: string | null, data: Partial<Video>) => {
@@ -234,6 +253,18 @@ export default function Index() {
                 onUpdateVideo={updateVideo}
                 onGenerateVideo={handleGenerateVideo}
                 onUploadPhotoToHeygen={handleUploadPhotoToHeygen}
+                isGenerating={isGenerating}
+              />
+              <VideoSidePanel
+                video={viewingVideo}
+                open={showSidePanel}
+                onOpenChange={(open) => { setShowSidePanel(open); if (!open) setViewingVideo(null); }}
+                advisors={advisors}
+                publishingChannels={publishingChannels}
+                onGenerateCover={handleGenerateCover}
+                onGenerateVideo={(video) => { setShowVideoDetail(true); }}
+                onUpdateVideo={updateVideo}
+                onPublish={handlePublishVideo}
                 isGenerating={isGenerating}
               />
             </>

@@ -10,6 +10,7 @@ import {
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import {
   Select,
   SelectContent,
@@ -18,26 +19,23 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu';
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from '@/components/ui/collapsible';
 import { Video } from '@/hooks/useVideos';
 import { Advisor } from '@/hooks/useAdvisors';
 import { Playlist } from '@/hooks/usePlaylists';
 import {
   Search,
-  MoreVertical,
-  Edit,
-  Trash2,
-  Play,
-  Image,
   Loader2,
-  ExternalLink,
   Plus,
   Upload,
-  Eye,
+  ChevronDown,
+  ChevronRight,
+  Play,
+  Image,
+  Sparkles,
 } from 'lucide-react';
 
 interface VideosTableProps {
@@ -61,14 +59,19 @@ interface VideosTableProps {
   onFilterChange: (filters: any) => void;
 }
 
-const statusLabels: Record<string, { label: string; variant: 'default' | 'secondary' | 'destructive' | 'outline' }> = {
-  pending: { label: 'Ожидает', variant: 'secondary' },
-  answer_ready: { label: 'Ответ готов', variant: 'outline' },
-  cover_ready: { label: 'Обложка готова', variant: 'outline' },
-  generating: { label: 'Генерация...', variant: 'default' },
-  ready: { label: 'Готово', variant: 'default' },
-  published: { label: 'Опубликовано', variant: 'default' },
-  error: { label: 'Ошибка', variant: 'destructive' },
+const coverStatusLabels: Record<string, { label: string; variant: 'default' | 'secondary' | 'destructive' | 'outline' }> = {
+  pending: { label: 'Pending', variant: 'secondary' },
+  generating: { label: 'In progress', variant: 'outline' },
+  ready: { label: 'Completed', variant: 'default' },
+  error: { label: 'Error', variant: 'destructive' },
+};
+
+const videoStatusLabels: Record<string, { label: string; variant: 'default' | 'secondary' | 'destructive' | 'outline' }> = {
+  pending: { label: 'Pending', variant: 'secondary' },
+  generating: { label: 'In progress', variant: 'outline' },
+  ready: { label: 'Completed', variant: 'default' },
+  published: { label: 'Published', variant: 'default' },
+  error: { label: 'Error', variant: 'destructive' },
 };
 
 export function VideosTable({
@@ -87,14 +90,40 @@ export function VideosTable({
   onFilterChange,
 }: VideosTableProps) {
   const [searchInput, setSearchInput] = useState(filters.search || '');
+  const [expandedQuestions, setExpandedQuestions] = useState<Set<string>>(new Set());
 
   const handleSearch = () => {
     onFilterChange({ ...filters, search: searchInput });
   };
 
-  const getStatusBadge = (status: string | null) => {
-    const statusInfo = statusLabels[status || 'pending'] || statusLabels.pending;
-    return <Badge variant={statusInfo.variant}>{statusInfo.label}</Badge>;
+  const toggleQuestion = (question: string) => {
+    const newExpanded = new Set(expandedQuestions);
+    if (newExpanded.has(question)) {
+      newExpanded.delete(question);
+    } else {
+      newExpanded.add(question);
+    }
+    setExpandedQuestions(newExpanded);
+  };
+
+  // Group videos by question
+  const groupedVideos = videos.reduce((acc, video) => {
+    const question = video.question || 'Без вопроса';
+    if (!acc[question]) {
+      acc[question] = [];
+    }
+    acc[question].push(video);
+    return acc;
+  }, {} as Record<string, Video[]>);
+
+  const getCoverStatusBadge = (status: string | null) => {
+    const statusInfo = coverStatusLabels[status || 'pending'] || coverStatusLabels.pending;
+    return <Badge variant={statusInfo.variant} className="text-xs">{statusInfo.label}</Badge>;
+  };
+
+  const getVideoStatusBadge = (status: string | null) => {
+    const statusInfo = videoStatusLabels[status || 'pending'] || videoStatusLabels.pending;
+    return <Badge variant={statusInfo.variant} className="text-xs">{statusInfo.label}</Badge>;
   };
 
   if (loading) {
@@ -171,7 +200,7 @@ export function VideosTable({
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="all">Все статусы</SelectItem>
-            {Object.entries(statusLabels).map(([key, { label }]) => (
+            {Object.entries(videoStatusLabels).map(([key, { label }]) => (
               <SelectItem key={key} value={key}>
                 {label}
               </SelectItem>
@@ -189,135 +218,181 @@ export function VideosTable({
         </Button>
       </div>
 
-      {/* Table */}
-      <div className="rounded-lg border">
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead className="w-[60px]">№</TableHead>
-              <TableHead className="w-[100px]">Обложка</TableHead>
-              <TableHead>Заголовок / Хук</TableHead>
-              <TableHead>Духовник</TableHead>
-              <TableHead>Плейлист</TableHead>
-              <TableHead>Статус</TableHead>
-              <TableHead>Соцсети</TableHead>
-              <TableHead className="w-[60px]"></TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {videos.length === 0 ? (
-              <TableRow>
-                <TableCell colSpan={8} className="text-center py-8 text-muted-foreground">
-                  Нет роликов
-                </TableCell>
-              </TableRow>
-            ) : (
-              videos.map((video) => (
-                <TableRow 
-                  key={video.id}
-                  className="cursor-pointer hover:bg-muted/50"
-                  onClick={() => onViewVideo(video)}
-                >
-                  <TableCell className="font-mono text-sm">
-                    {video.video_number || '—'}
-                  </TableCell>
-                  <TableCell>
-                    {video.cover_url ? (
-                      <img
-                        src={video.cover_url}
-                        alt=""
-                        className="w-16 h-16 object-cover rounded"
-                      />
-                    ) : (
-                      <div className="w-16 h-16 bg-muted rounded flex items-center justify-center">
-                        <Image className="w-6 h-6 text-muted-foreground" />
+      {/* Grouped Table */}
+      {Object.keys(groupedVideos).length === 0 ? (
+        <Card className="glass-card">
+          <CardContent className="flex flex-col items-center justify-center py-12">
+            <Play className="w-12 h-12 text-muted-foreground mb-4" />
+            <p className="text-muted-foreground">Нет роликов</p>
+          </CardContent>
+        </Card>
+      ) : (
+        <div className="space-y-4">
+          {Object.entries(groupedVideos).map(([question, questionVideos]) => (
+            <Card key={question} className="glass-card overflow-hidden">
+              <Collapsible
+                open={expandedQuestions.has(question) || expandedQuestions.size === 0}
+                onOpenChange={() => toggleQuestion(question)}
+              >
+                <CollapsibleTrigger asChild>
+                  <CardHeader className="cursor-pointer hover:bg-muted/50 transition-colors py-3">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-3">
+                        {expandedQuestions.has(question) || expandedQuestions.size === 0 ? (
+                          <ChevronDown className="w-5 h-5 text-muted-foreground" />
+                        ) : (
+                          <ChevronRight className="w-5 h-5 text-muted-foreground" />
+                        )}
+                        <CardTitle className="text-base font-medium">{question}</CardTitle>
                       </div>
-                    )}
-                  </TableCell>
-                  <TableCell>
-                    <div className="space-y-1">
-                      <div className="font-medium line-clamp-1">
-                        {video.video_title || video.question || 'Без заголовка'}
+                      <div className="flex items-center gap-2">
+                        <Badge variant="secondary">{questionVideos.length} роликов</Badge>
+                        <Badge variant="outline">
+                          {questionVideos.filter(v => v.generation_status === 'ready').length} готово
+                        </Badge>
                       </div>
-                      {video.hook && (
-                        <div className="text-sm text-muted-foreground line-clamp-1">
-                          {video.hook}
-                        </div>
-                      )}
                     </div>
-                  </TableCell>
-                  <TableCell>
-                    <Badge variant="outline">
-                      {video.advisor?.name || '—'}
-                    </Badge>
-                  </TableCell>
-                  <TableCell>
-                    <Badge variant="secondary">
-                      {video.playlist?.name || '—'}
-                    </Badge>
-                  </TableCell>
-                  <TableCell>{getStatusBadge(video.generation_status)}</TableCell>
-                  <TableCell>
-                    <div className="flex gap-1">
-                      {video.tiktok_url && (
-                        <Button variant="ghost" size="icon" className="h-6 w-6" asChild>
-                          <a href={video.tiktok_url} target="_blank" rel="noopener noreferrer">
-                            <ExternalLink className="w-3 h-3" />
-                          </a>
-                        </Button>
-                      )}
-                      {video.youtube_url && (
-                        <Button variant="ghost" size="icon" className="h-6 w-6" asChild>
-                          <a href={video.youtube_url} target="_blank" rel="noopener noreferrer">
-                            <ExternalLink className="w-3 h-3" />
-                          </a>
-                        </Button>
-                      )}
-                    </div>
-                  </TableCell>
-                  <TableCell onClick={(e) => e.stopPropagation()}>
-                    <DropdownMenu>
-                      <DropdownMenuTrigger asChild>
-                        <Button variant="ghost" size="icon" className="h-8 w-8">
-                          <MoreVertical className="w-4 h-4" />
-                        </Button>
-                      </DropdownMenuTrigger>
-                      <DropdownMenuContent align="end">
-                        <DropdownMenuItem onClick={() => onViewVideo(video)}>
-                          <Eye className="w-4 h-4 mr-2" />
-                          Просмотр
-                        </DropdownMenuItem>
-                        <DropdownMenuItem onClick={() => onEditVideo(video)}>
-                          <Edit className="w-4 h-4 mr-2" />
-                          Редактировать
-                        </DropdownMenuItem>
-                        <DropdownMenuItem onClick={() => onGenerateCover(video)}>
-                          <Image className="w-4 h-4 mr-2" />
-                          Создать обложку
-                        </DropdownMenuItem>
-                        <DropdownMenuItem onClick={() => onGenerateVideo(video)}>
-                          <Play className="w-4 h-4 mr-2" />
-                          Генерировать видео
-                        </DropdownMenuItem>
-                        <DropdownMenuItem
-                          onClick={() => onDeleteVideo(video.id)}
-                          className="text-destructive focus:text-destructive"
-                        >
-                          <Trash2 className="w-4 h-4 mr-2" />
-                          Удалить
-                        </DropdownMenuItem>
-                      </DropdownMenuContent>
-                    </DropdownMenu>
-                  </TableCell>
-                </TableRow>
-              ))
-            )}
-          </TableBody>
-        </Table>
-      </div>
+                  </CardHeader>
+                </CollapsibleTrigger>
+                <CollapsibleContent>
+                  <div className="border-t">
+                    <Table>
+                      <TableHeader>
+                        <TableRow className="bg-muted/30">
+                          <TableHead className="w-[50px]">ID</TableHead>
+                          <TableHead className="w-[120px]">Духовник</TableHead>
+                          <TableHead className="w-[120px]">Cover Status</TableHead>
+                          <TableHead className="w-[120px]">Video Status</TableHead>
+                          <TableHead className="w-[80px]">Длина</TableHead>
+                          <TableHead className="w-[120px]">Front cover</TableHead>
+                          <TableHead className="w-[120px]">Video</TableHead>
+                          <TableHead>Каналы</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {questionVideos.map((video) => (
+                          <TableRow
+                            key={video.id}
+                            className="cursor-pointer hover:bg-muted/50"
+                            onClick={() => onViewVideo(video)}
+                          >
+                            <TableCell className="font-mono text-sm">
+                              {video.video_number || '—'}
+                            </TableCell>
+                            <TableCell>
+                              <div className="flex items-center gap-2">
+                                {video.main_photo_url ? (
+                                  <img
+                                    src={video.main_photo_url}
+                                    alt=""
+                                    className="w-8 h-8 rounded-full object-cover"
+                                  />
+                                ) : (
+                                  <div className="w-8 h-8 rounded-full bg-muted flex items-center justify-center">
+                                    <span className="text-xs">—</span>
+                                  </div>
+                                )}
+                                <span className="text-sm truncate max-w-[80px]">
+                                  {video.advisor?.display_name || video.advisor?.name || '—'}
+                                </span>
+                              </div>
+                            </TableCell>
+                            <TableCell>
+                              {getCoverStatusBadge(video.cover_status)}
+                            </TableCell>
+                            <TableCell>
+                              {getVideoStatusBadge(video.generation_status)}
+                            </TableCell>
+                            <TableCell className="text-sm">
+                              {video.video_duration ? `${video.video_duration}s` : '—'}
+                            </TableCell>
+                            <TableCell onClick={(e) => e.stopPropagation()}>
+                              {video.cover_status === 'ready' && video.front_cover_url ? (
+                                <div className="flex items-center gap-2">
+                                  <img
+                                    src={video.front_cover_url}
+                                    alt=""
+                                    className="w-10 h-10 rounded object-cover"
+                                  />
+                                </div>
+                              ) : video.cover_status === 'generating' ? (
+                                <Button size="sm" variant="outline" disabled className="h-8">
+                                  <Loader2 className="w-3 h-3 mr-1 animate-spin" />
+                                  <span className="text-xs">Generating...</span>
+                                </Button>
+                              ) : (
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  className="h-8"
+                                  onClick={() => onGenerateCover(video)}
+                                >
+                                  <Sparkles className="w-3 h-3 mr-1" />
+                                  <span className="text-xs">Generate</span>
+                                </Button>
+                              )}
+                            </TableCell>
+                            <TableCell onClick={(e) => e.stopPropagation()}>
+                              {video.generation_status === 'ready' && video.heygen_video_url ? (
+                                <Button
+                                  size="sm"
+                                  variant="ghost"
+                                  className="h-8"
+                                  onClick={() => window.open(video.heygen_video_url!, '_blank')}
+                                >
+                                  <Play className="w-3 h-3 mr-1" />
+                                  <span className="text-xs">View</span>
+                                </Button>
+                              ) : video.generation_status === 'generating' ? (
+                                <Button size="sm" variant="outline" disabled className="h-8">
+                                  <Loader2 className="w-3 h-3 mr-1 animate-spin" />
+                                  <span className="text-xs">Generating...</span>
+                                </Button>
+                              ) : (
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  className="h-8"
+                                  onClick={() => onGenerateVideo(video)}
+                                >
+                                  <Play className="w-3 h-3 mr-1" />
+                                  <span className="text-xs">Generate</span>
+                                </Button>
+                              )}
+                            </TableCell>
+                            <TableCell>
+                              <div className="flex gap-1">
+                                {video.instagram_url && (
+                                  <Badge variant="outline" className="text-[10px] px-1">IG</Badge>
+                                )}
+                                {video.tiktok_url && (
+                                  <Badge variant="outline" className="text-[10px] px-1">TT</Badge>
+                                )}
+                                {video.youtube_url && (
+                                  <Badge variant="outline" className="text-[10px] px-1">YT</Badge>
+                                )}
+                                {video.facebook_url && (
+                                  <Badge variant="outline" className="text-[10px] px-1">FB</Badge>
+                                )}
+                                {!video.instagram_url && !video.tiktok_url && !video.youtube_url && !video.facebook_url && (
+                                  <span className="text-xs text-muted-foreground">—</span>
+                                )}
+                              </div>
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </div>
+                </CollapsibleContent>
+              </Collapsible>
+            </Card>
+          ))}
+        </div>
+      )}
 
       <div className="text-sm text-muted-foreground">
-        Показано {videos.length} роликов
+        Показано {videos.length} роликов в {Object.keys(groupedVideos).length} вопросах
       </div>
     </div>
   );
