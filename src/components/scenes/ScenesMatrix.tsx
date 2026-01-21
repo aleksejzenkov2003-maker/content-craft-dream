@@ -46,15 +46,34 @@ export function ScenesMatrix() {
   const handleCreateScene = async () => {
     if (!newSceneData) return;
 
-    await addScene({
-      playlist_id: newSceneData.playlistId,
-      advisor_id: newSceneData.advisorId,
-      scene_prompt: newSceneData.prompt,
-      status: 'waiting',
-    });
+    try {
+      // Get advisor photo for generation
+      const advisor = advisors.find(a => a.id === newSceneData.advisorId);
+      const advisorPhotoUrl = advisor?.photos?.find(p => p.is_primary)?.photo_url;
 
-    setNewSceneData(null);
-    setIsDialogOpen(false);
+      const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/generate-scene`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
+        },
+        body: JSON.stringify({
+          playlistId: newSceneData.playlistId,
+          advisorId: newSceneData.advisorId,
+          prompt: newSceneData.prompt,
+          advisorPhotoUrl,
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to generate scene');
+      }
+
+      setNewSceneData(null);
+      setIsDialogOpen(false);
+    } catch (error) {
+      console.error('Error creating scene:', error);
+    }
   };
 
   const handleApprove = async (scene: PlaylistScene) => {

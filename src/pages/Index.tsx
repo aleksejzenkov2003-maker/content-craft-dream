@@ -87,7 +87,34 @@ export default function Index() {
   };
 
   const handleGenerateCover = async (video: Video) => {
-    toast.info('Генерация обложки будет реализована');
+    try {
+      toast.info('Генерация обложки...');
+      
+      const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/generate-cover`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
+        },
+        body: JSON.stringify({
+          videoId: video.id,
+          prompt: video.cover_prompt,
+          advisorPhotoUrl: video.main_photo_url,
+          advisorName: video.advisor?.display_name || video.advisor?.name,
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to generate cover');
+      }
+
+      toast.success('Обложка сгенерирована!');
+      refetchVideos();
+    } catch (error) {
+      console.error('Error generating cover:', error);
+      toast.error('Ошибка генерации обложки');
+      refetchVideos();
+    }
   };
 
   const handleViewVideo = (video: Video) => {
