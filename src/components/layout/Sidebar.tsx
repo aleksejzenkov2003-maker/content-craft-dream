@@ -9,13 +9,17 @@ import {
   Zap,
   Users,
   ListVideo,
+  Send,
+  Globe,
+  Image,
+  HelpCircle,
 } from 'lucide-react';
 
 interface NavItem {
   id: string;
   label: string;
   icon: React.ElementType;
-  badgeKey?: 'advisors' | 'videos' | 'playlists';
+  badgeKey?: 'advisors' | 'videos' | 'playlists' | 'publications';
 }
 
 const navItems: NavItem[] = [
@@ -23,6 +27,10 @@ const navItems: NavItem[] = [
   { id: 'advisors', label: 'Духовники', icon: Users, badgeKey: 'advisors' },
   { id: 'videos', label: 'Ролики', icon: Video, badgeKey: 'videos' },
   { id: 'playlists', label: 'Плейлисты', icon: ListVideo, badgeKey: 'playlists' },
+  { id: 'questions', label: 'Вопросы', icon: HelpCircle },
+  { id: 'scenes', label: 'Сцены', icon: Image },
+  { id: 'publications', label: 'Публикации', icon: Send, badgeKey: 'publications' },
+  { id: 'channels', label: 'Каналы', icon: Globe },
 ];
 
 interface SidebarProps {
@@ -32,13 +40,14 @@ interface SidebarProps {
     advisors?: number;
     videos?: number;
     playlists?: number;
+    publications?: number;
   };
 }
 
 export function Sidebar({ activeTab, onTabChange, counts = {} }: SidebarProps) {
   const [isCollapsed, setIsCollapsed] = useState(false);
 
-  const getBadge = (key?: 'advisors' | 'videos' | 'playlists') => {
+  const getBadge = (key?: 'advisors' | 'videos' | 'playlists' | 'publications') => {
     if (!key) return undefined;
     const count = counts[key];
     return count !== undefined && count > 0 ? count : undefined;

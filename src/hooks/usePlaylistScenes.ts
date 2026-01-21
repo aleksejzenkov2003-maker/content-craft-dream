@@ -1,0 +1,124 @@
+import { useState, useEffect, useCallback } from 'react';
+import { supabase } from '@/integrations/supabase/client';
+import { toast } from 'sonner';
+
+export interface PlaylistScene {
+  id: string;
+  playlist_id: string | null;
+  advisor_id: string | null;
+  scene_prompt: string | null;
+  scene_url: string | null;
+  status: string;
+  created_at: string;
+  updated_at: string;
+  // Joined data
+  playlist?: {
+    id: string;
+    name: string;
+  };
+  advisor?: {
+    id: string;
+    name: string;
+    display_name: string | null;
+  };
+}
+
+export function usePlaylistScenes() {
+  const [scenes, setScenes] = useState<PlaylistScene[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  const fetchScenes = useCallback(async () => {
+    try {
+      setLoading(true);
+      const { data, error } = await supabase
+        .from('playlist_scenes')
+        .select(`
+          *,
+          playlist:playlists (id, name),
+          advisor:advisors (id, name, display_name)
+        `)
+        .order('created_at', { ascending: false });
+
+      if (error) throw error;
+      setScenes(data || []);
+    } catch (error: any) {
+      console.error('Error fetching playlist scenes:', error);
+      toast.error('Ошибка загрузки сцен');
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchScenes();
+  }, [fetchScenes]);
+
+  const addScene = async (data: Partial<PlaylistScene>) => {
+    try {
+      const { data: newScene, error } = await supabase
+        .from('playlist_scenes')
+        .insert(data)
+        .select(`
+          *,
+          playlist:playlists (id, name),
+          advisor:advisors (id, name, display_name)
+        `)
+        .single();
+
+      if (error) throw error;
+
+      await fetchScenes();
+      toast.success('Сцена создана');
+      return newScene;
+    } catch (error: any) {
+      console.error('Error adding scene:', error);
+      toast.error('Ошибка создания сцены');
+      throw error;
+    }
+  };
+
+  const updateScene = async (id: string, updates: Partial<PlaylistScene>) => {
+    try {
+      const { error } = await supabase
+        .from('playlist_scenes')
+        .update(updates)
+        .eq('id', id);
+
+      if (error) throw error;
+
+      await fetchScenes();
+      toast.success('Сцена обновлена');
+    } catch (error: any) {
+      console.error('Error updating scene:', error);
+      toast.error('Ошибка обновления сцены');
+      throw error;
+    }
+  };
+
+  const deleteScene = async (id: string) => {
+    try {
+      const { error } = await supabase
+        .from('playlist_scenes')
+        .delete()
+        .eq('id', id);
+
+      if (error) throw error;
+
+      await fetchScenes();
+      toast.success('Сцена удалена');
+    } catch (error: any) {
+      console.error('Error deleting scene:', error);
+      toast.error('Ошибка удаления сцены');
+      throw error;
+    }
+  };
+
+  return {
+    scenes,
+    loading,
+    refetch: fetchScenes,
+    addScene,
+    updateScene,
+    deleteScene,
+  };
+}

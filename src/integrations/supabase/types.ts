@@ -99,6 +99,7 @@ export type Database = {
       }
       advisors: {
         Row: {
+          back_cover_template_url: string | null
           created_at: string
           display_name: string | null
           elevenlabs_voice_id: string | null
@@ -109,6 +110,7 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          back_cover_template_url?: string | null
           created_at?: string
           display_name?: string | null
           elevenlabs_voice_id?: string | null
@@ -119,6 +121,7 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          back_cover_template_url?: string | null
           created_at?: string
           display_name?: string | null
           elevenlabs_voice_id?: string | null
@@ -165,6 +168,47 @@ export type Database = {
           url?: string
         }
         Relationships: []
+      }
+      cover_thumbnails: {
+        Row: {
+          back_cover_url: string | null
+          created_at: string
+          front_cover_url: string | null
+          id: string
+          prompt: string | null
+          status: string | null
+          updated_at: string
+          video_id: string | null
+        }
+        Insert: {
+          back_cover_url?: string | null
+          created_at?: string
+          front_cover_url?: string | null
+          id?: string
+          prompt?: string | null
+          status?: string | null
+          updated_at?: string
+          video_id?: string | null
+        }
+        Update: {
+          back_cover_url?: string | null
+          created_at?: string
+          front_cover_url?: string | null
+          id?: string
+          prompt?: string | null
+          status?: string | null
+          updated_at?: string
+          video_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "cover_thumbnails_video_id_fkey"
+            columns: ["video_id"]
+            isOneToOne: false
+            referencedRelation: "videos"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       heygen_avatars: {
         Row: {
@@ -270,12 +314,61 @@ export type Database = {
           },
         ]
       }
+      playlist_scenes: {
+        Row: {
+          advisor_id: string | null
+          created_at: string
+          id: string
+          playlist_id: string | null
+          scene_prompt: string | null
+          scene_url: string | null
+          status: string | null
+          updated_at: string
+        }
+        Insert: {
+          advisor_id?: string | null
+          created_at?: string
+          id?: string
+          playlist_id?: string | null
+          scene_prompt?: string | null
+          scene_url?: string | null
+          status?: string | null
+          updated_at?: string
+        }
+        Update: {
+          advisor_id?: string | null
+          created_at?: string
+          id?: string
+          playlist_id?: string | null
+          scene_prompt?: string | null
+          scene_url?: string | null
+          status?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "playlist_scenes_advisor_id_fkey"
+            columns: ["advisor_id"]
+            isOneToOne: false
+            referencedRelation: "advisors"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "playlist_scenes_playlist_id_fkey"
+            columns: ["playlist_id"]
+            isOneToOne: false
+            referencedRelation: "playlists"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       playlists: {
         Row: {
           created_at: string
           description: string | null
           id: string
           name: string
+          scene_prompt: string | null
           updated_at: string
           video_count: number | null
         }
@@ -284,6 +377,7 @@ export type Database = {
           description?: string | null
           id?: string
           name: string
+          scene_prompt?: string | null
           updated_at?: string
           video_count?: number | null
         }
@@ -292,6 +386,7 @@ export type Database = {
           description?: string | null
           id?: string
           name?: string
+          scene_prompt?: string | null
           updated_at?: string
           video_count?: number | null
         }
@@ -383,6 +478,114 @@ export type Database = {
           type?: string
           updated_at?: string
           user_template?: string
+        }
+        Relationships: []
+      }
+      publications: {
+        Row: {
+          channel_id: string | null
+          created_at: string
+          error_message: string | null
+          followers: number | null
+          generated_text: string | null
+          id: string
+          likes: number | null
+          post_date: string | null
+          post_url: string | null
+          profile_views: number | null
+          publication_status: string | null
+          reach: number | null
+          updated_at: string
+          video_id: string | null
+          views: number | null
+        }
+        Insert: {
+          channel_id?: string | null
+          created_at?: string
+          error_message?: string | null
+          followers?: number | null
+          generated_text?: string | null
+          id?: string
+          likes?: number | null
+          post_date?: string | null
+          post_url?: string | null
+          profile_views?: number | null
+          publication_status?: string | null
+          reach?: number | null
+          updated_at?: string
+          video_id?: string | null
+          views?: number | null
+        }
+        Update: {
+          channel_id?: string | null
+          created_at?: string
+          error_message?: string | null
+          followers?: number | null
+          generated_text?: string | null
+          id?: string
+          likes?: number | null
+          post_date?: string | null
+          post_url?: string | null
+          profile_views?: number | null
+          publication_status?: string | null
+          reach?: number | null
+          updated_at?: string
+          video_id?: string | null
+          views?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "publications_channel_id_fkey"
+            columns: ["channel_id"]
+            isOneToOne: false
+            referencedRelation: "publishing_channels"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "publications_video_id_fkey"
+            columns: ["video_id"]
+            isOneToOne: false
+            referencedRelation: "videos"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      publishing_channels: {
+        Row: {
+          api_credentials: Json | null
+          created_at: string
+          id: string
+          is_active: boolean | null
+          location: string | null
+          name: string
+          network_type: string
+          post_text_prompt: string | null
+          proxy_server: string | null
+          updated_at: string
+        }
+        Insert: {
+          api_credentials?: Json | null
+          created_at?: string
+          id?: string
+          is_active?: boolean | null
+          location?: string | null
+          name: string
+          network_type: string
+          post_text_prompt?: string | null
+          proxy_server?: string | null
+          updated_at?: string
+        }
+        Update: {
+          api_credentials?: Json | null
+          created_at?: string
+          id?: string
+          is_active?: boolean | null
+          location?: string | null
+          name?: string
+          network_type?: string
+          post_text_prompt?: string | null
+          proxy_server?: string | null
+          updated_at?: string
         }
         Relationships: []
       }
@@ -553,10 +756,13 @@ export type Database = {
           advisor_id: string | null
           answer_prompt: string | null
           answer_status: string | null
+          back_cover_url: string | null
           cover_prompt: string | null
+          cover_status: string | null
           cover_url: string | null
           created_at: string
           facebook_url: string | null
+          front_cover_url: string | null
           generation_status: string | null
           heygen_video_id: string | null
           heygen_video_url: string | null
@@ -566,12 +772,15 @@ export type Database = {
           main_photo_url: string | null
           pinterest_url: string | null
           playlist_id: string | null
+          publication_date: string | null
           question: string | null
           question_id: number | null
           reddit_url: string | null
+          reel_status: string | null
           safety_score: string | null
           tiktok_url: string | null
           updated_at: string
+          video_duration: number | null
           video_number: number | null
           video_path: string | null
           video_title: string | null
@@ -582,10 +791,13 @@ export type Database = {
           advisor_id?: string | null
           answer_prompt?: string | null
           answer_status?: string | null
+          back_cover_url?: string | null
           cover_prompt?: string | null
+          cover_status?: string | null
           cover_url?: string | null
           created_at?: string
           facebook_url?: string | null
+          front_cover_url?: string | null
           generation_status?: string | null
           heygen_video_id?: string | null
           heygen_video_url?: string | null
@@ -595,12 +807,15 @@ export type Database = {
           main_photo_url?: string | null
           pinterest_url?: string | null
           playlist_id?: string | null
+          publication_date?: string | null
           question?: string | null
           question_id?: number | null
           reddit_url?: string | null
+          reel_status?: string | null
           safety_score?: string | null
           tiktok_url?: string | null
           updated_at?: string
+          video_duration?: number | null
           video_number?: number | null
           video_path?: string | null
           video_title?: string | null
@@ -611,10 +826,13 @@ export type Database = {
           advisor_id?: string | null
           answer_prompt?: string | null
           answer_status?: string | null
+          back_cover_url?: string | null
           cover_prompt?: string | null
+          cover_status?: string | null
           cover_url?: string | null
           created_at?: string
           facebook_url?: string | null
+          front_cover_url?: string | null
           generation_status?: string | null
           heygen_video_id?: string | null
           heygen_video_url?: string | null
@@ -624,12 +842,15 @@ export type Database = {
           main_photo_url?: string | null
           pinterest_url?: string | null
           playlist_id?: string | null
+          publication_date?: string | null
           question?: string | null
           question_id?: number | null
           reddit_url?: string | null
+          reel_status?: string | null
           safety_score?: string | null
           tiktok_url?: string | null
           updated_at?: string
+          video_duration?: number | null
           video_number?: number | null
           video_path?: string | null
           video_title?: string | null

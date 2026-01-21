@@ -7,6 +7,7 @@ export interface Playlist {
   name: string;
   description: string | null;
   video_count: number;
+  scene_prompt: string | null;
   created_at: string;
   updated_at: string;
 }
