@@ -8,18 +8,29 @@ import { VideosTable } from '@/components/videos/VideosTable';
 import { VideoEditorDialog } from '@/components/videos/VideoEditorDialog';
 import { VideoImportDialog } from '@/components/videos/VideoImportDialog';
 import { VideoDetailModal } from '@/components/videos/VideoDetailModal';
+import { PublishingChannelsGrid } from '@/components/publishing/PublishingChannelsGrid';
+import { PublicationsTable } from '@/components/publishing/PublicationsTable';
+import { ScenesMatrix } from '@/components/scenes/ScenesMatrix';
 import { useAdvisors } from '@/hooks/useAdvisors';
 import { usePlaylists } from '@/hooks/usePlaylists';
 import { useVideos, Video, VideoFilters } from '@/hooks/useVideos';
 import { useVideoGeneration } from '@/hooks/useVideoGeneration';
-import { Users, ListVideo, Video as VideoIcon, CheckCircle, Loader2 } from 'lucide-react';
+import { usePublications } from '@/hooks/usePublications';
+import { Users, ListVideo, Video as VideoIcon, CheckCircle, Loader2, Send, HelpCircle, Image, Globe } from 'lucide-react';
 import { toast } from 'sonner';
+import { Card, CardContent } from '@/components/ui/card';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 
 const headerTitles: Record<string, { title: string; subtitle: string }> = {
   dashboard: { title: 'Дашборд', subtitle: 'Общая статистика' },
   advisors: { title: 'Духовники', subtitle: 'Управление аватарами и настройками' },
   videos: { title: 'Ролики', subtitle: 'Все видео с духовниками' },
   playlists: { title: 'Плейлисты', subtitle: 'Группировка видео по категориям' },
+  questions: { title: 'Вопросы', subtitle: 'Список вопросов для роликов' },
+  scenes: { title: 'Сцены', subtitle: 'Генерация сцен для плейлистов' },
+  publications: { title: 'Публикации', subtitle: 'Управление публикациями в соцсетях' },
+  channels: { title: 'Каналы', subtitle: 'Настройка каналов публикации' },
+  settings: { title: 'Настройки', subtitle: 'Конфигурация системы' },
 };
 
 export default function Index() {
@@ -30,10 +41,12 @@ export default function Index() {
   const [showVideoEditor, setShowVideoEditor] = useState(false);
   const [showVideoDetail, setShowVideoDetail] = useState(false);
   const [showImportDialog, setShowImportDialog] = useState(false);
+  const [publicationsTab, setPublicationsTab] = useState('by-channel');
 
   const { advisors, loading: advisorsLoading, addAdvisor, updateAdvisor, deleteAdvisor, addPhoto, deletePhoto, setPrimaryPhoto, updatePhotoAssetId } = useAdvisors();
   const { playlists, loading: playlistsLoading, addPlaylist, updatePlaylist, deletePlaylist } = usePlaylists();
   const { videos, loading: videosLoading, addVideo, updateVideo, deleteVideo, refetch: refetchVideos, bulkImport } = useVideos(videoFilters);
+  const { publications, loading: publicationsLoading } = usePublications();
   
   const { 
     isGenerating, 
@@ -53,6 +66,7 @@ export default function Index() {
     advisors: advisors.length,
     videos: videos.length,
     playlists: playlists.length,
+    publications: publications.length,
   };
 
   const handleUploadToHeygen = async (photo: any) => {
@@ -88,6 +102,9 @@ export default function Index() {
   const handleRefresh = () => {
     refetchVideos();
   };
+
+  // Get unique questions from videos
+  const questions = [...new Set(videos.map(v => v.question).filter(Boolean))];
 
   const isLoading = advisorsLoading || playlistsLoading || videosLoading;
 
@@ -138,6 +155,24 @@ export default function Index() {
                       changeType="positive"
                       icon={CheckCircle}
                       iconColor="text-success"
+                    />
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                    <StatsCard
+                      title="Вопросов"
+                      value={questions.length}
+                      change="уникальных"
+                      changeType="neutral"
+                      icon={HelpCircle}
+                    />
+                    <StatsCard
+                      title="Публикаций"
+                      value={publications.length}
+                      change="всего"
+                      changeType="positive"
+                      icon={Send}
+                      iconColor="text-info"
                     />
                   </div>
                 </>
@@ -216,6 +251,76 @@ export default function Index() {
                 setActiveTab('videos');
               }}
             />
+          )}
+
+          {activeTab === 'questions' && (
+            <div className="space-y-6">
+              <h2 className="text-2xl font-bold">Вопросы</h2>
+              {questions.length === 0 ? (
+                <Card className="glass-card">
+                  <CardContent className="flex flex-col items-center justify-center py-12">
+                    <HelpCircle className="w-12 h-12 text-muted-foreground mb-4" />
+                    <p className="text-muted-foreground">Нет вопросов. Вопросы создаются автоматически при добавлении роликов.</p>
+                  </CardContent>
+                </Card>
+              ) : (
+                <div className="space-y-4">
+                  {questions.map((question, index) => {
+                    const questionVideos = videos.filter(v => v.question === question);
+                    return (
+                      <Card key={index} className="glass-card">
+                        <CardContent className="p-4">
+                          <div className="flex items-center justify-between">
+                            <div>
+                              <h3 className="font-medium">{question}</h3>
+                              <p className="text-sm text-muted-foreground">
+                                {questionVideos.length} роликов
+                              </p>
+                            </div>
+                          </div>
+                        </CardContent>
+                      </Card>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          )}
+
+          {activeTab === 'scenes' && (
+            <ScenesMatrix />
+          )}
+
+          {activeTab === 'publications' && (
+            <div className="space-y-6">
+              <Tabs value={publicationsTab} onValueChange={setPublicationsTab}>
+                <TabsList>
+                  <TabsTrigger value="by-channel">По каналам</TabsTrigger>
+                  <TabsTrigger value="by-question">По вопросам</TabsTrigger>
+                </TabsList>
+                <TabsContent value="by-channel" className="mt-4">
+                  <PublicationsTable groupBy="channel" />
+                </TabsContent>
+                <TabsContent value="by-question" className="mt-4">
+                  <PublicationsTable groupBy="question" />
+                </TabsContent>
+              </Tabs>
+            </div>
+          )}
+
+          {activeTab === 'channels' && (
+            <PublishingChannelsGrid />
+          )}
+
+          {activeTab === 'settings' && (
+            <div className="space-y-6">
+              <h2 className="text-2xl font-bold">Настройки</h2>
+              <Card className="glass-card">
+                <CardContent className="flex flex-col items-center justify-center py-12">
+                  <p className="text-muted-foreground">Настройки будут добавлены позже</p>
+                </CardContent>
+              </Card>
+            </div>
           )}
         </div>
       </main>
