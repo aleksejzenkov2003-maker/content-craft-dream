@@ -48,8 +48,8 @@ export function PublicationsTable({ groupBy = 'channel' }: PublicationsTableProp
   const [filterStatus, setFilterStatus] = useState<string>('');
 
   const filteredPublications = publications.filter((pub) => {
-    if (filterChannel && pub.channel_id !== filterChannel) return false;
-    if (filterStatus && pub.publication_status !== filterStatus) return false;
+    if (filterChannel && filterChannel !== 'all' && pub.channel_id !== filterChannel) return false;
+    if (filterStatus && filterStatus !== 'all' && pub.publication_status !== filterStatus) return false;
     return true;
   });
 
@@ -89,12 +89,12 @@ export function PublicationsTable({ groupBy = 'channel' }: PublicationsTableProp
     <div className="space-y-6">
       {/* Filters */}
       <div className="flex gap-4">
-        <Select value={filterChannel} onValueChange={setFilterChannel}>
+        <Select value={filterChannel || 'all'} onValueChange={(v) => setFilterChannel(v === 'all' ? '' : v)}>
           <SelectTrigger className="w-[200px]">
             <SelectValue placeholder="Все каналы" />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="">Все каналы</SelectItem>
+            <SelectItem value="all">Все каналы</SelectItem>
             {channels.map((channel) => (
               <SelectItem key={channel.id} value={channel.id}>
                 {channel.name}
@@ -103,12 +103,12 @@ export function PublicationsTable({ groupBy = 'channel' }: PublicationsTableProp
           </SelectContent>
         </Select>
 
-        <Select value={filterStatus} onValueChange={setFilterStatus}>
+        <Select value={filterStatus || 'all'} onValueChange={(v) => setFilterStatus(v === 'all' ? '' : v)}>
           <SelectTrigger className="w-[200px]">
             <SelectValue placeholder="Все статусы" />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="">Все статусы</SelectItem>
+            <SelectItem value="all">Все статусы</SelectItem>
             <SelectItem value="pending">Ожидает</SelectItem>
             <SelectItem value="scheduled">Запланирован</SelectItem>
             <SelectItem value="published">Опубликован</SelectItem>
