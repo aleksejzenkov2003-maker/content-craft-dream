@@ -2,7 +2,9 @@ import { useState, useMemo } from 'react';
 import { format } from 'date-fns';
 import { ru } from 'date-fns/locale';
 import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Checkbox } from '@/components/ui/checkbox';
 import { Input } from '@/components/ui/input';
 import {
   Table,
@@ -12,16 +14,16 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
-import { Loader2, Search, Shield, CheckCircle, Clock, AlertCircle } from 'lucide-react';
+import { Loader2, Search, Shield, CheckCircle, Clock, AlertCircle, Trash2, Play } from 'lucide-react';
 import { Video } from '@/hooks/useVideos';
 import { Publication } from '@/hooks/usePublications';
-import { Progress } from '@/components/ui/progress';
 
 interface QuestionsTableProps {
   videos: Video[];
   publications: Publication[];
   loading: boolean;
   onSelectQuestion?: (questionId: number) => void;
+  onBulkAction?: (questionIds: number[], action: 'delete' | 'generate') => void;
 }
 
 interface QuestionData {
@@ -36,8 +38,9 @@ interface QuestionData {
   publicationsCount: number;
 }
 
-export function QuestionsTable({ videos, publications, loading, onSelectQuestion }: QuestionsTableProps) {
+export function QuestionsTable({ videos, publications, loading, onSelectQuestion, onBulkAction }: QuestionsTableProps) {
   const [search, setSearch] = useState('');
+  const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
 
   const questions = useMemo(() => {
     const questionMap = new Map<string, QuestionData>();
@@ -80,18 +83,46 @@ export function QuestionsTable({ videos, publications, loading, onSelectQuestion
     );
   }, [questions, search]);
 
+  const allSelected = filteredQuestions.length > 0 && filteredQuestions.every(q => selectedIds.has(q.id));
+  const someSelected = selectedIds.size > 0;
+
+  const toggleSelectAll = () => {
+    if (allSelected) {
+      setSelectedIds(new Set());
+    } else {
+      setSelectedIds(new Set(filteredQuestions.map(q => q.id)));
+    }
+  };
+
+  const toggleSelect = (id: number) => {
+    const newSet = new Set(selectedIds);
+    if (newSet.has(id)) {
+      newSet.delete(id);
+    } else {
+      newSet.add(id);
+    }
+    setSelectedIds(newSet);
+  };
+
+  const handleBulkAction = (action: 'delete' | 'generate') => {
+    if (selectedIds.size > 0 && onBulkAction) {
+      onBulkAction(Array.from(selectedIds), action);
+      setSelectedIds(new Set());
+    }
+  };
+
   const getSafetyBadge = (score: string) => {
     switch (score) {
       case 'safe':
         return (
-          <Badge variant="default" className="bg-success/20 text-success border-success/30">
+          <Badge variant="default" className="bg-emerald-500/20 text-emerald-600 border-emerald-500/30">
             <Shield className="w-3 h-3 mr-1" />
             Безопасно
           </Badge>
         );
       case 'warning':
         return (
-          <Badge variant="secondary" className="bg-warning/20 text-warning border-warning/30">
+          <Badge variant="secondary" className="bg-amber-500/20 text-amber-600 border-amber-500/30">
             <AlertCircle className="w-3 h-3 mr-1" />
             Внимание
           </Badge>
@@ -117,9 +148,9 @@ export function QuestionsTable({ videos, publications, loading, onSelectQuestion
     switch (status) {
       case 'ready':
       case 'published':
-        return <CheckCircle className="w-4 h-4 text-success" />;
+        return <CheckCircle className="w-4 h-4 text-emerald-500" />;
       case 'in_progress':
-        return <Loader2 className="w-4 h-4 text-info animate-spin" />;
+        return <Loader2 className="w-4 h-4 text-blue-500 animate-spin" />;
       default:
         return <Clock className="w-4 h-4 text-muted-foreground" />;
     }
@@ -150,6 +181,41 @@ export function QuestionsTable({ videos, publications, loading, onSelectQuestion
         </div>
       </div>
 
+      {/* Bulk Actions Bar */}
+      {someSelected && (
+        <div className="flex items-center gap-4 p-3 bg-muted/50 rounded-lg border">
+          <span className="text-sm font-medium">
+            Выбрано: {selectedIds.size}
+          </span>
+          <div className="flex gap-2">
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => handleBulkAction('generate')}
+            >
+              <Play className="w-4 h-4 mr-2" />
+              Сгенерировать
+            </Button>
+            <Button
+              size="sm"
+              variant="outline"
+              className="text-destructive hover:text-destructive"
+              onClick={() => handleBulkAction('delete')}
+            >
+              <Trash2 className="w-4 h-4 mr-2" />
+              Удалить
+            </Button>
+          </div>
+          <Button
+            size="sm"
+            variant="ghost"
+            onClick={() => setSelectedIds(new Set())}
+          >
+            Отменить выбор
+          </Button>
+        </div>
+      )}
+
       <Card className="glass-card">
         <CardHeader className="pb-3">
           <CardTitle className="text-lg">Вопросы к духовникам</CardTitle>
@@ -158,6 +224,13 @@ export function QuestionsTable({ videos, publications, loading, onSelectQuestion
           <Table>
             <TableHeader>
               <TableRow>
+                <TableHead className="w-12">
+                  <Checkbox
+                    checked={allSelected}
+                    onCheckedChange={toggleSelectAll}
+                    aria-label="Выбрать все"
+                  />
+                </TableHead>
                 <TableHead className="w-16">ID</TableHead>
                 <TableHead className="w-32">Безопасность</TableHead>
                 <TableHead className="w-24">Актуальность</TableHead>
@@ -170,7 +243,7 @@ export function QuestionsTable({ videos, publications, loading, onSelectQuestion
             <TableBody>
               {filteredQuestions.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={7} className="text-center py-8 text-muted-foreground">
+                  <TableCell colSpan={8} className="text-center py-8 text-muted-foreground">
                     Нет вопросов
                   </TableCell>
                 </TableRow>
@@ -178,28 +251,42 @@ export function QuestionsTable({ videos, publications, loading, onSelectQuestion
                 filteredQuestions.map((q) => (
                   <TableRow
                     key={q.id}
-                    className="cursor-pointer hover:bg-muted/50"
-                    onClick={() => onSelectQuestion?.(q.id)}
+                    className={`cursor-pointer hover:bg-muted/50 ${selectedIds.has(q.id) ? 'bg-muted/30' : ''}`}
                   >
-                    <TableCell className="font-mono text-muted-foreground">
+                    <TableCell onClick={(e) => e.stopPropagation()}>
+                      <Checkbox
+                        checked={selectedIds.has(q.id)}
+                        onCheckedChange={() => toggleSelect(q.id)}
+                        aria-label={`Выбрать вопрос ${q.id}`}
+                      />
+                    </TableCell>
+                    <TableCell 
+                      className="font-mono text-muted-foreground"
+                      onClick={() => onSelectQuestion?.(q.id)}
+                    >
                       {q.id}
                     </TableCell>
-                    <TableCell>{getSafetyBadge(q.safetyScore)}</TableCell>
-                    <TableCell>
+                    <TableCell onClick={() => onSelectQuestion?.(q.id)}>
+                      {getSafetyBadge(q.safetyScore)}
+                    </TableCell>
+                    <TableCell onClick={() => onSelectQuestion?.(q.id)}>
                       <div className="flex items-center gap-2">
                         <div className="w-12 h-2 bg-muted rounded-full overflow-hidden">
                           <div
-                            className="h-full bg-primary rounded-full"
+                            className="h-full bg-emerald-500 rounded-full"
                             style={{ width: `${q.relevanceScore}%` }}
                           />
                         </div>
                         <span className="text-xs text-muted-foreground">{q.relevanceScore}</span>
                       </div>
                     </TableCell>
-                    <TableCell className="max-w-md">
+                    <TableCell 
+                      className="max-w-md"
+                      onClick={() => onSelectQuestion?.(q.id)}
+                    >
                       <p className="truncate">{q.question}</p>
                     </TableCell>
-                    <TableCell>
+                    <TableCell onClick={() => onSelectQuestion?.(q.id)}>
                       {q.plannedDate ? (
                         <span className="text-sm">
                           {format(new Date(q.plannedDate), 'dd MMM yyyy, HH:mm', { locale: ru })} MSK
@@ -208,10 +295,13 @@ export function QuestionsTable({ videos, publications, loading, onSelectQuestion
                         <span className="text-muted-foreground">—</span>
                       )}
                     </TableCell>
-                    <TableCell className="text-center">
+                    <TableCell 
+                      className="text-center"
+                      onClick={() => onSelectQuestion?.(q.id)}
+                    >
                       {getStatusIcon(q.status)}
                     </TableCell>
-                    <TableCell>
+                    <TableCell onClick={() => onSelectQuestion?.(q.id)}>
                       <Badge variant="secondary">{q.videosCount}</Badge>
                     </TableCell>
                   </TableRow>
