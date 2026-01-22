@@ -17,6 +17,7 @@ export interface Advisor {
   display_name: string | null;
   speech_speed: number;
   elevenlabs_voice_id: string | null;
+  back_cover_template_url: string | null;
   is_active: boolean;
   created_at: string;
   updated_at: string;
