@@ -55,6 +55,9 @@ export default function Index() {
 
   const { advisors, loading: advisorsLoading, addAdvisor, updateAdvisor, deleteAdvisor, addPhoto, deletePhoto, setPrimaryPhoto, updatePhotoAssetId } = useAdvisors();
   const { playlists, loading: playlistsLoading, addPlaylist, updatePlaylist, deletePlaylist } = usePlaylists();
+  // All videos without filter - for Questions table
+  const { videos: allVideos, loading: allVideosLoading } = useVideos();
+  // Filtered videos - for Videos table
   const { videos, loading: videosLoading, addVideo, updateVideo, deleteVideo, refetch: refetchVideos, bulkImport } = useVideos(videoFilters);
   const { publications, loading: publicationsLoading, addPublication } = usePublications();
   const { channels: publishingChannels } = usePublishingChannels();
@@ -321,9 +324,9 @@ export default function Index() {
 
           {activeTab === 'questions' && (
             <QuestionsTable
-              videos={videos}
+              videos={allVideos}
               publications={publications}
-              loading={videosLoading}
+              loading={allVideosLoading}
               onSelectQuestion={(questionId: number) => {
                 setVideoFilters({ questionId });
                 setActiveTab('videos');
