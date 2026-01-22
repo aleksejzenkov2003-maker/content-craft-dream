@@ -328,6 +328,10 @@ export default function Index() {
                 setVideoFilters({ questionId });
                 setActiveTab('videos');
               }}
+              onSelectionChange={(questionIds: number[]) => {
+                setVideoFilters(prev => ({ ...prev, questionIds: questionIds.length > 0 ? questionIds : undefined }));
+              }}
+              selectedQuestionIds={videoFilters.questionIds || []}
             />
           )}
 

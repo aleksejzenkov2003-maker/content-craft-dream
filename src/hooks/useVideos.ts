@@ -55,6 +55,7 @@ export interface VideoFilters {
   status?: string;
   search?: string;
   questionId?: number;
+  questionIds?: number[];
 }
 
 export function useVideos(filters?: VideoFilters) {
@@ -85,6 +86,9 @@ export function useVideos(filters?: VideoFilters) {
       if (filters?.search) {
         query = query.or(`video_title.ilike.%${filters.search}%,question.ilike.%${filters.search}%,hook.ilike.%${filters.search}%`);
       }
+      if (filters?.questionIds && filters.questionIds.length > 0) {
+        query = query.in('question_id', filters.questionIds);
+      }
 
       const { data, error } = await query;
 
@@ -97,7 +101,7 @@ export function useVideos(filters?: VideoFilters) {
     } finally {
       setLoading(false);
     }
-  }, [filters?.advisorId, filters?.playlistId, filters?.status, filters?.search]);
+  }, [filters?.advisorId, filters?.playlistId, filters?.status, filters?.search, filters?.questionIds]);
 
   useEffect(() => {
     fetchVideos();
