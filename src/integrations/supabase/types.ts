@@ -774,6 +774,7 @@ export type Database = {
           playlist_id: string | null
           publication_date: string | null
           question: string | null
+          question_eng: string | null
           question_id: number | null
           reddit_url: string | null
           reel_status: string | null
@@ -809,6 +810,7 @@ export type Database = {
           playlist_id?: string | null
           publication_date?: string | null
           question?: string | null
+          question_eng?: string | null
           question_id?: number | null
           reddit_url?: string | null
           reel_status?: string | null
@@ -844,6 +846,7 @@ export type Database = {
           playlist_id?: string | null
           publication_date?: string | null
           question?: string | null
+          question_eng?: string | null
           question_id?: number | null
           reddit_url?: string | null
           reel_status?: string | null

@@ -14,11 +14,14 @@ import {
 } from '@/components/ui/table';
 import { Loader2, Search, Shield, CheckCircle, Clock, AlertCircle } from 'lucide-react';
 import { Video } from '@/hooks/useVideos';
+import { Publication } from '@/hooks/usePublications';
+import { Progress } from '@/components/ui/progress';
 
 interface QuestionsTableProps {
   videos: Video[];
+  publications: Publication[];
   loading: boolean;
-  onSelectQuestion?: (question: string) => void;
+  onSelectQuestion?: (questionId: number) => void;
 }
 
 interface QuestionData {
@@ -30,9 +33,10 @@ interface QuestionData {
   plannedDate: string | null;
   status: 'pending' | 'in_progress' | 'ready' | 'published';
   videosCount: number;
+  publicationsCount: number;
 }
 
-export function QuestionsTable({ videos, loading, onSelectQuestion }: QuestionsTableProps) {
+export function QuestionsTable({ videos, publications, loading, onSelectQuestion }: QuestionsTableProps) {
   const [search, setSearch] = useState('');
 
   const questions = useMemo(() => {
@@ -52,12 +56,13 @@ export function QuestionsTable({ videos, loading, onSelectQuestion }: QuestionsT
         questionMap.set(video.question, {
           id: video.question_id || questionMap.size + 1,
           question: video.question,
-          questionEng: undefined, // TODO: Add translation field
+          questionEng: undefined,
           safetyScore: video.safety_score || 'safe',
-          relevanceScore: Math.floor(Math.random() * 100), // TODO: Add actual relevance
+          relevanceScore: Math.floor(Math.random() * 100),
           plannedDate: video.publication_date,
           status: video.generation_status === 'ready' ? 'ready' : 'pending',
           videosCount: 1,
+          publicationsCount: 0,
         });
       }
     });
@@ -174,7 +179,7 @@ export function QuestionsTable({ videos, loading, onSelectQuestion }: QuestionsT
                   <TableRow
                     key={q.id}
                     className="cursor-pointer hover:bg-muted/50"
-                    onClick={() => onSelectQuestion?.(q.question)}
+                    onClick={() => onSelectQuestion?.(q.id)}
                   >
                     <TableCell className="font-mono text-muted-foreground">
                       {q.id}

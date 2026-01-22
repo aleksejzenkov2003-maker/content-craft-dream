@@ -253,6 +253,7 @@ export default function Index() {
                 videos={videos}
                 advisors={advisors}
                 playlists={playlists}
+                publications={publications}
                 loading={videosLoading}
                 onEditVideo={(video) => { setEditingVideo(video); setShowVideoEditor(true); }}
                 onDeleteVideo={deleteVideo}
@@ -321,9 +322,10 @@ export default function Index() {
           {activeTab === 'questions' && (
             <QuestionsTable
               videos={videos}
+              publications={publications}
               loading={videosLoading}
-              onSelectQuestion={(question) => {
-                setVideoFilters({ search: question });
+              onSelectQuestion={(questionId: number) => {
+                setVideoFilters({ questionId });
                 setActiveTab('videos');
               }}
             />

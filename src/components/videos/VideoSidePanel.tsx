@@ -12,11 +12,17 @@ import {
   SheetHeader,
   SheetTitle,
 } from '@/components/ui/sheet';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 import { Video } from '@/hooks/useVideos';
 import { Advisor } from '@/hooks/useAdvisors';
 import { PublishingChannel } from '@/hooks/usePublishingChannels';
 import {
-  X,
   Play,
   Sparkles,
   Loader2,
@@ -25,6 +31,7 @@ import {
   Clock,
   Image,
   Send,
+  FileText,
 } from 'lucide-react';
 import { format } from 'date-fns';
 import { ru } from 'date-fns/locale';
@@ -42,19 +49,30 @@ interface VideoSidePanelProps {
   isGenerating: boolean;
 }
 
-const coverStatusLabels: Record<string, { label: string; color: string }> = {
-  pending: { label: 'Pending', color: 'text-muted-foreground' },
-  generating: { label: 'In progress', color: 'text-yellow-500' },
-  ready: { label: 'Completed', color: 'text-green-500' },
-  error: { label: 'Error', color: 'text-red-500' },
-};
+const coverStatusOptions = [
+  { value: 'pending', label: 'Pending' },
+  { value: 'generating', label: 'In progress' },
+  { value: 'ready', label: 'Completed' },
+  { value: 'error', label: 'Error' },
+];
 
-const videoStatusLabels: Record<string, { label: string; color: string }> = {
-  pending: { label: 'Pending', color: 'text-muted-foreground' },
-  generating: { label: 'In progress', color: 'text-yellow-500' },
-  ready: { label: 'Completed', color: 'text-green-500' },
-  published: { label: 'Published', color: 'text-blue-500' },
-  error: { label: 'Error', color: 'text-red-500' },
+const videoStatusOptions = [
+  { value: 'pending', label: 'Pending' },
+  { value: 'generating', label: 'In progress' },
+  { value: 'ready', label: 'Completed' },
+  { value: 'published', label: 'Published' },
+  { value: 'error', label: 'Error' },
+];
+
+const getStatusColor = (status: string) => {
+  switch (status) {
+    case 'pending': return 'text-muted-foreground';
+    case 'generating': return 'text-yellow-500';
+    case 'ready': return 'text-green-500';
+    case 'published': return 'text-blue-500';
+    case 'error': return 'text-red-500';
+    default: return 'text-muted-foreground';
+  }
 };
 
 export function VideoSidePanel({
@@ -75,8 +93,7 @@ export function VideoSidePanel({
   if (!video) return null;
 
   const advisor = advisors.find(a => a.id === video.advisor_id);
-  const coverStatus = coverStatusLabels[video.cover_status || 'pending'];
-  const videoStatus = videoStatusLabels[video.generation_status || 'pending'];
+  const advisorName = advisor?.display_name || advisor?.name || 'Духовник';
 
   const toggleChannel = (channelId: string) => {
     const newSelected = new Set(selectedChannels);
@@ -94,40 +111,94 @@ export function VideoSidePanel({
     }
   };
 
+  const handleCoverStatusChange = (value: string) => {
+    onUpdateVideo(video.id, { cover_status: value });
+  };
+
+  const handleVideoStatusChange = (value: string) => {
+    onUpdateVideo(video.id, { generation_status: value });
+  };
+
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
       <SheetContent className="w-[400px] sm:w-[540px] p-0">
         <SheetHeader className="p-6 pb-4">
-          <div className="flex items-center justify-between">
-            <SheetTitle className="text-lg">Детали ролика</SheetTitle>
-          </div>
+          <SheetTitle className="text-lg">
+            {video.question} — {advisorName}
+          </SheetTitle>
         </SheetHeader>
 
         <ScrollArea className="h-[calc(100vh-80px)]">
           <div className="px-6 pb-6 space-y-6">
             {/* Header Info */}
             <div className="space-y-2">
-              <h3 className="font-medium">{video.video_title || video.question || 'Без заголовка'}</h3>
               {video.hook && (
-                <p className="text-sm text-muted-foreground">{video.hook}</p>
+                <p className="text-sm text-muted-foreground italic">"{video.hook}"</p>
               )}
-              <div className="flex items-center gap-2">
-                <Badge variant="outline">{advisor?.name || 'Без духовника'}</Badge>
+              <div className="flex items-center gap-2 flex-wrap">
+                <Badge variant="outline">{advisorName}</Badge>
                 <Badge variant="secondary">{video.playlist?.name || 'Без плейлиста'}</Badge>
+                {video.video_number && (
+                  <Badge variant="secondary">#{video.video_number}</Badge>
+                )}
               </div>
             </div>
 
             <Separator />
 
-            {/* Status Section */}
+            {/* Advisor Answer Section */}
+            {video.advisor_answer && (
+              <>
+                <div className="space-y-2">
+                  <div className="flex items-center gap-2">
+                    <FileText className="w-4 h-4 text-muted-foreground" />
+                    <Label>Ответ духовника</Label>
+                  </div>
+                  <div className="bg-muted/50 rounded-lg p-4 max-h-48 overflow-y-auto">
+                    <p className="text-sm whitespace-pre-wrap">{video.advisor_answer}</p>
+                  </div>
+                </div>
+                <Separator />
+              </>
+            )}
+
+            {/* Status Section with Dropdowns */}
             <div className="grid grid-cols-2 gap-4">
-              <div>
+              <div className="space-y-2">
                 <Label className="text-xs text-muted-foreground">Cover Status</Label>
-                <p className={`font-medium ${coverStatus.color}`}>{coverStatus.label}</p>
+                <Select
+                  value={video.cover_status || 'pending'}
+                  onValueChange={handleCoverStatusChange}
+                >
+                  <SelectTrigger className="w-full">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {coverStatusOptions.map((option) => (
+                      <SelectItem key={option.value} value={option.value}>
+                        <span className={getStatusColor(option.value)}>{option.label}</span>
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
-              <div>
+              <div className="space-y-2">
                 <Label className="text-xs text-muted-foreground">Video Status</Label>
-                <p className={`font-medium ${videoStatus.color}`}>{videoStatus.label}</p>
+                <Select
+                  value={video.generation_status || 'pending'}
+                  onValueChange={handleVideoStatusChange}
+                >
+                  <SelectTrigger className="w-full">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {videoStatusOptions.map((option) => (
+                      <SelectItem key={option.value} value={option.value}>
+                        <span className={getStatusColor(option.value)}>{option.label}</span>
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
             </div>
 
@@ -141,7 +212,10 @@ export function VideoSidePanel({
                 <Input
                   type="datetime-local"
                   value={publicationDate || (video.publication_date ? video.publication_date.slice(0, 16) : '')}
-                  onChange={(e) => setPublicationDate(e.target.value)}
+                  onChange={(e) => {
+                    setPublicationDate(e.target.value);
+                    onUpdateVideo(video.id, { publication_date: e.target.value });
+                  }}
                   className="flex-1"
                 />
               </div>
@@ -186,9 +260,6 @@ export function VideoSidePanel({
                 <div className="aspect-video bg-muted rounded-lg flex items-center justify-center">
                   <Image className="w-8 h-8 text-muted-foreground" />
                 </div>
-              )}
-              {video.front_cover_url && (
-                <p className="text-xs text-muted-foreground break-all">{video.front_cover_url}</p>
               )}
             </div>
 
@@ -243,20 +314,9 @@ export function VideoSidePanel({
                   <Play className="w-8 h-8 text-muted-foreground" />
                 </div>
               )}
-              {video.heygen_video_url && (
-                <p className="text-xs text-muted-foreground break-all">{video.heygen_video_url}</p>
-              )}
             </div>
 
             <Separator />
-
-            {/* Back Cover URL */}
-            <div>
-              <Label className="text-xs text-muted-foreground">Back Cover URL</Label>
-              <p className="text-sm mt-1">
-                {video.back_cover_url || <span className="text-muted-foreground">—</span>}
-              </p>
-            </div>
 
             {/* Duration */}
             <div>

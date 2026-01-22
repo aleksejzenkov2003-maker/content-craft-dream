@@ -54,6 +54,7 @@ export interface VideoFilters {
   playlistId?: string;
   status?: string;
   search?: string;
+  questionId?: number;
 }
 
 export function useVideos(filters?: VideoFilters) {
