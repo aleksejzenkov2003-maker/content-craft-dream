@@ -41,3 +41,6 @@ verify_jwt = false
 
 [functions.check-video-status]
 verify_jwt = false
+
+[functions.generate-post-text]
+verify_jwt = false

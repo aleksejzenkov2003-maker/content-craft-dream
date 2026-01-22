@@ -24,6 +24,13 @@ export interface Publication {
     video_title: string | null;
     question: string | null;
     advisor_id: string | null;
+    video_number: number | null;
+    video_duration: number | null;
+    advisor?: {
+      id: string;
+      name: string;
+      display_name: string | null;
+    };
   };
   channel?: {
     id: string;
@@ -49,7 +56,15 @@ export function usePublications(filters?: PublicationFilters) {
         .from('publications')
         .select(`
           *,
-          video:videos (id, video_title, question, advisor_id),
+          video:videos (
+            id, 
+            video_title, 
+            question, 
+            advisor_id, 
+            video_number, 
+            video_duration,
+            advisor:advisors (id, name, display_name)
+          ),
           channel:publishing_channels (id, name, network_type)
         `)
         .order('post_date', { ascending: false, nullsFirst: false });
@@ -133,6 +148,27 @@ export function usePublications(filters?: PublicationFilters) {
     }
   };
 
+  const generateText = async (publicationId: string) => {
+    try {
+      const publication = publications.find(p => p.id === publicationId);
+      if (!publication) throw new Error('Publication not found');
+
+      const response = await supabase.functions.invoke('generate-post-text', {
+        body: { publicationId },
+      });
+
+      if (response.error) throw response.error;
+
+      await fetchPublications();
+      toast.success('Текст сгенерирован');
+      return response.data;
+    } catch (error: any) {
+      console.error('Error generating text:', error);
+      toast.error('Ошибка генерации текста');
+      throw error;
+    }
+  };
+
   return {
     publications,
     loading,
@@ -140,5 +176,6 @@ export function usePublications(filters?: PublicationFilters) {
     addPublication,
     updatePublication,
     deletePublication,
+    generateText,
   };
 }
