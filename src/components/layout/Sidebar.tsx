@@ -13,6 +13,9 @@ import {
   Globe,
   Image,
   HelpCircle,
+  Kanban,
+  ImageIcon,
+  Layers,
 } from 'lucide-react';
 
 interface NavItem {
@@ -24,12 +27,15 @@ interface NavItem {
 
 const navItems: NavItem[] = [
   { id: 'dashboard', label: 'Дашборд', icon: LayoutDashboard },
-  { id: 'advisors', label: 'Духовники', icon: Users, badgeKey: 'advisors' },
-  { id: 'videos', label: 'Ролики', icon: Video, badgeKey: 'videos' },
-  { id: 'playlists', label: 'Плейлисты', icon: ListVideo, badgeKey: 'playlists' },
   { id: 'questions', label: 'Вопросы', icon: HelpCircle },
+  { id: 'videos', label: 'Ролики', icon: Video, badgeKey: 'videos' },
+  { id: 'publications-list', label: 'Публикации', icon: Send, badgeKey: 'publications' },
+  { id: 'publications-kanban', label: 'Канбан', icon: Kanban },
   { id: 'scenes', label: 'Сцены', icon: Image },
-  { id: 'publications', label: 'Публикации', icon: Send, badgeKey: 'publications' },
+  { id: 'back-covers', label: 'Задние обложки', icon: ImageIcon },
+  { id: 'cover-thumbnails', label: 'Миниатюры', icon: Layers },
+  { id: 'advisors', label: 'Духовники', icon: Users, badgeKey: 'advisors' },
+  { id: 'playlists', label: 'Плейлисты', icon: ListVideo, badgeKey: 'playlists' },
   { id: 'channels', label: 'Каналы', icon: Globe },
 ];
 

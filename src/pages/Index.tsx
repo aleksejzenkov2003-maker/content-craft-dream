@@ -11,26 +11,33 @@ import { VideoDetailModal } from '@/components/videos/VideoDetailModal';
 import { VideoSidePanel } from '@/components/videos/VideoSidePanel';
 import { PublishingChannelsGrid } from '@/components/publishing/PublishingChannelsGrid';
 import { PublicationsTable } from '@/components/publishing/PublicationsTable';
+import { PublishingKanban } from '@/components/publishing/PublishingKanban';
 import { ScenesMatrix } from '@/components/scenes/ScenesMatrix';
+import { QuestionsTable } from '@/components/questions/QuestionsTable';
+import { BackCoversGrid } from '@/components/covers/BackCoversGrid';
+import { CoverThumbnailsGrid } from '@/components/covers/CoverThumbnailsGrid';
 import { useAdvisors } from '@/hooks/useAdvisors';
 import { usePlaylists } from '@/hooks/usePlaylists';
 import { useVideos, Video, VideoFilters } from '@/hooks/useVideos';
 import { useVideoGeneration } from '@/hooks/useVideoGeneration';
 import { usePublications } from '@/hooks/usePublications';
 import { usePublishingChannels } from '@/hooks/usePublishingChannels';
-import { Users, ListVideo, Video as VideoIcon, CheckCircle, Loader2, Send, HelpCircle, Image, Globe } from 'lucide-react';
+import { Users, ListVideo, Video as VideoIcon, CheckCircle, Loader2, Send, HelpCircle } from 'lucide-react';
 import { toast } from 'sonner';
 import { Card, CardContent } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 
 const headerTitles: Record<string, { title: string; subtitle: string }> = {
   dashboard: { title: 'Дашборд', subtitle: 'Общая статистика' },
-  advisors: { title: 'Духовники', subtitle: 'Управление аватарами и настройками' },
-  videos: { title: 'Ролики', subtitle: 'Все видео с духовниками' },
-  playlists: { title: 'Плейлисты', subtitle: 'Группировка видео по категориям' },
   questions: { title: 'Вопросы', subtitle: 'Список вопросов для роликов' },
+  videos: { title: 'Ролики', subtitle: 'Все видео с духовниками' },
+  'publications-list': { title: 'Публикации', subtitle: 'Список публикаций по каналам' },
+  'publications-kanban': { title: 'Канбан публикаций', subtitle: 'Управление статусами публикаций' },
   scenes: { title: 'Сцены', subtitle: 'Генерация сцен для плейлистов' },
-  publications: { title: 'Публикации', subtitle: 'Управление публикациями в соцсетях' },
+  'back-covers': { title: 'Задние обложки', subtitle: 'Шаблоны задних обложек по духовникам' },
+  'cover-thumbnails': { title: 'Миниатюры обложек', subtitle: 'Сгенерированные обложки' },
+  advisors: { title: 'Духовники', subtitle: 'Управление аватарами и настройками' },
+  playlists: { title: 'Плейлисты', subtitle: 'Группировка видео по категориям' },
   channels: { title: 'Каналы', subtitle: 'Настройка каналов публикации' },
   settings: { title: 'Настройки', subtitle: 'Конфигурация системы' },
 };
@@ -312,44 +319,21 @@ export default function Index() {
           )}
 
           {activeTab === 'questions' && (
-            <div className="space-y-6">
-              <h2 className="text-2xl font-bold">Вопросы</h2>
-              {questions.length === 0 ? (
-                <Card className="glass-card">
-                  <CardContent className="flex flex-col items-center justify-center py-12">
-                    <HelpCircle className="w-12 h-12 text-muted-foreground mb-4" />
-                    <p className="text-muted-foreground">Нет вопросов. Вопросы создаются автоматически при добавлении роликов.</p>
-                  </CardContent>
-                </Card>
-              ) : (
-                <div className="space-y-4">
-                  {questions.map((question, index) => {
-                    const questionVideos = videos.filter(v => v.question === question);
-                    return (
-                      <Card key={index} className="glass-card">
-                        <CardContent className="p-4">
-                          <div className="flex items-center justify-between">
-                            <div>
-                              <h3 className="font-medium">{question}</h3>
-                              <p className="text-sm text-muted-foreground">
-                                {questionVideos.length} роликов
-                              </p>
-                            </div>
-                          </div>
-                        </CardContent>
-                      </Card>
-                    );
-                  })}
-                </div>
-              )}
-            </div>
+            <QuestionsTable
+              videos={videos}
+              loading={videosLoading}
+              onSelectQuestion={(question) => {
+                setVideoFilters({ search: question });
+                setActiveTab('videos');
+              }}
+            />
           )}
 
           {activeTab === 'scenes' && (
             <ScenesMatrix />
           )}
 
-          {activeTab === 'publications' && (
+          {activeTab === 'publications-list' && (
             <div className="space-y-6">
               <Tabs value={publicationsTab} onValueChange={setPublicationsTab}>
                 <TabsList>
@@ -364,6 +348,18 @@ export default function Index() {
                 </TabsContent>
               </Tabs>
             </div>
+          )}
+
+          {activeTab === 'publications-kanban' && (
+            <PublishingKanban />
+          )}
+
+          {activeTab === 'back-covers' && (
+            <BackCoversGrid />
+          )}
+
+          {activeTab === 'cover-thumbnails' && (
+            <CoverThumbnailsGrid />
           )}
 
           {activeTab === 'channels' && (
