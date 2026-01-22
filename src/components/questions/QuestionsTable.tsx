@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { format } from 'date-fns';
 import { ru } from 'date-fns/locale';
 import { Badge } from '@/components/ui/badge';
@@ -14,7 +14,7 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
-import { Loader2, Search, Shield, CheckCircle, Clock, AlertCircle, Trash2, Play } from 'lucide-react';
+import { Loader2, Search, Shield, CheckCircle, Clock, AlertCircle, X } from 'lucide-react';
 import { Video } from '@/hooks/useVideos';
 import { Publication } from '@/hooks/usePublications';
 
@@ -23,7 +23,8 @@ interface QuestionsTableProps {
   publications: Publication[];
   loading: boolean;
   onSelectQuestion?: (questionId: number) => void;
-  onBulkAction?: (questionIds: number[], action: 'delete' | 'generate') => void;
+  onSelectionChange?: (questionIds: number[]) => void;
+  selectedQuestionIds?: number[];
 }
 
 interface QuestionData {
@@ -38,9 +39,21 @@ interface QuestionData {
   publicationsCount: number;
 }
 
-export function QuestionsTable({ videos, publications, loading, onSelectQuestion, onBulkAction }: QuestionsTableProps) {
+export function QuestionsTable({ 
+  videos, 
+  publications, 
+  loading, 
+  onSelectQuestion, 
+  onSelectionChange,
+  selectedQuestionIds = []
+}: QuestionsTableProps) {
   const [search, setSearch] = useState('');
-  const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
+  const [localSelected, setLocalSelected] = useState<Set<number>>(new Set(selectedQuestionIds));
+
+  // Sync with external state
+  useEffect(() => {
+    setLocalSelected(new Set(selectedQuestionIds));
+  }, [selectedQuestionIds]);
 
   const questions = useMemo(() => {
     const questionMap = new Map<string, QuestionData>();
@@ -51,7 +64,6 @@ export function QuestionsTable({ videos, publications, loading, onSelectQuestion
       const existing = questionMap.get(video.question);
       if (existing) {
         existing.videosCount++;
-        // Update status based on video statuses
         if (video.generation_status === 'ready') {
           existing.status = 'ready';
         }
@@ -83,32 +95,33 @@ export function QuestionsTable({ videos, publications, loading, onSelectQuestion
     );
   }, [questions, search]);
 
-  const allSelected = filteredQuestions.length > 0 && filteredQuestions.every(q => selectedIds.has(q.id));
-  const someSelected = selectedIds.size > 0;
+  const allSelected = filteredQuestions.length > 0 && filteredQuestions.every(q => localSelected.has(q.id));
 
   const toggleSelectAll = () => {
+    let newSet: Set<number>;
     if (allSelected) {
-      setSelectedIds(new Set());
+      newSet = new Set();
     } else {
-      setSelectedIds(new Set(filteredQuestions.map(q => q.id)));
+      newSet = new Set(filteredQuestions.map(q => q.id));
     }
+    setLocalSelected(newSet);
+    onSelectionChange?.(Array.from(newSet));
   };
 
   const toggleSelect = (id: number) => {
-    const newSet = new Set(selectedIds);
+    const newSet = new Set(localSelected);
     if (newSet.has(id)) {
       newSet.delete(id);
     } else {
       newSet.add(id);
     }
-    setSelectedIds(newSet);
+    setLocalSelected(newSet);
+    onSelectionChange?.(Array.from(newSet));
   };
 
-  const handleBulkAction = (action: 'delete' | 'generate') => {
-    if (selectedIds.size > 0 && onBulkAction) {
-      onBulkAction(Array.from(selectedIds), action);
-      setSelectedIds(new Set());
-    }
+  const clearSelection = () => {
+    setLocalSelected(new Set());
+    onSelectionChange?.([]);
   };
 
   const getSafetyBadge = (score: string) => {
@@ -181,37 +194,23 @@ export function QuestionsTable({ videos, publications, loading, onSelectQuestion
         </div>
       </div>
 
-      {/* Bulk Actions Bar */}
-      {someSelected && (
-        <div className="flex items-center gap-4 p-3 bg-muted/50 rounded-lg border">
-          <span className="text-sm font-medium">
-            Выбрано: {selectedIds.size}
+      {/* Selection Info Bar */}
+      {localSelected.size > 0 && (
+        <div className="flex items-center gap-4 p-3 bg-primary/10 rounded-lg border border-primary/20">
+          <span className="text-sm font-medium text-primary">
+            Выбрано вопросов: {localSelected.size}
           </span>
-          <div className="flex gap-2">
-            <Button
-              size="sm"
-              variant="outline"
-              onClick={() => handleBulkAction('generate')}
-            >
-              <Play className="w-4 h-4 mr-2" />
-              Сгенерировать
-            </Button>
-            <Button
-              size="sm"
-              variant="outline"
-              className="text-destructive hover:text-destructive"
-              onClick={() => handleBulkAction('delete')}
-            >
-              <Trash2 className="w-4 h-4 mr-2" />
-              Удалить
-            </Button>
-          </div>
+          <span className="text-sm text-muted-foreground">
+            → Таблица роликов отфильтрована
+          </span>
           <Button
             size="sm"
             variant="ghost"
-            onClick={() => setSelectedIds(new Set())}
+            onClick={clearSelection}
+            className="ml-auto"
           >
-            Отменить выбор
+            <X className="w-4 h-4 mr-1" />
+            Сбросить фильтр
           </Button>
         </div>
       )}
@@ -251,11 +250,11 @@ export function QuestionsTable({ videos, publications, loading, onSelectQuestion
                 filteredQuestions.map((q) => (
                   <TableRow
                     key={q.id}
-                    className={`cursor-pointer hover:bg-muted/50 ${selectedIds.has(q.id) ? 'bg-muted/30' : ''}`}
+                    className={`cursor-pointer hover:bg-muted/50 ${localSelected.has(q.id) ? 'bg-primary/5' : ''}`}
                   >
                     <TableCell onClick={(e) => e.stopPropagation()}>
                       <Checkbox
-                        checked={selectedIds.has(q.id)}
+                        checked={localSelected.has(q.id)}
                         onCheckedChange={() => toggleSelect(q.id)}
                         aria-label={`Выбрать вопрос ${q.id}`}
                       />
