@@ -6,10 +6,11 @@ import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from '@/components/ui/dialog';
 import { Advisor, AdvisorPhoto } from '@/hooks/useAdvisors';
-import { Plus, Trash2, Star, Upload, Image, Loader2, Settings, ImagePlus } from 'lucide-react';
+import { Plus, Trash2, Star, Upload, Image, Loader2, Settings, ImagePlus, Sparkles } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
+import { ImageInput } from '@/components/ui/image-input';
 
 interface AdvisorsGridProps {
   advisors: Advisor[];
@@ -304,49 +305,19 @@ export function AdvisorsGrid({
                         <DialogTitle>Добавить фото для {advisor.name}</DialogTitle>
                       </DialogHeader>
                       <div className="space-y-4 py-4">
-                        {/* Upload from PC */}
-                        <div className="space-y-2">
-                          <Label>Загрузить с компьютера</Label>
-                          <Button
-                            variant="outline"
-                            className="w-full"
-                            onClick={() => triggerFileInput(advisor.id)}
-                            disabled={isUploading}
-                          >
-                            {isUploading && uploadingAdvisorId === advisor.id ? (
-                              <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                            ) : (
-                              <ImagePlus className="w-4 h-4 mr-2" />
-                            )}
-                            Выбрать файл
-                          </Button>
-                        </div>
-
-                        <div className="relative">
-                          <div className="absolute inset-0 flex items-center">
-                            <span className="w-full border-t" />
-                          </div>
-                          <div className="relative flex justify-center text-xs uppercase">
-                            <span className="bg-background px-2 text-muted-foreground">или</span>
-                          </div>
-                        </div>
-
-                        {/* URL input */}
-                        <div className="space-y-2">
-                          <Label>URL фото</Label>
-                          <Input
-                            value={newPhotoUrl}
-                            onChange={(e) => setNewPhotoUrl(e.target.value)}
-                            placeholder="https://..."
-                          />
-                        </div>
+                        <ImageInput
+                          value={newPhotoUrl}
+                          onChange={(url) => {
+                            setNewPhotoUrl(url);
+                            onAddPhoto(advisor.id, url, false);
+                            setNewPhotoUrl('');
+                          }}
+                          folder={`advisors/${advisor.id}`}
+                          aspectRatio="1:1"
+                          generatePromptPrefix={`Professional portrait photo of ${advisor.display_name || advisor.name}, a spiritual advisor. High quality headshot suitable for video content.`}
+                          showPreview={false}
+                        />
                       </div>
-                      <DialogFooter>
-                        <Button onClick={() => handleAddPhoto(advisor.id)} disabled={isSubmitting || !newPhotoUrl.trim()}>
-                          {isSubmitting && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
-                          Добавить по URL
-                        </Button>
-                      </DialogFooter>
                     </DialogContent>
                   </Dialog>
                 </div>

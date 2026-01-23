@@ -19,6 +19,12 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
 import { Video } from '@/hooks/useVideos';
 import { Advisor } from '@/hooks/useAdvisors';
 import { PublishingChannel } from '@/hooks/usePublishingChannels';
@@ -32,9 +38,11 @@ import {
   Image,
   Send,
   FileText,
+  Upload,
 } from 'lucide-react';
 import { format } from 'date-fns';
 import { ru } from 'date-fns/locale';
+import { ImageInput } from '@/components/ui/image-input';
 
 interface VideoSidePanelProps {
   video: Video | null;
@@ -89,6 +97,7 @@ export function VideoSidePanel({
 }: VideoSidePanelProps) {
   const [selectedChannels, setSelectedChannels] = useState<Set<string>>(new Set());
   const [publicationDate, setPublicationDate] = useState('');
+  const [showUploadCover, setShowUploadCover] = useState(false);
 
   if (!video) return null;
 
@@ -227,7 +236,14 @@ export function VideoSidePanel({
             <div className="space-y-3">
               <div className="flex items-center justify-between">
                 <Label>Front Cover</Label>
-                {video.cover_status !== 'ready' && (
+                <div className="flex gap-1">
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    onClick={() => setShowUploadCover(true)}
+                  >
+                    <Upload className="w-4 h-4" />
+                  </Button>
                   <Button
                     size="sm"
                     variant="outline"
@@ -246,7 +262,7 @@ export function VideoSidePanel({
                       </>
                     )}
                   </Button>
-                )}
+                </div>
               </div>
               {video.front_cover_url ? (
                 <div className="relative aspect-video bg-muted rounded-lg overflow-hidden">
@@ -262,6 +278,25 @@ export function VideoSidePanel({
                 </div>
               )}
             </div>
+
+            {/* Upload Cover Dialog */}
+            <Dialog open={showUploadCover} onOpenChange={setShowUploadCover}>
+              <DialogContent>
+                <DialogHeader>
+                  <DialogTitle>Загрузить обложку</DialogTitle>
+                </DialogHeader>
+                <ImageInput
+                  value={video.front_cover_url || ''}
+                  onChange={(url) => {
+                    onUpdateVideo(video.id, { front_cover_url: url, cover_status: 'ready' });
+                    setShowUploadCover(false);
+                  }}
+                  folder={`videos/${video.id}/covers`}
+                  aspectRatio="16:9"
+                  generatePromptPrefix={`Professional YouTube thumbnail for spiritual video. Topic: "${video.hook || video.question || 'spiritual guidance'}".`}
+                />
+              </DialogContent>
+            </Dialog>
 
             <Separator />
 

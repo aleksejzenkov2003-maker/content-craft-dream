@@ -15,6 +15,7 @@ import { Video } from '@/hooks/useVideos';
 import { Advisor } from '@/hooks/useAdvisors';
 import { Playlist } from '@/hooks/usePlaylists';
 import { Loader2 } from 'lucide-react';
+import { ImageInput } from '@/components/ui/image-input';
 
 interface VideoEditorDialogProps {
   video: Video | null;
@@ -175,19 +176,36 @@ export function VideoEditorDialog({
 
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
-              <Label>URL основного фото</Label>
-              <Input
+              <Label>Основное фото</Label>
+              <ImageInput
                 value={formData.main_photo_url || ''}
-                onChange={(e) => updateField('main_photo_url', e.target.value)}
+                onChange={(url) => updateField('main_photo_url', url)}
+                folder="videos/photos"
+                aspectRatio="1:1"
+                generatePromptPrefix="Profile photo or main image for a spiritual video."
               />
             </div>
             <div className="space-y-2">
-              <Label>URL обложки</Label>
-              <Input
+              <Label>Обложка (cover_url)</Label>
+              <ImageInput
                 value={formData.cover_url || ''}
-                onChange={(e) => updateField('cover_url', e.target.value)}
+                onChange={(url) => updateField('cover_url', url)}
+                folder="videos/covers"
+                aspectRatio="16:9"
+                generatePromptPrefix={`YouTube thumbnail for spiritual video. Question: "${formData.question || 'spiritual guidance'}".`}
               />
             </div>
+          </div>
+
+          <div className="space-y-2">
+            <Label>Передняя обложка (front_cover_url)</Label>
+            <ImageInput
+              value={formData.front_cover_url || ''}
+              onChange={(url) => updateField('front_cover_url', url)}
+              folder="videos/front-covers"
+              aspectRatio="16:9"
+              generatePromptPrefix={`Professional YouTube thumbnail for spiritual guidance video. Topic: "${formData.hook || formData.question || 'spiritual wisdom'}".`}
+            />
           </div>
 
           <div className="space-y-2">
