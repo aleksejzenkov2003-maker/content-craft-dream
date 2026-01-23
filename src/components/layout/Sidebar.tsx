@@ -6,7 +6,6 @@ import {
   Settings,
   ChevronLeft,
   ChevronRight,
-  Zap,
   Users,
   ListVideo,
   Send,
@@ -68,12 +67,12 @@ export function Sidebar({ activeTab, onTabChange, counts = {} }: SidebarProps) {
     >
       {/* Logo */}
       <div className="flex items-center gap-3 p-4 border-b border-sidebar-border">
-        <div className="flex items-center justify-center w-10 h-10 rounded-xl bg-primary/20 glow">
-          <Zap className="w-5 h-5 text-primary" />
+        <div className="flex items-center justify-center w-10 h-10 rounded-xl bg-primary/20 glow overflow-hidden">
+          <img src="/favicon.png" alt="ArtPatent" className="w-6 h-6 object-contain" />
         </div>
         {!isCollapsed && (
           <div className="flex flex-col">
-            <span className="text-lg font-bold gradient-text">VideoFlow</span>
+            <span className="text-lg font-bold gradient-text">ArtPatent</span>
             <span className="text-xs text-muted-foreground">Генерация видео</span>
           </div>
         )}
