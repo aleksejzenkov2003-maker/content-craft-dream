@@ -14,6 +14,7 @@ import { Label } from '@/components/ui/label';
 import { Loader2, Plus, Search, Image, Trash2, User } from 'lucide-react';
 import { useAdvisors, Advisor } from '@/hooks/useAdvisors';
 import { toast } from 'sonner';
+import { ImageInput } from '@/components/ui/image-input';
 
 export function BackCoversGrid() {
   const { advisors, loading, updateAdvisor } = useAdvisors();
@@ -175,27 +176,14 @@ export function BackCoversGrid() {
             </DialogTitle>
           </DialogHeader>
           <div className="space-y-4">
-            <div className="space-y-2">
-              <Label>URL изображения</Label>
-              <Input
-                placeholder="https://..."
-                value={backCoverUrl}
-                onChange={(e) => setBackCoverUrl(e.target.value)}
-              />
-            </div>
-
-            {backCoverUrl && (
-              <div className="aspect-[9/16] max-h-64 rounded-lg overflow-hidden bg-muted">
-                <img
-                  src={backCoverUrl}
-                  alt="Preview"
-                  className="w-full h-full object-cover"
-                  onError={(e) => {
-                    (e.target as HTMLImageElement).src = '/placeholder.svg';
-                  }}
-                />
-              </div>
-            )}
+            <Label>Задняя обложка</Label>
+            <ImageInput
+              value={backCoverUrl}
+              onChange={setBackCoverUrl}
+              folder="back-covers"
+              aspectRatio="9:16"
+              generatePromptPrefix={`Back cover template for spiritual advisor "${editingAdvisor?.display_name || editingAdvisor?.name}". Elegant, vertical format with space for text.`}
+            />
 
             <div className="flex justify-end gap-2">
               <Button variant="outline" onClick={() => setShowAddDialog(false)}>

@@ -5,16 +5,18 @@ import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import {
   Dialog,
   DialogContent,
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
-import { Plus, Sparkles, Check, X, Loader2, Image } from 'lucide-react';
+import { Plus, Sparkles, Check, X, Loader2, Image, Upload } from 'lucide-react';
 import { usePlaylistScenes, PlaylistScene } from '@/hooks/usePlaylistScenes';
 import { useAdvisors, Advisor } from '@/hooks/useAdvisors';
 import { usePlaylists } from '@/hooks/usePlaylists';
+import { ImageInput } from '@/components/ui/image-input';
 
 const statusLabels: Record<string, { label: string; variant: 'default' | 'secondary' | 'destructive' | 'outline' }> = {
   waiting: { label: 'Ожидает', variant: 'secondary' },
@@ -34,6 +36,8 @@ export function ScenesMatrix() {
     playlistId: string;
     advisorId: string;
     prompt: string;
+    uploadedUrl: string;
+    mode: 'generate' | 'upload';
   } | null>(null);
 
   const loading = scenesLoading || advisorsLoading || playlistsLoading;
@@ -47,26 +51,37 @@ export function ScenesMatrix() {
     if (!newSceneData) return;
 
     try {
-      // Get advisor photo for generation
-      const advisor = advisors.find(a => a.id === newSceneData.advisorId);
-      const advisorPhotoUrl = advisor?.photos?.find(p => p.is_primary)?.photo_url;
+      if (newSceneData.mode === 'upload' && newSceneData.uploadedUrl) {
+        // Direct upload mode - save to database directly
+        await addScene({
+          playlist_id: newSceneData.playlistId,
+          advisor_id: newSceneData.advisorId,
+          scene_url: newSceneData.uploadedUrl,
+          scene_prompt: newSceneData.prompt,
+          status: 'approved',
+        });
+      } else {
+        // Generate mode - call edge function
+        const advisor = advisors.find(a => a.id === newSceneData.advisorId);
+        const advisorPhotoUrl = advisor?.photos?.find(p => p.is_primary)?.photo_url;
 
-      const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/generate-scene`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
-        },
-        body: JSON.stringify({
-          playlistId: newSceneData.playlistId,
-          advisorId: newSceneData.advisorId,
-          prompt: newSceneData.prompt,
-          advisorPhotoUrl,
-        }),
-      });
+        const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/generate-scene`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
+          },
+          body: JSON.stringify({
+            playlistId: newSceneData.playlistId,
+            advisorId: newSceneData.advisorId,
+            prompt: newSceneData.prompt,
+            advisorPhotoUrl,
+          }),
+        });
 
-      if (!response.ok) {
-        throw new Error('Failed to generate scene');
+        if (!response.ok) {
+          throw new Error('Failed to generate scene');
+        }
       }
 
       setNewSceneData(null);
@@ -90,6 +105,8 @@ export function ScenesMatrix() {
       playlistId,
       advisorId,
       prompt: playlist?.scene_prompt || '',
+      uploadedUrl: '',
+      mode: 'generate',
     });
     setIsDialogOpen(true);
   };
@@ -224,21 +241,56 @@ export function ScenesMatrix() {
           <DialogHeader>
             <DialogTitle>Создать сцену</DialogTitle>
           </DialogHeader>
-          <div className="space-y-4">
-            <div>
-              <Label>Промт для генерации</Label>
-              <Textarea
-                value={newSceneData?.prompt || ''}
-                onChange={(e) => setNewSceneData(prev => prev ? { ...prev, prompt: e.target.value } : null)}
-                placeholder="Опишите сцену для генерации..."
-                rows={4}
+          <Tabs 
+            value={newSceneData?.mode || 'generate'} 
+            onValueChange={(v) => setNewSceneData(prev => prev ? { ...prev, mode: v as 'generate' | 'upload' } : null)}
+            className="w-full"
+          >
+            <TabsList className="grid w-full grid-cols-2">
+              <TabsTrigger value="generate">
+                <Sparkles className="w-4 h-4 mr-2" />
+                Генерация
+              </TabsTrigger>
+              <TabsTrigger value="upload">
+                <Upload className="w-4 h-4 mr-2" />
+                Загрузить
+              </TabsTrigger>
+            </TabsList>
+            
+            <TabsContent value="generate" className="space-y-4 mt-4">
+              <div>
+                <Label>Промт для генерации</Label>
+                <Textarea
+                  value={newSceneData?.prompt || ''}
+                  onChange={(e) => setNewSceneData(prev => prev ? { ...prev, prompt: e.target.value } : null)}
+                  placeholder="Опишите сцену для генерации..."
+                  rows={4}
+                />
+              </div>
+              <Button onClick={handleCreateScene} className="w-full">
+                <Sparkles className="w-4 h-4 mr-2" />
+                Сгенерировать сцену
+              </Button>
+            </TabsContent>
+            
+            <TabsContent value="upload" className="space-y-4 mt-4">
+              <ImageInput
+                value={newSceneData?.uploadedUrl || ''}
+                onChange={(url) => setNewSceneData(prev => prev ? { ...prev, uploadedUrl: url } : null)}
+                folder="scenes"
+                aspectRatio="16:9"
+                generatePromptPrefix="Background scene for spiritual video content."
               />
-            </div>
-            <Button onClick={handleCreateScene} className="w-full">
-              <Sparkles className="w-4 h-4 mr-2" />
-              Создать сцену
-            </Button>
-          </div>
+              <Button 
+                onClick={handleCreateScene} 
+                className="w-full"
+                disabled={!newSceneData?.uploadedUrl}
+              >
+                <Upload className="w-4 h-4 mr-2" />
+                Сохранить сцену
+              </Button>
+            </TabsContent>
+          </Tabs>
         </DialogContent>
       </Dialog>
 
