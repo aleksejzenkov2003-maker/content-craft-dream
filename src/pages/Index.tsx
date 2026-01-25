@@ -328,13 +328,21 @@ export default function Index() {
               publications={publications}
               loading={allVideosLoading}
               onSelectQuestion={(questionId: number) => {
-                setVideoFilters({ questionId });
+                setVideoFilters({ questionIds: [questionId] });
                 setActiveTab('videos');
               }}
               onSelectionChange={(questionIds: number[]) => {
                 setVideoFilters(prev => ({ ...prev, questionIds: questionIds.length > 0 ? questionIds : undefined }));
               }}
               selectedQuestionIds={videoFilters.questionIds || []}
+              onAddQuestion={async (data) => {
+                await addVideo({
+                  question_id: data.question_id,
+                  question: data.question,
+                  safety_score: data.safety_score,
+                });
+              }}
+              onGoToVideos={() => setActiveTab('videos')}
             />
           )}
 

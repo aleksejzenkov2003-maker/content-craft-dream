@@ -11,7 +11,6 @@ import {
   DragEndEvent,
 } from '@dnd-kit/core';
 import {
-  arrayMove,
   SortableContext,
   sortableKeyboardCoordinates,
   verticalListSortingStrategy,
@@ -22,7 +21,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { Loader2, Video, User, Calendar, ExternalLink } from 'lucide-react';
+import { Loader2, User, Calendar, ExternalLink, Eye } from 'lucide-react';
 import { usePublications, Publication } from '@/hooks/usePublications';
 import { usePublishingChannels } from '@/hooks/usePublishingChannels';
 import { format } from 'date-fns';
@@ -36,6 +35,16 @@ const statusLabels: Record<string, { label: string; color: string }> = {
   publishing: { label: 'Публикуется', color: 'bg-warning/20 text-warning' },
   published: { label: 'Опубликован', color: 'bg-success/20 text-success' },
   failed: { label: 'Ошибка', color: 'bg-destructive/20 text-destructive' },
+};
+
+const networkIcons: Record<string, string> = {
+  youtube: '📺',
+  instagram: '📸',
+  facebook: '👤',
+  tiktok: '🎵',
+  telegram: '✈️',
+  pinterest: '📌',
+  reddit: '🔴',
 };
 
 interface KanbanCardProps {
@@ -68,27 +77,42 @@ function KanbanCard({ publication }: KanbanCardProps) {
     >
       <Card className="glass-card hover:border-primary/30 transition-colors mb-2">
         <CardContent className="p-3 space-y-2">
+          {/* Title and advisor */}
           <div className="flex items-start justify-between gap-2">
             <div className="flex-1 min-w-0">
               <p className="text-sm font-medium truncate">
-                {publication.video?.question || 'Без названия'}
+                {publication.video?.video_title || publication.video?.question || 'Без названия'}
               </p>
-              <p className="text-xs text-muted-foreground truncate">
-                {publication.video?.video_title}
-              </p>
+              {publication.video?.video_number && (
+                <p className="text-xs text-muted-foreground">
+                  Ролик #{publication.video.video_number}
+                </p>
+              )}
             </div>
-            <Badge variant="outline" className="text-xs shrink-0">
-              #{publication.video?.id?.slice(0, 4)}
-            </Badge>
+            {publication.post_url && (
+              <a
+                href={publication.post_url}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="shrink-0 p-1 rounded hover:bg-muted transition-colors"
+                onClick={(e) => e.stopPropagation()}
+              >
+                <ExternalLink className="w-3 h-3 text-primary" />
+              </a>
+            )}
           </div>
 
-          <div className="flex items-center gap-2 text-xs text-muted-foreground">
-            <User className="w-3 h-3" />
-            <span className="truncate">
-              {publication.video?.advisor_id ? 'Духовник' : '—'}
-            </span>
-          </div>
+          {/* Advisor */}
+          {publication.video?.advisor && (
+            <div className="flex items-center gap-2 text-xs text-muted-foreground">
+              <User className="w-3 h-3" />
+              <span className="truncate">
+                {publication.video.advisor.display_name || publication.video.advisor.name}
+              </span>
+            </div>
+          )}
 
+          {/* Post date */}
           {publication.post_date && (
             <div className="flex items-center gap-2 text-xs text-muted-foreground">
               <Calendar className="w-3 h-3" />
@@ -98,19 +122,7 @@ function KanbanCard({ publication }: KanbanCardProps) {
             </div>
           )}
 
-          {publication.post_url && (
-            <a
-              href={publication.post_url}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="flex items-center gap-1 text-xs text-primary hover:underline"
-              onClick={(e) => e.stopPropagation()}
-            >
-              <ExternalLink className="w-3 h-3" />
-              Открыть пост
-            </a>
-          )}
-
+          {/* Status and views */}
           <div className="flex items-center justify-between pt-1">
             <Badge
               className={`text-xs ${statusLabels[publication.publication_status]?.color || ''}`}
@@ -118,11 +130,19 @@ function KanbanCard({ publication }: KanbanCardProps) {
               {statusLabels[publication.publication_status]?.label || publication.publication_status}
             </Badge>
             {publication.views > 0 && (
-              <span className="text-xs text-muted-foreground">
-                👁 {publication.views}
-              </span>
+              <div className="flex items-center gap-1 text-xs text-muted-foreground">
+                <Eye className="w-3 h-3" />
+                <span>{publication.views.toLocaleString()}</span>
+              </div>
             )}
           </div>
+
+          {/* Video duration */}
+          {publication.video?.video_duration && (
+            <div className="text-xs text-muted-foreground">
+              Длительность: {Math.floor(publication.video.video_duration / 60)}:{(publication.video.video_duration % 60).toString().padStart(2, '0')}
+            </div>
+          )}
         </CardContent>
       </Card>
     </div>
@@ -137,16 +157,6 @@ interface KanbanColumnProps {
 }
 
 function KanbanColumn({ channelId, channelName, networkType, publications }: KanbanColumnProps) {
-  const networkIcons: Record<string, string> = {
-    youtube: '📺',
-    instagram: '📸',
-    facebook: '👤',
-    tiktok: '🎵',
-    telegram: '✈️',
-    pinterest: '📌',
-    reddit: '🔴',
-  };
-
   return (
     <div className="flex-shrink-0 w-72">
       <Card className="glass-card h-full">
@@ -231,6 +241,16 @@ export function PublishingKanban() {
       }
     });
 
+    // Sort by post_date
+    map.forEach((pubs) => {
+      pubs.sort((a, b) => {
+        if (!a.post_date && !b.post_date) return 0;
+        if (!a.post_date) return 1;
+        if (!b.post_date) return -1;
+        return new Date(a.post_date).getTime() - new Date(b.post_date).getTime();
+      });
+    });
+
     return map;
   }, [filteredPublications, channels]);
 
@@ -257,21 +277,26 @@ export function PublishingKanban() {
 
   return (
     <div className="space-y-4">
-      <Tabs value={statusFilter} onValueChange={(v) => setStatusFilter(v as StatusFilter)}>
-        <TabsList>
-          <TabsTrigger value="all">
-            Все посты
-            <Badge variant="secondary" className="ml-2">
-              {publications.length}
-            </Badge>
-          </TabsTrigger>
-          <TabsTrigger value="waiting">Ожидает</TabsTrigger>
-          <TabsTrigger value="todo">К публикации</TabsTrigger>
-          <TabsTrigger value="in_progress">В процессе</TabsTrigger>
-          <TabsTrigger value="published">Опубликовано</TabsTrigger>
-          <TabsTrigger value="error">Ошибки</TabsTrigger>
-        </TabsList>
-      </Tabs>
+      <div className="flex items-center justify-between">
+        <Tabs value={statusFilter} onValueChange={(v) => setStatusFilter(v as StatusFilter)}>
+          <TabsList>
+            <TabsTrigger value="all">
+              Все посты
+              <Badge variant="secondary" className="ml-2">
+                {publications.length}
+              </Badge>
+            </TabsTrigger>
+            <TabsTrigger value="waiting">Ожидает</TabsTrigger>
+            <TabsTrigger value="todo">К публикации</TabsTrigger>
+            <TabsTrigger value="in_progress">В процессе</TabsTrigger>
+            <TabsTrigger value="published">Опубликовано</TabsTrigger>
+            <TabsTrigger value="error">Ошибки</TabsTrigger>
+          </TabsList>
+        </Tabs>
+        <span className="text-sm text-muted-foreground">
+          {filteredPublications.length} публикаций
+        </span>
+      </div>
 
       <DndContext
         sensors={sensors}
@@ -280,7 +305,7 @@ export function PublishingKanban() {
         onDragEnd={handleDragEnd}
       >
         <div className="flex gap-4 overflow-x-auto pb-4">
-          {channels.map((channel) => (
+          {channels.filter(c => c.is_active).map((channel) => (
             <KanbanColumn
               key={channel.id}
               channelId={channel.id}
