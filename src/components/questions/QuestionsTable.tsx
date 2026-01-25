@@ -1,29 +1,30 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useMemo } from 'react';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Checkbox } from '@/components/ui/checkbox';
+import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
-import { Search, CheckCircle, Clock, AlertCircle, Video, Loader2, Plus, ArrowRight, X, Shield } from 'lucide-react';
+import { Search, CheckCircle, Clock, AlertCircle, Video, Loader2, Plus, ArrowRight, X } from 'lucide-react';
 import { Video as VideoType } from '@/hooks/useVideos';
 import { Publication } from '@/hooks/usePublications';
 import { format } from 'date-fns';
 import { ru } from 'date-fns/locale';
+import { QuestionSidePanel } from './QuestionSidePanel';
 
 interface QuestionsTableProps {
   videos: VideoType[];
   publications: Publication[];
   loading: boolean;
-  onSelectQuestion?: (questionId: number) => void;
-  onSelectionChange?: (questionIds: number[]) => void;
-  selectedQuestionIds?: number[];
+  selectedQuestionId?: number | null;
+  onSelectForVideos?: (questionId: number | null) => void;
   onAddQuestion?: (data: { question_id: number; question: string; safety_score: string }) => void;
   onGoToVideos?: () => void;
+  onUpdateQuestion?: (questionId: number, updates: { question?: string; question_eng?: string; safety_score?: string; publication_date?: string }) => void;
 }
 
 interface QuestionData {
@@ -51,24 +52,21 @@ export function QuestionsTable({
   videos, 
   publications, 
   loading, 
-  onSelectQuestion,
-  onSelectionChange,
-  selectedQuestionIds = [],
+  selectedQuestionId,
+  onSelectForVideos,
   onAddQuestion,
-  onGoToVideos
+  onGoToVideos,
+  onUpdateQuestion
 }: QuestionsTableProps) {
   const [searchInput, setSearchInput] = useState('');
-  const [localSelectedIds, setLocalSelectedIds] = useState<number[]>(selectedQuestionIds);
   const [showAddDialog, setShowAddDialog] = useState(false);
+  const [editingQuestion, setEditingQuestion] = useState<QuestionData | null>(null);
+  const [showEditPanel, setShowEditPanel] = useState(false);
   const [newQuestion, setNewQuestion] = useState({
     question_id: 0,
     question: '',
     safety_score: 'unchecked'
   });
-
-  useEffect(() => {
-    setLocalSelectedIds(selectedQuestionIds);
-  }, [selectedQuestionIds]);
 
   // Aggregate questions from videos
   const questions = useMemo(() => {
@@ -92,7 +90,7 @@ export function QuestionsTable({
           questionMap.set(video.question_id, {
             question_id: video.question_id,
             question: video.question || '',
-            question_eng: null,
+            question_eng: (video as any).question_eng || null,
             safety_score: video.safety_score || 'unchecked',
             relevance: 0,
             planned_date: video.publication_date,
@@ -124,31 +122,18 @@ export function QuestionsTable({
     return Math.max(...questions.map(q => q.question_id)) + 1;
   }, [questions]);
 
-  const allSelected = filteredQuestions.length > 0 && 
-    filteredQuestions.every(q => localSelectedIds.includes(q.question_id));
-
-  const toggleSelectAll = () => {
-    if (allSelected) {
-      setLocalSelectedIds([]);
-      onSelectionChange?.([]);
-    } else {
-      const allIds = filteredQuestions.map(q => q.question_id);
-      setLocalSelectedIds(allIds);
-      onSelectionChange?.(allIds);
-    }
-  };
-
-  const toggleSelect = (questionId: number) => {
-    const newSelection = localSelectedIds.includes(questionId)
-      ? localSelectedIds.filter(id => id !== questionId)
-      : [...localSelectedIds, questionId];
-    setLocalSelectedIds(newSelection);
-    onSelectionChange?.(newSelection);
+  const handleRadioChange = (value: string) => {
+    const questionId = parseInt(value);
+    onSelectForVideos?.(questionId);
   };
 
   const clearSelection = () => {
-    setLocalSelectedIds([]);
-    onSelectionChange?.([]);
+    onSelectForVideos?.(null);
+  };
+
+  const handleRowClick = (q: QuestionData) => {
+    setEditingQuestion(q);
+    setShowEditPanel(true);
   };
 
   const handleAddQuestion = () => {
@@ -160,6 +145,10 @@ export function QuestionsTable({
       setShowAddDialog(false);
       setNewQuestion({ question_id: 0, question: '', safety_score: 'unchecked' });
     }
+  };
+
+  const handleSaveQuestion = (questionId: number, updates: { question?: string; question_eng?: string; safety_score?: string; publication_date?: string }) => {
+    onUpdateQuestion?.(questionId, updates);
   };
 
   const getSafetyBadge = (score: string) => {
@@ -209,11 +198,11 @@ export function QuestionsTable({
         </span>
       </div>
 
-      {/* Selection bar */}
-      {localSelectedIds.length > 0 && (
+      {/* Selection bar - shows when a question is selected via radio */}
+      {selectedQuestionId && (
         <div className="flex items-center gap-4 p-3 bg-primary/10 rounded-lg border border-primary/20">
           <span className="text-sm font-medium">
-            Выбрано {localSelectedIds.length} вопросов
+            Выбран вопрос #{selectedQuestionId} для роликов
           </span>
           <Button variant="outline" size="sm" onClick={clearSelection}>
             <X className="w-4 h-4 mr-1" />
@@ -228,81 +217,81 @@ export function QuestionsTable({
         </div>
       )}
 
-      {/* Table */}
+      {/* Table with RadioGroup */}
       <Card className="glass-card">
         <CardHeader className="pb-3">
           <CardTitle className="text-lg">Вопросы к духовникам</CardTitle>
         </CardHeader>
         <CardContent className="p-0">
-          <Table>
-            <TableHeader>
-              <TableRow className="bg-muted/30">
-                <TableHead className="w-12">
-                  <Checkbox
-                    checked={allSelected}
-                    onCheckedChange={toggleSelectAll}
-                  />
-                </TableHead>
-                <TableHead className="w-20">ID</TableHead>
-                <TableHead className="w-28">Безопасность</TableHead>
-                <TableHead className="w-24">Релевант.</TableHead>
-                <TableHead>Вопрос</TableHead>
-                <TableHead className="w-32">Дата план.</TableHead>
-                <TableHead className="w-24">Статус</TableHead>
-                <TableHead className="w-24">Роликов</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {filteredQuestions.length === 0 ? (
-                <TableRow>
-                  <TableCell colSpan={8} className="text-center py-8 text-muted-foreground">
-                    {questions.length === 0 ? 'Нет вопросов' : 'Ничего не найдено'}
-                  </TableCell>
+          <RadioGroup 
+            value={selectedQuestionId?.toString() || ''} 
+            onValueChange={handleRadioChange}
+          >
+            <Table>
+              <TableHeader>
+                <TableRow className="bg-muted/30">
+                  <TableHead className="w-12">Выбор</TableHead>
+                  <TableHead className="w-20">ID</TableHead>
+                  <TableHead className="w-28">Безопасность</TableHead>
+                  <TableHead className="w-24">Релевант.</TableHead>
+                  <TableHead>Вопрос</TableHead>
+                  <TableHead className="w-32">Дата план.</TableHead>
+                  <TableHead className="w-24">Статус</TableHead>
+                  <TableHead className="w-24">Роликов</TableHead>
                 </TableRow>
-              ) : (
-                filteredQuestions.map((q) => (
-                  <TableRow
-                    key={q.question_id}
-                    className={`cursor-pointer hover:bg-muted/50 transition-colors ${localSelectedIds.includes(q.question_id) ? 'bg-primary/5' : ''}`}
-                    onClick={() => onSelectQuestion?.(q.question_id)}
-                  >
-                    <TableCell onClick={(e) => e.stopPropagation()}>
-                      <Checkbox
-                        checked={localSelectedIds.includes(q.question_id)}
-                        onCheckedChange={() => toggleSelect(q.question_id)}
-                      />
-                    </TableCell>
-                    <TableCell className="font-mono text-sm">{q.question_id}</TableCell>
-                    <TableCell>{getSafetyBadge(q.safety_score)}</TableCell>
-                    <TableCell>
-                      <span className="text-muted-foreground">—</span>
-                    </TableCell>
-                    <TableCell>
-                      <div className="max-w-md">
-                        <p className="font-medium truncate">{q.question}</p>
-                        {q.question_eng && (
-                          <p className="text-sm text-muted-foreground truncate">{q.question_eng}</p>
-                        )}
-                      </div>
-                    </TableCell>
-                    <TableCell>
-                      {q.planned_date ? format(new Date(q.planned_date), 'dd MMM yyyy', { locale: ru }) : '—'}
-                    </TableCell>
-                    <TableCell>
-                      <div className="flex items-center gap-2">
-                        {getStatusIcon(q)}
-                      </div>
-                    </TableCell>
-                    <TableCell>
-                      <Badge variant="secondary">
-                        {q.videos_count} / {q.total_publications}
-                      </Badge>
+              </TableHeader>
+              <TableBody>
+                {filteredQuestions.length === 0 ? (
+                  <TableRow>
+                    <TableCell colSpan={8} className="text-center py-8 text-muted-foreground">
+                      {questions.length === 0 ? 'Нет вопросов' : 'Ничего не найдено'}
                     </TableCell>
                   </TableRow>
-                ))
-              )}
-            </TableBody>
-          </Table>
+                ) : (
+                  filteredQuestions.map((q) => (
+                    <TableRow
+                      key={q.question_id}
+                      className={`cursor-pointer hover:bg-muted/50 transition-colors ${selectedQuestionId === q.question_id ? 'bg-primary/5' : ''}`}
+                      onClick={() => handleRowClick(q)}
+                    >
+                      <TableCell onClick={(e) => e.stopPropagation()}>
+                        <RadioGroupItem 
+                          value={q.question_id.toString()} 
+                          id={`question-${q.question_id}`}
+                        />
+                      </TableCell>
+                      <TableCell className="font-mono text-sm">{q.question_id}</TableCell>
+                      <TableCell>{getSafetyBadge(q.safety_score)}</TableCell>
+                      <TableCell>
+                        <span className="text-muted-foreground">—</span>
+                      </TableCell>
+                      <TableCell>
+                        <div className="max-w-md">
+                          <p className="font-medium truncate">{q.question}</p>
+                          {q.question_eng && (
+                            <p className="text-sm text-muted-foreground truncate">{q.question_eng}</p>
+                          )}
+                        </div>
+                      </TableCell>
+                      <TableCell>
+                        {q.planned_date ? format(new Date(q.planned_date), 'dd MMM yyyy', { locale: ru }) : '—'}
+                      </TableCell>
+                      <TableCell>
+                        <div className="flex items-center gap-2">
+                          {getStatusIcon(q)}
+                        </div>
+                      </TableCell>
+                      <TableCell>
+                        <Badge variant="secondary">
+                          {q.videos_count} / {q.total_publications}
+                        </Badge>
+                      </TableCell>
+                    </TableRow>
+                  ))
+                )}
+              </TableBody>
+            </Table>
+          </RadioGroup>
         </CardContent>
       </Card>
 
@@ -364,6 +353,14 @@ export function QuestionsTable({
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Edit Question Side Panel */}
+      <QuestionSidePanel
+        question={editingQuestion}
+        open={showEditPanel}
+        onOpenChange={setShowEditPanel}
+        onSave={handleSaveQuestion}
+      />
     </div>
   );
 }

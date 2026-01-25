@@ -45,6 +45,7 @@ const headerTitles: Record<string, { title: string; subtitle: string }> = {
 export default function Index() {
   const [activeTab, setActiveTab] = useState('dashboard');
   const [videoFilters, setVideoFilters] = useState<VideoFilters>({});
+  const [selectedQuestionForVideos, setSelectedQuestionForVideos] = useState<number | null>(null);
   const [editingVideo, setEditingVideo] = useState<Video | null>(null);
   const [viewingVideo, setViewingVideo] = useState<Video | null>(null);
   const [showVideoEditor, setShowVideoEditor] = useState(false);
@@ -52,7 +53,6 @@ export default function Index() {
   const [showSidePanel, setShowSidePanel] = useState(false);
   const [showImportDialog, setShowImportDialog] = useState(false);
   const [publicationsTab, setPublicationsTab] = useState('by-channel');
-
   const { advisors, loading: advisorsLoading, addAdvisor, updateAdvisor, deleteAdvisor, addPhoto, deletePhoto, setPrimaryPhoto, updatePhotoAssetId } = useAdvisors();
   const { playlists, loading: playlistsLoading, addPlaylist, updatePlaylist, deletePlaylist } = usePlaylists();
   // All videos without filter - for Questions table
@@ -327,14 +327,8 @@ export default function Index() {
               videos={allVideos}
               publications={publications}
               loading={allVideosLoading}
-              onSelectQuestion={(questionId: number) => {
-                setVideoFilters({ questionIds: [questionId] });
-                setActiveTab('videos');
-              }}
-              onSelectionChange={(questionIds: number[]) => {
-                setVideoFilters(prev => ({ ...prev, questionIds: questionIds.length > 0 ? questionIds : undefined }));
-              }}
-              selectedQuestionIds={videoFilters.questionIds || []}
+              selectedQuestionId={selectedQuestionForVideos}
+              onSelectForVideos={(questionId) => setSelectedQuestionForVideos(questionId)}
               onAddQuestion={async (data) => {
                 await addVideo({
                   question_id: data.question_id,
@@ -342,7 +336,19 @@ export default function Index() {
                   safety_score: data.safety_score,
                 });
               }}
-              onGoToVideos={() => setActiveTab('videos')}
+              onGoToVideos={() => {
+                if (selectedQuestionForVideos) {
+                  setVideoFilters({ questionIds: [selectedQuestionForVideos] });
+                }
+                setActiveTab('videos');
+              }}
+              onUpdateQuestion={async (questionId, updates) => {
+                // Update all videos with this question_id
+                const videosToUpdate = allVideos.filter(v => v.question_id === questionId);
+                for (const video of videosToUpdate) {
+                  await updateVideo(video.id, updates);
+                }
+              }}
             />
           )}
 
