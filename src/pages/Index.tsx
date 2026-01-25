@@ -45,7 +45,6 @@ const headerTitles: Record<string, { title: string; subtitle: string }> = {
 export default function Index() {
   const [activeTab, setActiveTab] = useState('dashboard');
   const [videoFilters, setVideoFilters] = useState<VideoFilters>({});
-  const [selectedQuestionForVideos, setSelectedQuestionForVideos] = useState<number | null>(null);
   const [editingVideo, setEditingVideo] = useState<Video | null>(null);
   const [viewingVideo, setViewingVideo] = useState<Video | null>(null);
   const [showVideoEditor, setShowVideoEditor] = useState(false);
@@ -327,8 +326,10 @@ export default function Index() {
               videos={allVideos}
               publications={publications}
               loading={allVideosLoading}
-              selectedQuestionId={selectedQuestionForVideos}
-              onSelectForVideos={(questionId) => setSelectedQuestionForVideos(questionId)}
+              selectedQuestionIds={videoFilters.questionIds || []}
+              onSelectionChange={(questionIds) => {
+                setVideoFilters(prev => ({ ...prev, questionIds: questionIds.length > 0 ? questionIds : undefined }));
+              }}
               onAddQuestion={async (data) => {
                 await addVideo({
                   question_id: data.question_id,
@@ -336,14 +337,8 @@ export default function Index() {
                   safety_score: data.safety_score,
                 });
               }}
-              onGoToVideos={() => {
-                if (selectedQuestionForVideos) {
-                  setVideoFilters({ questionIds: [selectedQuestionForVideos] });
-                }
-                setActiveTab('videos');
-              }}
+              onGoToVideos={() => setActiveTab('videos')}
               onUpdateQuestion={async (questionId, updates) => {
-                // Update all videos with this question_id
                 const videosToUpdate = allVideos.filter(v => v.question_id === questionId);
                 for (const video of videosToUpdate) {
                   await updateVideo(video.id, updates);
