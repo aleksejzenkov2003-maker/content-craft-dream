@@ -6,7 +6,9 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from '@/components/ui/dialog';
 import { Playlist } from '@/hooks/usePlaylists';
-import { Plus, Trash2, Edit, Loader2, ListVideo } from 'lucide-react';
+import { Plus, Trash2, Edit, Loader2, ListVideo, FileSpreadsheet } from 'lucide-react';
+import { CsvImporter } from '@/components/import/CsvImporter';
+import { PLAYLIST_COLUMN_MAPPING, PLAYLIST_PREVIEW_COLUMNS } from '@/components/import/importConfigs';
 
 interface PlaylistsGridProps {
   playlists: Playlist[];
@@ -15,6 +17,7 @@ interface PlaylistsGridProps {
   onUpdatePlaylist: (id: string, updates: Partial<Playlist>) => Promise<void>;
   onDeletePlaylist: (id: string) => Promise<void>;
   onSelectPlaylist?: (playlist: Playlist) => void;
+  onBulkImport?: (data: Partial<Playlist>[]) => Promise<void>;
 }
 
 export function PlaylistsGrid({
@@ -24,8 +27,10 @@ export function PlaylistsGrid({
   onUpdatePlaylist,
   onDeletePlaylist,
   onSelectPlaylist,
+  onBulkImport,
 }: PlaylistsGridProps) {
   const [showAddDialog, setShowAddDialog] = useState(false);
+  const [showImporter, setShowImporter] = useState(false);
   const [editingPlaylist, setEditingPlaylist] = useState<Playlist | null>(null);
   const [newName, setNewName] = useState('');
   const [newDescription, setNewDescription] = useState('');
@@ -58,6 +63,12 @@ export function PlaylistsGrid({
     }
   };
 
+  const handleImport = async (data: Record<string, any>[]) => {
+    if (onBulkImport) {
+      await onBulkImport(data as Partial<Playlist>[]);
+    }
+  };
+
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
@@ -70,46 +81,52 @@ export function PlaylistsGrid({
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <h2 className="text-xl font-semibold">Плейлисты ({playlists.length})</h2>
-        <Dialog open={showAddDialog} onOpenChange={setShowAddDialog}>
-          <DialogTrigger asChild>
-            <Button>
-              <Plus className="w-4 h-4 mr-2" />
-              Новый плейлист
-            </Button>
-          </DialogTrigger>
-          <DialogContent>
-            <DialogHeader>
-              <DialogTitle>Новый плейлист</DialogTitle>
-            </DialogHeader>
-            <div className="space-y-4 py-4">
-              <div className="space-y-2">
-                <Label>Название</Label>
-                <Input
-                  value={newName}
-                  onChange={(e) => setNewName(e.target.value)}
-                  placeholder="Prayer & God"
-                />
-              </div>
-              <div className="space-y-2">
-                <Label>Описание</Label>
-                <Textarea
-                  value={newDescription}
-                  onChange={(e) => setNewDescription(e.target.value)}
-                  placeholder="Описание плейлиста..."
-                />
-              </div>
-            </div>
-            <DialogFooter>
-              <Button variant="outline" onClick={() => setShowAddDialog(false)}>
-                Отмена
+        <div className="flex gap-2">
+          <Button variant="outline" onClick={() => setShowImporter(true)}>
+            <FileSpreadsheet className="w-4 h-4 mr-2" />
+            Импорт CSV
+          </Button>
+          <Dialog open={showAddDialog} onOpenChange={setShowAddDialog}>
+            <DialogTrigger asChild>
+              <Button>
+                <Plus className="w-4 h-4 mr-2" />
+                Новый плейлист
               </Button>
-              <Button onClick={handleAdd} disabled={isSubmitting || !newName.trim()}>
-                {isSubmitting && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
-                Создать
-              </Button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
+            </DialogTrigger>
+            <DialogContent>
+              <DialogHeader>
+                <DialogTitle>Новый плейлист</DialogTitle>
+              </DialogHeader>
+              <div className="space-y-4 py-4">
+                <div className="space-y-2">
+                  <Label>Название</Label>
+                  <Input
+                    value={newName}
+                    onChange={(e) => setNewName(e.target.value)}
+                    placeholder="Prayer & God"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>Описание</Label>
+                  <Textarea
+                    value={newDescription}
+                    onChange={(e) => setNewDescription(e.target.value)}
+                    placeholder="Описание плейлиста..."
+                  />
+                </div>
+              </div>
+              <DialogFooter>
+                <Button variant="outline" onClick={() => setShowAddDialog(false)}>
+                  Отмена
+                </Button>
+                <Button onClick={handleAdd} disabled={isSubmitting || !newName.trim()}>
+                  {isSubmitting && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
+                  Создать
+                </Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
+        </div>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
@@ -163,7 +180,6 @@ export function PlaylistsGrid({
         ))}
       </div>
 
-      {/* Edit Dialog */}
       <Dialog open={!!editingPlaylist} onOpenChange={(open) => !open && setEditingPlaylist(null)}>
         <DialogContent>
           <DialogHeader>
@@ -198,6 +214,16 @@ export function PlaylistsGrid({
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <CsvImporter
+        open={showImporter}
+        onClose={() => setShowImporter(false)}
+        title="Импорт плейлистов из CSV"
+        columnMapping={PLAYLIST_COLUMN_MAPPING}
+        previewColumns={PLAYLIST_PREVIEW_COLUMNS}
+        onImport={handleImport}
+        requiredFields={['name']}
+      />
     </div>
   );
 }

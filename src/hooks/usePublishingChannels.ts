@@ -95,6 +95,30 @@ export function usePublishingChannels() {
     }
   };
 
+  const bulkImport = async (items: Partial<PublishingChannel>[]) => {
+    try {
+      const { error } = await supabase
+        .from('publishing_channels')
+        .upsert(items.map(item => ({
+          name: item.name!,
+          network_type: item.network_type || 'instagram',
+          proxy_server: item.proxy_server || null,
+          location: item.location || null,
+          post_text_prompt: item.post_text_prompt || null,
+          is_active: item.is_active ?? true,
+        })), { onConflict: 'name' });
+
+      if (error) throw error;
+
+      await fetchChannels();
+      toast.success(`Импортировано ${items.length} каналов`);
+    } catch (error: any) {
+      console.error('Error bulk importing channels:', error);
+      toast.error('Ошибка импорта каналов');
+      throw error;
+    }
+  };
+
   return {
     channels,
     loading,
@@ -102,5 +126,6 @@ export function usePublishingChannels() {
     addChannel,
     updateChannel,
     deleteChannel,
+    bulkImport,
   };
 }

@@ -169,6 +169,29 @@ export function usePublications(filters?: PublicationFilters) {
     }
   };
 
+  const bulkImport = async (items: Partial<Publication>[]) => {
+    try {
+      const { error } = await supabase
+        .from('publications')
+        .insert(items.map(item => ({
+          video_id: item.video_id || null,
+          channel_id: item.channel_id || null,
+          post_date: item.post_date || null,
+          publication_status: item.publication_status || 'pending',
+          post_url: item.post_url || null,
+        })));
+
+      if (error) throw error;
+
+      await fetchPublications();
+      toast.success(`Импортировано ${items.length} публикаций`);
+    } catch (error: any) {
+      console.error('Error bulk importing publications:', error);
+      toast.error('Ошибка импорта публикаций');
+      throw error;
+    }
+  };
+
   return {
     publications,
     loading,
@@ -177,5 +200,6 @@ export function usePublications(filters?: PublicationFilters) {
     updatePublication,
     deletePublication,
     generateText,
+    bulkImport,
   };
 }

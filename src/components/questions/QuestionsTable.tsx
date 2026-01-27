@@ -9,12 +9,14 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
-import { Search, CheckCircle, Clock, AlertCircle, Video, Loader2, Plus, ArrowRight, X } from 'lucide-react';
+import { Search, CheckCircle, Clock, AlertCircle, Video, Loader2, Plus, ArrowRight, X, FileSpreadsheet } from 'lucide-react';
 import { Video as VideoType } from '@/hooks/useVideos';
 import { Publication } from '@/hooks/usePublications';
 import { format } from 'date-fns';
 import { ru } from 'date-fns/locale';
 import { QuestionSidePanel } from './QuestionSidePanel';
+import { CsvImporter } from '@/components/import/CsvImporter';
+import { VIDEO_COLUMN_MAPPING, VIDEO_PREVIEW_COLUMNS } from '@/components/import/importConfigs';
 
 interface QuestionsTableProps {
   videos: VideoType[];
@@ -25,6 +27,7 @@ interface QuestionsTableProps {
   onAddQuestion?: (data: { question_id: number; question: string; safety_score: string }) => void;
   onGoToVideos?: () => void;
   onUpdateQuestion?: (questionId: number, updates: { question?: string; question_eng?: string; safety_score?: string; publication_date?: string }) => void;
+  onBulkImport?: (data: Record<string, any>[]) => Promise<void>;
 }
 
 interface QuestionData {
@@ -60,10 +63,12 @@ export function QuestionsTable({
   onSelectionChange,
   onAddQuestion,
   onGoToVideos,
-  onUpdateQuestion
+  onUpdateQuestion,
+  onBulkImport
 }: QuestionsTableProps) {
   const [searchInput, setSearchInput] = useState('');
   const [showAddDialog, setShowAddDialog] = useState(false);
+  const [showImporter, setShowImporter] = useState(false);
   const [editingQuestion, setEditingQuestion] = useState<QuestionData | null>(null);
   const [showEditPanel, setShowEditPanel] = useState(false);
   const [localSelectedIds, setLocalSelectedIds] = useState<number[]>(selectedQuestionIds);
@@ -224,6 +229,10 @@ export function QuestionsTable({
             className="pl-10"
           />
         </div>
+        <Button variant="outline" onClick={() => setShowImporter(true)}>
+          <FileSpreadsheet className="w-4 h-4 mr-2" />
+          Импорт CSV
+        </Button>
         <Button onClick={() => { setNewQuestion({ question_id: nextQuestionId, question: '', safety_score: 'unchecked' }); setShowAddDialog(true); }}>
           <Plus className="w-4 h-4 mr-2" />
           Добавить вопрос
@@ -409,6 +418,20 @@ export function QuestionsTable({
         open={showEditPanel}
         onOpenChange={setShowEditPanel}
         onSave={handleSaveQuestion}
+      />
+
+      {/* CSV Importer */}
+      <CsvImporter
+        open={showImporter}
+        onClose={() => setShowImporter(false)}
+        title="Импорт вопросов/роликов из CSV"
+        columnMapping={VIDEO_COLUMN_MAPPING}
+        previewColumns={VIDEO_PREVIEW_COLUMNS}
+        onImport={async (data) => {
+          if (onBulkImport) {
+            await onBulkImport(data);
+          }
+        }}
       />
     </div>
   );

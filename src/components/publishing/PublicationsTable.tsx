@@ -23,11 +23,14 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import { MoreVertical, Trash2, ExternalLink, Calendar, Send, Sparkles, Loader2 } from 'lucide-react';
+import { MoreVertical, Trash2, ExternalLink, Calendar, Send, Sparkles, Loader2, FileSpreadsheet } from 'lucide-react';
 import { Publication, usePublications } from '@/hooks/usePublications';
 import { usePublishingChannels } from '@/hooks/usePublishingChannels';
+import { useVideos } from '@/hooks/useVideos';
 import { format } from 'date-fns';
 import { ru } from 'date-fns/locale';
+import { CsvImporter, Lookups } from '@/components/import/CsvImporter';
+import { PUBLICATION_COLUMN_MAPPING, PUBLICATION_PREVIEW_COLUMNS } from '@/components/import/importConfigs';
 
 const statusLabels: Record<string, { label: string; variant: 'default' | 'secondary' | 'destructive' | 'outline' }> = {
   pending: { label: 'Ожидает', variant: 'secondary' },
@@ -41,10 +44,12 @@ interface PublicationsTableProps {
 }
 
 export function PublicationsTable({ groupBy = 'channel' }: PublicationsTableProps) {
-  const { publications, loading, deletePublication, generateText } = usePublications();
+  const { publications, loading, deletePublication, generateText, bulkImport } = usePublications();
   const { channels } = usePublishingChannels();
+  const { videos } = useVideos();
   const [filterChannel, setFilterChannel] = useState<string>('');
   const [filterStatus, setFilterStatus] = useState<string>('');
+  const [showImporter, setShowImporter] = useState(false);
   const [generatingIds, setGeneratingIds] = useState<Set<string>>(new Set());
   const [publishingIds, setPublishingIds] = useState<Set<string>>(new Set());
 
@@ -76,7 +81,6 @@ export function PublicationsTable({ groupBy = 'channel' }: PublicationsTableProp
   const handlePublish = async (pub: Publication) => {
     setPublishingIds(prev => new Set(prev).add(pub.id));
     try {
-      // TODO: Implement publish-to-channel edge function
       console.log('Publishing:', pub.id);
       await new Promise(resolve => setTimeout(resolve, 1000));
     } finally {
@@ -93,14 +97,12 @@ export function PublicationsTable({ groupBy = 'channel' }: PublicationsTableProp
     return <Badge variant={config.variant}>{config.label}</Badge>;
   };
 
-  // Get publication title in format "Question — Advisor"
   const getPublicationTitle = (pub: Publication) => {
     const question = pub.video?.question || 'Без вопроса';
     const advisor = pub.video?.advisor?.display_name || pub.video?.advisor?.name || 'Духовник';
     return `${question} — ${advisor}`;
   };
 
-  // Group publications
   const groupedPublications = filteredPublications.reduce((acc, pub) => {
     let key: string;
     if (groupBy === 'channel') {
@@ -118,6 +120,48 @@ export function PublicationsTable({ groupBy = 'channel' }: PublicationsTableProp
     acc[key].items.push(pub);
     return acc;
   }, {} as Record<string, { items: Publication[]; networkType: string }>);
+
+  const resolveRow = (row: Record<string, any>, lookups: Lookups) => {
+    const errors: string[] = [];
+    
+    // Resolve video by video_number
+    let video_id: string | null = null;
+    if (row.video_number) {
+      const videoNum = parseInt(row.video_number);
+      const video = lookups.videos?.find(v => v.video_number === videoNum);
+      if (video) {
+        video_id = video.id;
+      } else {
+        errors.push(`Ролик #${row.video_number} не найден`);
+      }
+    }
+    
+    // Resolve channel by name
+    let channel_id: string | null = null;
+    if (row.channel_name) {
+      const channel = lookups.channels?.find(c => 
+        c.name.toLowerCase() === row.channel_name.toLowerCase()
+      );
+      if (channel) {
+        channel_id = channel.id;
+      } else {
+        errors.push(`Канал "${row.channel_name}" не найден`);
+      }
+    }
+
+    return {
+      data: {
+        ...row,
+        video_id,
+        channel_id,
+      },
+      errors,
+    };
+  };
+
+  const handleImport = async (data: Record<string, any>[]) => {
+    await bulkImport(data as Partial<Publication>[]);
+  };
 
   if (loading) {
     return (
@@ -157,6 +201,13 @@ export function PublicationsTable({ groupBy = 'channel' }: PublicationsTableProp
             <SelectItem value="failed">Ошибка</SelectItem>
           </SelectContent>
         </Select>
+
+        <div className="flex-1" />
+
+        <Button variant="outline" onClick={() => setShowImporter(true)}>
+          <FileSpreadsheet className="w-4 h-4 mr-2" />
+          Импорт CSV
+        </Button>
       </div>
 
       {Object.keys(groupedPublications).length === 0 ? (
@@ -305,6 +356,17 @@ export function PublicationsTable({ groupBy = 'channel' }: PublicationsTableProp
           </Card>
         ))
       )}
+
+      <CsvImporter
+        open={showImporter}
+        onClose={() => setShowImporter(false)}
+        title="Импорт публикаций из CSV"
+        columnMapping={PUBLICATION_COLUMN_MAPPING}
+        previewColumns={PUBLICATION_PREVIEW_COLUMNS}
+        onImport={handleImport}
+        lookups={{ channels, videos }}
+        resolveRow={resolveRow}
+      />
     </div>
   );
 }

@@ -6,11 +6,13 @@ import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from '@/components/ui/dialog';
 import { Advisor, AdvisorPhoto } from '@/hooks/useAdvisors';
-import { Plus, Trash2, Star, Upload, Image, Loader2, Settings, ImagePlus, Sparkles } from 'lucide-react';
+import { Plus, Trash2, Star, Upload, Image, Loader2, Settings, FileSpreadsheet } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { ImageInput } from '@/components/ui/image-input';
+import { CsvImporter } from '@/components/import/CsvImporter';
+import { ADVISOR_COLUMN_MAPPING, ADVISOR_PREVIEW_COLUMNS } from '@/components/import/importConfigs';
 
 interface AdvisorsGridProps {
   advisors: Advisor[];
@@ -22,6 +24,7 @@ interface AdvisorsGridProps {
   onDeletePhoto: (photoId: string) => Promise<void>;
   onSetPrimaryPhoto: (advisorId: string, photoId: string) => Promise<void>;
   onUploadToHeygen: (photo: AdvisorPhoto) => Promise<void>;
+  onBulkImport?: (data: Partial<Advisor>[]) => Promise<void>;
 }
 
 export function AdvisorsGrid({
@@ -34,8 +37,10 @@ export function AdvisorsGrid({
   onDeletePhoto,
   onSetPrimaryPhoto,
   onUploadToHeygen,
+  onBulkImport,
 }: AdvisorsGridProps) {
   const [showAddDialog, setShowAddDialog] = useState(false);
+  const [showImporter, setShowImporter] = useState(false);
   const [selectedAdvisor, setSelectedAdvisor] = useState<Advisor | null>(null);
   const [uploadingAdvisorId, setUploadingAdvisorId] = useState<string | null>(null);
   const [newName, setNewName] = useState('');
@@ -72,13 +77,11 @@ export function AdvisorsGrid({
   const handleFileUpload = async (advisorId: string, file: File) => {
     if (!file) return;
     
-    // Validate file type
     if (!file.type.startsWith('image/')) {
       toast.error('Выберите изображение');
       return;
     }
 
-    // Validate file size (max 5MB)
     if (file.size > 5 * 1024 * 1024) {
       toast.error('Файл слишком большой (макс. 5MB)');
       return;
@@ -86,11 +89,9 @@ export function AdvisorsGrid({
 
     setIsUploading(true);
     try {
-      // Generate unique filename
       const ext = file.name.split('.').pop() || 'jpg';
       const fileName = `advisors/${advisorId}/${Date.now()}.${ext}`;
 
-      // Upload to Supabase Storage
       const { data, error } = await supabase.storage
         .from('media-files')
         .upload(fileName, file, {
@@ -100,14 +101,12 @@ export function AdvisorsGrid({
 
       if (error) throw error;
 
-      // Get public URL
       const { data: urlData } = supabase.storage
         .from('media-files')
         .getPublicUrl(fileName);
 
       if (!urlData.publicUrl) throw new Error('Failed to get public URL');
 
-      // Add photo to database
       await onAddPhoto(advisorId, urlData.publicUrl, false);
       toast.success('Фото загружено');
     } catch (error: any) {
@@ -129,9 +128,14 @@ export function AdvisorsGrid({
     if (file && uploadingAdvisorId) {
       handleFileUpload(uploadingAdvisorId, file);
     }
-    // Reset input
     if (fileInputRef.current) {
       fileInputRef.current.value = '';
+    }
+  };
+
+  const handleImport = async (data: Record<string, any>[]) => {
+    if (onBulkImport) {
+      await onBulkImport(data as Partial<Advisor>[]);
     }
   };
 
@@ -145,7 +149,6 @@ export function AdvisorsGrid({
 
   return (
     <div className="space-y-6">
-      {/* Hidden file input for uploads */}
       <input
         type="file"
         ref={fileInputRef}
@@ -156,46 +159,52 @@ export function AdvisorsGrid({
       
       <div className="flex items-center justify-between">
         <h2 className="text-xl font-semibold">Духовники ({advisors.length})</h2>
-        <Dialog open={showAddDialog} onOpenChange={setShowAddDialog}>
-          <DialogTrigger asChild>
-            <Button>
-              <Plus className="w-4 h-4 mr-2" />
-              Добавить духовника
-            </Button>
-          </DialogTrigger>
-          <DialogContent>
-            <DialogHeader>
-              <DialogTitle>Новый духовник</DialogTitle>
-            </DialogHeader>
-            <div className="space-y-4 py-4">
-              <div className="space-y-2">
-                <Label>Имя (ID)</Label>
-                <Input
-                  value={newName}
-                  onChange={(e) => setNewName(e.target.value)}
-                  placeholder="Orthodox, Rabbi, etc."
-                />
-              </div>
-              <div className="space-y-2">
-                <Label>Отображаемое имя</Label>
-                <Input
-                  value={newDisplayName}
-                  onChange={(e) => setNewDisplayName(e.target.value)}
-                  placeholder="Православный старец"
-                />
-              </div>
-            </div>
-            <DialogFooter>
-              <Button variant="outline" onClick={() => setShowAddDialog(false)}>
-                Отмена
+        <div className="flex gap-2">
+          <Button variant="outline" onClick={() => setShowImporter(true)}>
+            <FileSpreadsheet className="w-4 h-4 mr-2" />
+            Импорт CSV
+          </Button>
+          <Dialog open={showAddDialog} onOpenChange={setShowAddDialog}>
+            <DialogTrigger asChild>
+              <Button>
+                <Plus className="w-4 h-4 mr-2" />
+                Добавить духовника
               </Button>
-              <Button onClick={handleAddAdvisor} disabled={isSubmitting || !newName.trim()}>
-                {isSubmitting && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
-                Добавить
-              </Button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
+            </DialogTrigger>
+            <DialogContent>
+              <DialogHeader>
+                <DialogTitle>Новый духовник</DialogTitle>
+              </DialogHeader>
+              <div className="space-y-4 py-4">
+                <div className="space-y-2">
+                  <Label>Имя (ID)</Label>
+                  <Input
+                    value={newName}
+                    onChange={(e) => setNewName(e.target.value)}
+                    placeholder="Orthodox, Rabbi, etc."
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>Отображаемое имя</Label>
+                  <Input
+                    value={newDisplayName}
+                    onChange={(e) => setNewDisplayName(e.target.value)}
+                    placeholder="Православный старец"
+                  />
+                </div>
+              </div>
+              <DialogFooter>
+                <Button variant="outline" onClick={() => setShowAddDialog(false)}>
+                  Отмена
+                </Button>
+                <Button onClick={handleAddAdvisor} disabled={isSubmitting || !newName.trim()}>
+                  {isSubmitting && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
+                  Добавить
+                </Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
+        </div>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -237,7 +246,6 @@ export function AdvisorsGrid({
               </div>
             </CardHeader>
             <CardContent className="space-y-4">
-              {/* Photos grid */}
               <div className="grid grid-cols-3 gap-2">
                 {advisor.photos?.map((photo) => (
                   <div
@@ -292,7 +300,6 @@ export function AdvisorsGrid({
                     </div>
                   </div>
                 ))}
-                {/* Add photo slot */}
                 <div className="aspect-square rounded-lg border-2 border-dashed border-muted-foreground/30 flex items-center justify-center">
                   <Dialog>
                     <DialogTrigger asChild>
@@ -323,7 +330,6 @@ export function AdvisorsGrid({
                 </div>
               </div>
 
-              {/* Voice info */}
               {advisor.elevenlabs_voice_id && (
                 <div className="text-xs text-muted-foreground">
                   Voice ID: {advisor.elevenlabs_voice_id}
@@ -334,7 +340,6 @@ export function AdvisorsGrid({
         ))}
       </div>
 
-      {/* Edit Dialog */}
       <Dialog open={!!selectedAdvisor} onOpenChange={(open) => !open && setSelectedAdvisor(null)}>
         <DialogContent>
           <DialogHeader>
@@ -390,6 +395,16 @@ export function AdvisorsGrid({
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <CsvImporter
+        open={showImporter}
+        onClose={() => setShowImporter(false)}
+        title="Импорт духовников из CSV"
+        columnMapping={ADVISOR_COLUMN_MAPPING}
+        previewColumns={ADVISOR_PREVIEW_COLUMNS}
+        onImport={handleImport}
+        requiredFields={['name']}
+      />
     </div>
   );
 }
