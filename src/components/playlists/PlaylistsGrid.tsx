@@ -5,6 +5,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from '@/components/ui/dialog';
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { Playlist } from '@/hooks/usePlaylists';
 import { Plus, Trash2, Edit, Loader2, ListVideo, FileSpreadsheet } from 'lucide-react';
 import { CsvImporter } from '@/components/import/CsvImporter';
@@ -32,6 +33,8 @@ export function PlaylistsGrid({
   const [showAddDialog, setShowAddDialog] = useState(false);
   const [showImporter, setShowImporter] = useState(false);
   const [editingPlaylist, setEditingPlaylist] = useState<Playlist | null>(null);
+  const [deletingPlaylistId, setDeletingPlaylistId] = useState<string | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
   const [newName, setNewName] = useState('');
   const [newDescription, setNewDescription] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -66,6 +69,17 @@ export function PlaylistsGrid({
   const handleImport = async (data: Record<string, any>[]) => {
     if (onBulkImport) {
       await onBulkImport(data as Partial<Playlist>[]);
+    }
+  };
+
+  const handleDeletePlaylist = async () => {
+    if (!deletingPlaylistId) return;
+    setIsDeleting(true);
+    try {
+      await onDeletePlaylist(deletingPlaylistId);
+      setDeletingPlaylistId(null);
+    } finally {
+      setIsDeleting(false);
     }
   };
 
@@ -157,7 +171,7 @@ export function PlaylistsGrid({
                     className="h-7 w-7 text-destructive hover:text-destructive"
                     onClick={(e) => {
                       e.stopPropagation();
-                      onDeletePlaylist(playlist.id);
+                      setDeletingPlaylistId(playlist.id);
                     }}
                   >
                     <Trash2 className="w-4 h-4" />
@@ -224,6 +238,29 @@ export function PlaylistsGrid({
         onImport={handleImport}
         requiredFields={['name']}
       />
+
+      {/* Delete Confirmation Dialog */}
+      <AlertDialog open={deletingPlaylistId !== null} onOpenChange={(open) => !open && setDeletingPlaylistId(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Удалить плейлист?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Это действие удалит плейлист. Ролики, связанные с этим плейлистом, останутся без плейлиста. Это действие нельзя отменить.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={isDeleting}>Отмена</AlertDialogCancel>
+            <AlertDialogAction 
+              onClick={handleDeletePlaylist} 
+              disabled={isDeleting}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              {isDeleting ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : null}
+              Удалить
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

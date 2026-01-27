@@ -6,10 +6,11 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
-import { Search, CheckCircle, Clock, AlertCircle, Video, Loader2, Plus, ArrowRight, X, FileSpreadsheet } from 'lucide-react';
+import { Search, CheckCircle, Clock, AlertCircle, Video, Loader2, Plus, ArrowRight, X, FileSpreadsheet, Trash2 } from 'lucide-react';
 import { Video as VideoType } from '@/hooks/useVideos';
 import { Publication } from '@/hooks/usePublications';
 import { format } from 'date-fns';
@@ -28,6 +29,7 @@ interface QuestionsTableProps {
   onGoToVideos?: () => void;
   onUpdateQuestion?: (questionId: number, updates: { question?: string; question_eng?: string; safety_score?: string; publication_date?: string }) => void;
   onBulkImport?: (data: Record<string, any>[]) => Promise<void>;
+  onDeleteQuestion?: (questionId: number) => Promise<void>;
 }
 
 interface QuestionData {
@@ -64,7 +66,8 @@ export function QuestionsTable({
   onAddQuestion,
   onGoToVideos,
   onUpdateQuestion,
-  onBulkImport
+  onBulkImport,
+  onDeleteQuestion
 }: QuestionsTableProps) {
   const [searchInput, setSearchInput] = useState('');
   const [showAddDialog, setShowAddDialog] = useState(false);
@@ -72,6 +75,8 @@ export function QuestionsTable({
   const [editingQuestion, setEditingQuestion] = useState<QuestionData | null>(null);
   const [showEditPanel, setShowEditPanel] = useState(false);
   const [localSelectedIds, setLocalSelectedIds] = useState<number[]>(selectedQuestionIds);
+  const [deleteQuestionId, setDeleteQuestionId] = useState<number | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
   const [newQuestion, setNewQuestion] = useState({
     question_id: 0,
     question: '',
@@ -191,6 +196,17 @@ export function QuestionsTable({
     onUpdateQuestion?.(questionId, updates);
   };
 
+  const handleDeleteQuestion = async () => {
+    if (deleteQuestionId === null || !onDeleteQuestion) return;
+    setIsDeleting(true);
+    try {
+      await onDeleteQuestion(deleteQuestionId);
+      setDeleteQuestionId(null);
+    } finally {
+      setIsDeleting(false);
+    }
+  };
+
   const getSafetyBadge = (score: string) => {
     const option = safetyOptions.find(o => o.value === score) || safetyOptions[3];
     return (
@@ -283,12 +299,13 @@ export function QuestionsTable({
                 <TableHead className="w-32">Дата план.</TableHead>
                 <TableHead className="w-24">Статус</TableHead>
                 <TableHead className="w-24">Роликов</TableHead>
+                <TableHead className="w-12"></TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {filteredQuestions.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={8} className="text-center py-8 text-muted-foreground">
+                  <TableCell colSpan={9} className="text-center py-8 text-muted-foreground">
                     {questions.length === 0 ? 'Нет вопросов' : 'Ничего не найдено'}
                   </TableCell>
                 </TableRow>
@@ -344,6 +361,18 @@ export function QuestionsTable({
                       <Badge variant="secondary">
                         {q.videos_count} / {q.total_publications}
                       </Badge>
+                    </TableCell>
+                    <TableCell onClick={(e) => e.stopPropagation()}>
+                      {onDeleteQuestion && (
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-7 w-7 text-destructive hover:text-destructive"
+                          onClick={() => setDeleteQuestionId(q.question_id)}
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </Button>
+                      )}
                     </TableCell>
                   </TableRow>
                 ))
@@ -433,6 +462,29 @@ export function QuestionsTable({
           }
         }}
       />
+
+      {/* Delete Confirmation Dialog */}
+      <AlertDialog open={deleteQuestionId !== null} onOpenChange={(open) => !open && setDeleteQuestionId(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Удалить вопрос #{deleteQuestionId}?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Это действие удалит вопрос и все связанные с ним ролики и публикации. Это действие нельзя отменить.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={isDeleting}>Отмена</AlertDialogCancel>
+            <AlertDialogAction 
+              onClick={handleDeleteQuestion} 
+              disabled={isDeleting}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              {isDeleting ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : null}
+              Удалить
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

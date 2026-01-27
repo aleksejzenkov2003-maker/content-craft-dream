@@ -37,6 +37,7 @@ import {
   Play,
   Sparkles,
   ArrowUpDown,
+  Trash2,
 } from 'lucide-react';
 
 interface VideosTableProps {
@@ -334,6 +335,7 @@ export function VideosTable({
                           <TableHead className="w-[120px]">Front cover</TableHead>
                           <TableHead className="w-[120px]">Video</TableHead>
                           <TableHead>Каналы публикаций</TableHead>
+                          <TableHead className="w-[50px]"></TableHead>
                         </TableRow>
                       </TableHeader>
                       <TableBody>
@@ -445,6 +447,20 @@ export function VideosTable({
                                     <span className="text-xs text-muted-foreground">—</span>
                                   )}
                                 </div>
+                              </TableCell>
+                              <TableCell onClick={(e) => e.stopPropagation()}>
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  className="h-7 w-7 text-destructive hover:text-destructive"
+                                  onClick={() => {
+                                    if (confirm('Удалить этот ролик?')) {
+                                      onDeleteVideo(video.id);
+                                    }
+                                  }}
+                                >
+                                  <Trash2 className="w-4 h-4" />
+                                </Button>
                               </TableCell>
                             </TableRow>
                           );
