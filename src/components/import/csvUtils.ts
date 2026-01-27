@@ -1,7 +1,17 @@
 // CSV Parsing Utilities
 
+// Remove BOM and normalize line endings
+function normalizeContent(content: string): string {
+  // Remove UTF-8 BOM if present
+  let normalized = content.replace(/^\uFEFF/, '');
+  // Normalize line endings to \n
+  normalized = normalized.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
+  return normalized;
+}
+
 export function detectDelimiter(content: string): string {
-  const firstLine = content.split('\n')[0] || '';
+  const normalized = normalizeContent(content);
+  const firstLine = normalized.split('\n')[0] || '';
   const tabCount = (firstLine.match(/\t/g) || []).length;
   const semicolonCount = (firstLine.match(/;/g) || []).length;
   const commaCount = (firstLine.match(/,/g) || []).length;
@@ -74,27 +84,27 @@ export interface ParseResult {
 
 // Split CSV content into logical rows, respecting quoted multiline values
 function splitCSVIntoRows(content: string): string[] {
+  // First normalize the content (remove BOM, normalize line endings)
+  const normalized = normalizeContent(content);
+  
   const rows: string[] = [];
   let currentRow = '';
   let inQuotes = false;
   
-  for (let i = 0; i < content.length; i++) {
-    const char = content[i];
+  for (let i = 0; i < normalized.length; i++) {
+    const char = normalized[i];
     
     if (char === '"') {
       // Handle escaped quotes ""
-      if (inQuotes && i + 1 < content.length && content[i + 1] === '"') {
+      if (inQuotes && i + 1 < normalized.length && normalized[i + 1] === '"') {
         currentRow += '""';
         i++;
       } else {
         inQuotes = !inQuotes;
         currentRow += char;
       }
-    } else if ((char === '\n' || char === '\r') && !inQuotes) {
+    } else if (char === '\n' && !inQuotes) {
       // End of logical row (only if not inside quotes)
-      if (char === '\r' && i + 1 < content.length && content[i + 1] === '\n') {
-        i++; // Skip \n after \r
-      }
       if (currentRow.trim()) {
         rows.push(currentRow);
       }
