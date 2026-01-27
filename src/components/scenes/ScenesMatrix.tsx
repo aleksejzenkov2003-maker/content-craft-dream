@@ -4,13 +4,15 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Loader2, ChevronRight, ChevronDown, Image, Wand2, Check, X } from 'lucide-react';
+import { Loader2, ChevronRight, ChevronDown, Image, Wand2, Check, X, FileSpreadsheet } from 'lucide-react';
 import { usePlaylistScenes, PlaylistScene } from '@/hooks/usePlaylistScenes';
 import { useAdvisors, Advisor } from '@/hooks/useAdvisors';
 import { usePlaylists, Playlist } from '@/hooks/usePlaylists';
 import { SceneSidePanel } from './SceneSidePanel';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
+import { CsvImporter, Lookups } from '@/components/import/CsvImporter';
+import { SCENE_COLUMN_MAPPING, SCENE_PREVIEW_COLUMNS } from '@/components/import/importConfigs';
 
 const statusLabels: Record<string, { label: string; variant: 'default' | 'secondary' | 'outline' | 'destructive' }> = {
   waiting: { label: 'Ожидает', variant: 'outline' },
@@ -30,7 +32,7 @@ const reviewStatusLabels: Record<string, { label: string; variant: 'default' | '
 };
 
 export function ScenesMatrix() {
-  const { scenes, loading: scenesLoading, addScene, updateScene, refetch } = usePlaylistScenes();
+  const { scenes, loading: scenesLoading, addScene, updateScene, refetch, bulkImport } = usePlaylistScenes();
   const { advisors, loading: advisorsLoading } = useAdvisors();
   const { playlists, loading: playlistsLoading } = usePlaylists();
   
@@ -40,10 +42,10 @@ export function ScenesMatrix() {
   const [selectedPlaylist, setSelectedPlaylist] = useState<Playlist | null>(null);
   const [selectedAdvisor, setSelectedAdvisor] = useState<Advisor | null>(null);
   const [showSidePanel, setShowSidePanel] = useState(false);
+  const [showImporter, setShowImporter] = useState(false);
 
   const loading = scenesLoading || advisorsLoading || playlistsLoading;
 
-  // Create a map for quick scene lookup
   const sceneMap = useMemo(() => {
     const map = new Map<string, PlaylistScene>();
     scenes.forEach(scene => {
@@ -83,7 +85,6 @@ export function ScenesMatrix() {
     setGeneratingScenes(prev => new Set(prev).add(key));
 
     try {
-      // Find primary photo for advisor
       const primaryPhoto = advisor.photos?.find(p => p.is_primary) || advisor.photos?.[0];
 
       const response = await supabase.functions.invoke('generate-scene', {
@@ -140,10 +141,53 @@ export function ScenesMatrix() {
 
   const handleUpdateScene = async (id: string, updates: Partial<PlaylistScene>) => {
     await updateScene(id, updates);
-    // Update local state
     if (selectedScene && selectedScene.id === id) {
       setSelectedScene({ ...selectedScene, ...updates } as PlaylistScene);
     }
+  };
+
+  const resolveRow = (row: Record<string, any>, lookups: Lookups) => {
+    const errors: string[] = [];
+    
+    // Resolve advisor by name
+    let advisor_id: string | null = null;
+    if (row.advisor_name) {
+      const advisor = lookups.advisors?.find(a => 
+        a.name.toLowerCase() === row.advisor_name.toLowerCase() ||
+        a.display_name?.toLowerCase() === row.advisor_name.toLowerCase()
+      );
+      if (advisor) {
+        advisor_id = advisor.id;
+      } else {
+        errors.push(`Духовник "${row.advisor_name}" не найден`);
+      }
+    }
+    
+    // Resolve playlist by name
+    let playlist_id: string | null = null;
+    if (row.playlist_name) {
+      const playlist = lookups.playlists?.find(p => 
+        p.name.toLowerCase() === row.playlist_name.toLowerCase()
+      );
+      if (playlist) {
+        playlist_id = playlist.id;
+      } else {
+        errors.push(`Плейлист "${row.playlist_name}" не найден`);
+      }
+    }
+
+    return {
+      data: {
+        ...row,
+        advisor_id,
+        playlist_id,
+      },
+      errors,
+    };
+  };
+
+  const handleImport = async (data: Record<string, any>[]) => {
+    await bulkImport(data as Partial<PlaylistScene>[]);
   };
 
   if (loading) {
@@ -154,7 +198,6 @@ export function ScenesMatrix() {
     );
   }
 
-  // Count scenes by advisor
   const sceneCountByAdvisor = (advisorId: string): number => {
     return scenes.filter(s => s.advisor_id === advisorId).length;
   };
@@ -173,6 +216,10 @@ export function ScenesMatrix() {
           </span>
         </div>
         <div className="flex items-center gap-2">
+          <Button variant="outline" size="sm" onClick={() => setShowImporter(true)}>
+            <FileSpreadsheet className="w-4 h-4 mr-2" />
+            Импорт CSV
+          </Button>
           <Button variant="outline" size="sm" onClick={expandAll}>
             Развернуть все
           </Button>
@@ -342,6 +389,18 @@ export function ScenesMatrix() {
         open={showSidePanel}
         onOpenChange={setShowSidePanel}
         onUpdateScene={handleUpdateScene}
+      />
+
+      {/* CSV Importer */}
+      <CsvImporter
+        open={showImporter}
+        onClose={() => setShowImporter(false)}
+        title="Импорт сцен из CSV"
+        columnMapping={SCENE_COLUMN_MAPPING}
+        previewColumns={SCENE_PREVIEW_COLUMNS}
+        onImport={handleImport}
+        lookups={{ advisors, playlists }}
+        resolveRow={resolveRow}
       />
     </div>
   );

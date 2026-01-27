@@ -25,9 +25,11 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import { Plus, MoreVertical, Edit, Trash2, Instagram, Youtube, Globe, Facebook } from 'lucide-react';
+import { Plus, MoreVertical, Edit, Trash2, Instagram, Youtube, Globe, Facebook, FileSpreadsheet } from 'lucide-react';
 import { PublishingChannel, usePublishingChannels } from '@/hooks/usePublishingChannels';
 import { Textarea } from '@/components/ui/textarea';
+import { CsvImporter } from '@/components/import/CsvImporter';
+import { CHANNEL_COLUMN_MAPPING, CHANNEL_PREVIEW_COLUMNS } from '@/components/import/importConfigs';
 
 const networkIcons: Record<string, React.ElementType> = {
   instagram: Instagram,
@@ -46,8 +48,9 @@ const networkLabels: Record<string, string> = {
 };
 
 export function PublishingChannelsGrid() {
-  const { channels, loading, addChannel, updateChannel, deleteChannel } = usePublishingChannels();
+  const { channels, loading, addChannel, updateChannel, deleteChannel, bulkImport } = usePublishingChannels();
   const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [showImporter, setShowImporter] = useState(false);
   const [editingChannel, setEditingChannel] = useState<PublishingChannel | null>(null);
 
   const [formData, setFormData] = useState({
@@ -114,6 +117,10 @@ export function PublishingChannelsGrid() {
     await updateChannel(channel.id, { is_active: !channel.is_active });
   };
 
+  const handleImport = async (data: Record<string, any>[]) => {
+    await bulkImport(data as Partial<PublishingChannel>[]);
+  };
+
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
@@ -126,84 +133,90 @@ export function PublishingChannelsGrid() {
     <div className="space-y-6">
       <div className="flex justify-between items-center">
         <h2 className="text-2xl font-bold">Каналы публикации</h2>
-        <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-          <DialogTrigger asChild>
-            <Button onClick={() => handleOpenDialog()}>
-              <Plus className="w-4 h-4 mr-2" />
-              Добавить канал
-            </Button>
-          </DialogTrigger>
-          <DialogContent className="max-w-md">
-            <DialogHeader>
-              <DialogTitle>
-                {editingChannel ? 'Редактировать канал' : 'Новый канал публикации'}
-              </DialogTitle>
-            </DialogHeader>
-            <div className="space-y-4">
-              <div>
-                <Label>Название</Label>
-                <Input
-                  value={formData.name}
-                  onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                  placeholder="Мой Instagram"
-                />
-              </div>
-              <div>
-                <Label>Тип сети</Label>
-                <Select
-                  value={formData.network_type}
-                  onValueChange={(value) => setFormData({ ...formData, network_type: value })}
-                >
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="instagram">Instagram</SelectItem>
-                    <SelectItem value="tiktok">TikTok</SelectItem>
-                    <SelectItem value="youtube">YouTube</SelectItem>
-                    <SelectItem value="facebook">Facebook</SelectItem>
-                    <SelectItem value="website">Website</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              <div>
-                <Label>Прокси-сервер</Label>
-                <Input
-                  value={formData.proxy_server}
-                  onChange={(e) => setFormData({ ...formData, proxy_server: e.target.value })}
-                  placeholder="proxy.example.com:8080"
-                />
-              </div>
-              <div>
-                <Label>Локация</Label>
-                <Input
-                  value={formData.location}
-                  onChange={(e) => setFormData({ ...formData, location: e.target.value })}
-                  placeholder="USA, New York"
-                />
-              </div>
-              <div>
-                <Label>Промт для генерации текста поста</Label>
-                <Textarea
-                  value={formData.post_text_prompt}
-                  onChange={(e) => setFormData({ ...formData, post_text_prompt: e.target.value })}
-                  placeholder="Напиши привлекательный текст для Instagram поста о..."
-                  rows={4}
-                />
-              </div>
-              <div className="flex items-center justify-between">
-                <Label>Активен</Label>
-                <Switch
-                  checked={formData.is_active}
-                  onCheckedChange={(checked) => setFormData({ ...formData, is_active: checked })}
-                />
-              </div>
-              <Button onClick={handleSubmit} className="w-full">
-                {editingChannel ? 'Сохранить' : 'Добавить'}
+        <div className="flex gap-2">
+          <Button variant="outline" onClick={() => setShowImporter(true)}>
+            <FileSpreadsheet className="w-4 h-4 mr-2" />
+            Импорт CSV
+          </Button>
+          <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+            <DialogTrigger asChild>
+              <Button onClick={() => handleOpenDialog()}>
+                <Plus className="w-4 h-4 mr-2" />
+                Добавить канал
               </Button>
-            </div>
-          </DialogContent>
-        </Dialog>
+            </DialogTrigger>
+            <DialogContent className="max-w-md">
+              <DialogHeader>
+                <DialogTitle>
+                  {editingChannel ? 'Редактировать канал' : 'Новый канал публикации'}
+                </DialogTitle>
+              </DialogHeader>
+              <div className="space-y-4">
+                <div>
+                  <Label>Название</Label>
+                  <Input
+                    value={formData.name}
+                    onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                    placeholder="Мой Instagram"
+                  />
+                </div>
+                <div>
+                  <Label>Тип сети</Label>
+                  <Select
+                    value={formData.network_type}
+                    onValueChange={(value) => setFormData({ ...formData, network_type: value })}
+                  >
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="instagram">Instagram</SelectItem>
+                      <SelectItem value="tiktok">TikTok</SelectItem>
+                      <SelectItem value="youtube">YouTube</SelectItem>
+                      <SelectItem value="facebook">Facebook</SelectItem>
+                      <SelectItem value="website">Website</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div>
+                  <Label>Прокси-сервер</Label>
+                  <Input
+                    value={formData.proxy_server}
+                    onChange={(e) => setFormData({ ...formData, proxy_server: e.target.value })}
+                    placeholder="proxy.example.com:8080"
+                  />
+                </div>
+                <div>
+                  <Label>Локация</Label>
+                  <Input
+                    value={formData.location}
+                    onChange={(e) => setFormData({ ...formData, location: e.target.value })}
+                    placeholder="USA, New York"
+                  />
+                </div>
+                <div>
+                  <Label>Промт для генерации текста поста</Label>
+                  <Textarea
+                    value={formData.post_text_prompt}
+                    onChange={(e) => setFormData({ ...formData, post_text_prompt: e.target.value })}
+                    placeholder="Напиши привлекательный текст для Instagram поста о..."
+                    rows={4}
+                  />
+                </div>
+                <div className="flex items-center justify-between">
+                  <Label>Активен</Label>
+                  <Switch
+                    checked={formData.is_active}
+                    onCheckedChange={(checked) => setFormData({ ...formData, is_active: checked })}
+                  />
+                </div>
+                <Button onClick={handleSubmit} className="w-full">
+                  {editingChannel ? 'Сохранить' : 'Добавить'}
+                </Button>
+              </div>
+            </DialogContent>
+          </Dialog>
+        </div>
       </div>
 
       {channels.length === 0 ? (
@@ -284,6 +297,16 @@ export function PublishingChannelsGrid() {
           })}
         </div>
       )}
+
+      <CsvImporter
+        open={showImporter}
+        onClose={() => setShowImporter(false)}
+        title="Импорт каналов публикации из CSV"
+        columnMapping={CHANNEL_COLUMN_MAPPING}
+        previewColumns={CHANNEL_PREVIEW_COLUMNS}
+        onImport={handleImport}
+        requiredFields={['name', 'network_type']}
+      />
     </div>
   );
 }

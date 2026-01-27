@@ -218,6 +218,29 @@ export function useAdvisors() {
     }
   };
 
+  const bulkImport = async (items: Partial<Advisor>[]) => {
+    try {
+      const { error } = await supabase
+        .from('advisors')
+        .upsert(items.map(item => ({
+          name: item.name!,
+          display_name: item.display_name || null,
+          elevenlabs_voice_id: item.elevenlabs_voice_id || null,
+          speech_speed: item.speech_speed || 1.0,
+          is_active: item.is_active ?? true,
+        })), { onConflict: 'name' });
+
+      if (error) throw error;
+
+      await fetchAdvisors();
+      toast.success(`Импортировано ${items.length} духовников`);
+    } catch (error: any) {
+      console.error('Error bulk importing advisors:', error);
+      toast.error('Ошибка импорта духовников');
+      throw error;
+    }
+  };
+
   return {
     advisors,
     loading,
@@ -229,5 +252,6 @@ export function useAdvisors() {
     updatePhotoAssetId,
     deletePhoto,
     setPrimaryPhoto,
+    bulkImport,
   };
 }

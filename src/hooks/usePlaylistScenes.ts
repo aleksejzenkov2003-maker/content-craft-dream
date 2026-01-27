@@ -114,6 +114,30 @@ export function usePlaylistScenes() {
     }
   };
 
+  const bulkImport = async (items: Partial<PlaylistScene>[]) => {
+    try {
+      const { error } = await supabase
+        .from('playlist_scenes')
+        .insert(items.map(item => ({
+          playlist_id: item.playlist_id || null,
+          advisor_id: item.advisor_id || null,
+          scene_prompt: item.scene_prompt || null,
+          scene_url: item.scene_url || null,
+          status: item.status || 'waiting',
+          review_status: item.review_status || 'Waiting',
+        })));
+
+      if (error) throw error;
+
+      await fetchScenes();
+      toast.success(`Импортировано ${items.length} сцен`);
+    } catch (error: any) {
+      console.error('Error bulk importing scenes:', error);
+      toast.error('Ошибка импорта сцен');
+      throw error;
+    }
+  };
+
   return {
     scenes,
     loading,
@@ -121,5 +145,6 @@ export function usePlaylistScenes() {
     addScene,
     updateScene,
     deleteScene,
+    bulkImport,
   };
 }

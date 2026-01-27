@@ -98,6 +98,27 @@ export function usePlaylists() {
     }
   };
 
+  const bulkImport = async (items: Partial<Playlist>[]) => {
+    try {
+      const { error } = await supabase
+        .from('playlists')
+        .upsert(items.map(item => ({
+          name: item.name!,
+          description: item.description || null,
+          scene_prompt: item.scene_prompt || null,
+        })), { onConflict: 'name' });
+
+      if (error) throw error;
+
+      await fetchPlaylists();
+      toast.success(`Импортировано ${items.length} плейлистов`);
+    } catch (error: any) {
+      console.error('Error bulk importing playlists:', error);
+      toast.error('Ошибка импорта плейлистов');
+      throw error;
+    }
+  };
+
   return {
     playlists,
     loading,
@@ -105,5 +126,6 @@ export function usePlaylists() {
     addPlaylist,
     updatePlaylist,
     deletePlaylist,
+    bulkImport,
   };
 }
