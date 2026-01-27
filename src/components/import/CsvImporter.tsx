@@ -234,7 +234,56 @@ export function CsvImporter({
                 </div>
               </div>
 
-              {/* Preview table */}
+              {/* Column mapping info */}
+              {parseResult && (
+                <div className="p-3 bg-muted/30 rounded-lg text-sm space-y-2">
+                  <div className="flex items-center gap-2 text-muted-foreground">
+                    <span>Разделитель:</span>
+                    <Badge variant="outline">
+                      {parseResult.detectedDelimiter === ',' ? 'запятая' : 
+                       parseResult.detectedDelimiter === ';' ? 'точка с запятой' : 
+                       parseResult.detectedDelimiter === '\t' ? 'табуляция' : parseResult.detectedDelimiter}
+                    </Badge>
+                    <span className="ml-4">Распознанные колонки:</span>
+                    <Badge variant="secondary">
+                      {parseResult.mappedColumns.filter(c => c.mappedField).length} из {parseResult.mappedColumns.length}
+                    </Badge>
+                  </div>
+                  
+                  {parseResult.unmappedColumns.length > 0 && (
+                    <div className="flex items-start gap-2">
+                      <AlertCircle className="w-4 h-4 text-amber-500 mt-0.5 shrink-0" />
+                      <div>
+                        <span className="text-amber-600">Нераспознанные колонки: </span>
+                        <span className="text-muted-foreground">
+                          {parseResult.unmappedColumns.slice(0, 5).join(', ')}
+                          {parseResult.unmappedColumns.length > 5 && ` и ещё ${parseResult.unmappedColumns.length - 5}`}
+                        </span>
+                      </div>
+                    </div>
+                  )}
+                  
+                  <details className="cursor-pointer">
+                    <summary className="text-muted-foreground hover:text-foreground">
+                      Показать все колонки файла
+                    </summary>
+                    <div className="mt-2 grid grid-cols-2 gap-1 text-xs">
+                      {parseResult.mappedColumns.map((col, idx) => (
+                        <div key={idx} className="flex items-center gap-2">
+                          <span className="text-muted-foreground">{col.csvHeader || `[пусто]`}</span>
+                          <span>→</span>
+                          {col.mappedField ? (
+                            <Badge variant="default" className="text-xs">{col.mappedField}</Badge>
+                          ) : (
+                            <Badge variant="outline" className="text-xs text-muted-foreground">не распознано</Badge>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  </details>
+                </div>
+              )}
+
               <ScrollArea className="h-[400px] border rounded-lg">
                 <div className="min-w-max">
                   <Table>
