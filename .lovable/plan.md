@@ -1,246 +1,405 @@
 
-# План: Импорт данных и расширение структуры базы данных
+# План: Универсальный CSV-импортер с превью для всех страниц
 
 ## Обзор
 
-На основе загруженных CSV файлов из Airtable необходимо:
-1. Расширить схему базы данных для поддержки всех полей
-2. Добавить недостающие плейлисты
-3. Обновить каналы публикации
-4. Импортировать ролики с ответами духовников
-5. Импортировать сцены плейлистов
-6. Создать публикации
+Создание переиспользуемого компонента загрузки CSV/Excel с предпросмотром данных, который можно интегрировать на каждой странице приложения с настраиваемыми маппингами полей.
 
 ---
 
-## Часть 1: Миграция базы данных
+## Часть 1: Универсальный компонент CsvImporter
 
-### 1.1 Добавить новые поля в таблицу `videos`
+### 1.1 Новый файл: `src/components/import/CsvImporter.tsx`
 
-```sql
--- Новые поля для вопросов
-ALTER TABLE videos ADD COLUMN IF NOT EXISTS question_rus text;
-ALTER TABLE videos ADD COLUMN IF NOT EXISTS question_eng text;
-ALTER TABLE videos ADD COLUMN IF NOT EXISTS hook_rus text;
-ALTER TABLE videos ADD COLUMN IF NOT EXISTS hook_eng text;
-ALTER TABLE videos ADD COLUMN IF NOT EXISTS relevance_score integer DEFAULT 0;
-ALTER TABLE videos ADD COLUMN IF NOT EXISTS question_status text DEFAULT 'pending';
-ALTER TABLE videos ADD COLUMN IF NOT EXISTS voiceover_url text;
+Переиспользуемый компонент с параметрами:
+- `entityType` — тип сущности (videos, advisors, playlists, scenes, channels, publications)
+- `columnMapping` — карта соответствия CSV-колонок и полей БД
+- `onImport` — callback для импорта данных
+- `onValidate` — опциональная валидация строки
+- `lookups` — справочники для связанных данных (advisors, playlists, channels)
+
+```typescript
+interface CsvImporterProps<T> {
+  open: boolean;
+  onClose: () => void;
+  title: string;
+  columnMapping: Record<string, keyof T>;
+  onImport: (data: Partial<T>[]) => Promise<void>;
+  onValidate?: (row: Partial<T>) => { valid: boolean; errors: string[] };
+  lookups?: {
+    advisors?: Advisor[];
+    playlists?: Playlist[];
+    channels?: PublishingChannel[];
+  };
+  previewColumns: { key: keyof T; label: string; render?: (value: any, row: T) => React.ReactNode }[];
+}
 ```
 
-### 1.2 Добавить новые плейлисты
+### 1.2 Логика парсинга CSV (из existing VideoImportDialog)
 
-В базе есть: Prayer & God, Faith & Doubt, Life & Death, Love & Compassion, Purpose & Meaning, Relationships, Self-Discovery, Ethics & Morality
+- Определение разделителя (`,`, `;`, `\t`)
+- Парсинг с учетом кавычек
+- Нормализация заголовков
+- Автоматический маппинг колонок
 
-Нужно добавить из CSV (Grid_view_3.csv):
-- Family & Kids
-- What's The Point?
-- Sex & Desire
-- Abortion: Life vs Choice
-- LGBTQ+ & Identity
-- Violence & Revenge
-- Death & Beyond
-- Love & Heartbreak
-- Addiction & Temptation
-- Social Media & Tech
-- Betrayal & Divorce
-- Sin & Forgiveness
-- Work & Career
-- Body & Beauty
-- Suicide & Despair
-- Money & Greed
+```typescript
+function parseCSVLine(line: string, delimiter = ','): string[] {
+  const values: string[] = [];
+  let current = '';
+  let inQuotes = false;
+  
+  for (let i = 0; i < line.length; i++) {
+    const char = line[i];
+    if (char === '"') {
+      if (inQuotes && i + 1 < line.length && line[i + 1] === '"') {
+        current += '"';
+        i++;
+      } else {
+        inQuotes = !inQuotes;
+      }
+    } else if (char === delimiter && !inQuotes) {
+      values.push(current.trim());
+      current = '';
+    } else {
+      current += char;
+    }
+  }
+  values.push(current.trim());
+  return values;
+}
 
-### 1.3 Обновить publishing_channels
-
-Добавить недостающие поля (уже есть: network_type, proxy_server, post_text_prompt, location):
-- Нужно обновить данные из Grid_view_4.csv
-
----
-
-## Часть 2: Импорт данных
-
-### 2.1 Маппинг данных из CSV
-
-**Grid_view.csv (Вопросы)**:
-```
-ID Вопроса → question_id
-Актуальность → relevance_score
-Planned publication date → publication_date
-Безопасность вопроса → safety_score
-Статус вопроса → question_status
-Вопрос к духовнику eng → question_eng (или question)
-Вопрос к духовнику рус → question_rus
-Плейлист eng → playlist (по имени → playlist_id)
-Хук eng → hook
-Хук рус → hook_rus (новое поле)
+function normalizeHeader(header: string): string {
+  return header
+    .trim()
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, ''); // удаление диакритики
+}
 ```
 
-**Аудио_и_видео.csv (Ролики)**:
-```
-ID Ролика → video_number
-Духовник → advisor_id (по имени)
-Безопасность вопроса → safety_score
-Плейлист → playlist_id (по имени)
-Ответ духовника → advisor_answer
-Video (URL) → heygen_video_url
-Video status → generation_status
-Озвучка → voiceover_url (новое поле)
-```
-
-**Grid_view_2.csv (Сцены)**:
-```
-Духовник → advisor_id
-Плейлист → playlist_id
-Status → status
-Промт для сцены → scene_prompt
-Фото сцены → scene_url
-Статус проверки → (новое поле review_status)
-```
-
-**Grid_view_4.csv (Каналы публикации)**:
-```
-Network Name → name
-Social Network type → network_type
-Proxy Server → proxy_server (или location)
-Prompt для публикации → post_text_prompt
-```
-
-**Grid_view_1.csv (Публикации)**:
-```
-Post ID → (игнорировать, генерируется автоматически)
-ID Ролика → video_id (по video_number)
-Каналы публикаций → channel_id (по имени)
-Network → network_type
-Post date → post_date
-Status → publication_status
-```
-
-### 2.2 Добавить review_status в playlist_scenes
-
-```sql
-ALTER TABLE playlist_scenes ADD COLUMN IF NOT EXISTS review_status text DEFAULT 'Waiting';
-```
-
----
-
-## Часть 3: Обновление импорта в UI
-
-### 3.1 Обновить VideoImportDialog
-
-Расширить COLUMN_MAPPING для поддержки новых полей из CSV:
-- `id ролика` → video_number
-- `ответ духовника` → advisor_answer
-- `озвучка` → voiceover_url
-- `безопасность вопроса` → safety_score
-
-### 3.2 Создать SceneImportDialog (новый)
-
-Компонент для импорта сцен из CSV с маппингом:
-- Духовник → advisor_id
-- Плейлист → playlist_id
-- Промт → scene_prompt
-- Фото → scene_url
-- Статус → review_status
-
-### 3.3 Создать ChannelImportDialog (новый)
-
-Компонент для импорта каналов публикации
-
----
-
-## Часть 4: Порядок импорта данных
+### 1.3 UI компонента
 
 ```text
-1. Добавить плейлисты (Grid_view_3.csv)
-   ↓
-2. Добавить/обновить каналы публикации (Grid_view_4.csv)
-   ↓
-3. Импортировать ролики (Аудио_и_видео.csv)
-   ↓
-4. Импортировать сцены (Grid_view_2.csv)
-   ↓
-5. Создать публикации (Grid_view_1.csv)
+┌────────────────────────────────────────────────────────────────┐
+│ 📄 Импорт [entity] из CSV/Excel                                │
+├────────────────────────────────────────────────────────────────┤
+│                                                                │
+│  ┌──────────────────────────────────────────────────────────┐  │
+│  │                                                          │  │
+│  │          📤 Перетащите файл сюда                        │  │
+│  │              или нажмите для выбора                      │  │
+│  │                                                          │  │
+│  │          Поддерживаемые форматы: CSV, XLS, XLSX          │  │
+│  └──────────────────────────────────────────────────────────┘  │
+│                                                                │
+├────────────────────────────────────────────────────────────────┤
+│ После загрузки:                                                │
+│                                                                │
+│  📁 filename.csv        │ 50 строк │ ✅ 48 готово │ ⚠️ 2 ошибки │
+│                                    [Выбрать другой файл]       │
+│                                                                │
+│  ┌──────────────────────────────────────────────────────────┐  │
+│  │ # │ Колонка 1  │ Колонка 2  │ Колонка 3  │ Статус        │  │
+│  ├───┼────────────┼────────────┼────────────┼───────────────┤  │
+│  │ 1 │ Значение   │ Значение   │ Badge      │ ✅ OK         │  │
+│  │ 2 │ Значение   │ Значение   │ Badge      │ ⚠️ Ошибка     │  │
+│  │ …                                                        │  │
+│  └──────────────────────────────────────────────────────────┘  │
+│                                                                │
+│                         [Отмена]  [Импортировать 48 записей]   │
+└────────────────────────────────────────────────────────────────┘
 ```
 
 ---
 
-## Часть 5: Обновление QuestionsTable
+## Часть 2: Конфигурации для каждого типа данных
 
-### 5.1 Добавить новые столбцы
+### 2.1 Новый файл: `src/components/import/importConfigs.ts`
 
-На основе скриншота (image-4.png) таблица вопросов должна показывать:
-- ID (question_id)
-- Безопасность (safety_score) - с бейджем
-- Актуальность (relevance_score) - с прогресс-баром
-- Вопрос (рус) (question_rus или question)
-- Дата публикации (publication_date)
+Хранит маппинги и конфигурации превью для каждого типа сущности:
 
-### 5.2 Обновить QuestionSidePanel
+```typescript
+// Ролики (Videos)
+export const VIDEO_COLUMN_MAPPING = {
+  'video_number': 'video_number',
+  'номер': 'video_number',
+  'id ролика': 'video_number',
+  'духовник': 'advisor_name',
+  'advisor': 'advisor_name',
+  'плейлист': 'playlist_name',
+  'playlist': 'playlist_name',
+  'вопрос': 'question',
+  'question': 'question',
+  'безопасность': 'safety_score',
+  'хук': 'hook',
+  'ответ духовника': 'advisor_answer',
+  'озвучка': 'voiceover_url',
+  // ... и т.д.
+};
 
-Добавить поля:
-- question_rus / question_eng
-- hook_rus / hook_eng
-- relevance_score
-- question_status (checked/unchecked)
+// Духовники (Advisors)
+export const ADVISOR_COLUMN_MAPPING = {
+  'name': 'name',
+  'имя': 'name',
+  'display_name': 'display_name',
+  'отображаемое имя': 'display_name',
+  'voice_id': 'elevenlabs_voice_id',
+  // ...
+};
+
+// Плейлисты (Playlists)
+export const PLAYLIST_COLUMN_MAPPING = {
+  'name': 'name',
+  'название': 'name',
+  'description': 'description',
+  'описание': 'description',
+  'scene_prompt': 'scene_prompt',
+  // ...
+};
+
+// Каналы публикации (Publishing Channels)
+export const CHANNEL_COLUMN_MAPPING = {
+  'network name': 'name',
+  'название': 'name',
+  'social network type': 'network_type',
+  'тип сети': 'network_type',
+  'proxy server': 'proxy_server',
+  'прокси': 'proxy_server',
+  'location': 'location',
+  'локация': 'location',
+  'prompt': 'post_text_prompt',
+  // ...
+};
+
+// Публикации (Publications)
+export const PUBLICATION_COLUMN_MAPPING = {
+  'id ролика': 'video_number',
+  'video_id': 'video_number',
+  'канал': 'channel_name',
+  'channel': 'channel_name',
+  'post date': 'post_date',
+  'дата': 'post_date',
+  'status': 'publication_status',
+  'статус': 'publication_status',
+  // ...
+};
+
+// Сцены (Playlist Scenes)
+export const SCENE_COLUMN_MAPPING = {
+  'духовник': 'advisor_name',
+  'плейлист': 'playlist_name',
+  'промт': 'scene_prompt',
+  'scene_prompt': 'scene_prompt',
+  'фото': 'scene_url',
+  'scene_url': 'scene_url',
+  'статус': 'status',
+  'review_status': 'review_status',
+  // ...
+};
+```
 
 ---
 
-## Технические детали
+## Часть 3: Интеграция на страницы
 
-### Миграция базы данных
+### 3.1 Обновить компоненты страниц
 
-```sql
--- 1. Новые поля для videos
-ALTER TABLE videos ADD COLUMN IF NOT EXISTS question_rus text;
-ALTER TABLE videos ADD COLUMN IF NOT EXISTS hook_rus text;
-ALTER TABLE videos ADD COLUMN IF NOT EXISTS relevance_score integer DEFAULT 0;
-ALTER TABLE videos ADD COLUMN IF NOT EXISTS question_status text DEFAULT 'pending';
-ALTER TABLE videos ADD COLUMN IF NOT EXISTS voiceover_url text;
+Каждая страница получает кнопку "Импорт CSV" и подключенный CsvImporter:
 
--- 2. Новое поле для playlist_scenes
-ALTER TABLE playlist_scenes ADD COLUMN IF NOT EXISTS review_status text DEFAULT 'Waiting';
+**Духовники (`AdvisorsGrid.tsx`):**
+```tsx
+<Button onClick={() => setShowImporter(true)}>
+  <Upload className="w-4 h-4 mr-2" />
+  Импорт CSV
+</Button>
 
--- 3. Новые плейлисты
-INSERT INTO playlists (name, description) VALUES
-  ('Family & Kids', 'Семья и дети'),
-  ('What''s The Point?', 'В чём смысл?'),
-  ('Sex & Desire', 'Секс и желание'),
-  ('Abortion: Life vs Choice', 'Аборт: Жизнь или выбор'),
-  ('LGBTQ+ & Identity', 'ЛГБТ+ и идентичность'),
-  ('Violence & Revenge', 'Насилие и месть'),
-  ('Death & Beyond', 'Смерть и потустороннее'),
-  ('Love & Heartbreak', 'Любовь и разлука'),
-  ('Addiction & Temptation', 'Зависимость и искушение'),
-  ('Social Media & Tech', 'Соцсети и технологии'),
-  ('Betrayal & Divorce', 'Предательство и развод'),
-  ('Sin & Forgiveness', 'Грех и прощение'),
-  ('Work & Career', 'Работа и карьера'),
-  ('Body & Beauty', 'Тело и красота'),
-  ('Suicide & Despair', 'Суицид и отчаяние'),
-  ('Money & Greed', 'Деньги и жадность')
-ON CONFLICT (name) DO NOTHING;
+<CsvImporter
+  open={showImporter}
+  onClose={() => setShowImporter(false)}
+  title="Импорт духовников"
+  columnMapping={ADVISOR_COLUMN_MAPPING}
+  onImport={bulkImportAdvisors}
+  previewColumns={[
+    { key: 'name', label: 'Имя' },
+    { key: 'display_name', label: 'Отображаемое имя' },
+  ]}
+/>
 ```
 
-### Файлы для изменения
+**Плейлисты (`PlaylistsGrid.tsx`):**
+- Кнопка "Импорт CSV"
+- CsvImporter с PLAYLIST_COLUMN_MAPPING
 
-1. **Миграция БД** - добавить поля
-2. `src/hooks/useVideos.ts` - добавить новые поля в интерфейс Video
-3. `src/components/questions/QuestionsTable.tsx` - обновить столбцы
-4. `src/components/questions/QuestionSidePanel.tsx` - добавить поля
-5. `src/components/videos/VideoImportDialog.tsx` - расширить маппинг
-6. `src/components/scenes/ScenesMatrix.tsx` - добавить review_status
+**Каналы (`PublishingChannelsGrid.tsx`):**
+- Кнопка "Импорт CSV"
+- CsvImporter с CHANNEL_COLUMN_MAPPING
 
-### Новые файлы
+**Публикации (`PublicationsTable.tsx`):**
+- Кнопка "Импорт CSV"
+- CsvImporter с PUBLICATION_COLUMN_MAPPING
+- Лукап: channels, videos
 
-1. `src/components/import/DataImportWizard.tsx` - мастер импорта с шагами
+**Сцены (`ScenesMatrix.tsx`):**
+- Кнопка "Импорт CSV"
+- CsvImporter с SCENE_COLUMN_MAPPING
+- Лукап: advisors, playlists
+
+**Вопросы (`QuestionsTable.tsx`):**
+- Кнопка "Импорт CSV"
+- CsvImporter с VIDEO_COLUMN_MAPPING (импорт как видео с вопросами)
+
+---
+
+## Часть 4: Добавление bulkImport в хуки
+
+### 4.1 `useAdvisors.ts` — добавить `bulkImport`
+
+```typescript
+const bulkImport = async (advisors: Partial<Advisor>[]) => {
+  const { error } = await supabase
+    .from('advisors')
+    .upsert(advisors, { onConflict: 'name' });
+  
+  if (error) throw error;
+  await fetchAdvisors();
+  toast.success(`Импортировано ${advisors.length} духовников`);
+};
+```
+
+### 4.2 `usePlaylists.ts` — добавить `bulkImport`
+
+```typescript
+const bulkImport = async (playlists: Partial<Playlist>[]) => {
+  const { error } = await supabase
+    .from('playlists')
+    .upsert(playlists, { onConflict: 'name' });
+  
+  if (error) throw error;
+  await fetchPlaylists();
+  toast.success(`Импортировано ${playlists.length} плейлистов`);
+};
+```
+
+### 4.3 `usePublishingChannels.ts` — добавить `bulkImport`
+
+```typescript
+const bulkImport = async (channels: Partial<PublishingChannel>[]) => {
+  const { error } = await supabase
+    .from('publishing_channels')
+    .upsert(channels, { onConflict: 'name' });
+  
+  if (error) throw error;
+  await fetchChannels();
+  toast.success(`Импортировано ${channels.length} каналов`);
+};
+```
+
+### 4.4 `usePublications.ts` — добавить `bulkImport`
+
+```typescript
+const bulkImport = async (publications: Partial<Publication>[]) => {
+  const { error } = await supabase
+    .from('publications')
+    .insert(publications);
+  
+  if (error) throw error;
+  await fetchPublications();
+  toast.success(`Импортировано ${publications.length} публикаций`);
+};
+```
+
+### 4.5 `usePlaylistScenes.ts` — добавить `bulkImport`
+
+```typescript
+const bulkImport = async (scenes: Partial<PlaylistScene>[]) => {
+  const { error } = await supabase
+    .from('playlist_scenes')
+    .upsert(scenes, { onConflict: 'playlist_id,advisor_id' });
+  
+  if (error) throw error;
+  await refetch();
+  toast.success(`Импортировано ${scenes.length} сцен`);
+};
+```
+
+---
+
+## Структура файлов
+
+### Новые файлы:
+```
+src/components/import/
+├── CsvImporter.tsx          # Универсальный компонент
+├── importConfigs.ts         # Маппинги колонок
+└── csvUtils.ts              # Утилиты парсинга CSV
+```
+
+### Обновляемые файлы:
+```
+src/hooks/
+├── useAdvisors.ts           # + bulkImport
+├── usePlaylists.ts          # + bulkImport  
+├── usePublishingChannels.ts # + bulkImport
+├── usePublications.ts       # + bulkImport
+└── usePlaylistScenes.ts     # + bulkImport
+
+src/components/
+├── advisors/AdvisorsGrid.tsx
+├── playlists/PlaylistsGrid.tsx
+├── publishing/PublishingChannelsGrid.tsx
+├── publishing/PublicationsTable.tsx
+├── scenes/ScenesMatrix.tsx
+└── questions/QuestionsTable.tsx
+```
 
 ---
 
 ## Порядок реализации
 
-1. **Миграция БД** - добавить новые поля и плейлисты
-2. **Обновить useVideos** - добавить новые поля в интерфейс
-3. **Обновить QuestionsTable** - новые столбцы (актуальность, вопрос рус)
-4. **Обновить QuestionSidePanel** - редактирование новых полей
-5. **Расширить VideoImportDialog** - маппинг для Аудио_и_видео.csv
-6. **Добавить импорт сцен** - в ScenesMatrix или отдельный диалог
+1. **Создать утилиты парсинга CSV** (`csvUtils.ts`)
+2. **Создать конфигурации маппингов** (`importConfigs.ts`)
+3. **Создать универсальный CsvImporter** (`CsvImporter.tsx`)
+4. **Добавить bulkImport в хуки** (advisors, playlists, channels, publications, scenes)
+5. **Интегрировать на страницы**:
+   - AdvisorsGrid
+   - PlaylistsGrid
+   - PublishingChannelsGrid
+   - PublicationsTable
+   - ScenesMatrix
+   - QuestionsTable
+
+---
+
+## Технические детали
+
+### Валидация при импорте
+
+Каждый тип данных имеет свою валидацию:
+
+- **Advisors**: проверка уникальности имени
+- **Playlists**: проверка уникальности названия
+- **Videos**: маппинг advisor_name → advisor_id, playlist_name → playlist_id
+- **Publications**: маппинг video_number → video_id, channel_name → channel_id
+- **Scenes**: маппинг advisor + playlist, проверка существования
+
+### Обработка связей
+
+```typescript
+// Пример резолвинга связей для публикаций
+const resolvePublicationRow = (row: ParsedRow, lookups: Lookups) => {
+  const video = lookups.videos?.find(v => v.video_number === row.video_number);
+  const channel = lookups.channels?.find(c => 
+    c.name.toLowerCase() === row.channel_name?.toLowerCase()
+  );
+  
+  return {
+    ...row,
+    video_id: video?.id || null,
+    channel_id: channel?.id || null,
+    errors: [
+      !video && row.video_number ? `Ролик #${row.video_number} не найден` : null,
+      !channel && row.channel_name ? `Канал "${row.channel_name}" не найден` : null,
+    ].filter(Boolean),
+  };
+};
+```
