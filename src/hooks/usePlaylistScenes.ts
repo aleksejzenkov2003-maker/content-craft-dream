@@ -9,6 +9,7 @@ export interface PlaylistScene {
   scene_prompt: string | null;
   scene_url: string | null;
   status: string;
+  review_status: string | null;
   created_at: string;
   updated_at: string;
   // Joined data
