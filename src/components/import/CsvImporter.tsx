@@ -236,14 +236,19 @@ export function CsvImporter({
 
               {/* Preview table */}
               <ScrollArea className="h-[400px] border rounded-lg">
-                <Table>
+                <Table className="table-fixed w-full">
                   <TableHeader>
                     <TableRow className="bg-muted/50">
-                      <TableHead className="w-12">#</TableHead>
-                      {previewColumns.map(col => (
-                        <TableHead key={col.key}>{col.label}</TableHead>
+                      <TableHead className="w-12 shrink-0">#</TableHead>
+                      {previewColumns.map((col, idx) => (
+                        <TableHead 
+                          key={col.key} 
+                          className={idx === 0 ? "w-16" : "min-w-[120px]"}
+                        >
+                          {col.label}
+                        </TableHead>
                       ))}
-                      <TableHead className="w-40">Статус</TableHead>
+                      <TableHead className="w-32 shrink-0">Статус</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -254,11 +259,15 @@ export function CsvImporter({
                           !row.isValid && "bg-destructive/5"
                         )}
                       >
-                        <TableCell className="font-mono text-xs text-muted-foreground">
+                        <TableCell className="font-mono text-xs text-muted-foreground w-12">
                           {row.rowIndex}
                         </TableCell>
-                        {previewColumns.map(col => (
-                          <TableCell key={col.key} className="max-w-[200px] truncate">
+                        {previewColumns.map((col, idx) => (
+                          <TableCell 
+                            key={col.key} 
+                            className={`truncate ${idx === 0 ? "w-16" : "max-w-[200px]"}`}
+                            title={String(row.data[col.key] || '')}
+                          >
                             {col.render
                               ? col.render(row.data[col.key], row.data)
                               : row.data[col.key] || '—'}
