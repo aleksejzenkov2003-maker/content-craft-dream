@@ -53,12 +53,21 @@ export interface ParsedRow {
   isValid: boolean;
 }
 
+export interface ColumnMappingInfo {
+  csvHeader: string;
+  mappedField: string | null;
+  columnIndex: number;
+}
+
 export interface ParseResult {
   headers: string[];
+  mappedColumns: ColumnMappingInfo[];
+  unmappedColumns: string[];
   rows: ParsedRow[];
   totalRows: number;
   validRows: number;
   errorRows: number;
+  detectedDelimiter: string;
 }
 
 export function parseCSV(
@@ -70,21 +79,47 @@ export function parseCSV(
   const lines = content.split('\n').filter(line => line.trim());
   
   if (lines.length === 0) {
-    return { headers: [], rows: [], totalRows: 0, validRows: 0, errorRows: 0 };
+    return { 
+      headers: [], 
+      mappedColumns: [],
+      unmappedColumns: [],
+      rows: [], 
+      totalRows: 0, 
+      validRows: 0, 
+      errorRows: 0,
+      detectedDelimiter: delimiter
+    };
   }
   
   const headerLine = lines[0];
   const rawHeaders = parseCSVLine(headerLine, delimiter);
   const normalizedHeaders = rawHeaders.map(normalizeHeader);
   
-  // Map headers to field names
+  // Map headers to field names and track mapping info
   const headerToField: Record<number, string> = {};
-  normalizedHeaders.forEach((normalizedHeader, index) => {
+  const mappedColumns: ColumnMappingInfo[] = [];
+  const unmappedColumns: string[] = [];
+  
+  rawHeaders.forEach((rawHeader, index) => {
+    const normalizedHeader = normalizedHeaders[index];
+    let mappedField: string | null = null;
+    
     for (const [csvHeader, fieldName] of Object.entries(columnMapping)) {
       if (normalizeHeader(csvHeader) === normalizedHeader) {
         headerToField[index] = fieldName;
+        mappedField = fieldName;
         break;
       }
+    }
+    
+    mappedColumns.push({
+      csvHeader: rawHeader,
+      mappedField,
+      columnIndex: index
+    });
+    
+    if (!mappedField && rawHeader.trim()) {
+      unmappedColumns.push(rawHeader);
     }
   });
   
@@ -127,10 +162,13 @@ export function parseCSV(
   
   return {
     headers: Object.values(headerToField),
+    mappedColumns,
+    unmappedColumns,
     rows,
     totalRows: rows.length,
     validRows,
     errorRows,
+    detectedDelimiter: delimiter
   };
 }
 
