@@ -344,6 +344,13 @@ export default function Index() {
                   await updateVideo(video.id, updates);
                 }
               }}
+              onDeleteQuestion={async (questionId) => {
+                // Удаляем все ролики с этим question_id
+                const videosToDelete = allVideos.filter(v => v.question_id === questionId);
+                for (const video of videosToDelete) {
+                  await deleteVideo(video.id);
+                }
+              }}
             />
           )}
 
