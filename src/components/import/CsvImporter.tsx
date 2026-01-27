@@ -236,63 +236,74 @@ export function CsvImporter({
 
               {/* Preview table */}
               <ScrollArea className="h-[400px] border rounded-lg">
-                <Table className="table-fixed w-full">
-                  <TableHeader>
-                    <TableRow className="bg-muted/50">
-                      <TableHead className="w-12 shrink-0">#</TableHead>
-                      {previewColumns.map((col, idx) => (
-                        <TableHead 
-                          key={col.key} 
-                          className={idx === 0 ? "w-16" : "min-w-[120px]"}
-                        >
-                          {col.label}
-                        </TableHead>
-                      ))}
-                      <TableHead className="w-32 shrink-0">Статус</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {resolvedRows.map((row, index) => (
-                      <TableRow
-                        key={index}
-                        className={cn(
-                          !row.isValid && "bg-destructive/5"
-                        )}
-                      >
-                        <TableCell className="font-mono text-xs text-muted-foreground w-12">
-                          {row.rowIndex}
-                        </TableCell>
-                        {previewColumns.map((col, idx) => (
-                          <TableCell 
+                <div className="min-w-max">
+                  <Table>
+                    <TableHeader>
+                      <TableRow className="bg-muted/50">
+                        <TableHead className="w-10 text-center">#</TableHead>
+                        {previewColumns.map((col) => (
+                          <TableHead 
                             key={col.key} 
-                            className={`truncate ${idx === 0 ? "w-16" : "max-w-[200px]"}`}
-                            title={String(row.data[col.key] || '')}
+                            className="whitespace-nowrap px-3"
                           >
-                            {col.render
-                              ? col.render(row.data[col.key], row.data)
-                              : row.data[col.key] || '—'}
-                          </TableCell>
+                            {col.label}
+                          </TableHead>
                         ))}
-                        <TableCell>
-                          {row.isValid ? (
-                            <Badge variant="outline" className="text-green-600 border-green-600">
-                              <CheckCircle className="w-3 h-3 mr-1" />
-                              OK
-                            </Badge>
-                          ) : (
-                            <div className="space-y-1">
-                              {row.errors.map((error, i) => (
-                                <Badge key={i} variant="destructive" className="text-xs block">
-                                  {error}
-                                </Badge>
-                              ))}
-                            </div>
-                          )}
-                        </TableCell>
+                        <TableHead className="w-28 text-center">Статус</TableHead>
                       </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
+                    </TableHeader>
+                    <TableBody>
+                      {resolvedRows.map((row, index) => (
+                        <TableRow
+                          key={index}
+                          className={cn(
+                            !row.isValid && "bg-destructive/5"
+                          )}
+                        >
+                          <TableCell className="font-mono text-xs text-muted-foreground text-center w-10">
+                            {row.rowIndex}
+                          </TableCell>
+                          {previewColumns.map((col) => {
+                            const value = row.data[col.key];
+                            const displayValue = col.render
+                              ? col.render(value, row.data)
+                              : value || '—';
+                            const stringValue = String(value || '');
+                            const isTruncated = stringValue.length > 30;
+                            
+                            return (
+                              <TableCell 
+                                key={col.key} 
+                                className="px-3 max-w-[200px]"
+                                title={isTruncated ? stringValue : undefined}
+                              >
+                                <span className="block truncate">
+                                  {displayValue}
+                                </span>
+                              </TableCell>
+                            );
+                          })}
+                          <TableCell className="text-center w-28">
+                            {row.isValid ? (
+                              <Badge variant="outline" className="text-green-600 border-green-600">
+                                <CheckCircle className="w-3 h-3 mr-1" />
+                                OK
+                              </Badge>
+                            ) : (
+                              <div className="space-y-1">
+                                {row.errors.map((error, i) => (
+                                  <Badge key={i} variant="destructive" className="text-xs block">
+                                    {error}
+                                  </Badge>
+                                ))}
+                              </div>
+                            )}
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </div>
               </ScrollArea>
             </div>
           )}
