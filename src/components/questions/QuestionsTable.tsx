@@ -30,9 +30,13 @@ interface QuestionsTableProps {
 interface QuestionData {
   question_id: number;
   question: string;
+  question_rus: string | null;
   question_eng: string | null;
+  hook: string | null;
+  hook_rus: string | null;
   safety_score: string;
-  relevance: number;
+  relevance_score: number;
+  question_status: string;
   planned_date: string | null;
   videos_count: number;
   total_publications: number;
@@ -91,13 +95,21 @@ export function QuestionsTable({
           if (video.publication_date && (!existing.planned_date || video.publication_date < existing.planned_date)) {
             existing.planned_date = video.publication_date;
           }
+          // Update relevance score to max
+          if ((video.relevance_score || 0) > existing.relevance_score) {
+            existing.relevance_score = video.relevance_score || 0;
+          }
         } else {
           questionMap.set(video.question_id, {
             question_id: video.question_id,
             question: video.question || '',
-            question_eng: (video as any).question_eng || null,
+            question_rus: video.question_rus || null,
+            question_eng: video.question_eng || null,
+            hook: video.hook || null,
+            hook_rus: video.hook_rus || null,
             safety_score: video.safety_score || 'unchecked',
-            relevance: 0,
+            relevance_score: video.relevance_score || 0,
+            question_status: video.question_status || 'pending',
             planned_date: video.publication_date,
             videos_count: 1,
             total_publications: videoPublications.length,
@@ -287,13 +299,27 @@ export function QuestionsTable({
                     <TableCell className="font-mono text-sm">{q.question_id}</TableCell>
                     <TableCell>{getSafetyBadge(q.safety_score)}</TableCell>
                     <TableCell>
-                      <span className="text-muted-foreground">—</span>
+                      {q.relevance_score > 0 ? (
+                        <div className="flex items-center gap-2">
+                          <div className="w-16 h-2 bg-muted rounded-full overflow-hidden">
+                            <div 
+                              className="h-full bg-primary rounded-full transition-all" 
+                              style={{ width: `${Math.min(q.relevance_score, 100)}%` }}
+                            />
+                          </div>
+                          <span className="text-xs text-muted-foreground">{q.relevance_score}</span>
+                        </div>
+                      ) : (
+                        <span className="text-muted-foreground">—</span>
+                      )}
                     </TableCell>
                     <TableCell>
                       <div className="max-w-md">
-                        <p className="font-medium truncate">{q.question}</p>
-                        {q.question_eng && (
-                          <p className="text-sm text-muted-foreground truncate">{q.question_eng}</p>
+                        <p className="font-medium truncate">{q.question_rus || q.question}</p>
+                        {(q.question_eng || (!q.question_rus && q.question)) && (
+                          <p className="text-sm text-muted-foreground truncate">
+                            {q.question_rus ? (q.question_eng || q.question) : null}
+                          </p>
                         )}
                       </div>
                     </TableCell>

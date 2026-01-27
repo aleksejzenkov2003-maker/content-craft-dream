@@ -320,6 +320,7 @@ export type Database = {
           created_at: string
           id: string
           playlist_id: string | null
+          review_status: string | null
           scene_prompt: string | null
           scene_url: string | null
           status: string | null
@@ -330,6 +331,7 @@ export type Database = {
           created_at?: string
           id?: string
           playlist_id?: string | null
+          review_status?: string | null
           scene_prompt?: string | null
           scene_url?: string | null
           status?: string | null
@@ -340,6 +342,7 @@ export type Database = {
           created_at?: string
           id?: string
           playlist_id?: string | null
+          review_status?: string | null
           scene_prompt?: string | null
           scene_url?: string | null
           status?: string | null
@@ -767,6 +770,7 @@ export type Database = {
           heygen_video_id: string | null
           heygen_video_url: string | null
           hook: string | null
+          hook_rus: string | null
           id: string
           instagram_url: string | null
           main_photo_url: string | null
@@ -776,8 +780,11 @@ export type Database = {
           question: string | null
           question_eng: string | null
           question_id: number | null
+          question_rus: string | null
+          question_status: string | null
           reddit_url: string | null
           reel_status: string | null
+          relevance_score: number | null
           safety_score: string | null
           tiktok_url: string | null
           updated_at: string
@@ -785,6 +792,7 @@ export type Database = {
           video_number: number | null
           video_path: string | null
           video_title: string | null
+          voiceover_url: string | null
           youtube_url: string | null
         }
         Insert: {
@@ -803,6 +811,7 @@ export type Database = {
           heygen_video_id?: string | null
           heygen_video_url?: string | null
           hook?: string | null
+          hook_rus?: string | null
           id?: string
           instagram_url?: string | null
           main_photo_url?: string | null
@@ -812,8 +821,11 @@ export type Database = {
           question?: string | null
           question_eng?: string | null
           question_id?: number | null
+          question_rus?: string | null
+          question_status?: string | null
           reddit_url?: string | null
           reel_status?: string | null
+          relevance_score?: number | null
           safety_score?: string | null
           tiktok_url?: string | null
           updated_at?: string
@@ -821,6 +833,7 @@ export type Database = {
           video_number?: number | null
           video_path?: string | null
           video_title?: string | null
+          voiceover_url?: string | null
           youtube_url?: string | null
         }
         Update: {
@@ -839,6 +852,7 @@ export type Database = {
           heygen_video_id?: string | null
           heygen_video_url?: string | null
           hook?: string | null
+          hook_rus?: string | null
           id?: string
           instagram_url?: string | null
           main_photo_url?: string | null
@@ -848,8 +862,11 @@ export type Database = {
           question?: string | null
           question_eng?: string | null
           question_id?: number | null
+          question_rus?: string | null
+          question_status?: string | null
           reddit_url?: string | null
           reel_status?: string | null
+          relevance_score?: number | null
           safety_score?: string | null
           tiktok_url?: string | null
           updated_at?: string
@@ -857,6 +874,7 @@ export type Database = {
           video_number?: number | null
           video_path?: string | null
           video_title?: string | null
+          voiceover_url?: string | null
           youtube_url?: string | null
         }
         Relationships: [

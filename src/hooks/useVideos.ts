@@ -30,13 +30,20 @@ export interface Video {
   reddit_url: string | null;
   created_at: string;
   updated_at: string;
-  // New fields from migration
+  // Cover and reel fields
   cover_status: string | null;
   front_cover_url: string | null;
   back_cover_url: string | null;
   video_duration: number | null;
   reel_status: string | null;
   publication_date: string | null;
+  // New fields from migration
+  question_rus: string | null;
+  question_eng: string | null;
+  hook_rus: string | null;
+  relevance_score: number | null;
+  question_status: string | null;
+  voiceover_url: string | null;
   // Joined data
   advisor?: {
     id: string;

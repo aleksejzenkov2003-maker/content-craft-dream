@@ -14,9 +14,19 @@ import { toast } from 'sonner';
 
 const statusLabels: Record<string, { label: string; variant: 'default' | 'secondary' | 'outline' | 'destructive' }> = {
   waiting: { label: 'Ожидает', variant: 'outline' },
+  Waiting: { label: 'Ожидает', variant: 'outline' },
   generating: { label: 'Генерация', variant: 'secondary' },
   approved: { label: 'Одобрено', variant: 'default' },
+  Approved: { label: 'Одобрено', variant: 'default' },
   cancelled: { label: 'Отменено', variant: 'destructive' },
+  Cancelled: { label: 'Отменено', variant: 'destructive' },
+};
+
+const reviewStatusLabels: Record<string, { label: string; variant: 'default' | 'secondary' | 'outline' | 'destructive' }> = {
+  Waiting: { label: 'Ожидает проверки', variant: 'outline' },
+  Approved: { label: 'Проверено', variant: 'default' },
+  NeedsRevision: { label: 'Требует доработки', variant: 'secondary' },
+  Rejected: { label: 'Отклонено', variant: 'destructive' },
 };
 
 export function ScenesMatrix() {
@@ -223,6 +233,7 @@ export function ScenesMatrix() {
                         <TableRow className="bg-muted/30">
                           <TableHead>Плейлист</TableHead>
                           <TableHead className="w-32">Статус</TableHead>
+                          <TableHead className="w-32">Проверка</TableHead>
                           <TableHead className="w-24">Сцена</TableHead>
                           <TableHead className="w-40">Действия</TableHead>
                         </TableRow>
@@ -232,6 +243,7 @@ export function ScenesMatrix() {
                           const scene = getScene(playlist.id, advisor.id);
                           const isGenerating = generatingScenes.has(`${playlist.id}-${advisor.id}`);
                           const status = statusLabels[scene?.status || 'waiting'] || statusLabels.waiting;
+                          const reviewStatus = reviewStatusLabels[scene?.review_status || 'Waiting'] || reviewStatusLabels.Waiting;
 
                           return (
                             <TableRow 
@@ -253,6 +265,11 @@ export function ScenesMatrix() {
                               <TableCell>
                                 <Badge variant={status.variant}>
                                   {status.label}
+                                </Badge>
+                              </TableCell>
+                              <TableCell>
+                                <Badge variant={reviewStatus.variant}>
+                                  {reviewStatus.label}
                                 </Badge>
                               </TableCell>
                               <TableCell>

@@ -16,8 +16,13 @@ import { cn } from '@/lib/utils';
 interface QuestionData {
   question_id: number;
   question: string;
+  question_rus: string | null;
   question_eng: string | null;
+  hook: string | null;
+  hook_rus: string | null;
   safety_score: string;
+  relevance_score: number;
+  question_status: string;
   planned_date: string | null;
   videos_count: number;
 }
@@ -26,7 +31,17 @@ interface QuestionSidePanelProps {
   question: QuestionData | null;
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  onSave: (questionId: number, updates: { question?: string; question_eng?: string; safety_score?: string; publication_date?: string }) => void;
+  onSave: (questionId: number, updates: { 
+    question?: string; 
+    question_rus?: string;
+    question_eng?: string; 
+    hook?: string;
+    hook_rus?: string;
+    safety_score?: string; 
+    relevance_score?: number;
+    question_status?: string;
+    publication_date?: string;
+  }) => void;
 }
 
 const safetyOptions = [
@@ -39,8 +54,13 @@ const safetyOptions = [
 export function QuestionSidePanel({ question, open, onOpenChange, onSave }: QuestionSidePanelProps) {
   const [formData, setFormData] = useState({
     question: '',
+    question_rus: '',
     question_eng: '',
+    hook: '',
+    hook_rus: '',
     safety_score: 'unchecked',
+    relevance_score: 0,
+    question_status: 'pending',
     publication_date: null as Date | null,
   });
 
@@ -48,8 +68,13 @@ export function QuestionSidePanel({ question, open, onOpenChange, onSave }: Ques
     if (question) {
       setFormData({
         question: question.question || '',
+        question_rus: question.question_rus || '',
         question_eng: question.question_eng || '',
+        hook: question.hook || '',
+        hook_rus: question.hook_rus || '',
         safety_score: question.safety_score || 'unchecked',
+        relevance_score: question.relevance_score || 0,
+        question_status: question.question_status || 'pending',
         publication_date: question.planned_date ? new Date(question.planned_date) : null,
       });
     }
@@ -60,8 +85,13 @@ export function QuestionSidePanel({ question, open, onOpenChange, onSave }: Ques
     
     onSave(question.question_id, {
       question: formData.question,
+      question_rus: formData.question_rus || undefined,
       question_eng: formData.question_eng || undefined,
+      hook: formData.hook || undefined,
+      hook_rus: formData.hook_rus || undefined,
       safety_score: formData.safety_score,
+      relevance_score: formData.relevance_score,
+      question_status: formData.question_status,
       publication_date: formData.publication_date?.toISOString(),
     });
     onOpenChange(false);
@@ -93,26 +123,83 @@ export function QuestionSidePanel({ question, open, onOpenChange, onSave }: Ques
             </div>
           </div>
 
-          {/* Question Text */}
+          {/* Question Text Russian */}
           <div className="space-y-2">
-            <Label>Текст вопроса</Label>
+            <Label>Вопрос (рус)</Label>
             <Textarea
-              value={formData.question}
-              onChange={(e) => setFormData(prev => ({ ...prev, question: e.target.value }))}
-              placeholder="Введите текст вопроса..."
-              rows={4}
+              value={formData.question_rus}
+              onChange={(e) => setFormData(prev => ({ ...prev, question_rus: e.target.value }))}
+              placeholder="Введите текст вопроса на русском..."
+              rows={3}
             />
           </div>
 
           {/* Question Text English */}
           <div className="space-y-2">
-            <Label>Текст вопроса (English)</Label>
+            <Label>Вопрос (eng)</Label>
             <Textarea
-              value={formData.question_eng}
-              onChange={(e) => setFormData(prev => ({ ...prev, question_eng: e.target.value }))}
+              value={formData.question_eng || formData.question}
+              onChange={(e) => setFormData(prev => ({ 
+                ...prev, 
+                question_eng: e.target.value,
+                question: e.target.value 
+              }))}
               placeholder="Enter question text in English..."
               rows={3}
             />
+          </div>
+
+          {/* Hook Russian */}
+          <div className="space-y-2">
+            <Label>Хук (рус)</Label>
+            <Textarea
+              value={formData.hook_rus}
+              onChange={(e) => setFormData(prev => ({ ...prev, hook_rus: e.target.value }))}
+              placeholder="Введите хук на русском..."
+              rows={2}
+            />
+          </div>
+
+          {/* Hook English */}
+          <div className="space-y-2">
+            <Label>Хук (eng)</Label>
+            <Textarea
+              value={formData.hook}
+              onChange={(e) => setFormData(prev => ({ ...prev, hook: e.target.value }))}
+              placeholder="Enter hook in English..."
+              rows={2}
+            />
+          </div>
+
+          {/* Relevance Score */}
+          <div className="space-y-2">
+            <Label>Актуальность (0-100)</Label>
+            <Input
+              type="number"
+              min={0}
+              max={100}
+              value={formData.relevance_score}
+              onChange={(e) => setFormData(prev => ({ ...prev, relevance_score: parseInt(e.target.value) || 0 }))}
+            />
+          </div>
+
+          {/* Question Status */}
+          <div className="space-y-2">
+            <Label>Статус вопроса</Label>
+            <Select
+              value={formData.question_status}
+              onValueChange={(value) => setFormData(prev => ({ ...prev, question_status: value }))}
+            >
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="pending">Ожидает проверки</SelectItem>
+                <SelectItem value="checked">Проверен</SelectItem>
+                <SelectItem value="approved">Одобрен</SelectItem>
+                <SelectItem value="rejected">Отклонён</SelectItem>
+              </SelectContent>
+            </Select>
           </div>
 
           {/* Safety Score */}

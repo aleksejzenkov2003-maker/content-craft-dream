@@ -41,7 +41,10 @@ interface ParsedRow {
   playlist_id?: string;
   safety_score?: string;
   hook?: string;
+  hook_rus?: string;
   question?: string;
+  question_rus?: string;
+  question_eng?: string;
   answer_prompt?: string;
   advisor_answer?: string;
   answer_status?: string;
@@ -51,37 +54,77 @@ interface ParsedRow {
   cover_url?: string;
   video_path?: string;
   generation_status?: string;
+  voiceover_url?: string;
+  heygen_video_url?: string;
+  relevance_score?: number;
   valid?: boolean;
   errors?: string[];
 }
 
 const COLUMN_MAPPING: Record<string, keyof ParsedRow> = {
+  // Video number mappings
   'video_number': 'video_number',
   'номер': 'video_number',
+  'id ролика': 'video_number',
+  'id_ролика': 'video_number',
+  // Question ID
   'question_id': 'question_id',
+  'id вопроса': 'question_id',
+  'id_вопроса': 'question_id',
+  // Advisor mappings
   'advisor': 'advisor_name',
   'advisor_id': 'advisor_name',
   'духовник': 'advisor_name',
+  // Playlist mappings
   'playlist': 'playlist_name',
   'playlist_id': 'playlist_name',
   'плейлист': 'playlist_name',
+  'плейлист eng': 'playlist_name',
+  // Safety
   'safety_score': 'safety_score',
+  'безопасность': 'safety_score',
+  'безопасность вопроса': 'safety_score',
+  // Hook mappings
   'hook': 'hook',
   'хук': 'hook',
+  'хук eng': 'hook',
+  'hook eng': 'hook',
+  'хук рус': 'hook_rus',
+  'hook_rus': 'hook_rus',
+  // Question mappings
   'question': 'question',
   'вопрос': 'question',
+  'вопрос к духовнику eng': 'question',
+  'question eng': 'question',
+  'вопрос к духовнику рус': 'question_rus',
+  'question_rus': 'question_rus',
+  'question_eng': 'question_eng',
+  // Answer mappings
   'answer_prompt': 'answer_prompt',
   'advisor_answer': 'advisor_answer',
   'ответ': 'advisor_answer',
+  'ответ духовника': 'advisor_answer',
   'answer_status': 'answer_status',
+  // Title
   'video_title': 'video_title',
   'заголовок': 'video_title',
+  // Cover
   'cover_prompt': 'cover_prompt',
   'main_photo_url': 'main_photo_url',
   'cover_url': 'cover_url',
   'video_path': 'video_path',
+  // Status
   'generation_status': 'generation_status',
   'статус': 'generation_status',
+  'video status': 'generation_status',
+  // New fields
+  'voiceover_url': 'voiceover_url',
+  'озвучка': 'voiceover_url',
+  'heygen_video_url': 'heygen_video_url',
+  'video': 'heygen_video_url',
+  'video (url)': 'heygen_video_url',
+  'relevance_score': 'relevance_score',
+  'актуальность': 'relevance_score',
 };
 
 export function VideoImportDialog({
@@ -211,7 +254,10 @@ export function VideoImportDialog({
           playlist_id: row.playlist_id || null,
           safety_score: row.safety_score || null,
           hook: row.hook || null,
+          hook_rus: row.hook_rus || null,
           question: row.question || null,
+          question_rus: row.question_rus || null,
+          question_eng: row.question_eng || null,
           answer_prompt: row.answer_prompt || null,
           advisor_answer: row.advisor_answer || null,
           answer_status: row.answer_status || 'pending',
@@ -221,6 +267,9 @@ export function VideoImportDialog({
           cover_url: row.cover_url || null,
           video_path: row.video_path || null,
           generation_status: row.generation_status || 'pending',
+          voiceover_url: row.voiceover_url || null,
+          heygen_video_url: row.heygen_video_url || null,
+          relevance_score: row.relevance_score ? Number(row.relevance_score) : null,
         }));
 
       await onImport(videosToImport);
