@@ -8,17 +8,20 @@ export const VIDEO_COLUMN_MAPPING: Record<string, string> = {
   'id ролика': 'video_number',
   'video number': 'video_number',
   'video id': 'video_number',
+  '# id ролика': 'video_number',
   
   // Advisor
   'духовник': 'advisor_name',
   'advisor': 'advisor_name',
   'advisor name': 'advisor_name',
+  '≡ духовник': 'advisor_name',
   
   // Playlist
   'плейлист': 'playlist_name',
   'playlist': 'playlist_name',
   'playlist name': 'playlist_name',
   'плейлист eng': 'playlist_name',
+  '≡ плейлист': 'playlist_name',
   
   // Question
   'вопрос': 'question',
@@ -37,6 +40,8 @@ export const VIDEO_COLUMN_MAPPING: Record<string, string> = {
   'безопасность вопроса': 'safety_score',
   'safety': 'safety_score',
   'safety score': 'safety_score',
+  'безоп': 'safety_score',
+  'a безоп': 'safety_score',
   
   // Relevance
   'актуальность': 'relevance_score',
@@ -58,22 +63,32 @@ export const VIDEO_COLUMN_MAPPING: Record<string, string> = {
   'advisor answer': 'advisor_answer',
   'ответ': 'advisor_answer',
   'answer': 'advisor_answer',
+  '≡ ответ духовника': 'advisor_answer',
   
   // Voiceover
   'озвучка': 'voiceover_url',
   'voiceover': 'voiceover_url',
   'voiceover url': 'voiceover_url',
   'audio': 'voiceover_url',
+  'a озвучка': 'voiceover_url',
   
   // Video URL
   'video': 'heygen_video_url',
   'video url': 'heygen_video_url',
   'heygen video': 'heygen_video_url',
+  '⚙ video (url)': 'heygen_video_url',
+  'video (url)': 'heygen_video_url',
+  
+  // HeyGen ID
+  'heygen_id': 'heygen_video_id',
+  'heygen id': 'heygen_video_id',
+  'a heygen_id': 'heygen_video_id',
   
   // Status
   'video status': 'generation_status',
   'статус видео': 'generation_status',
   'статус': 'generation_status',
+  '⊙ video status': 'generation_status',
   
   // Publication date
   'planned publication date': 'publication_date',

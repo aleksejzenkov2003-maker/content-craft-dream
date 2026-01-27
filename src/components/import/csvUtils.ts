@@ -42,8 +42,10 @@ export function normalizeHeader(header: string): string {
     .toLowerCase()
     .normalize('NFD')
     .replace(/[\u0300-\u036f]/g, '') // Remove diacritics
-    .replace(/[^a-zA-Z0-9а-яё\s_-]/gi, '') // Keep letters, numbers, spaces, underscores, hyphens
-    .replace(/\s+/g, ' '); // Normalize spaces
+    .replace(/^[≡⊙⚙#⌘◉△▽□○●◆◇★☆♦♣♠♥a\s]+/gi, '') // Remove leading special chars and 'A' prefix
+    .replace(/[^a-zA-Z0-9а-яёА-ЯЁ\s_()-]/gi, '') // Keep letters, numbers, spaces, underscores, hyphens, parens
+    .replace(/\s+/g, ' ') // Normalize spaces
+    .trim();
 }
 
 export interface ParsedRow {
