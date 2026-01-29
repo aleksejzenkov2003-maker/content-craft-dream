@@ -1,16 +1,13 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Checkbox } from '@/components/ui/checkbox';
 import { Separator } from '@/components/ui/separator';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import {
   Sheet,
   SheetContent,
-  SheetHeader,
-  SheetTitle,
 } from '@/components/ui/sheet';
 import {
   Select,
@@ -19,30 +16,18 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog';
 import { Video } from '@/hooks/useVideos';
 import { Advisor } from '@/hooks/useAdvisors';
 import { PublishingChannel } from '@/hooks/usePublishingChannels';
 import {
-  Play,
-  Sparkles,
   Loader2,
-  ExternalLink,
-  Calendar,
-  Clock,
-  Image,
-  Send,
-  FileText,
-  Upload,
+  ChevronUp,
+  ChevronDown,
+  Link as LinkIcon,
+  X,
+  Plus,
 } from 'lucide-react';
 import { format } from 'date-fns';
-import { ru } from 'date-fns/locale';
-import { ImageInput } from '@/components/ui/image-input';
 
 interface VideoSidePanelProps {
   video: Video | null;
@@ -72,17 +57,6 @@ const videoStatusOptions = [
   { value: 'error', label: 'Error' },
 ];
 
-const getStatusColor = (status: string) => {
-  switch (status) {
-    case 'pending': return 'text-muted-foreground';
-    case 'generating': return 'text-yellow-500';
-    case 'ready': return 'text-green-500';
-    case 'published': return 'text-blue-500';
-    case 'error': return 'text-red-500';
-    default: return 'text-muted-foreground';
-  }
-};
-
 export function VideoSidePanel({
   video,
   open,
@@ -95,28 +69,25 @@ export function VideoSidePanel({
   onPublish,
   isGenerating,
 }: VideoSidePanelProps) {
-  const [selectedChannels, setSelectedChannels] = useState<Set<string>>(new Set());
-  const [publicationDate, setPublicationDate] = useState('');
-  const [showUploadCover, setShowUploadCover] = useState(false);
+  const [selectedChannels, setSelectedChannels] = useState<string[]>([]);
+
+  // Reset selectedChannels when video changes
+  useEffect(() => {
+    setSelectedChannels([]);
+  }, [video?.id]);
 
   if (!video) return null;
 
   const advisor = advisors.find(a => a.id === video.advisor_id);
   const advisorName = advisor?.display_name || advisor?.name || 'Духовник';
 
-  const toggleChannel = (channelId: string) => {
-    const newSelected = new Set(selectedChannels);
-    if (newSelected.has(channelId)) {
-      newSelected.delete(channelId);
-    } else {
-      newSelected.add(channelId);
-    }
-    setSelectedChannels(newSelected);
-  };
-
-  const handlePublish = () => {
-    if (selectedChannels.size > 0) {
-      onPublish(video, Array.from(selectedChannels));
+  const formatPublicationDate = () => {
+    if (!video.publication_date) return '—';
+    try {
+      const date = new Date(video.publication_date);
+      return format(date, 'yyyy-MM-dd HH:mm xxx');
+    } catch {
+      return video.publication_date;
     }
   };
 
@@ -128,277 +99,231 @@ export function VideoSidePanel({
     onUpdateVideo(video.id, { generation_status: value });
   };
 
+  const handleAddChannel = (channelId: string) => {
+    if (!selectedChannels.includes(channelId)) {
+      setSelectedChannels([...selectedChannels, channelId]);
+    }
+  };
+
+  const handleRemoveChannel = (channelId: string) => {
+    setSelectedChannels(selectedChannels.filter(id => id !== channelId));
+  };
+
+  const handlePublish = () => {
+    if (selectedChannels.length > 0) {
+      onPublish(video, selectedChannels);
+      setSelectedChannels([]);
+    }
+  };
+
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent className="w-[400px] sm:w-[540px] p-0">
-        <SheetHeader className="p-6 pb-4">
-          <SheetTitle className="text-lg">
+      <SheetContent className="w-[450px] sm:w-[550px] p-0 flex flex-col">
+        {/* Header */}
+        <div className="flex items-center justify-between px-4 py-3 border-b">
+          <div className="flex items-center gap-2">
+            <button className="p-1 hover:bg-muted rounded">
+              <ChevronUp className="w-4 h-4" />
+            </button>
+            <button className="p-1 hover:bg-muted rounded">
+              <ChevronDown className="w-4 h-4" />
+            </button>
+          </div>
+          <h3 className="font-medium text-sm flex-1 text-center truncate px-2">
             {video.question} — {advisorName}
-          </SheetTitle>
-        </SheetHeader>
+          </h3>
+          <div className="flex items-center gap-2">
+            <button className="p-1 hover:bg-muted rounded">
+              <LinkIcon className="w-4 h-4" />
+            </button>
+            <button 
+              className="p-1 hover:bg-muted rounded"
+              onClick={() => onOpenChange(false)}
+            >
+              <X className="w-4 h-4" />
+            </button>
+          </div>
+        </div>
 
-        <ScrollArea className="h-[calc(100vh-80px)]">
-          <div className="px-6 pb-6 space-y-6">
-            {/* Header Info */}
-            <div className="space-y-2">
-              {video.hook && (
-                <p className="text-sm text-muted-foreground italic">"{video.hook}"</p>
-              )}
-              <div className="flex items-center gap-2 flex-wrap">
-                <Badge variant="outline">{advisorName}</Badge>
-                <Badge variant="secondary">{video.playlist?.name || 'Без плейлиста'}</Badge>
-                {video.video_number && (
-                  <Badge variant="secondary">#{video.video_number}</Badge>
+        <ScrollArea className="flex-1">
+          <div className="p-4 space-y-4">
+            {/* Publication date */}
+            <div className="grid grid-cols-[140px_1fr] gap-2 items-center">
+              <Label className="text-sm">Publication date</Label>
+              <div className="text-sm">{formatPublicationDate()}</div>
+            </div>
+
+            {/* Front Cover Generate */}
+            <div className="grid grid-cols-[140px_1fr] gap-2 items-center">
+              <Label className="text-sm">Front Cover</Label>
+              <Button
+                size="sm"
+                className="w-fit h-7 text-xs bg-orange-500 hover:bg-orange-600 text-white"
+                onClick={() => onGenerateCover(video)}
+                disabled={video.cover_status === 'generating'}
+              >
+                {video.cover_status === 'generating' ? (
+                  <>
+                    <Loader2 className="w-3 h-3 mr-1 animate-spin" />
+                    Generating...
+                  </>
+                ) : (
+                  'Generate'
                 )}
-              </div>
+              </Button>
             </div>
 
-            <Separator />
-
-            {/* Advisor Answer Section */}
-            {video.advisor_answer && (
-              <>
-                <div className="space-y-2">
-                  <div className="flex items-center gap-2">
-                    <FileText className="w-4 h-4 text-muted-foreground" />
-                    <Label>Ответ духовника</Label>
-                  </div>
-                  <div className="bg-muted/50 rounded-lg p-4 max-h-48 overflow-y-auto">
-                    <p className="text-sm whitespace-pre-wrap">{video.advisor_answer}</p>
-                  </div>
-                </div>
-                <Separator />
-              </>
-            )}
-
-            {/* Status Section with Dropdowns */}
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label className="text-xs text-muted-foreground">Cover Status</Label>
-                <Select
-                  value={video.cover_status || 'pending'}
-                  onValueChange={handleCoverStatusChange}
-                >
-                  <SelectTrigger className="w-full">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {coverStatusOptions.map((option) => (
-                      <SelectItem key={option.value} value={option.value}>
-                        <span className={getStatusColor(option.value)}>{option.label}</span>
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-2">
-                <Label className="text-xs text-muted-foreground">Video Status</Label>
-                <Select
-                  value={video.generation_status || 'pending'}
-                  onValueChange={handleVideoStatusChange}
-                >
-                  <SelectTrigger className="w-full">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {videoStatusOptions.map((option) => (
-                      <SelectItem key={option.value} value={option.value}>
-                        <span className={getStatusColor(option.value)}>{option.label}</span>
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
+            {/* Cover status */}
+            <div className="grid grid-cols-[140px_1fr] gap-2 items-center">
+              <Label className="text-sm">Cover status</Label>
+              <Select
+                value={video.cover_status || 'pending'}
+                onValueChange={handleCoverStatusChange}
+              >
+                <SelectTrigger className="h-8">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {coverStatusOptions.map((option) => (
+                    <SelectItem key={option.value} value={option.value}>
+                      {option.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
 
-            <Separator />
-
-            {/* Publication Date */}
-            <div>
-              <Label className="text-xs text-muted-foreground">Publication Date</Label>
-              <div className="flex items-center gap-2 mt-1">
-                <Calendar className="w-4 h-4 text-muted-foreground" />
-                <Input
-                  type="datetime-local"
-                  value={publicationDate || (video.publication_date ? video.publication_date.slice(0, 16) : '')}
-                  onChange={(e) => {
-                    setPublicationDate(e.target.value);
-                    onUpdateVideo(video.id, { publication_date: e.target.value });
-                  }}
-                  className="flex-1"
-                />
-              </div>
-            </div>
-
-            <Separator />
-
-            {/* Front Cover Section */}
-            <div className="space-y-3">
-              <div className="flex items-center justify-between">
-                <Label>Front Cover</Label>
-                <div className="flex gap-1">
-                  <Button
-                    size="sm"
-                    variant="ghost"
-                    onClick={() => setShowUploadCover(true)}
-                  >
-                    <Upload className="w-4 h-4" />
-                  </Button>
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    onClick={() => onGenerateCover(video)}
-                    disabled={video.cover_status === 'generating'}
-                  >
-                    {video.cover_status === 'generating' ? (
-                      <>
-                        <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                        Generating...
-                      </>
-                    ) : (
-                      <>
-                        <Sparkles className="w-4 h-4 mr-2" />
-                        Generate
-                      </>
-                    )}
-                  </Button>
-                </div>
-              </div>
-              {video.front_cover_url ? (
-                <div className="relative aspect-video bg-muted rounded-lg overflow-hidden">
-                  <img
-                    src={video.front_cover_url}
-                    alt="Front cover"
-                    className="w-full h-full object-cover"
-                  />
-                </div>
-              ) : (
-                <div className="aspect-video bg-muted rounded-lg flex items-center justify-center">
-                  <Image className="w-8 h-8 text-muted-foreground" />
-                </div>
-              )}
-            </div>
-
-            {/* Upload Cover Dialog */}
-            <Dialog open={showUploadCover} onOpenChange={setShowUploadCover}>
-              <DialogContent>
-                <DialogHeader>
-                  <DialogTitle>Загрузить обложку</DialogTitle>
-                </DialogHeader>
-                <ImageInput
-                  value={video.front_cover_url || ''}
-                  onChange={(url) => {
-                    onUpdateVideo(video.id, { front_cover_url: url, cover_status: 'ready' });
-                    setShowUploadCover(false);
-                  }}
-                  folder={`videos/${video.id}/covers`}
-                  aspectRatio="16:9"
-                  generatePromptPrefix={`Professional YouTube thumbnail for spiritual video. Topic: "${video.hook || video.question || 'spiritual guidance'}".`}
-                />
-              </DialogContent>
-            </Dialog>
-
-            <Separator />
-
-            {/* Video Section */}
-            <div className="space-y-3">
-              <div className="flex items-center justify-between">
-                <Label>Video</Label>
-                {video.generation_status !== 'ready' && (
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    onClick={() => onGenerateVideo(video)}
-                    disabled={video.generation_status === 'generating' || isGenerating}
-                  >
-                    {video.generation_status === 'generating' || isGenerating ? (
-                      <>
-                        <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                        Generating...
-                      </>
-                    ) : (
-                      <>
-                        <Play className="w-4 h-4 mr-2" />
-                        Generate
-                      </>
-                    )}
-                  </Button>
+            {/* Video Generate */}
+            <div className="grid grid-cols-[140px_1fr] gap-2 items-center">
+              <Label className="text-sm">Video</Label>
+              <Button
+                size="sm"
+                className="w-fit h-7 text-xs bg-green-500 hover:bg-green-600 text-white"
+                onClick={() => onGenerateVideo(video)}
+                disabled={video.generation_status === 'generating' || isGenerating}
+              >
+                {video.generation_status === 'generating' || isGenerating ? (
+                  <>
+                    <Loader2 className="w-3 h-3 mr-1 animate-spin" />
+                    Generating...
+                  </>
+                ) : (
+                  'Generate'
                 )}
-              </div>
-              {video.heygen_video_url ? (
-                <div className="space-y-2">
-                  <div className="relative aspect-video bg-black rounded-lg overflow-hidden">
-                    <video
-                      src={video.heygen_video_url}
-                      controls
-                      className="w-full h-full"
-                    />
-                  </div>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    className="w-full"
-                    onClick={() => window.open(video.heygen_video_url!, '_blank')}
-                  >
-                    <ExternalLink className="w-4 h-4 mr-2" />
-                    Открыть в новой вкладке
-                  </Button>
-                </div>
-              ) : (
-                <div className="aspect-video bg-muted rounded-lg flex items-center justify-center">
-                  <Play className="w-8 h-8 text-muted-foreground" />
-                </div>
-              )}
+              </Button>
             </div>
 
-            <Separator />
+            {/* Video status */}
+            <div className="grid grid-cols-[140px_1fr] gap-2 items-center">
+              <Label className="text-sm">Video status</Label>
+              <Select
+                value={video.generation_status || 'pending'}
+                onValueChange={handleVideoStatusChange}
+              >
+                <SelectTrigger className="h-8">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {videoStatusOptions.map((option) => (
+                    <SelectItem key={option.value} value={option.value}>
+                      {option.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            {/* Front cover URL */}
+            <div className="grid grid-cols-[140px_1fr] gap-2 items-center">
+              <Label className="text-sm">Front cover URL</Label>
+              <Input
+                value={video.front_cover_url || ''}
+                onChange={(e) => onUpdateVideo(video.id, { front_cover_url: e.target.value })}
+                placeholder=""
+                className="h-8 text-sm"
+              />
+            </div>
+
+            {/* Field deleted placeholder */}
+            <div className="bg-muted/50 rounded-lg p-3 flex items-center justify-center gap-2 text-sm text-muted-foreground">
+              <span className="text-yellow-600">⚠</span>
+              Field deleted
+            </div>
+
+            {/* Video URL */}
+            <div className="grid grid-cols-[140px_1fr] gap-2 items-center">
+              <Label className="text-sm">Video URL</Label>
+              <div className="text-sm text-muted-foreground">
+                {video.heygen_video_url || '—'}
+              </div>
+            </div>
 
             {/* Duration */}
-            <div>
-              <Label className="text-xs text-muted-foreground">Длина ролика</Label>
-              <div className="flex items-center gap-2 mt-1">
-                <Clock className="w-4 h-4 text-muted-foreground" />
-                <span>{video.video_duration ? `${video.video_duration} сек` : '—'}</span>
+            <div className="grid grid-cols-[140px_1fr] gap-2 items-center">
+              <Label className="text-sm">Длина ролика</Label>
+              <div className="text-sm text-muted-foreground">
+                {video.video_duration ? `${video.video_duration}s` : '—'}
               </div>
             </div>
 
-            <Separator />
+            <Separator className="my-4" />
 
-            {/* Publication Channels */}
-            <div className="space-y-3">
-              <Label>Каналы публикации</Label>
+            {/* Publication channels */}
+            <div>
+              <h4 className="font-medium text-sm mb-3">Publication channels</h4>
               <div className="space-y-2">
-                {publishingChannels.length === 0 ? (
-                  <p className="text-sm text-muted-foreground">Нет каналов публикации</p>
-                ) : (
-                  publishingChannels.map((channel) => (
-                    <div key={channel.id} className="flex items-center space-x-2">
-                      <Checkbox
-                        id={channel.id}
-                        checked={selectedChannels.has(channel.id)}
-                        onCheckedChange={() => toggleChannel(channel.id)}
-                      />
-                      <label
-                        htmlFor={channel.id}
-                        className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 cursor-pointer"
+                {/* Existing channels from publications would go here */}
+                {selectedChannels.map((channelId) => {
+                  const channel = publishingChannels.find(c => c.id === channelId);
+                  if (!channel) return null;
+                  return (
+                    <div
+                      key={channelId}
+                      className="flex items-center justify-between border rounded-lg p-3"
+                    >
+                      <span className="text-sm">{channel.name}</span>
+                      <button
+                        onClick={() => handleRemoveChannel(channelId)}
+                        className="text-muted-foreground hover:text-foreground"
                       >
-                        {channel.name} ({channel.network_type})
-                      </label>
+                        <X className="w-4 h-4" />
+                      </button>
                     </div>
-                  ))
+                  );
+                })}
+
+                {/* Add channel button */}
+                <div className="relative">
+                  <Select onValueChange={handleAddChannel}>
+                    <SelectTrigger className="w-full">
+                      <div className="flex items-center gap-2 text-muted-foreground">
+                        <Plus className="w-4 h-4" />
+                        Add record
+                      </div>
+                    </SelectTrigger>
+                    <SelectContent>
+                      {publishingChannels
+                        .filter(c => !selectedChannels.includes(c.id))
+                        .map((channel) => (
+                          <SelectItem key={channel.id} value={channel.id}>
+                            {channel.name} ({channel.network_type})
+                          </SelectItem>
+                        ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                {/* Publish button */}
+                {selectedChannels.length > 0 && (
+                  <Button
+                    className="w-full mt-3"
+                    onClick={handlePublish}
+                  >
+                    Опубликовать ({selectedChannels.length})
+                  </Button>
                 )}
               </div>
             </div>
-
-            {/* Publish Button */}
-            <Button
-              className="w-full"
-              disabled={selectedChannels.size === 0 || video.generation_status !== 'ready'}
-              onClick={handlePublish}
-            >
-              <Send className="w-4 h-4 mr-2" />
-              Опубликовать ({selectedChannels.size})
-            </Button>
           </div>
         </ScrollArea>
       </SheetContent>
