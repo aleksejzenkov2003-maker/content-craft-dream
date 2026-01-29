@@ -331,11 +331,19 @@ export default function Index() {
                 setVideoFilters(prev => ({ ...prev, questionIds: questionIds.length > 0 ? questionIds : undefined }));
               }}
               onAddQuestion={async (data) => {
-                await addVideo({
-                  question_id: data.question_id,
-                  question: data.question,
-                  safety_score: data.safety_score,
-                });
+                // Create one video per active advisor
+                const activeAdvisors = advisors.filter(a => a.is_active !== false);
+                for (let i = 0; i < activeAdvisors.length; i++) {
+                  const advisor = activeAdvisors[i];
+                  await addVideo({
+                    question_id: data.question_id,
+                    question: data.question,
+                    question_rus: data.question,
+                    safety_score: data.safety_score,
+                    advisor_id: advisor.id,
+                    video_number: data.question_id * 100 + (i + 1),
+                  });
+                }
               }}
               onGoToVideos={() => setActiveTab('videos')}
               onUpdateQuestion={async (questionId, updates) => {
