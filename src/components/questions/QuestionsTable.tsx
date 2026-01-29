@@ -1,6 +1,4 @@
 import { useState, useEffect, useMemo } from 'react';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -10,11 +8,10 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
-import { Search, CheckCircle, Clock, AlertCircle, Video, Loader2, Plus, ArrowRight, X, FileSpreadsheet, Trash2 } from 'lucide-react';
+import { Search, CheckCircle, Circle, Loader2, Plus, ArrowRight, X, FileSpreadsheet, Trash2, Check, Filter, ArrowUpDown, MoreHorizontal } from 'lucide-react';
 import { Video as VideoType } from '@/hooks/useVideos';
 import { Publication } from '@/hooks/usePublications';
 import { format } from 'date-fns';
-import { ru } from 'date-fns/locale';
 import { QuestionSidePanel } from './QuestionSidePanel';
 import { CsvImporter } from '@/components/import/CsvImporter';
 import { VIDEO_COLUMN_MAPPING, VIDEO_PREVIEW_COLUMNS } from '@/components/import/importConfigs';
@@ -106,7 +103,6 @@ export function QuestionsTable({
           if (video.publication_date && (!existing.planned_date || video.publication_date < existing.planned_date)) {
             existing.planned_date = video.publication_date;
           }
-          // Update relevance score to max
           if ((video.relevance_score || 0) > existing.relevance_score) {
             existing.relevance_score = video.relevance_score || 0;
           }
@@ -144,7 +140,6 @@ export function QuestionsTable({
     );
   }, [questions, searchInput]);
 
-  // Calculate next question_id for new question
   const nextQuestionId = useMemo(() => {
     if (questions.length === 0) return 1;
     return Math.max(...questions.map(q => q.question_id)) + 1;
@@ -225,19 +220,23 @@ export function QuestionsTable({
 
   const getSafetyBadge = (score: string) => {
     const option = safetyOptions.find(o => o.value === score) || safetyOptions[3];
+    const isGreen = option.value === 'safe';
     return (
-      <Badge variant="outline" className="gap-1">
-        <span className={`w-2 h-2 rounded-full ${option.color}`} />
+      <div className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded text-xs font-medium ${
+        isGreen ? 'bg-green-100 text-green-800' : 
+        option.value === 'warning' ? 'bg-yellow-100 text-yellow-800' :
+        option.value === 'danger' ? 'bg-red-100 text-red-800' :
+        'bg-gray-100 text-gray-600'
+      }`}>
+        {isGreen && <Check className="w-3 h-3" />}
         {option.label}
-      </Badge>
+      </div>
     );
   };
 
   const getStatusIcon = (q: QuestionData) => {
-    if (q.has_published) return <CheckCircle className="w-4 h-4 text-green-500" />;
-    if (q.has_video) return <Video className="w-4 h-4 text-blue-500" />;
-    if (q.has_cover) return <Clock className="w-4 h-4 text-yellow-500" />;
-    return <AlertCircle className="w-4 h-4 text-muted-foreground" />;
+    if (q.has_published) return <CheckCircle className="w-4 h-4 text-green-500 fill-green-500" />;
+    return <Circle className="w-4 h-4 text-muted-foreground" />;
   };
 
   if (loading) {
@@ -249,164 +248,153 @@ export function QuestionsTable({
   }
 
   return (
-    <div className="space-y-4">
-      {/* Header with search and add button */}
-      <div className="flex items-center gap-4">
-        <div className="relative flex-1 max-w-md">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-          <Input
-            placeholder="Поиск по ID или тексту вопроса..."
-            value={searchInput}
-            onChange={(e) => setSearchInput(e.target.value)}
-            className="pl-10"
-          />
+    <div className="flex flex-col h-full">
+      {/* Airtable-style header */}
+      <div className="flex items-center justify-between px-4 py-2 border-b bg-background">
+        <div className="flex items-center gap-2 text-sm text-muted-foreground">
+          <span className="font-medium text-foreground">Interface</span>
+          <span>/</span>
+          <span className="font-medium text-foreground">Questions</span>
         </div>
-        <Button variant="outline" onClick={() => setShowImporter(true)}>
-          <FileSpreadsheet className="w-4 h-4 mr-2" />
+        <div className="flex items-center gap-2">
+          <Button variant="ghost" size="sm" className="text-xs gap-1">
+            Group
+          </Button>
+          <Button variant="ghost" size="sm" className="text-xs gap-1">
+            <Filter className="w-3 h-3" />
+            Filter
+          </Button>
+          <Button variant="ghost" size="sm" className="text-xs gap-1">
+            <ArrowUpDown className="w-3 h-3" />
+            Sort
+          </Button>
+          <div className="relative">
+            <Search className="absolute left-2 top-1/2 -translate-y-1/2 w-3 h-3 text-muted-foreground" />
+            <Input
+              placeholder="Search..."
+              value={searchInput}
+              onChange={(e) => setSearchInput(e.target.value)}
+              className="h-7 w-40 pl-7 text-xs"
+            />
+          </div>
+          <Button variant="ghost" size="icon" className="h-7 w-7">
+            <MoreHorizontal className="w-4 h-4" />
+          </Button>
+        </div>
+      </div>
+
+      {/* Action bar */}
+      <div className="flex items-center gap-2 px-4 py-2 border-b bg-muted/30">
+        <Button variant="outline" size="sm" onClick={() => setShowImporter(true)}>
+          <FileSpreadsheet className="w-3 h-3 mr-1" />
           Импорт CSV
         </Button>
-        <Button onClick={() => { setNewQuestion({ question_id: nextQuestionId, question: '', safety_score: 'unchecked' }); setShowAddDialog(true); }}>
-          <Plus className="w-4 h-4 mr-2" />
-          Добавить вопрос
+        <Button size="sm" onClick={() => { setNewQuestion({ question_id: nextQuestionId, question: '', safety_score: 'unchecked' }); setShowAddDialog(true); }}>
+          <Plus className="w-3 h-3 mr-1" />
+          Добавить
         </Button>
-        <span className="text-sm text-muted-foreground">
-          Показано {filteredQuestions.length} из {questions.length} вопросов
+        <span className="text-xs text-muted-foreground ml-auto">
+          {filteredQuestions.length} из {questions.length}
         </span>
       </div>
 
-      {/* Selection bar - shows when questions are selected */}
+      {/* Selection bar */}
       {localSelectedIds.length > 0 && (
-        <div className="flex items-center gap-4 p-3 bg-primary/10 rounded-lg border border-primary/20">
+        <div className="flex items-center gap-3 px-4 py-2 bg-primary/10 border-b border-primary/20">
           <span className="text-sm font-medium">
-            Выбрано {localSelectedIds.length} вопросов
+            Выбрано {localSelectedIds.length}
           </span>
           <Button variant="outline" size="sm" onClick={clearSelection}>
-            <X className="w-4 h-4 mr-1" />
+            <X className="w-3 h-3 mr-1" />
             Сбросить
           </Button>
           {onDeleteQuestion && (
-            <Button 
-              variant="destructive" 
-              size="sm" 
-              onClick={() => setShowBulkDeleteDialog(true)}
-            >
-              <Trash2 className="w-4 h-4 mr-1" />
-              Удалить выбранные
+            <Button variant="destructive" size="sm" onClick={() => setShowBulkDeleteDialog(true)}>
+              <Trash2 className="w-3 h-3 mr-1" />
+              Удалить
             </Button>
           )}
           {onGoToVideos && (
             <Button size="sm" onClick={onGoToVideos}>
-              Перейти к роликам
-              <ArrowRight className="w-4 h-4 ml-1" />
+              К роликам
+              <ArrowRight className="w-3 h-3 ml-1" />
             </Button>
           )}
         </div>
       )}
 
-      {/* Table with Checkboxes */}
-      <Card className="glass-card">
-        <CardHeader className="pb-3">
-          <CardTitle className="text-lg">Вопросы к духовникам</CardTitle>
-        </CardHeader>
-        <CardContent className="p-0">
-          <Table>
-            <TableHeader>
-              <TableRow className="bg-muted/30">
-                <TableHead className="w-12">
-                  <Checkbox
-                    checked={allSelected}
-                    onCheckedChange={toggleSelectAll}
-                  />
-                </TableHead>
-                <TableHead className="w-20">ID</TableHead>
-                <TableHead className="w-28">Безопасность</TableHead>
-                <TableHead className="w-24">Релевант.</TableHead>
-                <TableHead>Вопрос</TableHead>
-                <TableHead className="w-32">Дата план.</TableHead>
-                <TableHead className="w-24">Статус</TableHead>
-                <TableHead className="w-24">Роликов</TableHead>
-                <TableHead className="w-12"></TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {filteredQuestions.length === 0 ? (
-                <TableRow>
-                  <TableCell colSpan={9} className="text-center py-8 text-muted-foreground">
-                    {questions.length === 0 ? 'Нет вопросов' : 'Ничего не найдено'}
-                  </TableCell>
-                </TableRow>
-              ) : (
-                filteredQuestions.map((q) => (
-                  <TableRow
-                    key={q.question_id}
-                    className={`cursor-pointer hover:bg-muted/50 transition-colors ${localSelectedIds.includes(q.question_id) ? 'bg-primary/5' : ''}`}
-                    onClick={() => handleRowClick(q)}
+      {/* Table header */}
+      <div className="grid grid-cols-[40px_60px_120px_70px_1fr_180px_60px_1fr_40px] gap-0 px-4 py-2 border-b bg-muted/20 text-xs font-medium text-muted-foreground sticky top-0">
+        <div className="flex items-center">
+          <Checkbox checked={allSelected} onCheckedChange={toggleSelectAll} />
+        </div>
+        <div>ID...</div>
+        <div>Безопасность</div>
+        <div>Актуальн...</div>
+        <div>Вопрос к духовнику рус</div>
+        <div>Planned publication date</div>
+        <div>Статус</div>
+        <div>Вопрос к духовнику eng</div>
+        <div></div>
+      </div>
+
+      {/* Table body */}
+      <div className="flex-1 overflow-auto">
+        {filteredQuestions.length === 0 ? (
+          <div className="flex items-center justify-center h-32 text-muted-foreground text-sm">
+            {questions.length === 0 ? 'Нет вопросов' : 'Ничего не найдено'}
+          </div>
+        ) : (
+          filteredQuestions.map((q) => (
+            <div
+              key={q.question_id}
+              className={`grid grid-cols-[40px_60px_120px_70px_1fr_180px_60px_1fr_40px] gap-0 px-4 py-2 border-b hover:bg-muted/30 cursor-pointer transition-colors text-sm ${
+                localSelectedIds.includes(q.question_id) ? 'bg-primary/5' : ''
+              }`}
+              onClick={() => handleRowClick(q)}
+            >
+              <div className="flex items-center" onClick={(e) => e.stopPropagation()}>
+                <Checkbox
+                  checked={localSelectedIds.includes(q.question_id)}
+                  onCheckedChange={() => toggleSelect(q.question_id)}
+                />
+              </div>
+              <div className="flex items-center text-muted-foreground">{q.question_id}</div>
+              <div className="flex items-center">{getSafetyBadge(q.safety_score)}</div>
+              <div className="flex items-center text-muted-foreground">{q.relevance_score || '—'}</div>
+              <div className="flex items-center truncate pr-2">{q.question_rus || q.question}</div>
+              <div className="flex items-center gap-2 text-muted-foreground">
+                {q.planned_date ? (
+                  <>
+                    <span>{format(new Date(q.planned_date), 'd/M/yyyy')}</span>
+                    <span className="text-xs">{format(new Date(q.planned_date), 'HH:mm')}</span>
+                  </>
+                ) : (
+                  '—'
+                )}
+              </div>
+              <div className="flex items-center justify-center">
+                {getStatusIcon(q)}
+              </div>
+              <div className="flex items-center truncate text-muted-foreground pr-2">
+                {q.question_eng || '—'}
+              </div>
+              <div className="flex items-center" onClick={(e) => e.stopPropagation()}>
+                {onDeleteQuestion && (
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-6 w-6 text-destructive hover:text-destructive opacity-0 group-hover:opacity-100"
+                    onClick={() => setDeleteQuestionId(q.question_id)}
                   >
-                    <TableCell onClick={(e) => e.stopPropagation()}>
-                      <Checkbox
-                        checked={localSelectedIds.includes(q.question_id)}
-                        onCheckedChange={() => toggleSelect(q.question_id)}
-                      />
-                    </TableCell>
-                    <TableCell className="font-mono text-sm">{q.question_id}</TableCell>
-                    <TableCell>{getSafetyBadge(q.safety_score)}</TableCell>
-                    <TableCell>
-                      {q.relevance_score > 0 ? (
-                        <div className="flex items-center gap-2">
-                          <div className="w-16 h-2 bg-muted rounded-full overflow-hidden">
-                            <div 
-                              className="h-full bg-primary rounded-full transition-all" 
-                              style={{ width: `${Math.min(q.relevance_score, 100)}%` }}
-                            />
-                          </div>
-                          <span className="text-xs text-muted-foreground">{q.relevance_score}</span>
-                        </div>
-                      ) : (
-                        <span className="text-muted-foreground">—</span>
-                      )}
-                    </TableCell>
-                    <TableCell>
-                      <div className="max-w-md">
-                        <p className="font-medium truncate">{q.question_rus || q.question}</p>
-                        {(q.question_eng || (!q.question_rus && q.question)) && (
-                          <p className="text-sm text-muted-foreground truncate">
-                            {q.question_rus ? (q.question_eng || q.question) : null}
-                          </p>
-                        )}
-                      </div>
-                    </TableCell>
-                    <TableCell>
-                      {q.planned_date ? format(new Date(q.planned_date), 'dd MMM yyyy', { locale: ru }) : '—'}
-                    </TableCell>
-                    <TableCell>
-                      <div className="flex items-center gap-2">
-                        {getStatusIcon(q)}
-                      </div>
-                    </TableCell>
-                    <TableCell>
-                      <Badge variant="secondary">
-                        {q.videos_count} / {q.total_publications}
-                      </Badge>
-                    </TableCell>
-                    <TableCell onClick={(e) => e.stopPropagation()}>
-                      {onDeleteQuestion && (
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="h-7 w-7 text-destructive hover:text-destructive"
-                          onClick={() => setDeleteQuestionId(q.question_id)}
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </Button>
-                      )}
-                    </TableCell>
-                  </TableRow>
-                ))
-              )}
-            </TableBody>
-          </Table>
-        </CardContent>
-      </Card>
+                    <Trash2 className="w-3 h-3" />
+                  </Button>
+                )}
+              </div>
+            </div>
+          ))
+        )}
+      </div>
 
       {/* Add Question Dialog */}
       <Dialog open={showAddDialog} onOpenChange={setShowAddDialog}>
@@ -511,6 +499,7 @@ export function QuestionsTable({
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
       {/* Bulk Delete Confirmation Dialog */}
       <AlertDialog open={showBulkDeleteDialog} onOpenChange={setShowBulkDeleteDialog}>
         <AlertDialogContent>
