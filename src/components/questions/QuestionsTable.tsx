@@ -76,6 +76,7 @@ export function QuestionsTable({
   const [showEditPanel, setShowEditPanel] = useState(false);
   const [localSelectedIds, setLocalSelectedIds] = useState<number[]>(selectedQuestionIds);
   const [deleteQuestionId, setDeleteQuestionId] = useState<number | null>(null);
+  const [showBulkDeleteDialog, setShowBulkDeleteDialog] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
   const [newQuestion, setNewQuestion] = useState({
     question_id: 0,
@@ -207,6 +208,21 @@ export function QuestionsTable({
     }
   };
 
+  const handleBulkDelete = async () => {
+    if (localSelectedIds.length === 0 || !onDeleteQuestion) return;
+    setIsDeleting(true);
+    try {
+      for (const questionId of localSelectedIds) {
+        await onDeleteQuestion(questionId);
+      }
+      setLocalSelectedIds([]);
+      onSelectionChange?.([]);
+      setShowBulkDeleteDialog(false);
+    } finally {
+      setIsDeleting(false);
+    }
+  };
+
   const getSafetyBadge = (score: string) => {
     const option = safetyOptions.find(o => o.value === score) || safetyOptions[3];
     return (
@@ -268,6 +284,16 @@ export function QuestionsTable({
             <X className="w-4 h-4 mr-1" />
             Сбросить
           </Button>
+          {onDeleteQuestion && (
+            <Button 
+              variant="destructive" 
+              size="sm" 
+              onClick={() => setShowBulkDeleteDialog(true)}
+            >
+              <Trash2 className="w-4 h-4 mr-1" />
+              Удалить выбранные
+            </Button>
+          )}
           {onGoToVideos && (
             <Button size="sm" onClick={onGoToVideos}>
               Перейти к роликам
@@ -481,6 +507,28 @@ export function QuestionsTable({
             >
               {isDeleting ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : null}
               Удалить
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+      {/* Bulk Delete Confirmation Dialog */}
+      <AlertDialog open={showBulkDeleteDialog} onOpenChange={setShowBulkDeleteDialog}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Удалить {localSelectedIds.length} вопросов?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Это действие удалит выбранные вопросы и все связанные с ними ролики и публикации. Это действие нельзя отменить.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={isDeleting}>Отмена</AlertDialogCancel>
+            <AlertDialogAction 
+              onClick={handleBulkDelete} 
+              disabled={isDeleting}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              {isDeleting ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : null}
+              Удалить все
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
