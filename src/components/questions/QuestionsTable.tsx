@@ -71,7 +71,10 @@ export function QuestionsTable({
   const [showImporter, setShowImporter] = useState(false);
   const [editingQuestion, setEditingQuestion] = useState<QuestionData | null>(null);
   const [showEditPanel, setShowEditPanel] = useState(false);
+  // For video filtering (square checkbox in Status column)
   const [localSelectedIds, setLocalSelectedIds] = useState<number[]>(selectedQuestionIds);
+  // For bulk delete (circle checkbox in first column)
+  const [bulkDeleteIds, setBulkDeleteIds] = useState<number[]>([]);
   const [deleteQuestionId, setDeleteQuestionId] = useState<number | null>(null);
   const [showBulkDeleteDialog, setShowBulkDeleteDialog] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
@@ -145,21 +148,34 @@ export function QuestionsTable({
     return Math.max(...questions.map(q => q.question_id)) + 1;
   }, [questions]);
 
-  const allSelected = filteredQuestions.length > 0 && 
+  // For video filtering (square checkbox) - all selected
+  const allFilterSelected = filteredQuestions.length > 0 && 
     filteredQuestions.every(q => localSelectedIds.includes(q.question_id));
+  
+  // For bulk delete (circle checkbox) - all selected
+  const allBulkSelected = filteredQuestions.length > 0 && 
+    filteredQuestions.every(q => bulkDeleteIds.includes(q.question_id));
 
-  const toggleSelectAll = () => {
-    if (allSelected) {
-      setLocalSelectedIds([]);
-      onSelectionChange?.([]);
+  // Toggle all for bulk delete (circle)
+  const toggleBulkSelectAll = () => {
+    if (allBulkSelected) {
+      setBulkDeleteIds([]);
     } else {
-      const allIds = filteredQuestions.map(q => q.question_id);
-      setLocalSelectedIds(allIds);
-      onSelectionChange?.(allIds);
+      setBulkDeleteIds(filteredQuestions.map(q => q.question_id));
     }
   };
 
-  const toggleSelect = (questionId: number) => {
+  // Toggle single for bulk delete (circle)
+  const toggleBulkSelect = (questionId: number) => {
+    setBulkDeleteIds(prev => 
+      prev.includes(questionId)
+        ? prev.filter(id => id !== questionId)
+        : [...prev, questionId]
+    );
+  };
+
+  // Toggle single for video filtering (square checkbox)
+  const toggleFilterSelect = (questionId: number) => {
     const newSelection = localSelectedIds.includes(questionId)
       ? localSelectedIds.filter(id => id !== questionId)
       : [...localSelectedIds, questionId];
@@ -167,7 +183,11 @@ export function QuestionsTable({
     onSelectionChange?.(newSelection);
   };
 
-  const clearSelection = () => {
+  const clearBulkSelection = () => {
+    setBulkDeleteIds([]);
+  };
+
+  const clearFilterSelection = () => {
     setLocalSelectedIds([]);
     onSelectionChange?.([]);
   };
@@ -204,14 +224,13 @@ export function QuestionsTable({
   };
 
   const handleBulkDelete = async () => {
-    if (localSelectedIds.length === 0 || !onDeleteQuestion) return;
+    if (bulkDeleteIds.length === 0 || !onDeleteQuestion) return;
     setIsDeleting(true);
     try {
-      for (const questionId of localSelectedIds) {
+      for (const questionId of bulkDeleteIds) {
         await onDeleteQuestion(questionId);
       }
-      setLocalSelectedIds([]);
-      onSelectionChange?.([]);
+      setBulkDeleteIds([]);
       setShowBulkDeleteDialog(false);
     } finally {
       setIsDeleting(false);
@@ -298,13 +317,13 @@ export function QuestionsTable({
         </span>
       </div>
 
-      {/* Selection bar */}
-      {localSelectedIds.length > 0 && (
-        <div className="flex items-center gap-3 px-4 py-2 bg-primary/10 border-b border-primary/20">
-          <span className="text-sm font-medium">
-            Выбрано {localSelectedIds.length}
+      {/* Bulk delete bar (for circle checkboxes) */}
+      {bulkDeleteIds.length > 0 && (
+        <div className="flex items-center gap-3 px-4 py-2 bg-destructive/10 border-b border-destructive/20">
+          <span className="text-sm font-medium text-destructive">
+            Для удаления: {bulkDeleteIds.length}
           </span>
-          <Button variant="outline" size="sm" onClick={clearSelection}>
+          <Button variant="outline" size="sm" onClick={clearBulkSelection}>
             <X className="w-3 h-3 mr-1" />
             Сбросить
           </Button>
@@ -314,6 +333,19 @@ export function QuestionsTable({
               Удалить
             </Button>
           )}
+        </div>
+      )}
+
+      {/* Video filter bar (for square checkboxes) */}
+      {localSelectedIds.length > 0 && (
+        <div className="flex items-center gap-3 px-4 py-2 bg-primary/10 border-b border-primary/20">
+          <span className="text-sm font-medium">
+            Выбрано для фильтра: {localSelectedIds.length}
+          </span>
+          <Button variant="outline" size="sm" onClick={clearFilterSelection}>
+            <X className="w-3 h-3 mr-1" />
+            Сбросить
+          </Button>
           {onGoToVideos && (
             <Button size="sm" onClick={onGoToVideos}>
               К роликам
@@ -324,18 +356,24 @@ export function QuestionsTable({
       )}
 
       {/* Table header */}
-      <div className="grid grid-cols-[40px_60px_120px_70px_1fr_180px_60px_1fr_40px] gap-0 px-4 py-2 border-b bg-muted/20 text-xs font-medium text-muted-foreground sticky top-0">
-        <div className="flex items-center">
-          <Checkbox checked={allSelected} onCheckedChange={toggleSelectAll} />
+      <div className="grid grid-cols-[40px_60px_110px_70px_1fr_160px_50px_1fr] gap-0 px-4 py-2 border-b bg-muted/20 text-xs font-medium text-muted-foreground sticky top-0">
+        <div className="flex items-center justify-center">
+          <button
+            onClick={toggleBulkSelectAll}
+            className={`w-4 h-4 rounded-full border-2 flex items-center justify-center transition-colors ${
+              allBulkSelected ? 'bg-destructive border-destructive' : 'border-muted-foreground hover:border-foreground'
+            }`}
+          >
+            {allBulkSelected && <Check className="w-2.5 h-2.5 text-white" />}
+          </button>
         </div>
-        <div>ID...</div>
+        <div>ID</div>
         <div>Безопасность</div>
-        <div>Актуальн...</div>
+        <div>Актуальн.</div>
         <div>Вопрос к духовнику рус</div>
-        <div>Planned publication date</div>
+        <div>Plan. pub. date</div>
         <div>Статус</div>
         <div>Вопрос к духовнику eng</div>
-        <div></div>
       </div>
 
       {/* Table body */}
@@ -348,48 +386,54 @@ export function QuestionsTable({
           filteredQuestions.map((q) => (
             <div
               key={q.question_id}
-              className={`grid grid-cols-[40px_60px_120px_70px_1fr_180px_60px_1fr_40px] gap-0 px-4 py-2 border-b hover:bg-muted/30 cursor-pointer transition-colors text-sm ${
-                localSelectedIds.includes(q.question_id) ? 'bg-primary/5' : ''
+              className={`group grid grid-cols-[40px_60px_110px_70px_1fr_160px_50px_1fr] gap-0 px-4 py-2 border-b hover:bg-muted/30 cursor-pointer transition-colors text-sm ${
+                bulkDeleteIds.includes(q.question_id) ? 'bg-destructive/5' : localSelectedIds.includes(q.question_id) ? 'bg-primary/5' : ''
               }`}
               onClick={() => handleRowClick(q)}
             >
-              <div className="flex items-center" onClick={(e) => e.stopPropagation()}>
-                <Checkbox
-                  checked={localSelectedIds.includes(q.question_id)}
-                  onCheckedChange={() => toggleSelect(q.question_id)}
-                />
+              {/* Column 1: Circle for bulk delete */}
+              <div className="flex items-center justify-center" onClick={(e) => e.stopPropagation()}>
+                <button
+                  onClick={() => toggleBulkSelect(q.question_id)}
+                  className={`w-4 h-4 rounded-full border-2 flex items-center justify-center transition-colors ${
+                    bulkDeleteIds.includes(q.question_id) 
+                      ? 'bg-destructive border-destructive' 
+                      : 'border-muted-foreground hover:border-foreground'
+                  }`}
+                >
+                  {bulkDeleteIds.includes(q.question_id) && <Check className="w-2.5 h-2.5 text-white" />}
+                </button>
               </div>
+              {/* Column 2: ID */}
               <div className="flex items-center text-muted-foreground">{q.question_id}</div>
+              {/* Column 3: Safety */}
               <div className="flex items-center">{getSafetyBadge(q.safety_score)}</div>
+              {/* Column 4: Relevance */}
               <div className="flex items-center text-muted-foreground">{q.relevance_score || '—'}</div>
+              {/* Column 5: Question RUS */}
               <div className="flex items-center truncate pr-2">{q.question_rus || q.question}</div>
-              <div className="flex items-center gap-2 text-muted-foreground">
+              {/* Column 6: Planned publication date */}
+              <div className="flex items-center gap-2 text-muted-foreground text-xs">
                 {q.planned_date ? (
                   <>
                     <span>{format(new Date(q.planned_date), 'd/M/yyyy')}</span>
-                    <span className="text-xs">{format(new Date(q.planned_date), 'HH:mm')}</span>
+                    <span>{format(new Date(q.planned_date), 'HH:mm')}</span>
                   </>
                 ) : (
                   '—'
                 )}
               </div>
-              <div className="flex items-center justify-center">
-                {getStatusIcon(q)}
+              {/* Column 7: Status - Square checkbox for video filtering */}
+              <div className="flex items-center justify-center" onClick={(e) => e.stopPropagation()}>
+                <Checkbox
+                  checked={localSelectedIds.includes(q.question_id)}
+                  onCheckedChange={() => toggleFilterSelect(q.question_id)}
+                  className="data-[state=checked]:bg-primary data-[state=checked]:border-primary"
+                />
               </div>
+              {/* Column 8: Question ENG */}
               <div className="flex items-center truncate text-muted-foreground pr-2">
                 {q.question_eng || '—'}
-              </div>
-              <div className="flex items-center" onClick={(e) => e.stopPropagation()}>
-                {onDeleteQuestion && (
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="h-6 w-6 text-destructive hover:text-destructive opacity-0 group-hover:opacity-100"
-                    onClick={() => setDeleteQuestionId(q.question_id)}
-                  >
-                    <Trash2 className="w-3 h-3" />
-                  </Button>
-                )}
               </div>
             </div>
           ))
@@ -504,7 +548,7 @@ export function QuestionsTable({
       <AlertDialog open={showBulkDeleteDialog} onOpenChange={setShowBulkDeleteDialog}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Удалить {localSelectedIds.length} вопросов?</AlertDialogTitle>
+            <AlertDialogTitle>Удалить {bulkDeleteIds.length} вопросов?</AlertDialogTitle>
             <AlertDialogDescription>
               Это действие удалит выбранные вопросы и все связанные с ними ролики и публикации. Это действие нельзя отменить.
             </AlertDialogDescription>
