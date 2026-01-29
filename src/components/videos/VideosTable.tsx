@@ -53,19 +53,19 @@ interface VideosTableProps {
   onFilterChange: (filters: any) => void;
 }
 
-const coverStatusConfig: Record<string, { label: string; className: string }> = {
-  pending: { label: '—', className: '' },
-  generating: { label: 'In progr...', className: 'bg-yellow-500 text-white' },
-  ready: { label: 'Complet...', className: 'bg-green-500 text-white' },
-  error: { label: 'Error', className: 'bg-red-500 text-white' },
+const coverStatusConfig: Record<string, string> = {
+  pending: 'bg-muted-foreground/30',
+  generating: 'bg-yellow-500',
+  ready: 'bg-green-500',
+  error: 'bg-red-500',
 };
 
-const videoStatusConfig: Record<string, { label: string; className: string }> = {
-  pending: { label: '—', className: '' },
-  generating: { label: 'In progr...', className: 'bg-yellow-500 text-white' },
-  ready: { label: 'Complet...', className: 'bg-green-500 text-white' },
-  published: { label: 'Published', className: 'bg-blue-500 text-white' },
-  error: { label: 'Error', className: 'bg-red-500 text-white' },
+const videoStatusConfig: Record<string, string> = {
+  pending: 'bg-muted-foreground/30',
+  generating: 'bg-yellow-500',
+  ready: 'bg-green-500',
+  published: 'bg-blue-500',
+  error: 'bg-red-500',
 };
 
 export function VideosTable({
@@ -140,23 +140,13 @@ export function VideosTable({
   };
 
   const getCoverStatusBadge = (status: string | null) => {
-    const config = coverStatusConfig[status || 'pending'] || coverStatusConfig.pending;
-    if (!config.className) return <span className="text-muted-foreground">—</span>;
-    return (
-      <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${config.className}`}>
-        {config.label}
-      </span>
-    );
+    const colorClass = coverStatusConfig[status || 'pending'] || coverStatusConfig.pending;
+    return <div className={`w-3 h-3 rounded-sm ${colorClass}`} />;
   };
 
   const getVideoStatusBadge = (status: string | null) => {
-    const config = videoStatusConfig[status || 'pending'] || videoStatusConfig.pending;
-    if (!config.className) return <span className="text-muted-foreground">—</span>;
-    return (
-      <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${config.className}`}>
-        {config.label}
-      </span>
-    );
+    const colorClass = videoStatusConfig[status || 'pending'] || videoStatusConfig.pending;
+    return <div className={`w-3 h-3 rounded-sm ${colorClass}`} />;
   };
 
   const toggleAdvisorSort = () => {
