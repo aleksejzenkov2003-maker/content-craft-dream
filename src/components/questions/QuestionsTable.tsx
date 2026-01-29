@@ -423,13 +423,17 @@ export function QuestionsTable({
                   '—'
                 )}
               </div>
-              {/* Column 7: Status - Square checkbox for video filtering */}
               <div className="flex items-center justify-center" onClick={(e) => e.stopPropagation()}>
-                <Checkbox
-                  checked={localSelectedIds.includes(q.question_id)}
-                  onCheckedChange={() => toggleFilterSelect(q.question_id)}
-                  className="data-[state=checked]:bg-primary data-[state=checked]:border-primary"
-                />
+                <button
+                  onClick={() => toggleFilterSelect(q.question_id)}
+                  className={`w-4 h-4 rounded-sm border-2 flex items-center justify-center transition-colors ${
+                    localSelectedIds.includes(q.question_id) 
+                      ? 'bg-primary border-primary' 
+                      : 'border-primary hover:bg-primary/10'
+                  }`}
+                >
+                  {localSelectedIds.includes(q.question_id) && <Check className="w-2.5 h-2.5 text-white" />}
+                </button>
               </div>
               {/* Column 8: Question ENG */}
               <div className="flex items-center truncate text-muted-foreground pr-2">
