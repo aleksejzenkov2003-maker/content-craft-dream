@@ -54,7 +54,7 @@ export interface BulkActionButtonProps {
   loading?: boolean;
   icon?: React.ReactNode;
   children: React.ReactNode;
-  variant?: "default" | "destructive" | "generate-cover" | "generate-video" | "publish";
+  variant?: "default" | "secondary" | "destructive" | "generate-cover" | "generate-video" | "publish";
 }
 
 export function BulkActionButton({

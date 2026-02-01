@@ -97,14 +97,32 @@ export function usePublications(filters?: PublicationFilters) {
 
   const addPublication = async (data: Partial<Publication>) => {
     try {
-      const { error } = await supabase
+      // Дедубликация: проверяем существование пары video_id + channel_id
+      if (data.video_id && data.channel_id) {
+        const { data: existing } = await supabase
+          .from('publications')
+          .select('id')
+          .eq('video_id', data.video_id)
+          .eq('channel_id', data.channel_id)
+          .maybeSingle();
+
+        if (existing) {
+          toast.warning('Публикация для этого ролика и канала уже существует');
+          return existing.id;
+        }
+      }
+
+      const { data: inserted, error } = await supabase
         .from('publications')
-        .insert(data);
+        .insert(data)
+        .select('id')
+        .single();
 
       if (error) throw error;
 
       await fetchPublications();
       toast.success('Публикация создана');
+      return inserted?.id;
     } catch (error: any) {
       console.error('Error adding publication:', error);
       toast.error('Ошибка создания публикации');
@@ -171,9 +189,29 @@ export function usePublications(filters?: PublicationFilters) {
 
   const bulkImport = async (items: Partial<Publication>[]) => {
     try {
+      // Фильтруем дубликаты по video_id + channel_id
+      const existingPairs = new Set(
+        publications
+          .filter(p => p.video_id && p.channel_id)
+          .map(p => `${p.video_id}_${p.channel_id}`)
+      );
+
+      const newItems = items.filter(item => {
+        if (!item.video_id || !item.channel_id) return true;
+        const key = `${item.video_id}_${item.channel_id}`;
+        return !existingPairs.has(key);
+      });
+
+      const skippedCount = items.length - newItems.length;
+
+      if (newItems.length === 0) {
+        toast.info('Все публикации уже существуют');
+        return;
+      }
+
       const { error } = await supabase
         .from('publications')
-        .insert(items.map(item => ({
+        .insert(newItems.map(item => ({
           video_id: item.video_id || null,
           channel_id: item.channel_id || null,
           post_date: item.post_date || null,
@@ -184,7 +222,11 @@ export function usePublications(filters?: PublicationFilters) {
       if (error) throw error;
 
       await fetchPublications();
-      toast.success(`Импортировано ${items.length} публикаций`);
+      if (skippedCount > 0) {
+        toast.success(`Импортировано ${newItems.length}, пропущено дубликатов: ${skippedCount}`);
+      } else {
+        toast.success(`Импортировано ${newItems.length} публикаций`);
+      }
     } catch (error: any) {
       console.error('Error bulk importing publications:', error);
       toast.error('Ошибка импорта публикаций');
