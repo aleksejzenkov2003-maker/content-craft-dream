@@ -1,152 +1,357 @@
 
-# План исправления: Смена статуса и круглые чекбоксы
+# Комплексный план улучшений UI/UX
 
-## Анализ проблемы
+## Обзор
 
-### Проблема 1: Бесконечный цикл уведомлений при смене статуса
-**Причина:** В `Index.tsx` используются два разных экземпляра `useVideos`:
-- `allVideos` - для таблицы Вопросов
-- `videos` - для таблицы Роликов
-
-При вызове `onUpdateQuestion` происходит:
-1. Обновление видео через `updateVideo` (из второго хука)
-2. `fetchVideos()` вызывается для каждого обновлённого видео
-3. Каждый `fetchVideos()` перезагружает все данные
-4. React Query не используется — нет инвалидации, каждый хук делает свои запросы
-
-**Решение:**
-- Оптимизировать обновление: сделать один bulk update вместо цикла
-- Убрать лишние `fetchVideos()` вызовы
-- Добавить дебаунсинг или batch update
-
-### Проблема 2: Кружки вместо квадратных чекбоксов
-**Причина:** Код в `QuestionsTable.tsx` показывает что `Checkbox` компонент уже используется (строки 553-556, 596-599, 650-654), но на скриншоте видны кружки.
-
-Возможные причины:
-1. Файл не был сохранён/применён
-2. Браузер закешировал старую версию
-3. Есть конфликт в git
-
-**Проверка:** Компонент `src/components/ui/checkbox.tsx` имеет `rounded-sm` — это правильно, должны быть квадраты.
+Это масштабный план улучшений по 6 экранам + сквозные задачи. Все задачи разбиты на фазы с приоритетом от высокого к низкому.
 
 ---
 
-## План исправления
+## Фаза 1: Экран «Вопросы» (Questions)
 
-### Шаг 1: Исправить цикл обновлений
+### 1.1 Inline-редактирование даты
+**Текущее состояние:** Дата отображается текстом, редактирование только через боковую панель  
+**Задача:** Добавить date-time picker прямо в колонку «Дата»
 
-**Файл:** `src/hooks/useVideos.ts`
+**Изменения:**
+- `src/components/ui/inline-edit.tsx` — добавить тип `datetime` с календарем
+- `src/components/questions/QuestionsTable.tsx` — использовать `InlineEdit type="datetime"` в колонке даты
 
-Добавить метод `bulkUpdate` для массового обновления без множественных refetch:
+### 1.2 Массовые действия (панель уже есть)
+**Текущее состояние:** Есть bulk delete, bulk status, bulk safety  
+**Добавить:**
+- Массовая установка даты публикации (`onBulkUpdateDate`)
+- Массовый запуск генерации обложек (`onBulkGenerateCovers` — уже есть prop, но не подключен)
 
-```typescript
-const bulkUpdate = async (updates: { id: string; data: Partial<Video> }[], options?: { silent?: boolean }) => {
-  try {
-    // Последовательно обновляем все записи без refetch
-    for (const { id, data } of updates) {
-      const { error } = await supabase
-        .from('videos')
-        .update(data)
-        .eq('id', id);
-      if (error) throw error;
-    }
-    // Один refetch в конце
-    await fetchVideos();
-    if (!options?.silent) {
-      toast.success(`Обновлено ${updates.length} записей`);
-    }
-  } catch (error) {
-    console.error('Error bulk updating videos:', error);
-    toast.error('Ошибка обновления');
-    throw error;
-  }
-};
+**Изменения:**
+- `src/components/questions/QuestionsTable.tsx` — добавить диалог выбора даты и кнопку в BulkActionsBar
+- `src/pages/Index.tsx` — передать `onBulkGenerateCovers` handler
+
+### 1.3 Разделение RU/EN
+**Текущее состояние:** Колонки смешаны  
+**Задача:** Основная колонка показывает RU, EN доступен по hover/expand
+
+**Изменения:**
+- `src/components/questions/QuestionsTable.tsx` — объединить вопрос RU/EN в одну колонку с hover-preview для EN
+
+### 1.4 Улучшение импорта CSV
+**Текущее состояние:** Базовый импорт  
+**Добавить:**
+- Режимы импорта: «добавить новые» / «обновить существующие» / «пропустить дубликаты»
+- Валидации: проверка обязательных полей, формата даты
+
+**Изменения:**
+- `src/components/import/CsvImporter.tsx` — добавить dropdown для выбора режима
+- Добавить валидацию строк перед импортом
+
+### 1.5 Изменение ширины колонок (resize)
+**Задача:** Перетаскивание границ колонок  
+**Реализация:** Добавить react-resizable-panels или custom resize handlers
+
+**Изменения:**
+- Создать `src/components/ui/resizable-table.tsx` — компонент таблицы с ресайзом
+- Применить к QuestionsTable
+
+---
+
+## Фаза 2: Экран «Ролики» (Videos)
+
+### 2.1 Разделение генерации на первичную/повторную
+**Текущее состояние:** Одна кнопка "Generate"  
+**Задача:** 
+- Если пусто → "Создать"
+- Если есть варианты → "Новый вариант"
+
+**Изменения:**
+- `src/components/videos/VideosTable.tsx` — логика отображения разных кнопок
+- Добавить счетчик вариантов
+
+### 2.2 Хранение нескольких вариантов обложек/видео
+**Требуется миграция БД:**
+```sql
+CREATE TABLE cover_variants (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  video_id uuid REFERENCES videos(id),
+  image_url text NOT NULL,
+  prompt text,
+  is_active boolean DEFAULT false,
+  created_at timestamptz DEFAULT now()
+);
+
+CREATE TABLE video_variants (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  video_id uuid REFERENCES videos(id),
+  video_url text NOT NULL,
+  is_active boolean DEFAULT false,
+  created_at timestamptz DEFAULT now()
+);
 ```
 
-**Файл:** `src/pages/Index.tsx`
+**Изменения:**
+- Создать хуки `useCoverVariants`, `useVideoVariants`
+- UI компонент галереи вариантов
 
-Изменить `onUpdateQuestion` чтобы использовать bulk update:
+### 2.3 Просмотр/выбор вариантов
+**Задача:** Клик по превью → галерея вариантов
 
-```typescript
-onUpdateQuestion={async (questionId, updates) => {
-  const videosToUpdate = allVideos.filter(v => v.question_id === questionId);
-  // Один bulk update вместо цикла
-  await bulkUpdateVideos(
-    videosToUpdate.map(v => ({ id: v.id, data: updates })),
-    { silent: true }
-  );
-  toast.success('Вопрос обновлён');
-}}
+**Изменения:**
+- Создать `src/components/videos/VariantsGallery.tsx` — модалка с превью, выбором активного, удалением
+
+### 2.4 Редактируемый промпт + Regenerate
+**Текущее состояние:** Промпт в боковой панели  
+**Задача:** Показать промпт прямо в карточке/строке с кнопкой регенерации
+
+**Изменения:**
+- `src/components/videos/VideosTable.tsx` — добавить inline-edit для cover_prompt
+
+### 2.5 Статусы: единая модель
+**Задача:** `pending | generating | ready | error` для обоих (cover/video)
+**Ошибки:** tooltip/диалог с error_message
+
+**Изменения:**
+- Добавить колонку `cover_error_message`, `video_error_message` в videos (миграция)
+- UI: красный индикатор + tooltip с текстом ошибки
+
+### 2.6 Каналы публикации внутри ролика
+**Задача:** Чекбоксы каналов как в Airtable
+
+**Изменения:**
+- `src/components/videos/VideoSidePanel.tsx` — добавить секцию с мультиселектом каналов
+- Сохранять выбранные каналы в новую колонку `selected_channels uuid[]` (миграция)
+
+### 2.7 Дедубликация публикаций
+**Задача:** Проверять пару video_id + channel_id перед созданием
+
+**Изменения:**
+- `src/hooks/usePublications.ts` → `addPublication` — проверять существование
+- Показывать уведомление если дубль
+
+---
+
+## Фаза 3: Экран «Публикации» (Publications)
+
+### 3.1 Массовые действия (уже есть частично)
+**Добавить:**
+- Set date/time (массовая установка даты)
+
+**Изменения:**
+- `src/components/publishing/PublicationsTable.tsx` — добавить date picker dialog
+
+### 3.2 Редактирование внутри публикации
+**Текущее состояние:** Нет редактирования текста  
+**Задача:** Клик → диалог редактирования
+
+**Изменения:**
+- Создать `src/components/publishing/PublicationEditDialog.tsx`
+- Поля: текст, дата/время, статус
+
+### 3.3 Дедубликация при импорте
+**Изменения:**
+- `src/hooks/usePublications.ts` → `bulkImport` — использовать upsert с conflict на `(video_id, channel_id)`
+
+---
+
+## Фаза 4: Экран «Канбан публикаций» (Kanban)
+
+### 4.1 Drag&drop с изменением статуса
+**Текущее состояние:** DnD подготовлен, но `handleDragEnd` пустой
+
+**Изменения:**
+- `src/components/publishing/PublishingKanban.tsx`:
+  - Реструктурировать на колонки по статусам (не по каналам)
+  - `handleDragEnd` → вызывать `updatePublication(id, { publication_status })`
+
+### 4.2 Быстрые действия на карточке
+**Добавить:**
+- Кнопка "Опубликовать"
+- Кнопка "Открыть лог ошибки"
+
+**Изменения:**
+- `KanbanCard` — добавить кнопки + tooltip с error_message
+
+### 4.3 Редактирование даты по клику
+**Изменения:**
+- Добавить inline date-picker в карточку
+
+### 4.4 Визуальная иерархия группировок
+**Задача:** Отступы/фон для уровней группировки
+
+**Изменения:**
+- CSS стили для вложенных групп
+
+---
+
+## Фаза 5: Экран «Сцены» (Scenes)
+
+### 5.1 Кнопка Generate на строку
+**Текущее состояние:** Уже есть (Wand2 icon)  
+**Статус:** ✅ Готово
+
+### 5.2 Хранение нескольких вариантов сцен
+**Миграция:**
+```sql
+CREATE TABLE scene_variants (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  scene_id uuid REFERENCES playlist_scenes(id),
+  image_url text NOT NULL,
+  prompt text,
+  is_active boolean DEFAULT false,
+  created_at timestamptz DEFAULT now()
+);
 ```
 
-### Шаг 2: Удалить refetch из каждого updateVideo при silent mode
+### 5.3 Approve/Reject с комментарием
+**Текущее состояние:** Есть approve/reject кнопки  
+**Добавить:** Поле комментария при reject
 
-**Файл:** `src/hooks/useVideos.ts`
+**Изменения:**
+- `src/components/scenes/SceneSidePanel.tsx` — добавить textarea для комментария
+- Колонка `rejection_reason text` в playlist_scenes (миграция)
 
-```typescript
-const updateVideo = async (id: string, updates: Partial<Video>, options?: { silent?: boolean; skipRefetch?: boolean }) => {
-  try {
-    const { error } = await supabase
-      .from('videos')
-      .update(updates)
-      .eq('id', id);
+---
 
-    if (error) throw error;
+## Фаза 6: Экран «Задние обложки» (Back Covers)
 
-    // Не делаем refetch если указано skipRefetch
-    if (!options?.skipRefetch) {
-      await fetchVideos();
-    }
-    if (!options?.silent) {
-      toast.success('Ролик обновлён');
-    }
-  } catch (error) {
-    // ...
-  }
-};
+### 6.1 Привязка к каналу вместо духовника
+**КРИТИЧЕСКОЕ ИЗМЕНЕНИЕ:** Сейчас привязано к advisors.back_cover_template_url
+
+**Миграция:**
+```sql
+ALTER TABLE publishing_channels ADD COLUMN back_cover_url text;
+ALTER TABLE publishing_channels ADD COLUMN back_cover_video_url text;
 ```
 
-### Шаг 3: Перезаписать QuestionsTable с чекбоксами
+**Изменения:**
+- Перестроить `src/components/covers/BackCoversGrid.tsx`:
+  - Группировка по каналам
+  - Загрузка/генерация для каждого канала
 
-Проблема может быть в том, что файл не был правильно сохранён. Нужно убедиться что в колонке "Статус" (строки 637-655) используется `Checkbox`:
-
-```tsx
-{/* Column 7: Status - Inline Edit + Filter checkbox */}
-<div className="flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
-  <InlineEdit
-    type="select"
-    value={q.question_status}
-    options={statusOptions}
-    onSave={(value) => handleSaveQuestion(q.question_id, { question_status: value })}
-    formatDisplay={(val) => {
-      const opt = statusOptions.find(o => o.value === val);
-      return opt?.label || 'Ожидает';
-    }}
-    displayClassName="text-xs"
-  />
-  <Checkbox
-    checked={localSelectedIds.includes(q.question_id)}
-    onCheckedChange={() => toggleFilterSelect(q.question_id)}
-    className="border-primary data-[state=checked]:bg-primary"
-  />
-</div>
+### 6.2 Хранение вариантов back cover
+**Миграция:**
+```sql
+CREATE TABLE back_cover_variants (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  channel_id uuid REFERENCES publishing_channels(id),
+  image_url text,
+  video_url text,
+  is_active boolean DEFAULT false,
+  created_at timestamptz DEFAULT now()
+);
 ```
 
 ---
 
-## Технические детали
+## Сквозные задачи
 
-### Изменяемые файлы
-1. `src/hooks/useVideos.ts` - добавить `bulkUpdate`, опция `skipRefetch`
-2. `src/pages/Index.tsx` - использовать bulk update
-3. `src/components/questions/QuestionsTable.tsx` - подтвердить Checkbox компонент
+### S.1 Единый компонент кнопок
+**Текущее состояние:** Разные стили  
+**Задача:** Стандартизировать variants в `src/components/ui/button.tsx`
 
-### Порядок выполнения
-1. Добавить `bulkUpdate` в хук
-2. Обновить Index.tsx для использования bulk update
-3. Принудительно перезаписать QuestionsTable чтобы гарантировать Checkbox
+**Добавить variants:**
+- `generate-cover` (оранжевый)
+- `generate-video` (фиолетовый)  
+- `publish` (синий)
+- `danger` (красный)
 
-### Ожидаемый результат
-- При смене статуса появляется одно уведомление "Вопрос обновлён"
-- Нет бесконечного цикла обновлений
-- Чекбоксы отображаются как квадраты (Checkbox компонент с `rounded-sm`)
+### S.2 Иконка удаления
+**Задача:** Один крестик вместо двойного
+**Изменения:** Проверить все места с Trash2/X иконками
+
+### S.3 Gemini API вместо тестового генератора
+**Текущее состояние:** Edge functions используют разные подходы  
+**Задача:** Унифицировать на Lovable AI (gemini-2.5-flash-image для изображений)
+
+**Изменения:**
+- `supabase/functions/generate-cover/index.ts` — использовать Lovable AI
+- `supabase/functions/generate-scene/index.ts` — использовать Lovable AI
+
+---
+
+## Порядок реализации
+
+| Приоритет | Фаза | Описание | Сложность |
+|-----------|------|----------|-----------|
+| 1 | 1.1, 1.2 | Вопросы: inline даты + массовые действия | Низкая |
+| 2 | 4.1 | Канбан: drag&drop со сменой статуса | Средняя |
+| 3 | 2.6, 2.7 | Ролики: каналы + дедубликация | Средняя |
+| 4 | 3.1, 3.2 | Публикации: массовые действия + редактор | Средняя |
+| 5 | 6.1 | Back covers: привязка к каналам | Высокая (миграция) |
+| 6 | 2.2, 2.3 | Варианты обложек/видео | Высокая (миграция) |
+| 7 | S.1, S.2 | Унификация UI | Низкая |
+| 8 | S.3 | Gemini API интеграция | Средняя |
+
+---
+
+## Миграции БД (сводка)
+
+```sql
+-- Фаза 2: Варианты обложек и видео
+CREATE TABLE cover_variants (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  video_id uuid REFERENCES videos(id) ON DELETE CASCADE,
+  image_url text NOT NULL,
+  prompt text,
+  is_active boolean DEFAULT false,
+  created_at timestamptz DEFAULT now()
+);
+
+CREATE TABLE video_variants (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  video_id uuid REFERENCES videos(id) ON DELETE CASCADE,
+  video_url text NOT NULL,
+  is_active boolean DEFAULT false,
+  created_at timestamptz DEFAULT now()
+);
+
+-- Фаза 2: Ошибки генерации
+ALTER TABLE videos ADD COLUMN cover_error_message text;
+ALTER TABLE videos ADD COLUMN video_error_message text;
+
+-- Фаза 2: Выбранные каналы для ролика
+ALTER TABLE videos ADD COLUMN selected_channels uuid[] DEFAULT '{}';
+
+-- Фаза 5: Комментарий отклонения сцены
+ALTER TABLE playlist_scenes ADD COLUMN rejection_reason text;
+
+-- Фаза 5: Варианты сцен
+CREATE TABLE scene_variants (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  scene_id uuid REFERENCES playlist_scenes(id) ON DELETE CASCADE,
+  image_url text NOT NULL,
+  prompt text,
+  is_active boolean DEFAULT false,
+  created_at timestamptz DEFAULT now()
+);
+
+-- Фаза 6: Back covers для каналов
+ALTER TABLE publishing_channels ADD COLUMN back_cover_url text;
+ALTER TABLE publishing_channels ADD COLUMN back_cover_video_url text;
+
+CREATE TABLE back_cover_variants (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  channel_id uuid REFERENCES publishing_channels(id) ON DELETE CASCADE,
+  image_url text,
+  video_url text,
+  is_active boolean DEFAULT false,
+  created_at timestamptz DEFAULT now()
+);
+```
+
+---
+
+## Новые компоненты
+
+1. `src/components/ui/inline-edit.tsx` — расширить datetime picker
+2. `src/components/videos/VariantsGallery.tsx` — галерея вариантов
+3. `src/components/publishing/PublicationEditDialog.tsx` — редактор публикации
+4. `src/components/ui/resizable-table.tsx` — таблица с ресайзом колонок
+
+---
+
+## Новые хуки
+
+1. `src/hooks/useCoverVariants.ts`
+2. `src/hooks/useVideoVariants.ts`
+3. `src/hooks/useSceneVariants.ts`
+4. `src/hooks/useBackCoverVariants.ts`
+
