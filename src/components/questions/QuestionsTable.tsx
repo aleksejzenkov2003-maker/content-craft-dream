@@ -654,23 +654,27 @@ export function QuestionsTable({
                 <HoverCard openDelay={200} closeDelay={100}>
                   <HoverCardTrigger asChild>
                     <span className="truncate cursor-help">
-                      {q.question_rus || q.question}
+                      {q.question_rus || (
+                        <span className="text-muted-foreground italic">
+                          {q.question_eng || q.question || '—'}
+                        </span>
+                      )}
                     </span>
                   </HoverCardTrigger>
                   <HoverCardContent className="w-80 p-3" side="bottom" align="start">
                     <div className="space-y-2">
                       <div>
                         <Badge variant="outline" className="text-[10px] mb-1">RU</Badge>
-                        <p className="text-sm">{q.question_rus || q.question || '—'}</p>
+                        <p className="text-sm">{q.question_rus || <span className="text-muted-foreground italic">не заполнено</span>}</p>
                       </div>
                       <div className="border-t pt-2">
                         <Badge variant="outline" className="text-[10px] mb-1">EN</Badge>
-                        <p className="text-sm text-muted-foreground">{q.question_eng || '—'}</p>
+                        <p className="text-sm text-muted-foreground">{q.question_eng || q.question || '—'}</p>
                       </div>
-                      {q.hook_rus && (
+                      {(q.hook_rus || q.hook) && (
                         <div className="border-t pt-2">
                           <Badge variant="secondary" className="text-[10px] mb-1">Hook</Badge>
-                          <p className="text-sm text-muted-foreground">{q.hook_rus}</p>
+                          <p className="text-sm text-muted-foreground">{q.hook_rus || q.hook}</p>
                         </div>
                       )}
                     </div>
