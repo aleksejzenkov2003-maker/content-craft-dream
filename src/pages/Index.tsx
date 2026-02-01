@@ -264,6 +264,29 @@ export default function Index() {
                 onAddVideo={() => { setEditingVideo(null); setShowVideoEditor(true); }}
                 onImportVideos={() => setShowImportDialog(true)}
                 onViewVideo={handleViewVideo}
+                onUpdateVideo={updateVideo}
+                onBulkDelete={async (videoIds) => {
+                  for (const id of videoIds) {
+                    await deleteVideo(id);
+                  }
+                }}
+                onBulkGenerateCovers={async (videoIds) => {
+                  const videosToProcess = videos.filter(v => videoIds.includes(v.id));
+                  for (const video of videosToProcess) {
+                    await handleGenerateCover(video);
+                  }
+                }}
+                onBulkGenerateVideos={async (videoIds) => {
+                  const videosToProcess = videos.filter(v => videoIds.includes(v.id));
+                  for (const video of videosToProcess) {
+                    handleViewVideo(video);
+                  }
+                }}
+                onBulkUpdateStatus={async (videoIds, status) => {
+                  for (const id of videoIds) {
+                    await updateVideo(id, { generation_status: status });
+                  }
+                }}
                 filters={videoFilters}
                 onFilterChange={setVideoFilters}
               />

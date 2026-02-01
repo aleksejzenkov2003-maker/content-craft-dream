@@ -1,61 +1,59 @@
 
-# Фаза 2: Экран «Вопросы» - ✅ ЗАВЕРШЕНО
+# Фаза 3: Экран «Ролики» - ✅ ЗАВЕРШЕНО
 
 ## Обзор изменений
 
 Все 5 подзадач реализованы:
-1. ✅ Расширенная форма добавления
-2. ✅ Inline-редактирование в таблице
-3. ✅ Фильтры и сортировка
-4. ✅ Массовые действия
-5. ✅ Разделение RU/EN полей
+1. ✅ Inline-редактирование в таблице
+2. ✅ Массовые действия (BulkActionsBar)
+3. ✅ Расширенные фильтры
+4. ✅ Улучшенная сортировка
+5. ✅ Превью обложек и видео
 
 ---
 
 ## Созданные компоненты
 
-### 1. `AddQuestionDialog.tsx`
-Новый диалог добавления вопроса с полями:
-- ID вопроса (автозаполнение)
-- Вопрос RUS / ENG
-- Хук RUS / ENG
-- Безопасность (select)
-- Плейлист (select)
-- Дата публикации (DatePicker)
+### 1. `VideoFilters.tsx`
+Popover с расширенными фильтрами:
+- Статус обложки (multiselect)
+- Статус видео (multiselect)
+- Наличие обложки (да/нет)
+- Наличие видео (да/нет)
+- Диапазон дат создания (DateRange)
 
-### 2. `QuestionFilters.tsx`
-Popover с фильтрами:
-- Статус вопроса (multiselect)
-- Безопасность (multiselect)
-- Диапазон дат публикации (DateRange)
-- Только с роликами / без роликов
-
-### 3. Обновлённый `QuestionsTable.tsx`
-- Интеграция InlineEdit для колонок: Безопасность, Статус, Дата публикации
-- Кликабельные заголовки для сортировки (ID, Актуальность, Дата)
-- BulkActionsBar с действиями: Удалить, Статус, Безопасность, Обложки
-- Визуальная маркировка RU/EN через Badge
+### 2. Обновлённый `VideosTable.tsx`
+- **Inline-редактирование**: Cover status, Video status, Длительность
+- **Сортировка**: Клик на заголовки (ID, Духовник, Cover, Video, Длина)
+- **Массовые действия**: Чекбоксы + BulkActionsBar (Удалить, Генерация обложек, Генерация видео)
+- **Превью обложек**: Миниатюры с HoverCard для увеличения
 
 ---
 
-## Обновлённые Props QuestionsTable
+## Обновлённые Props VideosTable
 
 ```typescript
-interface QuestionsTableProps {
-  videos: VideoType[];
-  publications: Publication[];
-  loading: boolean;
-  selectedQuestionIds?: number[];
-  onSelectionChange?: (questionIds: number[]) => void;
-  onAddQuestion?: (data: {...}) => void;
-  onGoToVideos?: () => void;
-  onUpdateQuestion?: (questionId: number, updates: {...}) => void;
-  onBulkImport?: (data: Record<string, any>[]) => Promise<void>;
-  onDeleteQuestion?: (questionId: number) => Promise<void>;
-  playlists?: Playlist[];
-  onBulkUpdateStatus?: (questionIds: number[], status: string) => Promise<void>;
-  onBulkUpdateSafety?: (questionIds: number[], safety: string) => Promise<void>;
-  onBulkGenerateCovers?: (questionIds: number[]) => Promise<void>;
+interface VideosTableProps {
+  // ... существующие
+  onUpdateVideo?: (id: string, updates: Partial<Video>) => Promise<void>;
+  onBulkDelete?: (videoIds: string[]) => Promise<void>;
+  onBulkGenerateCovers?: (videoIds: string[]) => Promise<void>;
+  onBulkGenerateVideos?: (videoIds: string[]) => Promise<void>;
+  onBulkUpdateStatus?: (videoIds: string[], status: string) => Promise<void>;
+}
+```
+
+---
+
+## Состояние фильтров
+
+```typescript
+interface VideoFilterState {
+  coverStatusFilter: string[];
+  videoStatusFilter: string[];
+  hasCover: boolean | null;
+  hasVideo: boolean | null;
+  dateRange: { from: Date | null; to: Date | null };
 }
 ```
 
@@ -63,4 +61,15 @@ interface QuestionsTableProps {
 
 ## Следующие шаги
 
-Фаза 2 завершена. Можно переходить к следующей фазе или тестировать текущую реализацию.
+Фаза 3 завершена. Можно переходить к Фазе 4 или тестировать текущую реализацию.
+
+---
+
+# История
+
+## Фаза 2: Экран «Вопросы» - ✅ ЗАВЕРШЕНО
+- Расширенная форма добавления
+- Inline-редактирование
+- Фильтры и сортировка
+- Массовые действия
+- Разделение RU/EN полей
