@@ -1,75 +1,256 @@
 
-# Фаза 3: Экран «Ролики» - ✅ ЗАВЕРШЕНО
+# План реализации: Фазы 4-8
 
-## Обзор изменений
-
-Все 5 подзадач реализованы:
-1. ✅ Inline-редактирование в таблице
-2. ✅ Массовые действия (BulkActionsBar)
-3. ✅ Расширенные фильтры
-4. ✅ Улучшенная сортировка
-5. ✅ Превью обложек и видео
+## Текущее состояние
+- Фаза 2 (Вопросы) - завершено
+- Фаза 3 (Ролики) - завершено
 
 ---
 
-## Созданные компоненты
+## Фаза 4: Экран «Публикации» (PublicationsTable)
 
-### 1. `VideoFilters.tsx`
-Popover с расширенными фильтрами:
-- Статус обложки (multiselect)
-- Статус видео (multiselect)
-- Наличие обложки (да/нет)
-- Наличие видео (да/нет)
-- Диапазон дат создания (DateRange)
+### Текущее состояние
+- Простой фильтр по каналу и статусу (Select)
+- Группировка по каналам/вопросам
+- Кнопки Generate и Publish для каждой строки
+- Нет массовых действий, нет inline-редактирования
 
-### 2. Обновлённый `VideosTable.tsx`
-- **Inline-редактирование**: Cover status, Video status, Длительность
-- **Сортировка**: Клик на заголовки (ID, Духовник, Cover, Video, Длина)
-- **Массовые действия**: Чекбоксы + BulkActionsBar (Удалить, Генерация обложек, Генерация видео)
-- **Превью обложек**: Миниатюры с HoverCard для увеличения
+### Изменения
+
+**4.1 Inline-редактирование**
+| Колонка | Тип |
+|---------|-----|
+| Дата публикации | datetime |
+| Статус | select (pending, scheduled, published, failed) |
+
+**4.2 Массовые действия (BulkActionsBar)**
+- Удалить выбранные
+- Сменить статус (pending/scheduled/published)
+- Генерация текста (массовая)
+- Публикация (массовая)
+
+**4.3 Расширенные фильтры**
+- Статус (multiselect)
+- Канал (multiselect)  
+- Диапазон дат публикации
+- Наличие сгенерированного текста
+
+**4.4 Сортировка**
+- Дата публикации (asc/desc)
+- Просмотры (asc/desc)
+- Лайки (asc/desc)
+
+**Файлы:**
+- `src/components/publishing/PublicationsTable.tsx`
+- `src/components/publishing/PublicationFilters.tsx` (новый)
 
 ---
 
-## Обновлённые Props VideosTable
+## Фаза 5: Экран «Канбан публикаций» (PublishingKanban)
 
+### Текущее состояние
+- Drag-and-drop между колонками (каналами)
+- Фильтрация по статусам (tabs)
+- Базовые карточки публикаций
+
+### Изменения
+
+**5.1 Drag-and-drop между статусами**
+- Реализовать перемещение карточки для смены статуса
+- Колонки по статусам вместо каналов (опционально)
+- Визуальная обратная связь при перетаскивании
+
+**5.2 Быстрые действия на карточках**
+- Кнопка "Generate" прямо на карточке
+- Кнопка "Publish" на карточке
+- Редактирование даты в попапе
+
+**5.3 Массовый выбор**
+- Чекбоксы на карточках
+- Плавающая панель действий
+
+**5.4 Улучшенная визуализация**
+- Индикатор прогресса по каналу
+- Цветовая маркировка по срочности (дата близко = желтый/красный)
+
+**Файлы:**
+- `src/components/publishing/PublishingKanban.tsx`
+
+---
+
+## Фаза 6: Экран «Сцены» (ScenesMatrix)
+
+### Текущее состояние
+- Матрица Духовники × Плейлисты
+- Collapsible rows по духовникам
+- Кнопки генерации/одобрения/отмены
+
+### Изменения
+
+**6.1 Inline-редактирование**
+| Колонка | Тип |
+|---------|-----|
+| Статус | select (waiting, approved, cancelled) |
+| Статус проверки | select (Waiting, Approved, NeedsRevision) |
+| Промт сцены | text |
+
+**6.2 Массовые действия**
+- Выбор нескольких сцен
+- Массовая генерация
+- Массовое одобрение
+- Массовая отмена
+
+**6.3 Фильтры**
+- По статусу генерации
+- По статусу проверки
+- По плейлисту
+- По духовнику
+- Только без сцен / только со сценами
+
+**6.4 Улучшенный SidePanel**
+- Редактирование промта
+- История генераций
+- Сравнение версий
+
+**Файлы:**
+- `src/components/scenes/ScenesMatrix.tsx`
+- `src/components/scenes/SceneFilters.tsx` (новый)
+
+---
+
+## Фаза 7: Экран «Обложки» (BackCoversGrid + CoverThumbnailsGrid)
+
+### Текущее состояние
+- BackCoversGrid: сетка по духовникам с возможностью добавления
+- CoverThumbnailsGrid: сетка сгенерированных обложек
+
+### Изменения
+
+**7.1 BackCoversGrid**
+- Массовое добавление обложек
+- Drag-and-drop загрузка файлов
+- Массовое удаление
+
+**7.2 CoverThumbnailsGrid**
+- Inline-редактирование статуса
+- Массовые действия (удаление, регенерация)
+- Расширенные фильтры (по духовнику, статусу, дате)
+- Сортировка
+
+**7.3 Общие улучшения**
+- Lightbox для просмотра обложек
+- Сравнение front/back cover
+- Скачивание обложек
+
+**Файлы:**
+- `src/components/covers/BackCoversGrid.tsx`
+- `src/components/covers/CoverThumbnailsGrid.tsx`
+- `src/components/covers/CoverFilters.tsx` (новый)
+
+---
+
+## Фаза 8: Справочники (Духовники, Плейлисты, Каналы)
+
+### Экраны
+- AdvisorsGrid
+- PlaylistsGrid  
+- PublishingChannelsGrid
+
+### Общие изменения для всех
+
+**8.1 Inline-редактирование в карточках**
+- Редактирование названия по клику
+- Быстрое переключение активности
+
+**8.2 Массовые действия**
+- Массовое удаление
+- Массовая активация/деактивация
+- Массовый экспорт
+
+**8.3 Расширенный поиск**
+- Фильтрация по активности
+- Сортировка (по имени, дате создания, количеству связей)
+
+**8.4 Улучшенные формы**
+- Валидация полей
+- Автодополнение
+- Предпросмотр изменений
+
+**Файлы:**
+- `src/components/advisors/AdvisorsGrid.tsx`
+- `src/components/playlists/PlaylistsGrid.tsx`
+- `src/components/publishing/PublishingChannelsGrid.tsx`
+
+---
+
+## Сводная таблица по фазам
+
+| Фаза | Экран | Компоненты | Сложность |
+|------|-------|------------|-----------|
+| 4 | Публикации | PublicationsTable, PublicationFilters | Средняя |
+| 5 | Канбан | PublishingKanban | Высокая |
+| 6 | Сцены | ScenesMatrix, SceneFilters | Средняя |
+| 7 | Обложки | BackCoversGrid, CoverThumbnailsGrid, CoverFilters | Средняя |
+| 8 | Справочники | AdvisorsGrid, PlaylistsGrid, PublishingChannelsGrid | Низкая |
+
+---
+
+## Технические детали
+
+### Общие паттерны для всех фаз
+
+**Состояние фильтров:**
 ```typescript
-interface VideosTableProps {
-  // ... существующие
-  onUpdateVideo?: (id: string, updates: Partial<Video>) => Promise<void>;
-  onBulkDelete?: (videoIds: string[]) => Promise<void>;
-  onBulkGenerateCovers?: (videoIds: string[]) => Promise<void>;
-  onBulkGenerateVideos?: (videoIds: string[]) => Promise<void>;
-  onBulkUpdateStatus?: (videoIds: string[], status: string) => Promise<void>;
-}
-```
-
----
-
-## Состояние фильтров
-
-```typescript
-interface VideoFilterState {
-  coverStatusFilter: string[];
-  videoStatusFilter: string[];
-  hasCover: boolean | null;
-  hasVideo: boolean | null;
+interface CommonFilterState {
+  statusFilter: string[];
   dateRange: { from: Date | null; to: Date | null };
+  searchQuery: string;
 }
 ```
 
+**Состояние сортировки:**
+```typescript
+interface SortState {
+  column: string | null;
+  direction: 'asc' | 'desc';
+}
+```
+
+**Props для массовых действий:**
+```typescript
+interface BulkActionsProps {
+  selectedIds: string[];
+  onBulkDelete: (ids: string[]) => Promise<void>;
+  onBulkUpdateStatus: (ids: string[], status: string) => Promise<void>;
+  onBulkExport?: (ids: string[]) => void;
+}
+```
+
+### Зависимости
+- Все фазы используют существующие компоненты: `BulkActionsBar`, `InlineEdit`
+- Новые компоненты фильтров создаются по образцу `QuestionFilters` и `VideoFilters`
+
 ---
 
-## Следующие шаги
+## Рекомендуемый порядок реализации
 
-Фаза 3 завершена. Можно переходить к Фазе 4 или тестировать текущую реализацию.
+1. **Фаза 4** - Публикации (основа для Канбана)
+2. **Фаза 5** - Канбан (зависит от логики публикаций)
+3. **Фаза 6** - Сцены (независимый экран)
+4. **Фаза 7** - Обложки (независимый экран)
+5. **Фаза 8** - Справочники (финальная полировка)
 
 ---
 
-# История
+## Оценка времени
 
-## Фаза 2: Экран «Вопросы» - ✅ ЗАВЕРШЕНО
-- Расширенная форма добавления
-- Inline-редактирование
-- Фильтры и сортировка
-- Массовые действия
-- Разделение RU/EN полей
+| Фаза | Оценка |
+|------|--------|
+| Фаза 4 | 1 сессия |
+| Фаза 5 | 1-2 сессии |
+| Фаза 6 | 1 сессия |
+| Фаза 7 | 1 сессия |
+| Фаза 8 | 1 сессия |
+
+**Итого:** 5-7 сессий для полной реализации
+
