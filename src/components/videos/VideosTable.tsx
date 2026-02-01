@@ -528,7 +528,8 @@ export function VideosTable({
                     return (
                       <div
                         key={video.id}
-                        className="grid grid-cols-[40px_60px_150px_100px_100px_70px_80px_100px_100px_1fr] gap-2 px-4 py-2 text-sm hover:bg-muted/30 border-b border-border/20 items-center"
+                        className="grid grid-cols-[40px_60px_150px_100px_100px_70px_80px_100px_100px_1fr] gap-2 px-4 py-2 text-sm hover:bg-muted/30 border-b border-border/20 items-center cursor-pointer"
+                        onClick={() => onViewVideo(video)}
                       >
                         {/* Checkbox */}
                         <div onClick={(e) => e.stopPropagation()}>
@@ -539,18 +540,12 @@ export function VideosTable({
                         </div>
 
                         {/* ID */}
-                        <div 
-                          className="font-mono text-xs text-muted-foreground cursor-pointer"
-                          onClick={() => onViewVideo(video)}
-                        >
+                        <div className="font-mono text-xs text-muted-foreground">
                           {video.video_number || '—'}
                         </div>
 
                         {/* Духовник */}
-                        <div 
-                          className="cursor-pointer"
-                          onClick={() => onViewVideo(video)}
-                        >
+                        <div>
                           <Badge variant="outline" className="text-xs font-normal">
                             {video.advisor?.display_name || video.advisor?.name || '—'}
                           </Badge>
@@ -652,10 +647,7 @@ export function VideosTable({
                         </div>
 
                         {/* Publication channels */}
-                        <div 
-                          className="flex flex-wrap gap-1 cursor-pointer"
-                          onClick={() => onViewVideo(video)}
-                        >
+                        <div className="flex flex-wrap gap-1">
                           {videoPubs.length > 0 ? (
                             videoPubs.map((pub) => (
                               <Badge
