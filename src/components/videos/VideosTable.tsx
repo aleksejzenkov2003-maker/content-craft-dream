@@ -350,13 +350,13 @@ export function VideosTable({
                         {/* Front cover button */}
                         <div onClick={(e) => e.stopPropagation()}>
                           {video.cover_status === 'generating' ? (
-                            <Button size="sm" variant="outline" disabled className="h-7 text-xs">
+                            <Button size="xs" variant="outline" disabled>
                               <Loader2 className="w-3 h-3 animate-spin" />
                             </Button>
                           ) : (
                             <Button
-                              size="sm"
-                              className="h-7 text-xs bg-orange-500 hover:bg-orange-600 text-white"
+                              size="xs"
+                              variant="generate-cover"
                               onClick={() => onGenerateCover(video)}
                             >
                               Generate
@@ -367,13 +367,13 @@ export function VideosTable({
                         {/* Video Generate button */}
                         <div onClick={(e) => e.stopPropagation()}>
                           {video.generation_status === 'generating' ? (
-                            <Button size="sm" variant="outline" disabled className="h-7 text-xs">
+                            <Button size="xs" variant="outline" disabled>
                               <Loader2 className="w-3 h-3 animate-spin" />
                             </Button>
                           ) : (
                             <Button
-                              size="sm"
-                              className="h-7 text-xs bg-purple-500 hover:bg-purple-600 text-white"
+                              size="xs"
+                              variant="generate-video"
                               onClick={() => onGenerateVideo(video)}
                             >
                               Generate

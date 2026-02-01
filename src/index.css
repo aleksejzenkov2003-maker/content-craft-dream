@@ -44,6 +44,14 @@
     --info: 199 89% 48%;
     --info-foreground: 0 0% 100%;
 
+    /* Action colors for buttons */
+    --generate-cover: 25 95% 53%;
+    --generate-cover-foreground: 0 0% 100%;
+    --generate-video: 271 81% 56%;
+    --generate-video-foreground: 0 0% 100%;
+    --publish: 217 91% 60%;
+    --publish-foreground: 0 0% 100%;
+
     /* Gradients - light versions */
     --gradient-primary: linear-gradient(135deg, hsl(160, 84%, 39%) 0%, hsl(160, 70%, 45%) 100%);
     --gradient-accent: linear-gradient(135deg, hsl(0, 0%, 96%) 0%, hsl(0, 0%, 92%) 100%);
