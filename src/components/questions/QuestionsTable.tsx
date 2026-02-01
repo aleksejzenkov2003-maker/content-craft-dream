@@ -551,7 +551,7 @@ export function QuestionsTable({
         <div className="flex items-center justify-center">
           <button
             onClick={toggleBulkSelectAll}
-            className={`w-4 h-4 rounded-full border-2 flex items-center justify-center transition-colors ${
+            className={`w-4 h-4 rounded-sm border-2 flex items-center justify-center transition-colors ${
               allBulkSelected ? 'bg-destructive border-destructive' : 'border-muted-foreground hover:border-foreground'
             }`}
           >
@@ -594,11 +594,11 @@ export function QuestionsTable({
               }`}
               onClick={() => handleRowClick(q)}
             >
-              {/* Column 1: Circle for bulk actions */}
+              {/* Column 1: Checkbox for bulk actions */}
               <div className="flex items-center justify-center" onClick={(e) => e.stopPropagation()}>
                 <button
                   onClick={() => toggleBulkSelect(q.question_id)}
-                  className={`w-4 h-4 rounded-full border-2 flex items-center justify-center transition-colors ${
+                  className={`w-4 h-4 rounded-sm border-2 flex items-center justify-center transition-colors ${
                     bulkDeleteIds.includes(q.question_id) 
                       ? 'bg-destructive border-destructive' 
                       : 'border-muted-foreground hover:border-foreground'

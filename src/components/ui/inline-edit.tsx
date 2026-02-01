@@ -181,11 +181,20 @@ export function InlineEdit({
         value={editValue}
         onValueChange={(val) => {
           setEditValue(val);
-          onSave(val);
           setIsEditing(false);
+          // Call onSave after closing to avoid re-render loops
+          setTimeout(() => {
+            if (val !== value) {
+              onSave(val);
+            }
+          }, 0);
         }}
-        open={isEditing}
-        onOpenChange={(open) => !open && handleCancel()}
+        defaultOpen={true}
+        onOpenChange={(open) => {
+          if (!open) {
+            setIsEditing(false);
+          }
+        }}
       >
         <SelectTrigger className={cn("h-7 text-xs", className)}>
           <SelectValue placeholder={placeholder} />
