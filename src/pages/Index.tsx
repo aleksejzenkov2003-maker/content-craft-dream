@@ -55,7 +55,7 @@ export default function Index() {
   const { advisors, loading: advisorsLoading, addAdvisor, updateAdvisor, deleteAdvisor, addPhoto, deletePhoto, setPrimaryPhoto, updatePhotoAssetId } = useAdvisors();
   const { playlists, loading: playlistsLoading, addPlaylist, updatePlaylist, deletePlaylist } = usePlaylists();
   // All videos without filter - for Questions table
-  const { videos: allVideos, loading: allVideosLoading } = useVideos();
+  const { videos: allVideos, loading: allVideosLoading, refetch: refetchAllVideos, bulkUpdate: bulkUpdateAll } = useVideos();
   // Filtered videos - for Videos table
   const { videos, loading: videosLoading, addVideo, updateVideo, deleteVideo, refetch: refetchVideos, bulkImport, bulkUpdate } = useVideos(videoFilters);
   const { publications, loading: publicationsLoading, addPublication } = usePublications();
@@ -377,7 +377,7 @@ export default function Index() {
               onUpdateQuestion={async (questionId, updates) => {
                 const videosToUpdate = allVideos.filter(v => v.question_id === questionId);
                 if (videosToUpdate.length === 0) return;
-                await bulkUpdate(
+                await bulkUpdateAll(
                   videosToUpdate.map(v => ({ id: v.id, data: updates })),
                   { silent: true }
                 );
@@ -396,7 +396,7 @@ export default function Index() {
                   videosToUpdate.forEach(v => updates.push({ id: v.id, data: { question_status: status } }));
                 }
                 if (updates.length > 0) {
-                  await bulkUpdate(updates, { silent: true });
+                  await bulkUpdateAll(updates, { silent: true });
                 }
                 toast.success(`Статус обновлён для ${questionIds.length} вопросов`);
               }}
@@ -407,7 +407,7 @@ export default function Index() {
                   videosToUpdate.forEach(v => updates.push({ id: v.id, data: { safety_score: safety } }));
                 }
                 if (updates.length > 0) {
-                  await bulkUpdate(updates, { silent: true });
+                  await bulkUpdateAll(updates, { silent: true });
                 }
                 toast.success(`Безопасность обновлена для ${questionIds.length} вопросов`);
               }}
