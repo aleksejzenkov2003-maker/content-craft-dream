@@ -127,7 +127,7 @@ export function VideosTable({
   onFilterChange,
 }: VideosTableProps) {
   const [searchInput, setSearchInput] = useState(filters.search || '');
-  const [expandedQuestions, setExpandedQuestions] = useState<Set<string>>(new Set(['__all__']));
+  const [expandedQuestions, setExpandedQuestions] = useState<Set<string>>(new Set());
   const [sortColumn, setSortColumn] = useState<SortColumn>('advisor');
   const [sortDirection, setSortDirection] = useState<SortDirection>('asc');
   const [selectedVideoIds, setSelectedVideoIds] = useState<Set<string>>(new Set());
