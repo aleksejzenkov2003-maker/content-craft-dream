@@ -17,20 +17,37 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
+import {
+  AlertDialog,
+  AlertDialogContent,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogFooter,
+  AlertDialogCancel,
+} from '@/components/ui/alert-dialog';
+import { Calendar } from '@/components/ui/calendar';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 import { 
   MoreVertical, Trash2, ExternalLink, Send, Sparkles, Loader2, 
-  FileSpreadsheet, ArrowUpDown, ArrowUp, ArrowDown 
+  FileSpreadsheet, ArrowUpDown, ArrowUp, ArrowDown, CalendarIcon, Edit2, Clock
 } from 'lucide-react';
 import { Publication, usePublications } from '@/hooks/usePublications';
 import { usePublishingChannels } from '@/hooks/usePublishingChannels';
 import { useVideos } from '@/hooks/useVideos';
-import { format } from 'date-fns';
+import { format, setHours, setMinutes } from 'date-fns';
 import { ru } from 'date-fns/locale';
 import { CsvImporter, Lookups } from '@/components/import/CsvImporter';
 import { PUBLICATION_COLUMN_MAPPING, PUBLICATION_PREVIEW_COLUMNS } from '@/components/import/importConfigs';
 import { InlineEdit } from '@/components/ui/inline-edit';
 import { BulkActionsBar, BulkActionButton } from '@/components/ui/bulk-actions-bar';
 import { PublicationFilters, PublicationFilterState } from './PublicationFilters';
+import { PublicationEditDialog } from './PublicationEditDialog';
 import { cn } from '@/lib/utils';
 
 const statusLabels: Record<string, { label: string; variant: 'default' | 'secondary' | 'destructive' | 'outline' }> = {
@@ -64,6 +81,15 @@ export function PublicationsTable({ groupBy = 'channel' }: PublicationsTableProp
   const [publishingIds, setPublishingIds] = useState<Set<string>>(new Set());
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   
+  // Edit dialog
+  const [editingPublication, setEditingPublication] = useState<Publication | null>(null);
+  
+  // Bulk date dialog
+  const [showBulkDateDialog, setShowBulkDateDialog] = useState(false);
+  const [bulkDate, setBulkDate] = useState<Date | undefined>();
+  const [bulkHour, setBulkHour] = useState(12);
+  const [bulkMinute, setBulkMinute] = useState(0);
+  
   // Filters
   const [filters, setFilters] = useState<PublicationFilterState>({
     statuses: [],
@@ -75,6 +101,9 @@ export function PublicationsTable({ groupBy = 'channel' }: PublicationsTableProp
   // Sorting
   const [sortColumn, setSortColumn] = useState<SortColumn | null>(null);
   const [sortDirection, setSortDirection] = useState<SortDirection>('desc');
+
+const hours = Array.from({ length: 24 }, (_, i) => i);
+const minuteOptions = [0, 5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55];
 
   // Apply filters
   const filteredPublications = useMemo(() => {
@@ -256,6 +285,25 @@ export function PublicationsTable({ groupBy = 'channel' }: PublicationsTableProp
     }
   };
 
+  const handleBulkSetDate = async () => {
+    if (!bulkDate) return;
+    
+    let dateWithTime = setHours(bulkDate, bulkHour);
+    dateWithTime = setMinutes(dateWithTime, bulkMinute);
+    const isoDate = dateWithTime.toISOString();
+    
+    for (const id of selectedIds) {
+      await updatePublication(id, { post_date: isoDate });
+    }
+    setSelectedIds(new Set());
+    setShowBulkDateDialog(false);
+    setBulkDate(undefined);
+  };
+
+  const handleEditPublication = async (id: string, updates: Partial<Publication>) => {
+    await updatePublication(id, updates);
+  };
+
   const getStatusBadge = (status: string) => {
     const config = statusLabels[status] || statusLabels.pending;
     return <Badge variant={config.variant}>{config.label}</Badge>;
@@ -377,6 +425,13 @@ export function PublicationsTable({ groupBy = 'channel' }: PublicationsTableProp
             ))}
           </DropdownMenuContent>
         </DropdownMenu>
+        <BulkActionButton
+          onClick={() => setShowBulkDateDialog(true)}
+          icon={<CalendarIcon className="h-3 w-3 mr-1" />}
+          variant="secondary"
+        >
+          Установить дату
+        </BulkActionButton>
         <BulkActionButton
           onClick={handleBulkGenerateText}
           icon={<Sparkles className="h-3 w-3 mr-1" />}
@@ -573,6 +628,10 @@ export function PublicationsTable({ groupBy = 'channel' }: PublicationsTableProp
                               </Button>
                             </DropdownMenuTrigger>
                             <DropdownMenuContent align="end">
+                              <DropdownMenuItem onClick={() => setEditingPublication(pub)}>
+                                <Edit2 className="w-4 h-4 mr-2" />
+                                Редактировать
+                              </DropdownMenuItem>
                               {pub.post_url && (
                                 <DropdownMenuItem asChild>
                                   <a href={pub.post_url} target="_blank" rel="noopener noreferrer">
@@ -611,6 +670,68 @@ export function PublicationsTable({ groupBy = 'channel' }: PublicationsTableProp
         lookups={{ channels, videos }}
         resolveRow={resolveRow}
       />
+
+      {/* Edit Dialog */}
+      <PublicationEditDialog
+        publication={editingPublication}
+        open={!!editingPublication}
+        onClose={() => setEditingPublication(null)}
+        onSave={handleEditPublication}
+      />
+
+      {/* Bulk Date Dialog */}
+      <AlertDialog open={showBulkDateDialog} onOpenChange={setShowBulkDateDialog}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>
+              Установить дату для {selectedIds.size} публикаций
+            </AlertDialogTitle>
+          </AlertDialogHeader>
+          <div className="space-y-4 py-4">
+            <Calendar
+              mode="single"
+              selected={bulkDate}
+              onSelect={setBulkDate}
+              locale={ru}
+              className="rounded-md border mx-auto"
+            />
+            <div className="flex items-center justify-center gap-2">
+              <Clock className="h-4 w-4 text-muted-foreground" />
+              <Select value={bulkHour.toString()} onValueChange={(v) => setBulkHour(parseInt(v))}>
+                <SelectTrigger className="w-[70px]">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent className="max-h-[200px]">
+                  {hours.map((h) => (
+                    <SelectItem key={h} value={h.toString()}>
+                      {h.toString().padStart(2, '0')}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <span>:</span>
+              <Select value={bulkMinute.toString()} onValueChange={(v) => setBulkMinute(parseInt(v))}>
+                <SelectTrigger className="w-[70px]">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent className="max-h-[200px]">
+                  {minuteOptions.map((m) => (
+                    <SelectItem key={m} value={m.toString()}>
+                      {m.toString().padStart(2, '0')}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Отмена</AlertDialogCancel>
+            <Button onClick={handleBulkSetDate} disabled={!bulkDate}>
+              Применить
+            </Button>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
