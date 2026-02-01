@@ -553,6 +553,7 @@ export function QuestionsTable({
           <Checkbox
             checked={allBulkSelected}
             onCheckedChange={toggleBulkSelectAll}
+            className="rounded-sm"
           />
         </div>
         <button className="flex items-center cursor-pointer hover:text-foreground" onClick={() => handleSort('id')}>
@@ -596,6 +597,7 @@ export function QuestionsTable({
                 <Checkbox
                   checked={bulkDeleteIds.includes(q.question_id)}
                   onCheckedChange={() => toggleBulkSelect(q.question_id)}
+                  className="rounded-sm"
                 />
               </div>
               
@@ -650,7 +652,7 @@ export function QuestionsTable({
                 <Checkbox
                   checked={localSelectedIds.includes(q.question_id)}
                   onCheckedChange={() => toggleFilterSelect(q.question_id)}
-                  className="border-primary data-[state=checked]:bg-primary"
+                  className="rounded-sm border-primary data-[state=checked]:bg-primary"
                 />
               </div>
               

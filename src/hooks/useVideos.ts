@@ -138,7 +138,7 @@ export function useVideos(filters?: VideoFilters) {
     }
   };
 
-  const updateVideo = async (id: string, updates: Partial<Video>, options?: { silent?: boolean }) => {
+  const updateVideo = async (id: string, updates: Partial<Video>, options?: { silent?: boolean; skipRefetch?: boolean }) => {
     try {
       const { error } = await supabase
         .from('videos')
@@ -147,13 +147,35 @@ export function useVideos(filters?: VideoFilters) {
 
       if (error) throw error;
 
-      await fetchVideos();
+      if (!options?.skipRefetch) {
+        await fetchVideos();
+      }
       if (!options?.silent) {
         toast.success('Ролик обновлён');
       }
     } catch (error: any) {
       console.error('Error updating video:', error);
       toast.error('Ошибка обновления ролика');
+      throw error;
+    }
+  };
+
+  const bulkUpdate = async (updates: { id: string; data: Partial<Video> }[], options?: { silent?: boolean }) => {
+    try {
+      for (const { id, data } of updates) {
+        const { error } = await supabase
+          .from('videos')
+          .update(data)
+          .eq('id', id);
+        if (error) throw error;
+      }
+      await fetchVideos();
+      if (!options?.silent) {
+        toast.success(`Обновлено ${updates.length} записей`);
+      }
+    } catch (error: any) {
+      console.error('Error bulk updating videos:', error);
+      toast.error('Ошибка обновления');
       throw error;
     }
   };
@@ -201,5 +223,6 @@ export function useVideos(filters?: VideoFilters) {
     updateVideo,
     deleteVideo,
     bulkImport,
+    bulkUpdate,
   };
 }
