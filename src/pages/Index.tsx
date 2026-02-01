@@ -377,8 +377,9 @@ export default function Index() {
               onUpdateQuestion={async (questionId, updates) => {
                 const videosToUpdate = allVideos.filter(v => v.question_id === questionId);
                 for (const video of videosToUpdate) {
-                  await updateVideo(video.id, updates);
+                  await updateVideo(video.id, updates, { silent: true });
                 }
+                toast.success('Вопрос обновлён');
               }}
               onDeleteQuestion={async (questionId) => {
                 const videosToDelete = allVideos.filter(v => v.question_id === questionId);
@@ -390,7 +391,7 @@ export default function Index() {
                 for (const questionId of questionIds) {
                   const videosToUpdate = allVideos.filter(v => v.question_id === questionId);
                   for (const video of videosToUpdate) {
-                    await updateVideo(video.id, { question_status: status });
+                    await updateVideo(video.id, { question_status: status }, { silent: true });
                   }
                 }
                 toast.success(`Статус обновлён для ${questionIds.length} вопросов`);
@@ -399,7 +400,7 @@ export default function Index() {
                 for (const questionId of questionIds) {
                   const videosToUpdate = allVideos.filter(v => v.question_id === questionId);
                   for (const video of videosToUpdate) {
-                    await updateVideo(video.id, { safety_score: safety });
+                    await updateVideo(video.id, { safety_score: safety }, { silent: true });
                   }
                 }
                 toast.success(`Безопасность обновлена для ${questionIds.length} вопросов`);

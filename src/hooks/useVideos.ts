@@ -138,7 +138,7 @@ export function useVideos(filters?: VideoFilters) {
     }
   };
 
-  const updateVideo = async (id: string, updates: Partial<Video>) => {
+  const updateVideo = async (id: string, updates: Partial<Video>, options?: { silent?: boolean }) => {
     try {
       const { error } = await supabase
         .from('videos')
@@ -148,7 +148,9 @@ export function useVideos(filters?: VideoFilters) {
       if (error) throw error;
 
       await fetchVideos();
-      toast.success('Ролик обновлён');
+      if (!options?.silent) {
+        toast.success('Ролик обновлён');
+      }
     } catch (error: any) {
       console.error('Error updating video:', error);
       toast.error('Ошибка обновления ролика');
