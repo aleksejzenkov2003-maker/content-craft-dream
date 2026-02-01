@@ -2,9 +2,10 @@ import { useState, useEffect, useMemo } from 'react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { Checkbox } from '@/components/ui/checkbox';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Search, CheckCircle, Circle, Loader2, Plus, ArrowRight, FileSpreadsheet, Trash2, Check, ArrowUpDown, MoreHorizontal, Image, RefreshCw, ArrowUp, ArrowDown } from 'lucide-react';
+import { Search, Loader2, Plus, ArrowRight, FileSpreadsheet, Trash2, Check, ArrowUpDown, MoreHorizontal, Image, RefreshCw, ArrowUp, ArrowDown } from 'lucide-react';
 import { Video as VideoType } from '@/hooks/useVideos';
 import { Publication } from '@/hooks/usePublications';
 import { format } from 'date-fns';
@@ -549,14 +550,10 @@ export function QuestionsTable({
       {/* Table header */}
       <div className="grid grid-cols-[40px_60px_120px_80px_1fr_130px_100px_1fr] gap-0 px-4 py-2 border-b bg-muted/20 text-xs font-medium text-muted-foreground sticky top-0">
         <div className="flex items-center justify-center">
-          <button
-            onClick={toggleBulkSelectAll}
-            className={`w-4 h-4 rounded-sm border-2 flex items-center justify-center transition-colors ${
-              allBulkSelected ? 'bg-destructive border-destructive' : 'border-muted-foreground hover:border-foreground'
-            }`}
-          >
-            {allBulkSelected && <Check className="w-2.5 h-2.5 text-white" />}
-          </button>
+          <Checkbox
+            checked={allBulkSelected}
+            onCheckedChange={toggleBulkSelectAll}
+          />
         </div>
         <button className="flex items-center cursor-pointer hover:text-foreground" onClick={() => handleSort('id')}>
           ID {getSortIcon('id')}
@@ -596,16 +593,10 @@ export function QuestionsTable({
             >
               {/* Column 1: Checkbox for bulk actions */}
               <div className="flex items-center justify-center" onClick={(e) => e.stopPropagation()}>
-                <button
-                  onClick={() => toggleBulkSelect(q.question_id)}
-                  className={`w-4 h-4 rounded-sm border-2 flex items-center justify-center transition-colors ${
-                    bulkDeleteIds.includes(q.question_id) 
-                      ? 'bg-destructive border-destructive' 
-                      : 'border-muted-foreground hover:border-foreground'
-                  }`}
-                >
-                  {bulkDeleteIds.includes(q.question_id) && <Check className="w-2.5 h-2.5 text-white" />}
-                </button>
+                <Checkbox
+                  checked={bulkDeleteIds.includes(q.question_id)}
+                  onCheckedChange={() => toggleBulkSelect(q.question_id)}
+                />
               </div>
               
               {/* Column 2: ID */}
@@ -656,16 +647,11 @@ export function QuestionsTable({
                   }}
                   displayClassName="text-xs"
                 />
-                <button
-                  onClick={() => toggleFilterSelect(q.question_id)}
-                  className={`w-4 h-4 rounded-sm border-2 flex items-center justify-center transition-colors ${
-                    localSelectedIds.includes(q.question_id) 
-                      ? 'bg-primary border-primary' 
-                      : 'border-primary hover:bg-primary/10'
-                  }`}
-                >
-                  {localSelectedIds.includes(q.question_id) && <Check className="w-2.5 h-2.5 text-white" />}
-                </button>
+                <Checkbox
+                  checked={localSelectedIds.includes(q.question_id)}
+                  onCheckedChange={() => toggleFilterSelect(q.question_id)}
+                  className="border-primary data-[state=checked]:bg-primary"
+                />
               </div>
               
               {/* Column 8: Question ENG */}
