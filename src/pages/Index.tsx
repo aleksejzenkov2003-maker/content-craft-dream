@@ -57,7 +57,7 @@ export default function Index() {
   // All videos without filter - for Questions table
   const { videos: allVideos, loading: allVideosLoading } = useVideos();
   // Filtered videos - for Videos table
-  const { videos, loading: videosLoading, addVideo, updateVideo, deleteVideo, refetch: refetchVideos, bulkImport } = useVideos(videoFilters);
+  const { videos, loading: videosLoading, addVideo, updateVideo, deleteVideo, refetch: refetchVideos, bulkImport, bulkUpdate } = useVideos(videoFilters);
   const { publications, loading: publicationsLoading, addPublication } = usePublications();
   const { channels: publishingChannels } = usePublishingChannels();
   
@@ -376,9 +376,11 @@ export default function Index() {
               onGoToVideos={() => setActiveTab('videos')}
               onUpdateQuestion={async (questionId, updates) => {
                 const videosToUpdate = allVideos.filter(v => v.question_id === questionId);
-                for (const video of videosToUpdate) {
-                  await updateVideo(video.id, updates, { silent: true });
-                }
+                if (videosToUpdate.length === 0) return;
+                await bulkUpdate(
+                  videosToUpdate.map(v => ({ id: v.id, data: updates })),
+                  { silent: true }
+                );
                 toast.success('Вопрос обновлён');
               }}
               onDeleteQuestion={async (questionId) => {
@@ -388,20 +390,24 @@ export default function Index() {
                 }
               }}
               onBulkUpdateStatus={async (questionIds, status) => {
+                const updates: { id: string; data: Partial<Video> }[] = [];
                 for (const questionId of questionIds) {
                   const videosToUpdate = allVideos.filter(v => v.question_id === questionId);
-                  for (const video of videosToUpdate) {
-                    await updateVideo(video.id, { question_status: status }, { silent: true });
-                  }
+                  videosToUpdate.forEach(v => updates.push({ id: v.id, data: { question_status: status } }));
+                }
+                if (updates.length > 0) {
+                  await bulkUpdate(updates, { silent: true });
                 }
                 toast.success(`Статус обновлён для ${questionIds.length} вопросов`);
               }}
               onBulkUpdateSafety={async (questionIds, safety) => {
+                const updates: { id: string; data: Partial<Video> }[] = [];
                 for (const questionId of questionIds) {
                   const videosToUpdate = allVideos.filter(v => v.question_id === questionId);
-                  for (const video of videosToUpdate) {
-                    await updateVideo(video.id, { safety_score: safety }, { silent: true });
-                  }
+                  videosToUpdate.forEach(v => updates.push({ id: v.id, data: { safety_score: safety } }));
+                }
+                if (updates.length > 0) {
+                  await bulkUpdate(updates, { silent: true });
                 }
                 toast.success(`Безопасность обновлена для ${questionIds.length} вопросов`);
               }}
