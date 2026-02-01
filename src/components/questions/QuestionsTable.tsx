@@ -5,10 +5,12 @@ import { Input } from '@/components/ui/input';
 import { Checkbox } from '@/components/ui/checkbox';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Search, Loader2, Plus, ArrowRight, FileSpreadsheet, Trash2, Check, ArrowUpDown, MoreHorizontal, Image, RefreshCw, ArrowUp, ArrowDown } from 'lucide-react';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { Calendar } from '@/components/ui/calendar';
+import { Search, Loader2, Plus, ArrowRight, FileSpreadsheet, Trash2, Check, ArrowUpDown, MoreHorizontal, Image, RefreshCw, ArrowUp, ArrowDown, CalendarIcon, Clock } from 'lucide-react';
 import { Video as VideoType } from '@/hooks/useVideos';
 import { Publication } from '@/hooks/usePublications';
-import { format } from 'date-fns';
+import { format, setHours, setMinutes } from 'date-fns';
 import { ru } from 'date-fns/locale';
 import { QuestionSidePanel } from './QuestionSidePanel';
 import { CsvImporter } from '@/components/import/CsvImporter';
@@ -18,7 +20,7 @@ import { BulkActionsBar, BulkActionButton } from '@/components/ui/bulk-actions-b
 import { QuestionFilters, FilterState } from './QuestionFilters';
 import { AddQuestionDialog } from './AddQuestionDialog';
 import { cn } from '@/lib/utils';
-
+import { HoverCard, HoverCardContent, HoverCardTrigger } from '@/components/ui/hover-card';
 interface Playlist {
   id: string;
   name: string;
@@ -49,6 +51,7 @@ interface QuestionsTableProps {
   onBulkUpdateStatus?: (questionIds: number[], status: string) => Promise<void>;
   onBulkUpdateSafety?: (questionIds: number[], safety: string) => Promise<void>;
   onBulkGenerateCovers?: (questionIds: number[]) => Promise<void>;
+  onBulkUpdateDate?: (questionIds: number[], date: string) => Promise<void>;
 }
 
 interface QuestionData {
@@ -101,6 +104,7 @@ export function QuestionsTable({
   onBulkUpdateStatus,
   onBulkUpdateSafety,
   onBulkGenerateCovers,
+  onBulkUpdateDate,
 }: QuestionsTableProps) {
   const [searchInput, setSearchInput] = useState('');
   const [showAddDialog, setShowAddDialog] = useState(false);
@@ -127,7 +131,11 @@ export function QuestionsTable({
   // Bulk action dialog state
   const [showBulkStatusDialog, setShowBulkStatusDialog] = useState(false);
   const [showBulkSafetyDialog, setShowBulkSafetyDialog] = useState(false);
+  const [showBulkDateDialog, setShowBulkDateDialog] = useState(false);
   const [bulkActionValue, setBulkActionValue] = useState('');
+  const [bulkDateValue, setBulkDateValue] = useState<Date | undefined>(undefined);
+  const [bulkHour, setBulkHour] = useState('12');
+  const [bulkMinute, setBulkMinute] = useState('00');
 
   useEffect(() => {
     setLocalSelectedIds(selectedQuestionIds);
@@ -372,6 +380,21 @@ export function QuestionsTable({
     }
   };
 
+  const handleBulkDateUpdate = async () => {
+    if (!onBulkUpdateDate || !bulkDateValue) return;
+    setIsBulkUpdating(true);
+    try {
+      const dateWithTime = setMinutes(setHours(bulkDateValue, parseInt(bulkHour)), parseInt(bulkMinute));
+      await onBulkUpdateDate(bulkDeleteIds, dateWithTime.toISOString());
+      setShowBulkDateDialog(false);
+      setBulkDateValue(undefined);
+      setBulkHour('12');
+      setBulkMinute('00');
+    } finally {
+      setIsBulkUpdating(false);
+    }
+  };
+
   const handleSort = (column: SortColumn) => {
     if (sortColumn === column) {
       if (sortDirection === 'asc') {
@@ -525,6 +548,14 @@ export function QuestionsTable({
                 Обложки
               </BulkActionButton>
             )}
+            {onBulkUpdateDate && (
+              <BulkActionButton
+                icon={<CalendarIcon className="w-3 h-3 mr-1" />}
+                onClick={() => { setBulkDateValue(undefined); setShowBulkDateDialog(true); }}
+              >
+                Дата
+              </BulkActionButton>
+            )}
           </BulkActionsBar>
         </div>
       )}
@@ -548,7 +579,7 @@ export function QuestionsTable({
       )}
 
       {/* Table header */}
-      <div className="grid grid-cols-[40px_60px_120px_80px_1fr_130px_100px_1fr] gap-0 px-4 py-2 border-b bg-muted/20 text-xs font-medium text-muted-foreground sticky top-0">
+      <div className="grid grid-cols-[40px_60px_120px_80px_1fr_130px_100px] gap-0 px-4 py-2 border-b bg-muted/20 text-xs font-medium text-muted-foreground sticky top-0">
         <div className="flex items-center justify-center">
           <Checkbox
             checked={allBulkSelected}
@@ -565,16 +596,12 @@ export function QuestionsTable({
         </button>
         <div className="flex items-center gap-1">
           Вопрос
-          <Badge variant="outline" className="text-[10px] px-1 py-0 font-normal">RU</Badge>
+          <Badge variant="outline" className="text-[10px] px-1 py-0 font-normal">RU/EN</Badge>
         </div>
         <button className="flex items-center cursor-pointer hover:text-foreground" onClick={() => handleSort('date')}>
           Дата {getSortIcon('date')}
         </button>
         <div>Статус</div>
-        <div className="flex items-center gap-1">
-          Вопрос
-          <Badge variant="outline" className="text-[10px] px-1 py-0 font-normal">EN</Badge>
-        </div>
       </div>
 
       {/* Table body */}
@@ -587,7 +614,7 @@ export function QuestionsTable({
           filteredQuestions.map((q) => (
             <div
               key={q.question_id}
-              className={`group grid grid-cols-[40px_60px_120px_80px_1fr_130px_100px_1fr] gap-0 px-4 py-2 border-b hover:bg-muted/30 cursor-pointer transition-colors text-sm ${
+              className={`group grid grid-cols-[40px_60px_120px_80px_1fr_130px_100px] gap-0 px-4 py-2 border-b hover:bg-muted/30 cursor-pointer transition-colors text-sm ${
                 bulkDeleteIds.includes(q.question_id) ? 'bg-destructive/5' : localSelectedIds.includes(q.question_id) ? 'bg-primary/5' : ''
               }`}
               onClick={() => handleRowClick(q)}
@@ -622,8 +649,34 @@ export function QuestionsTable({
               {/* Column 4: Relevance */}
               <div className="flex items-center text-muted-foreground">{q.relevance_score || '—'}</div>
               
-              {/* Column 5: Question RUS */}
-              <div className="flex items-center truncate pr-2">{q.question_rus || q.question}</div>
+              {/* Column 5: Question RU with EN hover preview */}
+              <div className="flex items-center truncate pr-2">
+                <HoverCard openDelay={200} closeDelay={100}>
+                  <HoverCardTrigger asChild>
+                    <span className="truncate cursor-help">
+                      {q.question_rus || q.question}
+                    </span>
+                  </HoverCardTrigger>
+                  <HoverCardContent className="w-80 p-3" side="bottom" align="start">
+                    <div className="space-y-2">
+                      <div>
+                        <Badge variant="outline" className="text-[10px] mb-1">RU</Badge>
+                        <p className="text-sm">{q.question_rus || q.question || '—'}</p>
+                      </div>
+                      <div className="border-t pt-2">
+                        <Badge variant="outline" className="text-[10px] mb-1">EN</Badge>
+                        <p className="text-sm text-muted-foreground">{q.question_eng || '—'}</p>
+                      </div>
+                      {q.hook_rus && (
+                        <div className="border-t pt-2">
+                          <Badge variant="secondary" className="text-[10px] mb-1">Hook</Badge>
+                          <p className="text-sm text-muted-foreground">{q.hook_rus}</p>
+                        </div>
+                      )}
+                    </div>
+                  </HoverCardContent>
+                </HoverCard>
+              </div>
               
               {/* Column 6: Planned publication date - Inline Edit */}
               <div className="flex items-center" onClick={(e) => e.stopPropagation()}>
@@ -654,11 +707,6 @@ export function QuestionsTable({
                   onCheckedChange={() => toggleFilterSelect(q.question_id)}
                   className="rounded-sm border-primary data-[state=checked]:bg-primary"
                 />
-              </div>
-              
-              {/* Column 8: Question ENG */}
-              <div className="flex items-center truncate text-muted-foreground pr-2">
-                {q.question_eng || '—'}
               </div>
             </div>
           ))
@@ -802,6 +850,62 @@ export function QuestionsTable({
             <AlertDialogAction 
               onClick={handleBulkSafetyUpdate} 
               disabled={isBulkUpdating || !bulkActionValue}
+            >
+              {isBulkUpdating ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : null}
+              Применить
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Bulk Date Update Dialog */}
+      <AlertDialog open={showBulkDateDialog} onOpenChange={setShowBulkDateDialog}>
+        <AlertDialogContent className="max-w-md">
+          <AlertDialogHeader>
+            <AlertDialogTitle>Установить дату публикации для {bulkDeleteIds.length} вопросов</AlertDialogTitle>
+            <AlertDialogDescription>
+              Выберите дату и время публикации для выбранных вопросов.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <div className="py-4 space-y-4">
+            <Calendar
+              mode="single"
+              selected={bulkDateValue}
+              onSelect={setBulkDateValue}
+              className="rounded-md border pointer-events-auto"
+              locale={ru}
+            />
+            <div className="flex items-center gap-2">
+              <Clock className="h-4 w-4 text-muted-foreground" />
+              <span className="text-sm text-muted-foreground">Время:</span>
+              <Select value={bulkHour} onValueChange={setBulkHour}>
+                <SelectTrigger className="w-20">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {Array.from({ length: 24 }, (_, i) => i.toString().padStart(2, '0')).map((h) => (
+                    <SelectItem key={h} value={h}>{h}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <span>:</span>
+              <Select value={bulkMinute} onValueChange={setBulkMinute}>
+                <SelectTrigger className="w-20">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {['00', '15', '30', '45'].map((m) => (
+                    <SelectItem key={m} value={m}>{m}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={isBulkUpdating}>Отмена</AlertDialogCancel>
+            <AlertDialogAction 
+              onClick={handleBulkDateUpdate} 
+              disabled={isBulkUpdating || !bulkDateValue}
             >
               {isBulkUpdating ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : null}
               Применить

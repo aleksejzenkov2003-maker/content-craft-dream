@@ -420,6 +420,17 @@ export default function Index() {
                   }
                 }
               }}
+              onBulkUpdateDate={async (questionIds, date) => {
+                const updates: { id: string; data: Partial<Video> }[] = [];
+                for (const questionId of questionIds) {
+                  const videosToUpdate = allVideos.filter(v => v.question_id === questionId);
+                  videosToUpdate.forEach(v => updates.push({ id: v.id, data: { publication_date: date } }));
+                }
+                if (updates.length > 0) {
+                  await bulkUpdateAll(updates, { silent: true });
+                }
+                toast.success(`Дата обновлена для ${questionIds.length} вопросов`);
+              }}
             />
           )}
 

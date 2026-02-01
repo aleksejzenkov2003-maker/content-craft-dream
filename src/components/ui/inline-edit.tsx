@@ -1,8 +1,8 @@
 import * as React from "react";
 import { useState, useRef, useEffect, useCallback } from "react";
-import { format, parseISO } from "date-fns";
+import { format, parseISO, setHours, setMinutes } from "date-fns";
 import { ru } from "date-fns/locale";
-import { CalendarIcon, Check, X } from "lucide-react";
+import { CalendarIcon, Check, X, Clock } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -53,11 +53,24 @@ export function InlineEdit({
   const [isEditing, setIsEditing] = useState(false);
   const [editValue, setEditValue] = useState(value || "");
   const [isSaving, setIsSaving] = useState(false);
+  const [selectedHour, setSelectedHour] = useState("12");
+  const [selectedMinute, setSelectedMinute] = useState("00");
   const inputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     setEditValue(value || "");
-  }, [value]);
+    // Parse time from value if datetime
+    if (value && type === "datetime") {
+      try {
+        const date = parseISO(value);
+        setSelectedHour(format(date, "HH"));
+        setSelectedMinute(format(date, "mm"));
+      } catch {
+        setSelectedHour("12");
+        setSelectedMinute("00");
+      }
+    }
+  }, [value, type]);
 
   useEffect(() => {
     if (isEditing && inputRef.current && type === "text") {
@@ -135,8 +148,43 @@ export function InlineEdit({
     );
   }
 
-  // Date picker mode
+  // Hours and minutes options
+  const hours = Array.from({ length: 24 }, (_, i) => i.toString().padStart(2, "0"));
+  const minutes = ["00", "15", "30", "45"];
+
+  // Date/datetime picker mode
   if ((type === "date" || type === "datetime") && isEditing) {
+    const handleDateSelect = (date: Date | undefined) => {
+      if (date) {
+        let finalDate = date;
+        if (type === "datetime") {
+          finalDate = setMinutes(setHours(date, parseInt(selectedHour)), parseInt(selectedMinute));
+        }
+        const isoDate = finalDate.toISOString();
+        setEditValue(isoDate);
+        if (type === "date") {
+          onSave(isoDate);
+          setIsEditing(false);
+        }
+      }
+    };
+
+    const handleTimeConfirm = () => {
+      if (editValue) {
+        try {
+          let date = parseISO(editValue);
+          date = setMinutes(setHours(date, parseInt(selectedHour)), parseInt(selectedMinute));
+          const isoDate = date.toISOString();
+          onSave(isoDate);
+          setIsEditing(false);
+        } catch {
+          setIsEditing(false);
+        }
+      } else {
+        setIsEditing(false);
+      }
+    };
+
     return (
       <Popover open={isEditing} onOpenChange={(open) => !open && handleCancel()}>
         <PopoverTrigger asChild>
@@ -157,18 +205,48 @@ export function InlineEdit({
           <Calendar
             mode="single"
             selected={editValue ? parseISO(editValue) : undefined}
-            onSelect={(date) => {
-              if (date) {
-                const isoDate = date.toISOString();
-                setEditValue(isoDate);
-                onSave(isoDate);
-                setIsEditing(false);
-              }
-            }}
+            onSelect={handleDateSelect}
             initialFocus
             className="p-3 pointer-events-auto"
             locale={ru}
           />
+          {type === "datetime" && (
+            <div className="border-t p-3 space-y-2">
+              <div className="flex items-center gap-2">
+                <Clock className="h-4 w-4 text-muted-foreground" />
+                <span className="text-sm text-muted-foreground">Время:</span>
+                <Select value={selectedHour} onValueChange={setSelectedHour}>
+                  <SelectTrigger className="w-16 h-8">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {hours.map((h) => (
+                      <SelectItem key={h} value={h}>{h}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <span>:</span>
+                <Select value={selectedMinute} onValueChange={setSelectedMinute}>
+                  <SelectTrigger className="w-16 h-8">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {minutes.map((m) => (
+                      <SelectItem key={m} value={m}>{m}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="flex justify-end gap-2">
+                <Button variant="ghost" size="sm" onClick={handleCancel}>
+                  Отмена
+                </Button>
+                <Button size="sm" onClick={handleTimeConfirm}>
+                  Применить
+                </Button>
+              </div>
+            </div>
+          )}
         </PopoverContent>
       </Popover>
     );

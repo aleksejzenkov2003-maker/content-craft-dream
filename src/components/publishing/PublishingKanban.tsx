@@ -9,6 +9,8 @@ import {
   useSensors,
   DragStartEvent,
   DragEndEvent,
+  DragOverEvent,
+  useDroppable,
 } from '@dnd-kit/core';
 import {
   SortableContext,
@@ -19,23 +21,26 @@ import { useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { Loader2, User, Calendar, ExternalLink, Eye } from 'lucide-react';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
+import { Loader2, User, Calendar, ExternalLink, Eye, AlertCircle, Send, RotateCcw } from 'lucide-react';
 import { usePublications, Publication } from '@/hooks/usePublications';
 import { usePublishingChannels } from '@/hooks/usePublishingChannels';
 import { format } from 'date-fns';
 import { ru } from 'date-fns/locale';
+import { toast } from 'sonner';
 
-type StatusFilter = 'all' | 'waiting' | 'todo' | 'error' | 'in_progress' | 'published';
+// Status columns configuration
+const STATUS_COLUMNS = [
+  { id: 'pending', label: 'Ожидает', color: 'bg-muted' },
+  { id: 'scheduled', label: 'К публикации', color: 'bg-info/20' },
+  { id: 'publishing', label: 'В процессе', color: 'bg-warning/20' },
+  { id: 'published', label: 'Опубликовано', color: 'bg-success/20' },
+  { id: 'failed', label: 'Ошибки', color: 'bg-destructive/20' },
+] as const;
 
-const statusLabels: Record<string, { label: string; color: string }> = {
-  pending: { label: 'Ожидает', color: 'bg-muted text-muted-foreground' },
-  scheduled: { label: 'Запланирован', color: 'bg-info/20 text-info' },
-  publishing: { label: 'Публикуется', color: 'bg-warning/20 text-warning' },
-  published: { label: 'Опубликован', color: 'bg-success/20 text-success' },
-  failed: { label: 'Ошибка', color: 'bg-destructive/20 text-destructive' },
-};
+type StatusId = typeof STATUS_COLUMNS[number]['id'];
 
 const networkIcons: Record<string, string> = {
   youtube: '📺',
@@ -49,9 +54,11 @@ const networkIcons: Record<string, string> = {
 
 interface KanbanCardProps {
   publication: Publication;
+  onPublish?: () => void;
+  onRetry?: () => void;
 }
 
-function KanbanCard({ publication }: KanbanCardProps) {
+function KanbanCard({ publication, onPublish, onRetry }: KanbanCardProps) {
   const {
     attributes,
     listeners,
@@ -67,6 +74,10 @@ function KanbanCard({ publication }: KanbanCardProps) {
     opacity: isDragging ? 0.5 : 1,
   };
 
+  const channelIcon = publication.channel?.network_type 
+    ? networkIcons[publication.channel.network_type] || '📱' 
+    : '📱';
+
   return (
     <div
       ref={setNodeRef}
@@ -77,9 +88,15 @@ function KanbanCard({ publication }: KanbanCardProps) {
     >
       <Card className="glass-card hover:border-primary/30 transition-colors mb-2">
         <CardContent className="p-3 space-y-2">
-          {/* Title and advisor */}
+          {/* Channel and title */}
           <div className="flex items-start justify-between gap-2">
             <div className="flex-1 min-w-0">
+              <div className="flex items-center gap-1 mb-1">
+                <span className="text-sm">{channelIcon}</span>
+                <span className="text-xs text-muted-foreground truncate">
+                  {publication.channel?.name || 'Без канала'}
+                </span>
+              </div>
               <p className="text-sm font-medium truncate">
                 {publication.video?.video_title || publication.video?.question || 'Без названия'}
               </p>
@@ -122,54 +139,86 @@ function KanbanCard({ publication }: KanbanCardProps) {
             </div>
           )}
 
-          {/* Status and views */}
-          <div className="flex items-center justify-between pt-1">
-            <Badge
-              className={`text-xs ${statusLabels[publication.publication_status]?.color || ''}`}
-            >
-              {statusLabels[publication.publication_status]?.label || publication.publication_status}
-            </Badge>
-            {publication.views > 0 && (
-              <div className="flex items-center gap-1 text-xs text-muted-foreground">
-                <Eye className="w-3 h-3" />
-                <span>{publication.views.toLocaleString()}</span>
-              </div>
-            )}
-          </div>
-
-          {/* Video duration */}
-          {publication.video?.video_duration && (
-            <div className="text-xs text-muted-foreground">
-              Длительность: {Math.floor(publication.video.video_duration / 60)}:{(publication.video.video_duration % 60).toString().padStart(2, '0')}
+          {/* Views */}
+          {publication.views > 0 && (
+            <div className="flex items-center gap-1 text-xs text-muted-foreground">
+              <Eye className="w-3 h-3" />
+              <span>{publication.views.toLocaleString()}</span>
             </div>
           )}
+
+          {/* Error message */}
+          {publication.publication_status === 'failed' && publication.error_message && (
+            <TooltipProvider>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <div className="flex items-center gap-1 text-xs text-destructive cursor-help">
+                    <AlertCircle className="w-3 h-3" />
+                    <span className="truncate">Ошибка</span>
+                  </div>
+                </TooltipTrigger>
+                <TooltipContent side="bottom" className="max-w-xs">
+                  <p className="text-sm">{publication.error_message}</p>
+                </TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
+          )}
+
+          {/* Quick actions */}
+          <div className="flex items-center gap-1 pt-1" onClick={(e) => e.stopPropagation()}>
+            {publication.publication_status === 'scheduled' && onPublish && (
+              <Button 
+                size="xs" 
+                variant="publish"
+                onClick={onPublish}
+                className="h-6 text-xs"
+              >
+                <Send className="w-3 h-3 mr-1" />
+                Опубликовать
+              </Button>
+            )}
+            {publication.publication_status === 'failed' && onRetry && (
+              <Button 
+                size="xs" 
+                variant="outline"
+                onClick={onRetry}
+                className="h-6 text-xs"
+              >
+                <RotateCcw className="w-3 h-3 mr-1" />
+                Повторить
+              </Button>
+            )}
+          </div>
         </CardContent>
       </Card>
     </div>
   );
 }
 
-interface KanbanColumnProps {
-  channelId: string;
-  channelName: string;
-  networkType: string;
+interface StatusColumnProps {
+  status: typeof STATUS_COLUMNS[number];
   publications: Publication[];
+  onPublish: (id: string) => void;
+  onRetry: (id: string) => void;
 }
 
-function KanbanColumn({ channelId, channelName, networkType, publications }: KanbanColumnProps) {
+function StatusColumn({ status, publications, onPublish, onRetry }: StatusColumnProps) {
+  const { setNodeRef, isOver } = useDroppable({
+    id: status.id,
+  });
+
   return (
     <div className="flex-shrink-0 w-72">
-      <Card className="glass-card h-full">
-        <CardHeader className="pb-2">
+      <Card className={`glass-card h-full transition-colors ${isOver ? 'ring-2 ring-primary' : ''}`}>
+        <CardHeader className={`pb-2 ${status.color} rounded-t-lg`}>
           <CardTitle className="text-sm flex items-center gap-2">
-            <span>{networkIcons[networkType] || '📱'}</span>
-            <span className="truncate">{channelName}</span>
+            <span className="truncate">{status.label}</span>
             <Badge variant="secondary" className="ml-auto">
               {publications.length}
             </Badge>
           </CardTitle>
         </CardHeader>
-        <CardContent className="p-2">
+        <CardContent className="p-2" ref={setNodeRef}>
           <ScrollArea className="h-[calc(100vh-280px)]">
             <SortableContext
               items={publications.map((p) => p.id)}
@@ -181,7 +230,12 @@ function KanbanColumn({ channelId, channelName, networkType, publications }: Kan
                 </div>
               ) : (
                 publications.map((pub) => (
-                  <KanbanCard key={pub.id} publication={pub} />
+                  <KanbanCard 
+                    key={pub.id} 
+                    publication={pub}
+                    onPublish={() => onPublish(pub.id)}
+                    onRetry={() => onRetry(pub.id)}
+                  />
                 ))
               )}
             </SortableContext>
@@ -195,7 +249,6 @@ function KanbanColumn({ channelId, channelName, networkType, publications }: Kan
 export function PublishingKanban() {
   const { publications, loading, updatePublication } = usePublications();
   const { channels, loading: channelsLoading } = usePublishingChannels();
-  const [statusFilter, setStatusFilter] = useState<StatusFilter>('all');
   const [activeId, setActiveId] = useState<string | null>(null);
 
   const sensors = useSensors(
@@ -209,39 +262,20 @@ export function PublishingKanban() {
     })
   );
 
-  const filteredPublications = useMemo(() => {
-    if (statusFilter === 'all') return publications;
+  const publicationsByStatus = useMemo(() => {
+    const map = new Map<StatusId, Publication[]>();
 
-    const statusMap: Record<StatusFilter, string[]> = {
-      all: [],
-      waiting: ['pending'],
-      todo: ['scheduled'],
-      error: ['failed'],
-      in_progress: ['publishing'],
-      published: ['published'],
-    };
-
-    return publications.filter((p) =>
-      statusMap[statusFilter]?.includes(p.publication_status)
-    );
-  }, [publications, statusFilter]);
-
-  const publicationsByChannel = useMemo(() => {
-    const map = new Map<string, Publication[]>();
-
-    channels.forEach((channel) => {
-      map.set(channel.id, []);
+    STATUS_COLUMNS.forEach((col) => {
+      map.set(col.id, []);
     });
 
-    filteredPublications.forEach((pub) => {
-      if (pub.channel_id) {
-        const existing = map.get(pub.channel_id) || [];
-        existing.push(pub);
-        map.set(pub.channel_id, existing);
-      }
+    publications.forEach((pub) => {
+      const status = pub.publication_status as StatusId;
+      const existing = map.get(status) || map.get('pending')!;
+      existing.push(pub);
     });
 
-    // Sort by post_date
+    // Sort by post_date within each column
     map.forEach((pubs) => {
       pubs.sort((a, b) => {
         if (!a.post_date && !b.post_date) return 0;
@@ -252,15 +286,61 @@ export function PublishingKanban() {
     });
 
     return map;
-  }, [filteredPublications, channels]);
+  }, [publications]);
 
   const handleDragStart = (event: DragStartEvent) => {
     setActiveId(event.active.id as string);
   };
 
-  const handleDragEnd = (event: DragEndEvent) => {
+  const handleDragEnd = async (event: DragEndEvent) => {
+    const { active, over } = event;
     setActiveId(null);
-    // TODO: Implement status/channel change on drag
+
+    if (!over) return;
+
+    const publicationId = active.id as string;
+    const newStatus = over.id as string;
+
+    // Check if dropped on a status column
+    const isStatusColumn = STATUS_COLUMNS.some(col => col.id === newStatus);
+    if (!isStatusColumn) return;
+
+    // Find current publication
+    const publication = publications.find(p => p.id === publicationId);
+    if (!publication) return;
+
+    // Don't update if same status
+    if (publication.publication_status === newStatus) return;
+
+    try {
+      await updatePublication(publicationId, { publication_status: newStatus });
+      const statusLabel = STATUS_COLUMNS.find(s => s.id === newStatus)?.label || newStatus;
+      toast.success(`Статус изменён на "${statusLabel}"`);
+    } catch (error) {
+      console.error('Failed to update publication status:', error);
+      toast.error('Ошибка обновления статуса');
+    }
+  };
+
+  const handlePublish = async (publicationId: string) => {
+    try {
+      await updatePublication(publicationId, { publication_status: 'publishing' });
+      toast.success('Публикация запущена');
+    } catch (error) {
+      toast.error('Ошибка запуска публикации');
+    }
+  };
+
+  const handleRetry = async (publicationId: string) => {
+    try {
+      await updatePublication(publicationId, { 
+        publication_status: 'scheduled',
+        error_message: null 
+      });
+      toast.success('Публикация добавлена в очередь');
+    } catch (error) {
+      toast.error('Ошибка повтора публикации');
+    }
   };
 
   const activePublication = activeId
@@ -278,23 +358,12 @@ export function PublishingKanban() {
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
-        <Tabs value={statusFilter} onValueChange={(v) => setStatusFilter(v as StatusFilter)}>
-          <TabsList>
-            <TabsTrigger value="all">
-              Все посты
-              <Badge variant="secondary" className="ml-2">
-                {publications.length}
-              </Badge>
-            </TabsTrigger>
-            <TabsTrigger value="waiting">Ожидает</TabsTrigger>
-            <TabsTrigger value="todo">К публикации</TabsTrigger>
-            <TabsTrigger value="in_progress">В процессе</TabsTrigger>
-            <TabsTrigger value="published">Опубликовано</TabsTrigger>
-            <TabsTrigger value="error">Ошибки</TabsTrigger>
-          </TabsList>
-        </Tabs>
+        <div className="flex items-center gap-2">
+          <span className="text-sm font-medium">Канбан публикаций</span>
+          <Badge variant="secondary">{publications.length} публикаций</Badge>
+        </div>
         <span className="text-sm text-muted-foreground">
-          {filteredPublications.length} публикаций
+          Перетащите карточку в нужную колонку для смены статуса
         </span>
       </div>
 
@@ -305,23 +374,33 @@ export function PublishingKanban() {
         onDragEnd={handleDragEnd}
       >
         <div className="flex gap-4 overflow-x-auto pb-4">
-          {channels.filter(c => c.is_active).map((channel) => (
-            <KanbanColumn
-              key={channel.id}
-              channelId={channel.id}
-              channelName={channel.name}
-              networkType={channel.network_type}
-              publications={publicationsByChannel.get(channel.id) || []}
+          {STATUS_COLUMNS.map((status) => (
+            <StatusColumn
+              key={status.id}
+              status={status}
+              publications={publicationsByStatus.get(status.id) || []}
+              onPublish={handlePublish}
+              onRetry={handleRetry}
             />
           ))}
         </div>
 
         <DragOverlay>
           {activePublication ? (
-            <Card className="glass-card w-72 shadow-lg">
+            <Card className="glass-card w-72 shadow-lg rotate-3">
               <CardContent className="p-3">
+                <div className="flex items-center gap-1 mb-1">
+                  <span className="text-sm">
+                    {activePublication.channel?.network_type 
+                      ? networkIcons[activePublication.channel.network_type] || '📱' 
+                      : '📱'}
+                  </span>
+                  <span className="text-xs text-muted-foreground">
+                    {activePublication.channel?.name}
+                  </span>
+                </div>
                 <p className="text-sm font-medium truncate">
-                  {activePublication.video?.question || 'Без названия'}
+                  {activePublication.video?.video_title || activePublication.video?.question || 'Без названия'}
                 </p>
               </CardContent>
             </Card>
