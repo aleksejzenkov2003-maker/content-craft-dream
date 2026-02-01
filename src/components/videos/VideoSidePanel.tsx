@@ -71,10 +71,10 @@ export function VideoSidePanel({
 }: VideoSidePanelProps) {
   const [selectedChannels, setSelectedChannels] = useState<string[]>([]);
 
-  // Reset selectedChannels when video changes
+  // Initialize selectedChannels from video data when video changes
   useEffect(() => {
-    setSelectedChannels([]);
-  }, [video?.id]);
+    setSelectedChannels(video?.selected_channels || []);
+  }, [video?.id, video?.selected_channels]);
 
   if (!video) return null;
 
@@ -99,20 +99,19 @@ export function VideoSidePanel({
     onUpdateVideo(video.id, { generation_status: value });
   };
 
-  const handleAddChannel = (channelId: string) => {
-    if (!selectedChannels.includes(channelId)) {
-      setSelectedChannels([...selectedChannels, channelId]);
-    }
-  };
-
-  const handleRemoveChannel = (channelId: string) => {
-    setSelectedChannels(selectedChannels.filter(id => id !== channelId));
+  const handleChannelToggle = (channelId: string) => {
+    const newChannels = selectedChannels.includes(channelId)
+      ? selectedChannels.filter(id => id !== channelId)
+      : [...selectedChannels, channelId];
+    
+    setSelectedChannels(newChannels);
+    // Auto-save selected channels to video
+    onUpdateVideo(video.id, { selected_channels: newChannels } as any);
   };
 
   const handlePublish = () => {
     if (selectedChannels.length > 0) {
       onPublish(video, selectedChannels);
-      setSelectedChannels([]);
     }
   };
 
@@ -278,13 +277,7 @@ export function VideoSidePanel({
                           ? "bg-primary text-primary-foreground hover:bg-primary/90" 
                           : "hover:bg-muted"
                       )}
-                      onClick={() => {
-                        if (isSelected) {
-                          handleRemoveChannel(channel.id);
-                        } else {
-                          handleAddChannel(channel.id);
-                        }
-                      }}
+                      onClick={() => handleChannelToggle(channel.id)}
                     >
                       {channel.name}
                     </Badge>
