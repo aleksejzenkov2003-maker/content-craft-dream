@@ -25,6 +25,11 @@ import {
   ChevronDown,
   Link as LinkIcon,
   X,
+  Image as ImageIcon,
+  Play,
+  RefreshCw,
+  Check,
+  Trash2,
 } from 'lucide-react';
 import { format } from 'date-fns';
 import { cn } from '@/lib/utils';
@@ -172,6 +177,54 @@ export function VideoSidePanel({
               </Button>
             </div>
 
+            {/* Cover Gallery - Placeholder */}
+            <div className="space-y-2">
+              <Label className="text-sm">Галерея обложек</Label>
+              <div className="grid grid-cols-3 gap-2">
+                {/* Placeholder covers */}
+                {video.front_cover_url ? (
+                  <div className="relative aspect-[9/16] rounded-lg overflow-hidden border-2 border-primary bg-muted group cursor-pointer">
+                    <img 
+                      src={video.front_cover_url} 
+                      alt="Cover" 
+                      className="w-full h-full object-cover"
+                    />
+                    <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-1">
+                      <Button size="icon" variant="ghost" className="h-6 w-6 text-white hover:text-white hover:bg-white/20">
+                        <Check className="w-3 h-3" />
+                      </Button>
+                      <Button size="icon" variant="ghost" className="h-6 w-6 text-white hover:text-white hover:bg-white/20">
+                        <Trash2 className="w-3 h-3" />
+                      </Button>
+                    </div>
+                    <div className="absolute top-1 right-1">
+                      <Badge className="text-[9px] px-1 py-0 bg-primary">Active</Badge>
+                    </div>
+                  </div>
+                ) : null}
+                {/* Empty placeholder slots */}
+                {[...Array(video.front_cover_url ? 2 : 3)].map((_, i) => (
+                  <div 
+                    key={i}
+                    className="aspect-[9/16] rounded-lg border-2 border-dashed border-muted-foreground/30 bg-muted/50 flex flex-col items-center justify-center gap-1 cursor-pointer hover:border-muted-foreground/50 transition-colors"
+                  >
+                    <ImageIcon className="w-6 h-6 text-muted-foreground/50" />
+                    <span className="text-[10px] text-muted-foreground/50">Пусто</span>
+                  </div>
+                ))}
+              </div>
+              <Button 
+                variant="outline" 
+                size="sm" 
+                className="w-full text-xs"
+                onClick={() => onGenerateCover(video)}
+                disabled={video.cover_status === 'generating'}
+              >
+                <RefreshCw className="w-3 h-3 mr-1" />
+                Сгенерировать ещё
+              </Button>
+            </div>
+
             {/* Cover status */}
             <div className="grid grid-cols-[140px_1fr] gap-2 items-center">
               <Label className="text-sm">Cover status</Label>
@@ -210,6 +263,44 @@ export function VideoSidePanel({
                   'Generate'
                 )}
               </Button>
+            </div>
+
+            {/* Video Player - Placeholder */}
+            <div className="space-y-2">
+              <Label className="text-sm">Видео</Label>
+              {video.heygen_video_url ? (
+                <div className="relative aspect-[9/16] rounded-lg overflow-hidden bg-black">
+                  <video 
+                    src={video.heygen_video_url} 
+                    controls 
+                    className="w-full h-full object-contain"
+                    poster={video.front_cover_url || undefined}
+                  />
+                </div>
+              ) : (
+                <div className="aspect-[9/16] rounded-lg border-2 border-dashed border-muted-foreground/30 bg-muted/50 flex flex-col items-center justify-center gap-2">
+                  <div className="w-12 h-12 rounded-full bg-muted flex items-center justify-center">
+                    <Play className="w-6 h-6 text-muted-foreground/50" />
+                  </div>
+                  <span className="text-xs text-muted-foreground/50">Видео не сгенерировано</span>
+                  <Button 
+                    variant="outline" 
+                    size="sm" 
+                    className="text-xs mt-2"
+                    onClick={() => onGenerateVideo(video)}
+                    disabled={video.generation_status === 'generating' || isGenerating}
+                  >
+                    {video.generation_status === 'generating' || isGenerating ? (
+                      <>
+                        <Loader2 className="w-3 h-3 mr-1 animate-spin" />
+                        Генерация...
+                      </>
+                    ) : (
+                      'Сгенерировать видео'
+                    )}
+                  </Button>
+                </div>
+              )}
             </div>
 
             {/* Video status */}
