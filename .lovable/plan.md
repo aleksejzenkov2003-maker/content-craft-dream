@@ -1,256 +1,152 @@
-# План реализации: Фазы 4-8
 
-## Текущее состояние
-- Фаза 2 (Вопросы) - ✅ завершено
-- Фаза 3 (Ролики) - ✅ завершено
-- Фаза 4 (Публикации) - ✅ завершено
+# План исправления: Смена статуса и круглые чекбоксы
 
----
+## Анализ проблемы
 
-## Фаза 4: Экран «Публикации» (PublicationsTable)
+### Проблема 1: Бесконечный цикл уведомлений при смене статуса
+**Причина:** В `Index.tsx` используются два разных экземпляра `useVideos`:
+- `allVideos` - для таблицы Вопросов
+- `videos` - для таблицы Роликов
 
-### Текущее состояние
-- Простой фильтр по каналу и статусу (Select)
-- Группировка по каналам/вопросам
-- Кнопки Generate и Publish для каждой строки
-- Нет массовых действий, нет inline-редактирования
+При вызове `onUpdateQuestion` происходит:
+1. Обновление видео через `updateVideo` (из второго хука)
+2. `fetchVideos()` вызывается для каждого обновлённого видео
+3. Каждый `fetchVideos()` перезагружает все данные
+4. React Query не используется — нет инвалидации, каждый хук делает свои запросы
 
-### Изменения
+**Решение:**
+- Оптимизировать обновление: сделать один bulk update вместо цикла
+- Убрать лишние `fetchVideos()` вызовы
+- Добавить дебаунсинг или batch update
 
-**4.1 Inline-редактирование**
-| Колонка | Тип |
-|---------|-----|
-| Дата публикации | datetime |
-| Статус | select (pending, scheduled, published, failed) |
+### Проблема 2: Кружки вместо квадратных чекбоксов
+**Причина:** Код в `QuestionsTable.tsx` показывает что `Checkbox` компонент уже используется (строки 553-556, 596-599, 650-654), но на скриншоте видны кружки.
 
-**4.2 Массовые действия (BulkActionsBar)**
-- Удалить выбранные
-- Сменить статус (pending/scheduled/published)
-- Генерация текста (массовая)
-- Публикация (массовая)
+Возможные причины:
+1. Файл не был сохранён/применён
+2. Браузер закешировал старую версию
+3. Есть конфликт в git
 
-**4.3 Расширенные фильтры**
-- Статус (multiselect)
-- Канал (multiselect)  
-- Диапазон дат публикации
-- Наличие сгенерированного текста
-
-**4.4 Сортировка**
-- Дата публикации (asc/desc)
-- Просмотры (asc/desc)
-- Лайки (asc/desc)
-
-**Файлы:**
-- `src/components/publishing/PublicationsTable.tsx`
-- `src/components/publishing/PublicationFilters.tsx` (новый)
+**Проверка:** Компонент `src/components/ui/checkbox.tsx` имеет `rounded-sm` — это правильно, должны быть квадраты.
 
 ---
 
-## Фаза 5: Экран «Канбан публикаций» (PublishingKanban)
+## План исправления
 
-### Текущее состояние
-- Drag-and-drop между колонками (каналами)
-- Фильтрация по статусам (tabs)
-- Базовые карточки публикаций
+### Шаг 1: Исправить цикл обновлений
 
-### Изменения
+**Файл:** `src/hooks/useVideos.ts`
 
-**5.1 Drag-and-drop между статусами**
-- Реализовать перемещение карточки для смены статуса
-- Колонки по статусам вместо каналов (опционально)
-- Визуальная обратная связь при перетаскивании
+Добавить метод `bulkUpdate` для массового обновления без множественных refetch:
 
-**5.2 Быстрые действия на карточках**
-- Кнопка "Generate" прямо на карточке
-- Кнопка "Publish" на карточке
-- Редактирование даты в попапе
+```typescript
+const bulkUpdate = async (updates: { id: string; data: Partial<Video> }[], options?: { silent?: boolean }) => {
+  try {
+    // Последовательно обновляем все записи без refetch
+    for (const { id, data } of updates) {
+      const { error } = await supabase
+        .from('videos')
+        .update(data)
+        .eq('id', id);
+      if (error) throw error;
+    }
+    // Один refetch в конце
+    await fetchVideos();
+    if (!options?.silent) {
+      toast.success(`Обновлено ${updates.length} записей`);
+    }
+  } catch (error) {
+    console.error('Error bulk updating videos:', error);
+    toast.error('Ошибка обновления');
+    throw error;
+  }
+};
+```
 
-**5.3 Массовый выбор**
-- Чекбоксы на карточках
-- Плавающая панель действий
+**Файл:** `src/pages/Index.tsx`
 
-**5.4 Улучшенная визуализация**
-- Индикатор прогресса по каналу
-- Цветовая маркировка по срочности (дата близко = желтый/красный)
+Изменить `onUpdateQuestion` чтобы использовать bulk update:
 
-**Файлы:**
-- `src/components/publishing/PublishingKanban.tsx`
+```typescript
+onUpdateQuestion={async (questionId, updates) => {
+  const videosToUpdate = allVideos.filter(v => v.question_id === questionId);
+  // Один bulk update вместо цикла
+  await bulkUpdateVideos(
+    videosToUpdate.map(v => ({ id: v.id, data: updates })),
+    { silent: true }
+  );
+  toast.success('Вопрос обновлён');
+}}
+```
 
----
+### Шаг 2: Удалить refetch из каждого updateVideo при silent mode
 
-## Фаза 6: Экран «Сцены» (ScenesMatrix)
+**Файл:** `src/hooks/useVideos.ts`
 
-### Текущее состояние
-- Матрица Духовники × Плейлисты
-- Collapsible rows по духовникам
-- Кнопки генерации/одобрения/отмены
+```typescript
+const updateVideo = async (id: string, updates: Partial<Video>, options?: { silent?: boolean; skipRefetch?: boolean }) => {
+  try {
+    const { error } = await supabase
+      .from('videos')
+      .update(updates)
+      .eq('id', id);
 
-### Изменения
+    if (error) throw error;
 
-**6.1 Inline-редактирование**
-| Колонка | Тип |
-|---------|-----|
-| Статус | select (waiting, approved, cancelled) |
-| Статус проверки | select (Waiting, Approved, NeedsRevision) |
-| Промт сцены | text |
+    // Не делаем refetch если указано skipRefetch
+    if (!options?.skipRefetch) {
+      await fetchVideos();
+    }
+    if (!options?.silent) {
+      toast.success('Ролик обновлён');
+    }
+  } catch (error) {
+    // ...
+  }
+};
+```
 
-**6.2 Массовые действия**
-- Выбор нескольких сцен
-- Массовая генерация
-- Массовое одобрение
-- Массовая отмена
+### Шаг 3: Перезаписать QuestionsTable с чекбоксами
 
-**6.3 Фильтры**
-- По статусу генерации
-- По статусу проверки
-- По плейлисту
-- По духовнику
-- Только без сцен / только со сценами
+Проблема может быть в том, что файл не был правильно сохранён. Нужно убедиться что в колонке "Статус" (строки 637-655) используется `Checkbox`:
 
-**6.4 Улучшенный SidePanel**
-- Редактирование промта
-- История генераций
-- Сравнение версий
-
-**Файлы:**
-- `src/components/scenes/ScenesMatrix.tsx`
-- `src/components/scenes/SceneFilters.tsx` (новый)
-
----
-
-## Фаза 7: Экран «Обложки» (BackCoversGrid + CoverThumbnailsGrid)
-
-### Текущее состояние
-- BackCoversGrid: сетка по духовникам с возможностью добавления
-- CoverThumbnailsGrid: сетка сгенерированных обложек
-
-### Изменения
-
-**7.1 BackCoversGrid**
-- Массовое добавление обложек
-- Drag-and-drop загрузка файлов
-- Массовое удаление
-
-**7.2 CoverThumbnailsGrid**
-- Inline-редактирование статуса
-- Массовые действия (удаление, регенерация)
-- Расширенные фильтры (по духовнику, статусу, дате)
-- Сортировка
-
-**7.3 Общие улучшения**
-- Lightbox для просмотра обложек
-- Сравнение front/back cover
-- Скачивание обложек
-
-**Файлы:**
-- `src/components/covers/BackCoversGrid.tsx`
-- `src/components/covers/CoverThumbnailsGrid.tsx`
-- `src/components/covers/CoverFilters.tsx` (новый)
-
----
-
-## Фаза 8: Справочники (Духовники, Плейлисты, Каналы)
-
-### Экраны
-- AdvisorsGrid
-- PlaylistsGrid  
-- PublishingChannelsGrid
-
-### Общие изменения для всех
-
-**8.1 Inline-редактирование в карточках**
-- Редактирование названия по клику
-- Быстрое переключение активности
-
-**8.2 Массовые действия**
-- Массовое удаление
-- Массовая активация/деактивация
-- Массовый экспорт
-
-**8.3 Расширенный поиск**
-- Фильтрация по активности
-- Сортировка (по имени, дате создания, количеству связей)
-
-**8.4 Улучшенные формы**
-- Валидация полей
-- Автодополнение
-- Предпросмотр изменений
-
-**Файлы:**
-- `src/components/advisors/AdvisorsGrid.tsx`
-- `src/components/playlists/PlaylistsGrid.tsx`
-- `src/components/publishing/PublishingChannelsGrid.tsx`
-
----
-
-## Сводная таблица по фазам
-
-| Фаза | Экран | Компоненты | Сложность |
-|------|-------|------------|-----------|
-| 4 | Публикации | PublicationsTable, PublicationFilters | Средняя |
-| 5 | Канбан | PublishingKanban | Высокая |
-| 6 | Сцены | ScenesMatrix, SceneFilters | Средняя |
-| 7 | Обложки | BackCoversGrid, CoverThumbnailsGrid, CoverFilters | Средняя |
-| 8 | Справочники | AdvisorsGrid, PlaylistsGrid, PublishingChannelsGrid | Низкая |
+```tsx
+{/* Column 7: Status - Inline Edit + Filter checkbox */}
+<div className="flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
+  <InlineEdit
+    type="select"
+    value={q.question_status}
+    options={statusOptions}
+    onSave={(value) => handleSaveQuestion(q.question_id, { question_status: value })}
+    formatDisplay={(val) => {
+      const opt = statusOptions.find(o => o.value === val);
+      return opt?.label || 'Ожидает';
+    }}
+    displayClassName="text-xs"
+  />
+  <Checkbox
+    checked={localSelectedIds.includes(q.question_id)}
+    onCheckedChange={() => toggleFilterSelect(q.question_id)}
+    className="border-primary data-[state=checked]:bg-primary"
+  />
+</div>
+```
 
 ---
 
 ## Технические детали
 
-### Общие паттерны для всех фаз
+### Изменяемые файлы
+1. `src/hooks/useVideos.ts` - добавить `bulkUpdate`, опция `skipRefetch`
+2. `src/pages/Index.tsx` - использовать bulk update
+3. `src/components/questions/QuestionsTable.tsx` - подтвердить Checkbox компонент
 
-**Состояние фильтров:**
-```typescript
-interface CommonFilterState {
-  statusFilter: string[];
-  dateRange: { from: Date | null; to: Date | null };
-  searchQuery: string;
-}
-```
+### Порядок выполнения
+1. Добавить `bulkUpdate` в хук
+2. Обновить Index.tsx для использования bulk update
+3. Принудительно перезаписать QuestionsTable чтобы гарантировать Checkbox
 
-**Состояние сортировки:**
-```typescript
-interface SortState {
-  column: string | null;
-  direction: 'asc' | 'desc';
-}
-```
-
-**Props для массовых действий:**
-```typescript
-interface BulkActionsProps {
-  selectedIds: string[];
-  onBulkDelete: (ids: string[]) => Promise<void>;
-  onBulkUpdateStatus: (ids: string[], status: string) => Promise<void>;
-  onBulkExport?: (ids: string[]) => void;
-}
-```
-
-### Зависимости
-- Все фазы используют существующие компоненты: `BulkActionsBar`, `InlineEdit`
-- Новые компоненты фильтров создаются по образцу `QuestionFilters` и `VideoFilters`
-
----
-
-## Рекомендуемый порядок реализации
-
-1. **Фаза 4** - Публикации (основа для Канбана)
-2. **Фаза 5** - Канбан (зависит от логики публикаций)
-3. **Фаза 6** - Сцены (независимый экран)
-4. **Фаза 7** - Обложки (независимый экран)
-5. **Фаза 8** - Справочники (финальная полировка)
-
----
-
-## Оценка времени
-
-| Фаза | Оценка |
-|------|--------|
-| Фаза 4 | 1 сессия |
-| Фаза 5 | 1-2 сессии |
-| Фаза 6 | 1 сессия |
-| Фаза 7 | 1 сессия |
-| Фаза 8 | 1 сессия |
-
-**Итого:** 5-7 сессий для полной реализации
-
+### Ожидаемый результат
+- При смене статуса появляется одно уведомление "Вопрос обновлён"
+- Нет бесконечного цикла обновлений
+- Чекбоксы отображаются как квадраты (Checkbox компонент с `rounded-sm`)
