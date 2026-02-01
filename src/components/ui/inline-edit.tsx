@@ -180,14 +180,15 @@ export function InlineEdit({
       <Select
         value={editValue}
         onValueChange={(val) => {
+          const previousValue = value;
           setEditValue(val);
           setIsEditing(false);
-          // Call onSave after closing to avoid re-render loops
-          setTimeout(() => {
-            if (val !== value) {
+          // Only save if value actually changed, with a small delay to let UI settle
+          if (val !== previousValue) {
+            requestAnimationFrame(() => {
               onSave(val);
-            }
-          }, 0);
+            });
+          }
         }}
         defaultOpen={true}
         onOpenChange={(open) => {
@@ -199,7 +200,7 @@ export function InlineEdit({
         <SelectTrigger className={cn("h-7 text-xs", className)}>
           <SelectValue placeholder={placeholder} />
         </SelectTrigger>
-        <SelectContent>
+        <SelectContent className="z-50">
           {options.map((option) => (
             <SelectItem key={option.value} value={option.value}>
               {option.label}
