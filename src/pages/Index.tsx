@@ -77,7 +77,7 @@ export default function Index() {
 
   const sidebarCounts = {
     advisors: advisors.length,
-    videos: videos.length,
+    videos: videos.filter(v => v.question_status === 'approved').length,
     playlists: playlists.length,
     publications: publications.length,
   };
