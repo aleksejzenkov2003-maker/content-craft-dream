@@ -1,7 +1,8 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import { Checkbox } from '@/components/ui/checkbox';
 import {
   Table,
   TableBody,
@@ -11,19 +12,15 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
-import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import { MoreVertical, Trash2, ExternalLink, Calendar, Send, Sparkles, Loader2, FileSpreadsheet } from 'lucide-react';
+import { 
+  MoreVertical, Trash2, ExternalLink, Send, Sparkles, Loader2, 
+  FileSpreadsheet, ArrowUpDown, ArrowUp, ArrowDown 
+} from 'lucide-react';
 import { Publication, usePublications } from '@/hooks/usePublications';
 import { usePublishingChannels } from '@/hooks/usePublishingChannels';
 import { useVideos } from '@/hooks/useVideos';
@@ -31,6 +28,10 @@ import { format } from 'date-fns';
 import { ru } from 'date-fns/locale';
 import { CsvImporter, Lookups } from '@/components/import/CsvImporter';
 import { PUBLICATION_COLUMN_MAPPING, PUBLICATION_PREVIEW_COLUMNS } from '@/components/import/importConfigs';
+import { InlineEdit } from '@/components/ui/inline-edit';
+import { BulkActionsBar, BulkActionButton } from '@/components/ui/bulk-actions-bar';
+import { PublicationFilters, PublicationFilterState } from './PublicationFilters';
+import { cn } from '@/lib/utils';
 
 const statusLabels: Record<string, { label: string; variant: 'default' | 'secondary' | 'destructive' | 'outline' }> = {
   pending: { label: 'Ожидает', variant: 'secondary' },
@@ -39,29 +40,136 @@ const statusLabels: Record<string, { label: string; variant: 'default' | 'second
   failed: { label: 'Ошибка', variant: 'destructive' },
 };
 
+const statusOptions = [
+  { value: 'pending', label: 'Ожидает' },
+  { value: 'scheduled', label: 'Запланирован' },
+  { value: 'published', label: 'Опубликован' },
+  { value: 'failed', label: 'Ошибка' },
+];
+
+type SortColumn = 'post_date' | 'views' | 'likes' | 'video_number';
+type SortDirection = 'asc' | 'desc';
+
 interface PublicationsTableProps {
   groupBy?: 'channel' | 'question';
 }
 
 export function PublicationsTable({ groupBy = 'channel' }: PublicationsTableProps) {
-  const { publications, loading, deletePublication, generateText, bulkImport } = usePublications();
+  const { publications, loading, deletePublication, generateText, updatePublication, bulkImport } = usePublications();
   const { channels } = usePublishingChannels();
   const { videos } = useVideos();
-  const [filterChannel, setFilterChannel] = useState<string>('');
-  const [filterStatus, setFilterStatus] = useState<string>('');
+  
   const [showImporter, setShowImporter] = useState(false);
   const [generatingIds, setGeneratingIds] = useState<Set<string>>(new Set());
   const [publishingIds, setPublishingIds] = useState<Set<string>>(new Set());
-
-  const filteredPublications = publications.filter((pub) => {
-    if (filterChannel && filterChannel !== 'all' && pub.channel_id !== filterChannel) return false;
-    if (filterStatus && filterStatus !== 'all' && pub.publication_status !== filterStatus) return false;
-    return true;
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  
+  // Filters
+  const [filters, setFilters] = useState<PublicationFilterState>({
+    statuses: [],
+    channelIds: [],
+    hasGeneratedText: null,
+    dateRange: { from: null, to: null },
   });
+  
+  // Sorting
+  const [sortColumn, setSortColumn] = useState<SortColumn | null>(null);
+  const [sortDirection, setSortDirection] = useState<SortDirection>('desc');
+
+  // Apply filters
+  const filteredPublications = useMemo(() => {
+    return publications.filter((pub) => {
+      // Status filter
+      if (filters.statuses.length > 0 && !filters.statuses.includes(pub.publication_status)) {
+        return false;
+      }
+      // Channel filter
+      if (filters.channelIds.length > 0 && pub.channel_id && !filters.channelIds.includes(pub.channel_id)) {
+        return false;
+      }
+      // Generated text filter
+      if (filters.hasGeneratedText === true && !pub.generated_text) {
+        return false;
+      }
+      if (filters.hasGeneratedText === false && pub.generated_text) {
+        return false;
+      }
+      // Date range filter
+      if (filters.dateRange.from && pub.post_date) {
+        const pubDate = new Date(pub.post_date);
+        if (pubDate < filters.dateRange.from) return false;
+      }
+      if (filters.dateRange.to && pub.post_date) {
+        const pubDate = new Date(pub.post_date);
+        if (pubDate > filters.dateRange.to) return false;
+      }
+      return true;
+    });
+  }, [publications, filters]);
+
+  // Apply sorting
+  const sortedPublications = useMemo(() => {
+    if (!sortColumn) return filteredPublications;
+    
+    return [...filteredPublications].sort((a, b) => {
+      let aVal: number | string | null = null;
+      let bVal: number | string | null = null;
+      
+      switch (sortColumn) {
+        case 'post_date':
+          aVal = a.post_date ? new Date(a.post_date).getTime() : 0;
+          bVal = b.post_date ? new Date(b.post_date).getTime() : 0;
+          break;
+        case 'views':
+          aVal = a.views || 0;
+          bVal = b.views || 0;
+          break;
+        case 'likes':
+          aVal = a.likes || 0;
+          bVal = b.likes || 0;
+          break;
+        case 'video_number':
+          aVal = a.video?.video_number || 0;
+          bVal = b.video?.video_number || 0;
+          break;
+      }
+      
+      if (aVal === bVal) return 0;
+      const result = aVal < bVal ? -1 : 1;
+      return sortDirection === 'asc' ? result : -result;
+    });
+  }, [filteredPublications, sortColumn, sortDirection]);
+
+  const handleSort = (column: SortColumn) => {
+    if (sortColumn === column) {
+      if (sortDirection === 'desc') {
+        setSortDirection('asc');
+      } else {
+        setSortColumn(null);
+      }
+    } else {
+      setSortColumn(column);
+      setSortDirection('desc');
+    }
+  };
+
+  const getSortIcon = (column: SortColumn) => {
+    if (sortColumn !== column) {
+      return <ArrowUpDown className="h-3 w-3 ml-1 opacity-50" />;
+    }
+    return sortDirection === 'asc' 
+      ? <ArrowUp className="h-3 w-3 ml-1" />
+      : <ArrowDown className="h-3 w-3 ml-1" />;
+  };
 
   const handleDelete = async (id: string) => {
     if (confirm('Удалить публикацию?')) {
       await deletePublication(id);
+      setSelectedIds(prev => {
+        const next = new Set(prev);
+        next.delete(id);
+        return next;
+      });
     }
   };
 
@@ -92,6 +200,62 @@ export function PublicationsTable({ groupBy = 'channel' }: PublicationsTableProp
     }
   };
 
+  const handleSelectAll = (checked: boolean) => {
+    if (checked) {
+      setSelectedIds(new Set(sortedPublications.map(p => p.id)));
+    } else {
+      setSelectedIds(new Set());
+    }
+  };
+
+  const handleSelectOne = (id: string, checked: boolean) => {
+    setSelectedIds(prev => {
+      const next = new Set(prev);
+      if (checked) {
+        next.add(id);
+      } else {
+        next.delete(id);
+      }
+      return next;
+    });
+  };
+
+  // Bulk actions
+  const handleBulkDelete = async () => {
+    if (!confirm(`Удалить ${selectedIds.size} публикаций?`)) return;
+    for (const id of selectedIds) {
+      await deletePublication(id);
+    }
+    setSelectedIds(new Set());
+  };
+
+  const handleBulkUpdateStatus = async (status: string) => {
+    for (const id of selectedIds) {
+      await updatePublication(id, { publication_status: status });
+    }
+    setSelectedIds(new Set());
+  };
+
+  const handleBulkGenerateText = async () => {
+    const ids = Array.from(selectedIds);
+    for (const id of ids) {
+      const pub = publications.find(p => p.id === id);
+      if (pub && !pub.generated_text) {
+        await handleGenerateText(pub);
+      }
+    }
+  };
+
+  const handleBulkPublish = async () => {
+    const ids = Array.from(selectedIds);
+    for (const id of ids) {
+      const pub = publications.find(p => p.id === id);
+      if (pub && pub.publication_status !== 'published') {
+        await handlePublish(pub);
+      }
+    }
+  };
+
   const getStatusBadge = (status: string) => {
     const config = statusLabels[status] || statusLabels.pending;
     return <Badge variant={config.variant}>{config.label}</Badge>;
@@ -103,7 +267,7 @@ export function PublicationsTable({ groupBy = 'channel' }: PublicationsTableProp
     return `${question} — ${advisor}`;
   };
 
-  const groupedPublications = filteredPublications.reduce((acc, pub) => {
+  const groupedPublications = sortedPublications.reduce((acc, pub) => {
     let key: string;
     if (groupBy === 'channel') {
       key = pub.channel?.name || 'Без канала';
@@ -124,7 +288,6 @@ export function PublicationsTable({ groupBy = 'channel' }: PublicationsTableProp
   const resolveRow = (row: Record<string, any>, lookups: Lookups) => {
     const errors: string[] = [];
     
-    // Resolve video by video_number
     let video_id: string | null = null;
     if (row.video_number) {
       const videoNum = parseInt(row.video_number);
@@ -136,7 +299,6 @@ export function PublicationsTable({ groupBy = 'channel' }: PublicationsTableProp
       }
     }
     
-    // Resolve channel by name
     let channel_id: string | null = null;
     if (row.channel_name) {
       const channel = lookups.channels?.find(c => 
@@ -171,36 +333,18 @@ export function PublicationsTable({ groupBy = 'channel' }: PublicationsTableProp
     );
   }
 
-  return (
-    <div className="space-y-6">
-      {/* Filters */}
-      <div className="flex gap-4">
-        <Select value={filterChannel || 'all'} onValueChange={(v) => setFilterChannel(v === 'all' ? '' : v)}>
-          <SelectTrigger className="w-[200px]">
-            <SelectValue placeholder="Все каналы" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">Все каналы</SelectItem>
-            {channels.map((channel) => (
-              <SelectItem key={channel.id} value={channel.id}>
-                {channel.name}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+  const allSelected = sortedPublications.length > 0 && selectedIds.size === sortedPublications.length;
+  const someSelected = selectedIds.size > 0 && selectedIds.size < sortedPublications.length;
 
-        <Select value={filterStatus || 'all'} onValueChange={(v) => setFilterStatus(v === 'all' ? '' : v)}>
-          <SelectTrigger className="w-[200px]">
-            <SelectValue placeholder="Все статусы" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">Все статусы</SelectItem>
-            <SelectItem value="pending">Ожидает</SelectItem>
-            <SelectItem value="scheduled">Запланирован</SelectItem>
-            <SelectItem value="published">Опубликован</SelectItem>
-            <SelectItem value="failed">Ошибка</SelectItem>
-          </SelectContent>
-        </Select>
+  return (
+    <div className="space-y-4">
+      {/* Toolbar */}
+      <div className="flex items-center gap-4 flex-wrap">
+        <PublicationFilters
+          channels={channels}
+          filters={filters}
+          onFiltersChange={setFilters}
+        />
 
         <div className="flex-1" />
 
@@ -209,6 +353,52 @@ export function PublicationsTable({ groupBy = 'channel' }: PublicationsTableProp
           Импорт CSV
         </Button>
       </div>
+
+      {/* Bulk Actions */}
+      <BulkActionsBar
+        selectedCount={selectedIds.size}
+        totalCount={sortedPublications.length}
+        onClearSelection={() => setSelectedIds(new Set())}
+      >
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button size="xs" variant="outline">
+              Сменить статус
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent>
+            {statusOptions.map((status) => (
+              <DropdownMenuItem
+                key={status.value}
+                onClick={() => handleBulkUpdateStatus(status.value)}
+              >
+                {status.label}
+              </DropdownMenuItem>
+            ))}
+          </DropdownMenuContent>
+        </DropdownMenu>
+        <BulkActionButton
+          onClick={handleBulkGenerateText}
+          icon={<Sparkles className="h-3 w-3 mr-1" />}
+          variant="generate-cover"
+        >
+          Генерация текста
+        </BulkActionButton>
+        <BulkActionButton
+          onClick={handleBulkPublish}
+          icon={<Send className="h-3 w-3 mr-1" />}
+          variant="publish"
+        >
+          Опубликовать
+        </BulkActionButton>
+        <BulkActionButton
+          onClick={handleBulkDelete}
+          icon={<Trash2 className="h-3 w-3 mr-1" />}
+          variant="destructive"
+        >
+          Удалить
+        </BulkActionButton>
+      </BulkActionsBar>
 
       {Object.keys(groupedPublications).length === 0 ? (
         <Card className="glass-card">
@@ -235,23 +425,69 @@ export function PublicationsTable({ groupBy = 'channel' }: PublicationsTableProp
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead className="w-[300px]">Заголовок публикации</TableHead>
-                    <TableHead className="w-[80px]">ID Ролика</TableHead>
+                    <TableHead className="w-[40px]">
+                      <Checkbox
+                        checked={allSelected}
+                        ref={(el) => {
+                          if (el) (el as any).indeterminate = someSelected;
+                        }}
+                        onCheckedChange={handleSelectAll}
+                      />
+                    </TableHead>
+                    <TableHead className="w-[280px]">Заголовок</TableHead>
+                    <TableHead 
+                      className="w-[80px] cursor-pointer hover:bg-accent/50"
+                      onClick={() => handleSort('video_number')}
+                    >
+                      <div className="flex items-center">
+                        ID {getSortIcon('video_number')}
+                      </div>
+                    </TableHead>
                     {groupBy !== 'channel' && <TableHead className="w-[120px]">Канал</TableHead>}
-                    <TableHead className="w-[150px]">Дата</TableHead>
+                    <TableHead 
+                      className="w-[150px] cursor-pointer hover:bg-accent/50"
+                      onClick={() => handleSort('post_date')}
+                    >
+                      <div className="flex items-center">
+                        Дата {getSortIcon('post_date')}
+                      </div>
+                    </TableHead>
                     <TableHead className="w-[80px]">Длина</TableHead>
-                    <TableHead className="w-[100px]">Статус</TableHead>
-                    <TableHead className="w-[80px] text-right">Просмотры</TableHead>
-                    <TableHead className="w-[80px] text-right">Лайки</TableHead>
-                    <TableHead className="w-[200px]">Действия</TableHead>
+                    <TableHead className="w-[120px]">Статус</TableHead>
+                    <TableHead 
+                      className="w-[80px] text-right cursor-pointer hover:bg-accent/50"
+                      onClick={() => handleSort('views')}
+                    >
+                      <div className="flex items-center justify-end">
+                        Просмотры {getSortIcon('views')}
+                      </div>
+                    </TableHead>
+                    <TableHead 
+                      className="w-[80px] text-right cursor-pointer hover:bg-accent/50"
+                      onClick={() => handleSort('likes')}
+                    >
+                      <div className="flex items-center justify-end">
+                        Лайки {getSortIcon('likes')}
+                      </div>
+                    </TableHead>
+                    <TableHead className="w-[180px]">Действия</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {pubs.map((pub) => (
-                    <TableRow key={pub.id}>
+                    <TableRow 
+                      key={pub.id}
+                      className={cn(selectedIds.has(pub.id) && 'bg-primary/5')}
+                    >
                       <TableCell>
-                        <div className="max-w-[300px]">
-                          <p className="font-medium truncate" title={getPublicationTitle(pub)}>
+                        <Checkbox
+                          checked={selectedIds.has(pub.id)}
+                          onCheckedChange={(checked) => handleSelectOne(pub.id, !!checked)}
+                        />
+                      </TableCell>
+                      <TableCell>
+                        <div className="max-w-[280px]">
+                          <p className="font-medium truncate text-sm" title={getPublicationTitle(pub)}>
                             {getPublicationTitle(pub)}
                           </p>
                         </div>
@@ -267,16 +503,15 @@ export function PublicationsTable({ groupBy = 'channel' }: PublicationsTableProp
                         </TableCell>
                       )}
                       <TableCell>
-                        {pub.post_date ? (
-                          <div className="flex items-center gap-2">
-                            <Calendar className="w-4 h-4 text-muted-foreground" />
-                            <span className="text-sm">
-                              {format(new Date(pub.post_date), 'dd MMM yyyy, HH:mm', { locale: ru })}
-                            </span>
-                          </div>
-                        ) : (
-                          <span className="text-muted-foreground">—</span>
-                        )}
+                        <InlineEdit
+                          type="datetime"
+                          value={pub.post_date}
+                          onSave={async (value) => {
+                            await updatePublication(pub.id, { post_date: value });
+                          }}
+                          placeholder="—"
+                          displayClassName="text-sm"
+                        />
                       </TableCell>
                       <TableCell>
                         {pub.video?.video_duration ? (
@@ -285,7 +520,20 @@ export function PublicationsTable({ groupBy = 'channel' }: PublicationsTableProp
                           <span className="text-muted-foreground">—</span>
                         )}
                       </TableCell>
-                      <TableCell>{getStatusBadge(pub.publication_status)}</TableCell>
+                      <TableCell>
+                        <InlineEdit
+                          type="select"
+                          value={pub.publication_status}
+                          options={statusOptions}
+                          onSave={async (value) => {
+                            await updatePublication(pub.id, { publication_status: value });
+                          }}
+                          formatDisplay={(val) => {
+                            const config = statusLabels[val || 'pending'];
+                            return config?.label || val || 'Ожидает';
+                          }}
+                        />
+                      </TableCell>
                       <TableCell className="text-right">
                         {pub.views > 0 ? pub.views.toLocaleString() : '—'}
                       </TableCell>
@@ -293,39 +541,35 @@ export function PublicationsTable({ groupBy = 'channel' }: PublicationsTableProp
                         {pub.likes > 0 ? pub.likes.toLocaleString() : '—'}
                       </TableCell>
                       <TableCell>
-                        <div className="flex items-center gap-2">
+                        <div className="flex items-center gap-1">
                           <Button
-                            size="sm"
+                            size="xs"
                             variant="outline"
                             disabled={!!pub.generated_text || generatingIds.has(pub.id)}
                             onClick={() => handleGenerateText(pub)}
-                            className="h-8"
                           >
                             {generatingIds.has(pub.id) ? (
-                              <Loader2 className="w-3 h-3 mr-1 animate-spin" />
+                              <Loader2 className="w-3 h-3 animate-spin" />
                             ) : (
-                              <Sparkles className="w-3 h-3 mr-1" />
+                              <Sparkles className="w-3 h-3" />
                             )}
-                            <span className="text-xs">Generate</span>
                           </Button>
                           <Button
-                            size="sm"
+                            size="xs"
                             variant="default"
                             disabled={pub.publication_status === 'published' || publishingIds.has(pub.id)}
                             onClick={() => handlePublish(pub)}
-                            className="h-8"
                           >
                             {publishingIds.has(pub.id) ? (
-                              <Loader2 className="w-3 h-3 mr-1 animate-spin" />
+                              <Loader2 className="w-3 h-3 animate-spin" />
                             ) : (
-                              <Send className="w-3 h-3 mr-1" />
+                              <Send className="w-3 h-3" />
                             )}
-                            <span className="text-xs">Publish</span>
                           </Button>
                           <DropdownMenu>
                             <DropdownMenuTrigger asChild>
-                              <Button variant="ghost" size="icon" className="h-8 w-8">
-                                <MoreVertical className="w-4 h-4" />
+                              <Button variant="ghost" size="icon-xs">
+                                <MoreVertical className="w-3 h-3" />
                               </Button>
                             </DropdownMenuTrigger>
                             <DropdownMenuContent align="end">
