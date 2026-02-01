@@ -556,6 +556,8 @@ export type Database = {
       publishing_channels: {
         Row: {
           api_credentials: Json | null
+          back_cover_url: string | null
+          back_cover_video_url: string | null
           created_at: string
           id: string
           is_active: boolean | null
@@ -568,6 +570,8 @@ export type Database = {
         }
         Insert: {
           api_credentials?: Json | null
+          back_cover_url?: string | null
+          back_cover_video_url?: string | null
           created_at?: string
           id?: string
           is_active?: boolean | null
@@ -580,6 +584,8 @@ export type Database = {
         }
         Update: {
           api_credentials?: Json | null
+          back_cover_url?: string | null
+          back_cover_video_url?: string | null
           created_at?: string
           id?: string
           is_active?: boolean | null

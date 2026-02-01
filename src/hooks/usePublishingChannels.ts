@@ -12,6 +12,8 @@ export interface PublishingChannel {
   api_credentials: Json | null;
   post_text_prompt: string | null;
   is_active: boolean;
+  back_cover_url: string | null;
+  back_cover_video_url: string | null;
   created_at: string;
   updated_at: string;
 }
