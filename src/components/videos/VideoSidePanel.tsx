@@ -25,9 +25,9 @@ import {
   ChevronDown,
   Link as LinkIcon,
   X,
-  Plus,
 } from 'lucide-react';
 import { format } from 'date-fns';
+import { cn } from '@/lib/utils';
 
 interface VideoSidePanelProps {
   video: Video | null;
@@ -244,12 +244,6 @@ export function VideoSidePanel({
               />
             </div>
 
-            {/* Field deleted placeholder */}
-            <div className="bg-muted/50 rounded-lg p-3 flex items-center justify-center gap-2 text-sm text-muted-foreground">
-              <span className="text-yellow-600">⚠</span>
-              Field deleted
-            </div>
-
             {/* Video URL */}
             <div className="grid grid-cols-[140px_1fr] gap-2 items-center">
               <Label className="text-sm">Video URL</Label>
@@ -268,61 +262,45 @@ export function VideoSidePanel({
 
             <Separator className="my-4" />
 
-            {/* Publication channels */}
+            {/* Publication channels - Tag selection */}
             <div>
               <h4 className="font-medium text-sm mb-3">Publication channels</h4>
-              <div className="space-y-2">
-                {/* Existing channels from publications would go here */}
-                {selectedChannels.map((channelId) => {
-                  const channel = publishingChannels.find(c => c.id === channelId);
-                  if (!channel) return null;
+              <div className="flex flex-wrap gap-2">
+                {publishingChannels.map((channel) => {
+                  const isSelected = selectedChannels.includes(channel.id);
                   return (
-                    <div
-                      key={channelId}
-                      className="flex items-center justify-between border rounded-lg p-3"
+                    <Badge
+                      key={channel.id}
+                      variant={isSelected ? "default" : "outline"}
+                      className={cn(
+                        "cursor-pointer transition-colors px-3 py-1.5",
+                        isSelected 
+                          ? "bg-primary text-primary-foreground hover:bg-primary/90" 
+                          : "hover:bg-muted"
+                      )}
+                      onClick={() => {
+                        if (isSelected) {
+                          handleRemoveChannel(channel.id);
+                        } else {
+                          handleAddChannel(channel.id);
+                        }
+                      }}
                     >
-                      <span className="text-sm">{channel.name}</span>
-                      <button
-                        onClick={() => handleRemoveChannel(channelId)}
-                        className="text-muted-foreground hover:text-foreground"
-                      >
-                        <X className="w-4 h-4" />
-                      </button>
-                    </div>
+                      {channel.name}
+                    </Badge>
                   );
                 })}
-
-                {/* Add channel button */}
-                <div className="relative">
-                  <Select onValueChange={handleAddChannel}>
-                    <SelectTrigger className="w-full">
-                      <div className="flex items-center gap-2 text-muted-foreground">
-                        <Plus className="w-4 h-4" />
-                        Add record
-                      </div>
-                    </SelectTrigger>
-                    <SelectContent>
-                      {publishingChannels
-                        .filter(c => !selectedChannels.includes(c.id))
-                        .map((channel) => (
-                          <SelectItem key={channel.id} value={channel.id}>
-                            {channel.name} ({channel.network_type})
-                          </SelectItem>
-                        ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                {/* Publish button */}
-                {selectedChannels.length > 0 && (
-                  <Button
-                    className="w-full mt-3"
-                    onClick={handlePublish}
-                  >
-                    Опубликовать ({selectedChannels.length})
-                  </Button>
-                )}
               </div>
+              
+              {/* Publish button */}
+              {selectedChannels.length > 0 && (
+                <Button
+                  className="w-full mt-4"
+                  onClick={handlePublish}
+                >
+                  Опубликовать ({selectedChannels.length})
+                </Button>
+              )}
             </div>
           </div>
         </ScrollArea>
