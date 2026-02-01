@@ -326,6 +326,7 @@ export default function Index() {
               videos={allVideos}
               publications={publications}
               loading={allVideosLoading}
+              playlists={playlists}
               selectedQuestionIds={videoFilters.questionIds || []}
               onSelectionChange={(questionIds) => {
                 setVideoFilters(prev => ({ ...prev, questionIds: questionIds.length > 0 ? questionIds : undefined }));
@@ -338,10 +339,14 @@ export default function Index() {
                   await addVideo({
                     question_id: data.question_id,
                     question: data.question,
-                    question_rus: data.question,
+                    question_rus: data.question_rus || data.question,
+                    question_eng: data.question_eng,
+                    hook_rus: data.hook_rus,
                     safety_score: data.safety_score,
                     advisor_id: advisor.id,
                     video_number: data.question_id * 100 + (i + 1),
+                    playlist_id: data.playlist_id || undefined,
+                    publication_date: data.publication_date || undefined,
                   });
                 }
               }}
@@ -353,10 +358,36 @@ export default function Index() {
                 }
               }}
               onDeleteQuestion={async (questionId) => {
-                // Удаляем все ролики с этим question_id
                 const videosToDelete = allVideos.filter(v => v.question_id === questionId);
                 for (const video of videosToDelete) {
                   await deleteVideo(video.id);
+                }
+              }}
+              onBulkUpdateStatus={async (questionIds, status) => {
+                for (const questionId of questionIds) {
+                  const videosToUpdate = allVideos.filter(v => v.question_id === questionId);
+                  for (const video of videosToUpdate) {
+                    await updateVideo(video.id, { question_status: status });
+                  }
+                }
+                toast.success(`Статус обновлён для ${questionIds.length} вопросов`);
+              }}
+              onBulkUpdateSafety={async (questionIds, safety) => {
+                for (const questionId of questionIds) {
+                  const videosToUpdate = allVideos.filter(v => v.question_id === questionId);
+                  for (const video of videosToUpdate) {
+                    await updateVideo(video.id, { safety_score: safety });
+                  }
+                }
+                toast.success(`Безопасность обновлена для ${questionIds.length} вопросов`);
+              }}
+              onBulkGenerateCovers={async (questionIds) => {
+                toast.info(`Генерация обложек для ${questionIds.length} вопросов...`);
+                for (const questionId of questionIds) {
+                  const videosToUpdate = allVideos.filter(v => v.question_id === questionId);
+                  for (const video of videosToUpdate) {
+                    await handleGenerateCover(video);
+                  }
                 }
               }}
             />
