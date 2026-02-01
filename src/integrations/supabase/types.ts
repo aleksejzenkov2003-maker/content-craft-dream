@@ -792,6 +792,7 @@ export type Database = {
           reel_status: string | null
           relevance_score: number | null
           safety_score: string | null
+          selected_channels: string[] | null
           tiktok_url: string | null
           updated_at: string
           video_duration: number | null
@@ -833,6 +834,7 @@ export type Database = {
           reel_status?: string | null
           relevance_score?: number | null
           safety_score?: string | null
+          selected_channels?: string[] | null
           tiktok_url?: string | null
           updated_at?: string
           video_duration?: number | null
@@ -874,6 +876,7 @@ export type Database = {
           reel_status?: string | null
           relevance_score?: number | null
           safety_score?: string | null
+          selected_channels?: string[] | null
           tiktok_url?: string | null
           updated_at?: string
           video_duration?: number | null

@@ -44,6 +44,8 @@ export interface Video {
   relevance_score: number | null;
   question_status: string | null;
   voiceover_url: string | null;
+  // Selected channels for publication
+  selected_channels: string[] | null;
   // Joined data
   advisor?: {
     id: string;
