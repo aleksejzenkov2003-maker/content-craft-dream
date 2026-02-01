@@ -2,19 +2,26 @@ import { useState, useEffect, useMemo } from 'react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Checkbox } from '@/components/ui/checkbox';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
-import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Textarea } from '@/components/ui/textarea';
-import { Search, CheckCircle, Circle, Loader2, Plus, ArrowRight, X, FileSpreadsheet, Trash2, Check, Filter, ArrowUpDown, MoreHorizontal } from 'lucide-react';
+import { Search, CheckCircle, Circle, Loader2, Plus, ArrowRight, FileSpreadsheet, Trash2, Check, ArrowUpDown, MoreHorizontal, Image, RefreshCw, ArrowUp, ArrowDown } from 'lucide-react';
 import { Video as VideoType } from '@/hooks/useVideos';
 import { Publication } from '@/hooks/usePublications';
 import { format } from 'date-fns';
+import { ru } from 'date-fns/locale';
 import { QuestionSidePanel } from './QuestionSidePanel';
 import { CsvImporter } from '@/components/import/CsvImporter';
 import { VIDEO_COLUMN_MAPPING, VIDEO_PREVIEW_COLUMNS } from '@/components/import/importConfigs';
+import { InlineEdit, SelectOption } from '@/components/ui/inline-edit';
+import { BulkActionsBar, BulkActionButton } from '@/components/ui/bulk-actions-bar';
+import { QuestionFilters, FilterState } from './QuestionFilters';
+import { AddQuestionDialog } from './AddQuestionDialog';
+import { cn } from '@/lib/utils';
+
+interface Playlist {
+  id: string;
+  name: string;
+}
 
 interface QuestionsTableProps {
   videos: VideoType[];
@@ -22,11 +29,25 @@ interface QuestionsTableProps {
   loading: boolean;
   selectedQuestionIds?: number[];
   onSelectionChange?: (questionIds: number[]) => void;
-  onAddQuestion?: (data: { question_id: number; question: string; safety_score: string }) => void;
+  onAddQuestion?: (data: { 
+    question_id: number; 
+    question: string; 
+    question_rus?: string;
+    question_eng?: string;
+    hook_rus?: string;
+    hook_eng?: string;
+    safety_score: string;
+    playlist_id?: string | null;
+    publication_date?: string | null;
+  }) => void;
   onGoToVideos?: () => void;
-  onUpdateQuestion?: (questionId: number, updates: { question?: string; question_eng?: string; safety_score?: string; publication_date?: string }) => void;
+  onUpdateQuestion?: (questionId: number, updates: { question?: string; question_eng?: string; safety_score?: string; publication_date?: string; question_status?: string }) => void;
   onBulkImport?: (data: Record<string, any>[]) => Promise<void>;
   onDeleteQuestion?: (questionId: number) => Promise<void>;
+  playlists?: Playlist[];
+  onBulkUpdateStatus?: (questionIds: number[], status: string) => Promise<void>;
+  onBulkUpdateSafety?: (questionIds: number[], safety: string) => Promise<void>;
+  onBulkGenerateCovers?: (questionIds: number[]) => Promise<void>;
 }
 
 interface QuestionData {
@@ -47,12 +68,22 @@ interface QuestionData {
   has_published: boolean;
 }
 
-const safetyOptions = [
-  { value: 'safe', label: 'Безопасно', color: 'bg-green-500' },
-  { value: 'warning', label: 'Внимание', color: 'bg-yellow-500' },
-  { value: 'danger', label: 'Опасно', color: 'bg-red-500' },
-  { value: 'unchecked', label: 'Не проверено', color: 'bg-gray-500' },
+const safetyOptions: SelectOption[] = [
+  { value: 'safe', label: 'Безопасно' },
+  { value: 'warning', label: 'Внимание' },
+  { value: 'danger', label: 'Опасно' },
+  { value: 'unchecked', label: 'Не проверено' },
 ];
+
+const statusOptions: SelectOption[] = [
+  { value: 'pending', label: 'Ожидает' },
+  { value: 'checked', label: 'Проверен' },
+  { value: 'approved', label: 'Одобрен' },
+  { value: 'rejected', label: 'Отклонён' },
+];
+
+type SortColumn = 'id' | 'relevance' | 'date' | null;
+type SortDirection = 'asc' | 'desc';
 
 export function QuestionsTable({ 
   videos, 
@@ -64,25 +95,38 @@ export function QuestionsTable({
   onGoToVideos,
   onUpdateQuestion,
   onBulkImport,
-  onDeleteQuestion
+  onDeleteQuestion,
+  playlists = [],
+  onBulkUpdateStatus,
+  onBulkUpdateSafety,
+  onBulkGenerateCovers,
 }: QuestionsTableProps) {
   const [searchInput, setSearchInput] = useState('');
   const [showAddDialog, setShowAddDialog] = useState(false);
   const [showImporter, setShowImporter] = useState(false);
   const [editingQuestion, setEditingQuestion] = useState<QuestionData | null>(null);
   const [showEditPanel, setShowEditPanel] = useState(false);
-  // For video filtering (square checkbox in Status column)
   const [localSelectedIds, setLocalSelectedIds] = useState<number[]>(selectedQuestionIds);
-  // For bulk delete (circle checkbox in first column)
   const [bulkDeleteIds, setBulkDeleteIds] = useState<number[]>([]);
   const [deleteQuestionId, setDeleteQuestionId] = useState<number | null>(null);
   const [showBulkDeleteDialog, setShowBulkDeleteDialog] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
-  const [newQuestion, setNewQuestion] = useState({
-    question_id: 0,
-    question: '',
-    safety_score: 'unchecked'
+  const [isBulkUpdating, setIsBulkUpdating] = useState(false);
+  
+  // Filters and sorting state
+  const [filters, setFilters] = useState<FilterState>({
+    statusFilter: [],
+    safetyFilter: [],
+    dateRange: { from: null, to: null },
+    hasVideos: null,
   });
+  const [sortColumn, setSortColumn] = useState<SortColumn>(null);
+  const [sortDirection, setSortDirection] = useState<SortDirection>('asc');
+  
+  // Bulk action dialog state
+  const [showBulkStatusDialog, setShowBulkStatusDialog] = useState(false);
+  const [showBulkSafetyDialog, setShowBulkSafetyDialog] = useState(false);
+  const [bulkActionValue, setBulkActionValue] = useState('');
 
   useEffect(() => {
     setLocalSelectedIds(selectedQuestionIds);
@@ -131,32 +175,85 @@ export function QuestionsTable({
       }
     });
     
-    return Array.from(questionMap.values()).sort((a, b) => a.question_id - b.question_id);
+    return Array.from(questionMap.values());
   }, [videos, publications]);
 
+  // Apply filters
   const filteredQuestions = useMemo(() => {
-    if (!searchInput.trim()) return questions;
-    const search = searchInput.toLowerCase();
-    return questions.filter(q => 
-      q.question.toLowerCase().includes(search) ||
-      q.question_id.toString().includes(search)
-    );
-  }, [questions, searchInput]);
+    let result = questions;
+    
+    // Text search
+    if (searchInput.trim()) {
+      const search = searchInput.toLowerCase();
+      result = result.filter(q => 
+        q.question.toLowerCase().includes(search) ||
+        (q.question_rus?.toLowerCase().includes(search)) ||
+        (q.question_eng?.toLowerCase().includes(search)) ||
+        q.question_id.toString().includes(search)
+      );
+    }
+    
+    // Status filter
+    if (filters.statusFilter.length > 0) {
+      result = result.filter(q => filters.statusFilter.includes(q.question_status));
+    }
+    
+    // Safety filter
+    if (filters.safetyFilter.length > 0) {
+      result = result.filter(q => filters.safetyFilter.includes(q.safety_score));
+    }
+    
+    // Date range filter
+    if (filters.dateRange.from || filters.dateRange.to) {
+      result = result.filter(q => {
+        if (!q.planned_date) return false;
+        const date = new Date(q.planned_date);
+        if (filters.dateRange.from && date < filters.dateRange.from) return false;
+        if (filters.dateRange.to && date > filters.dateRange.to) return false;
+        return true;
+      });
+    }
+    
+    // Has videos filter
+    if (filters.hasVideos !== null) {
+      result = result.filter(q => q.has_video === filters.hasVideos);
+    }
+    
+    // Apply sorting
+    if (sortColumn) {
+      result = [...result].sort((a, b) => {
+        let comparison = 0;
+        switch (sortColumn) {
+          case 'id':
+            comparison = a.question_id - b.question_id;
+            break;
+          case 'relevance':
+            comparison = a.relevance_score - b.relevance_score;
+            break;
+          case 'date':
+            const dateA = a.planned_date ? new Date(a.planned_date).getTime() : 0;
+            const dateB = b.planned_date ? new Date(b.planned_date).getTime() : 0;
+            comparison = dateA - dateB;
+            break;
+        }
+        return sortDirection === 'asc' ? comparison : -comparison;
+      });
+    } else {
+      // Default sort by ID
+      result = [...result].sort((a, b) => a.question_id - b.question_id);
+    }
+    
+    return result;
+  }, [questions, searchInput, filters, sortColumn, sortDirection]);
 
   const nextQuestionId = useMemo(() => {
     if (questions.length === 0) return 1;
     return Math.max(...questions.map(q => q.question_id)) + 1;
   }, [questions]);
 
-  // For video filtering (square checkbox) - all selected
-  const allFilterSelected = filteredQuestions.length > 0 && 
-    filteredQuestions.every(q => localSelectedIds.includes(q.question_id));
-  
-  // For bulk delete (circle checkbox) - all selected
   const allBulkSelected = filteredQuestions.length > 0 && 
     filteredQuestions.every(q => bulkDeleteIds.includes(q.question_id));
 
-  // Toggle all for bulk delete (circle)
   const toggleBulkSelectAll = () => {
     if (allBulkSelected) {
       setBulkDeleteIds([]);
@@ -165,7 +262,6 @@ export function QuestionsTable({
     }
   };
 
-  // Toggle single for bulk delete (circle)
   const toggleBulkSelect = (questionId: number) => {
     setBulkDeleteIds(prev => 
       prev.includes(questionId)
@@ -174,7 +270,6 @@ export function QuestionsTable({
     );
   };
 
-  // Toggle single for video filtering (square checkbox)
   const toggleFilterSelect = (questionId: number) => {
     const newSelection = localSelectedIds.includes(questionId)
       ? localSelectedIds.filter(id => id !== questionId)
@@ -183,32 +278,37 @@ export function QuestionsTable({
     onSelectionChange?.(newSelection);
   };
 
-  const clearBulkSelection = () => {
-    setBulkDeleteIds([]);
-  };
-
-  const clearFilterSelection = () => {
-    setLocalSelectedIds([]);
-    onSelectionChange?.([]);
-  };
-
   const handleRowClick = (q: QuestionData) => {
     setEditingQuestion(q);
     setShowEditPanel(true);
   };
 
-  const handleAddQuestion = () => {
-    if (onAddQuestion && newQuestion.question.trim()) {
+  const handleAddQuestion = (data: {
+    question_id: number;
+    question_rus: string;
+    question_eng: string;
+    hook_rus: string;
+    hook_eng: string;
+    safety_score: string;
+    playlist_id: string | null;
+    publication_date: Date | null;
+  }) => {
+    if (onAddQuestion) {
       onAddQuestion({
-        ...newQuestion,
-        question_id: newQuestion.question_id || nextQuestionId
+        question_id: data.question_id,
+        question: data.question_rus || data.question_eng,
+        question_rus: data.question_rus,
+        question_eng: data.question_eng,
+        hook_rus: data.hook_rus,
+        hook_eng: data.hook_eng,
+        safety_score: data.safety_score,
+        playlist_id: data.playlist_id,
+        publication_date: data.publication_date?.toISOString() || null,
       });
-      setShowAddDialog(false);
-      setNewQuestion({ question_id: 0, question: '', safety_score: 'unchecked' });
     }
   };
 
-  const handleSaveQuestion = (questionId: number, updates: { question?: string; question_eng?: string; safety_score?: string; publication_date?: string }) => {
+  const handleSaveQuestion = (questionId: number, updates: { question?: string; question_eng?: string; safety_score?: string; publication_date?: string; question_status?: string }) => {
     onUpdateQuestion?.(questionId, updates);
   };
 
@@ -237,25 +337,92 @@ export function QuestionsTable({
     }
   };
 
+  const handleBulkStatusUpdate = async () => {
+    if (!onBulkUpdateStatus || !bulkActionValue) return;
+    setIsBulkUpdating(true);
+    try {
+      await onBulkUpdateStatus(bulkDeleteIds, bulkActionValue);
+      setShowBulkStatusDialog(false);
+      setBulkActionValue('');
+    } finally {
+      setIsBulkUpdating(false);
+    }
+  };
+
+  const handleBulkSafetyUpdate = async () => {
+    if (!onBulkUpdateSafety || !bulkActionValue) return;
+    setIsBulkUpdating(true);
+    try {
+      await onBulkUpdateSafety(bulkDeleteIds, bulkActionValue);
+      setShowBulkSafetyDialog(false);
+      setBulkActionValue('');
+    } finally {
+      setIsBulkUpdating(false);
+    }
+  };
+
+  const handleBulkGenerateCovers = async () => {
+    if (!onBulkGenerateCovers) return;
+    setIsBulkUpdating(true);
+    try {
+      await onBulkGenerateCovers(bulkDeleteIds);
+    } finally {
+      setIsBulkUpdating(false);
+    }
+  };
+
+  const handleSort = (column: SortColumn) => {
+    if (sortColumn === column) {
+      if (sortDirection === 'asc') {
+        setSortDirection('desc');
+      } else {
+        setSortColumn(null);
+        setSortDirection('asc');
+      }
+    } else {
+      setSortColumn(column);
+      setSortDirection('asc');
+    }
+  };
+
+  const getSortIcon = (column: SortColumn) => {
+    if (sortColumn !== column) {
+      return <ArrowUpDown className="w-3 h-3 ml-1 opacity-50" />;
+    }
+    return sortDirection === 'asc' 
+      ? <ArrowUp className="w-3 h-3 ml-1" />
+      : <ArrowDown className="w-3 h-3 ml-1" />;
+  };
+
   const getSafetyBadge = (score: string) => {
     const option = safetyOptions.find(o => o.value === score) || safetyOptions[3];
-    const isGreen = option.value === 'safe';
+    const colors: Record<string, string> = {
+      safe: 'bg-green-100 text-green-800',
+      warning: 'bg-yellow-100 text-yellow-800',
+      danger: 'bg-red-100 text-red-800',
+      unchecked: 'bg-gray-100 text-gray-600',
+    };
     return (
-      <div className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded text-xs font-medium ${
-        isGreen ? 'bg-green-100 text-green-800' : 
-        option.value === 'warning' ? 'bg-yellow-100 text-yellow-800' :
-        option.value === 'danger' ? 'bg-red-100 text-red-800' :
-        'bg-gray-100 text-gray-600'
-      }`}>
-        {isGreen && <Check className="w-3 h-3" />}
+      <div className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded text-xs font-medium ${colors[score] || colors.unchecked}`}>
+        {score === 'safe' && <Check className="w-3 h-3" />}
         {option.label}
       </div>
     );
   };
 
-  const getStatusIcon = (q: QuestionData) => {
-    if (q.has_published) return <CheckCircle className="w-4 h-4 text-green-500 fill-green-500" />;
-    return <Circle className="w-4 h-4 text-muted-foreground" />;
+  const getStatusBadge = (status: string) => {
+    const option = statusOptions.find(o => o.value === status) || statusOptions[0];
+    const colors: Record<string, string> = {
+      pending: 'bg-gray-100 text-gray-600',
+      checked: 'bg-blue-100 text-blue-800',
+      approved: 'bg-green-100 text-green-800',
+      rejected: 'bg-red-100 text-red-800',
+    };
+    return (
+      <div className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${colors[status] || colors.pending}`}>
+        {option.label}
+      </div>
+    );
   };
 
   if (loading) {
@@ -279,11 +446,8 @@ export function QuestionsTable({
           <Button variant="ghost" size="sm" className="text-xs gap-1">
             Group
           </Button>
-          <Button variant="ghost" size="sm" className="text-xs gap-1">
-            <Filter className="w-3 h-3" />
-            Filter
-          </Button>
-          <Button variant="ghost" size="sm" className="text-xs gap-1">
+          <QuestionFilters filters={filters} onFiltersChange={setFilters} />
+          <Button variant="ghost" size="sm" className="text-xs gap-1" onClick={() => handleSort('id')}>
             <ArrowUpDown className="w-3 h-3" />
             Sort
           </Button>
@@ -308,7 +472,7 @@ export function QuestionsTable({
           <FileSpreadsheet className="w-3 h-3 mr-1" />
           Импорт CSV
         </Button>
-        <Button size="sm" onClick={() => { setNewQuestion({ question_id: nextQuestionId, question: '', safety_score: 'unchecked' }); setShowAddDialog(true); }}>
+        <Button size="sm" onClick={() => setShowAddDialog(true)}>
           <Plus className="w-3 h-3 mr-1" />
           Добавить
         </Button>
@@ -317,22 +481,50 @@ export function QuestionsTable({
         </span>
       </div>
 
-      {/* Bulk delete bar (for circle checkboxes) */}
+      {/* Bulk actions bar */}
       {bulkDeleteIds.length > 0 && (
-        <div className="flex items-center gap-3 px-4 py-2 bg-destructive/10 border-b border-destructive/20">
-          <span className="text-sm font-medium text-destructive">
-            Для удаления: {bulkDeleteIds.length}
-          </span>
-          <Button variant="outline" size="sm" onClick={clearBulkSelection}>
-            <X className="w-3 h-3 mr-1" />
-            Сбросить
-          </Button>
-          {onDeleteQuestion && (
-            <Button variant="destructive" size="sm" onClick={() => setShowBulkDeleteDialog(true)}>
-              <Trash2 className="w-3 h-3 mr-1" />
-              Удалить
-            </Button>
-          )}
+        <div className="px-4 py-2 border-b">
+          <BulkActionsBar
+            selectedCount={bulkDeleteIds.length}
+            totalCount={filteredQuestions.length}
+            onClearSelection={() => setBulkDeleteIds([])}
+          >
+            {onDeleteQuestion && (
+              <BulkActionButton
+                variant="destructive"
+                icon={<Trash2 className="w-3 h-3 mr-1" />}
+                onClick={() => setShowBulkDeleteDialog(true)}
+              >
+                Удалить
+              </BulkActionButton>
+            )}
+            {onBulkUpdateStatus && (
+              <BulkActionButton
+                icon={<RefreshCw className="w-3 h-3 mr-1" />}
+                onClick={() => { setBulkActionValue(''); setShowBulkStatusDialog(true); }}
+              >
+                Статус
+              </BulkActionButton>
+            )}
+            {onBulkUpdateSafety && (
+              <BulkActionButton
+                icon={<Check className="w-3 h-3 mr-1" />}
+                onClick={() => { setBulkActionValue(''); setShowBulkSafetyDialog(true); }}
+              >
+                Безопасность
+              </BulkActionButton>
+            )}
+            {onBulkGenerateCovers && (
+              <BulkActionButton
+                variant="generate-cover"
+                icon={<Image className="w-3 h-3 mr-1" />}
+                onClick={handleBulkGenerateCovers}
+                loading={isBulkUpdating}
+              >
+                Обложки
+              </BulkActionButton>
+            )}
+          </BulkActionsBar>
         </div>
       )}
 
@@ -342,8 +534,7 @@ export function QuestionsTable({
           <span className="text-sm font-medium">
             Выбрано для фильтра: {localSelectedIds.length}
           </span>
-          <Button variant="outline" size="sm" onClick={clearFilterSelection}>
-            <X className="w-3 h-3 mr-1" />
+          <Button variant="outline" size="sm" onClick={() => { setLocalSelectedIds([]); onSelectionChange?.([]); }}>
             Сбросить
           </Button>
           {onGoToVideos && (
@@ -356,7 +547,7 @@ export function QuestionsTable({
       )}
 
       {/* Table header */}
-      <div className="grid grid-cols-[40px_60px_110px_70px_1fr_160px_50px_1fr] gap-0 px-4 py-2 border-b bg-muted/20 text-xs font-medium text-muted-foreground sticky top-0">
+      <div className="grid grid-cols-[40px_60px_120px_80px_1fr_130px_100px_1fr] gap-0 px-4 py-2 border-b bg-muted/20 text-xs font-medium text-muted-foreground sticky top-0">
         <div className="flex items-center justify-center">
           <button
             onClick={toggleBulkSelectAll}
@@ -367,13 +558,25 @@ export function QuestionsTable({
             {allBulkSelected && <Check className="w-2.5 h-2.5 text-white" />}
           </button>
         </div>
-        <div>ID</div>
+        <button className="flex items-center cursor-pointer hover:text-foreground" onClick={() => handleSort('id')}>
+          ID {getSortIcon('id')}
+        </button>
         <div>Безопасность</div>
-        <div>Актуальн.</div>
-        <div>Вопрос к духовнику рус</div>
-        <div>Plan. pub. date</div>
+        <button className="flex items-center cursor-pointer hover:text-foreground" onClick={() => handleSort('relevance')}>
+          Актуал. {getSortIcon('relevance')}
+        </button>
+        <div className="flex items-center gap-1">
+          Вопрос
+          <Badge variant="outline" className="text-[10px] px-1 py-0 font-normal">RU</Badge>
+        </div>
+        <button className="flex items-center cursor-pointer hover:text-foreground" onClick={() => handleSort('date')}>
+          Дата {getSortIcon('date')}
+        </button>
         <div>Статус</div>
-        <div>Вопрос к духовнику eng</div>
+        <div className="flex items-center gap-1">
+          Вопрос
+          <Badge variant="outline" className="text-[10px] px-1 py-0 font-normal">EN</Badge>
+        </div>
       </div>
 
       {/* Table body */}
@@ -386,12 +589,12 @@ export function QuestionsTable({
           filteredQuestions.map((q) => (
             <div
               key={q.question_id}
-              className={`group grid grid-cols-[40px_60px_110px_70px_1fr_160px_50px_1fr] gap-0 px-4 py-2 border-b hover:bg-muted/30 cursor-pointer transition-colors text-sm ${
+              className={`group grid grid-cols-[40px_60px_120px_80px_1fr_130px_100px_1fr] gap-0 px-4 py-2 border-b hover:bg-muted/30 cursor-pointer transition-colors text-sm ${
                 bulkDeleteIds.includes(q.question_id) ? 'bg-destructive/5' : localSelectedIds.includes(q.question_id) ? 'bg-primary/5' : ''
               }`}
               onClick={() => handleRowClick(q)}
             >
-              {/* Column 1: Circle for bulk delete */}
+              {/* Column 1: Circle for bulk actions */}
               <div className="flex items-center justify-center" onClick={(e) => e.stopPropagation()}>
                 <button
                   onClick={() => toggleBulkSelect(q.question_id)}
@@ -404,26 +607,55 @@ export function QuestionsTable({
                   {bulkDeleteIds.includes(q.question_id) && <Check className="w-2.5 h-2.5 text-white" />}
                 </button>
               </div>
+              
               {/* Column 2: ID */}
               <div className="flex items-center text-muted-foreground">{q.question_id}</div>
-              {/* Column 3: Safety */}
-              <div className="flex items-center">{getSafetyBadge(q.safety_score)}</div>
+              
+              {/* Column 3: Safety - Inline Edit */}
+              <div className="flex items-center" onClick={(e) => e.stopPropagation()}>
+                <InlineEdit
+                  type="select"
+                  value={q.safety_score}
+                  options={safetyOptions}
+                  onSave={(value) => handleSaveQuestion(q.question_id, { safety_score: value })}
+                  formatDisplay={(val) => {
+                    const opt = safetyOptions.find(o => o.value === val);
+                    return opt?.label || 'Не проверено';
+                  }}
+                  displayClassName="text-xs"
+                />
+              </div>
+              
               {/* Column 4: Relevance */}
               <div className="flex items-center text-muted-foreground">{q.relevance_score || '—'}</div>
+              
               {/* Column 5: Question RUS */}
               <div className="flex items-center truncate pr-2">{q.question_rus || q.question}</div>
-              {/* Column 6: Planned publication date */}
-              <div className="flex items-center gap-2 text-muted-foreground text-xs">
-                {q.planned_date ? (
-                  <>
-                    <span>{format(new Date(q.planned_date), 'd/M/yyyy')}</span>
-                    <span>{format(new Date(q.planned_date), 'HH:mm')}</span>
-                  </>
-                ) : (
-                  '—'
-                )}
+              
+              {/* Column 6: Planned publication date - Inline Edit */}
+              <div className="flex items-center" onClick={(e) => e.stopPropagation()}>
+                <InlineEdit
+                  type="datetime"
+                  value={q.planned_date}
+                  onSave={(value) => handleSaveQuestion(q.question_id, { publication_date: value })}
+                  placeholder="—"
+                  displayClassName="text-xs text-muted-foreground"
+                />
               </div>
-              <div className="flex items-center justify-center" onClick={(e) => e.stopPropagation()}>
+              
+              {/* Column 7: Status - Inline Edit + Filter checkbox */}
+              <div className="flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
+                <InlineEdit
+                  type="select"
+                  value={q.question_status}
+                  options={statusOptions}
+                  onSave={(value) => handleSaveQuestion(q.question_id, { question_status: value })}
+                  formatDisplay={(val) => {
+                    const opt = statusOptions.find(o => o.value === val);
+                    return opt?.label || 'Ожидает';
+                  }}
+                  displayClassName="text-xs"
+                />
                 <button
                   onClick={() => toggleFilterSelect(q.question_id)}
                   className={`w-4 h-4 rounded-sm border-2 flex items-center justify-center transition-colors ${
@@ -435,6 +667,7 @@ export function QuestionsTable({
                   {localSelectedIds.includes(q.question_id) && <Check className="w-2.5 h-2.5 text-white" />}
                 </button>
               </div>
+              
               {/* Column 8: Question ENG */}
               <div className="flex items-center truncate text-muted-foreground pr-2">
                 {q.question_eng || '—'}
@@ -445,63 +678,13 @@ export function QuestionsTable({
       </div>
 
       {/* Add Question Dialog */}
-      <Dialog open={showAddDialog} onOpenChange={setShowAddDialog}>
-        <DialogContent className="max-w-lg">
-          <DialogHeader>
-            <DialogTitle>Добавить новый вопрос</DialogTitle>
-          </DialogHeader>
-          <div className="space-y-4 py-4">
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label>ID вопроса</Label>
-                <Input
-                  type="number"
-                  value={newQuestion.question_id || ''}
-                  onChange={(e) => setNewQuestion(prev => ({ ...prev, question_id: parseInt(e.target.value) || 0 }))}
-                  placeholder={nextQuestionId.toString()}
-                />
-              </div>
-              <div className="space-y-2">
-                <Label>Безопасность</Label>
-                <Select
-                  value={newQuestion.safety_score}
-                  onValueChange={(value) => setNewQuestion(prev => ({ ...prev, safety_score: value }))}
-                >
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {safetyOptions.map(opt => (
-                      <SelectItem key={opt.value} value={opt.value}>
-                        <div className="flex items-center gap-2">
-                          <span className={`w-2 h-2 rounded-full ${opt.color}`} />
-                          {opt.label}
-                        </div>
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
-            <div className="space-y-2">
-              <Label>Текст вопроса</Label>
-              <Textarea
-                value={newQuestion.question}
-                onChange={(e) => setNewQuestion(prev => ({ ...prev, question: e.target.value }))}
-                placeholder="Введите текст вопроса..."
-                rows={3}
-              />
-            </div>
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setShowAddDialog(false)}>Отмена</Button>
-            <Button onClick={handleAddQuestion} disabled={!newQuestion.question.trim()}>
-              <Plus className="w-4 h-4 mr-2" />
-              Добавить
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      <AddQuestionDialog
+        open={showAddDialog}
+        onOpenChange={setShowAddDialog}
+        nextQuestionId={nextQuestionId}
+        playlists={playlists}
+        onAdd={handleAddQuestion}
+      />
 
       {/* Edit Question Side Panel */}
       <QuestionSidePanel
@@ -566,6 +749,74 @@ export function QuestionsTable({
             >
               {isDeleting ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : null}
               Удалить все
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Bulk Status Update Dialog */}
+      <AlertDialog open={showBulkStatusDialog} onOpenChange={setShowBulkStatusDialog}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Изменить статус для {bulkDeleteIds.length} вопросов</AlertDialogTitle>
+            <AlertDialogDescription>
+              Выберите новый статус для выбранных вопросов.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <div className="py-4">
+            <Select value={bulkActionValue} onValueChange={setBulkActionValue}>
+              <SelectTrigger>
+                <SelectValue placeholder="Выберите статус..." />
+              </SelectTrigger>
+              <SelectContent>
+                {statusOptions.map(opt => (
+                  <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={isBulkUpdating}>Отмена</AlertDialogCancel>
+            <AlertDialogAction 
+              onClick={handleBulkStatusUpdate} 
+              disabled={isBulkUpdating || !bulkActionValue}
+            >
+              {isBulkUpdating ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : null}
+              Применить
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Bulk Safety Update Dialog */}
+      <AlertDialog open={showBulkSafetyDialog} onOpenChange={setShowBulkSafetyDialog}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Изменить безопасность для {bulkDeleteIds.length} вопросов</AlertDialogTitle>
+            <AlertDialogDescription>
+              Выберите новый уровень безопасности для выбранных вопросов.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <div className="py-4">
+            <Select value={bulkActionValue} onValueChange={setBulkActionValue}>
+              <SelectTrigger>
+                <SelectValue placeholder="Выберите уровень..." />
+              </SelectTrigger>
+              <SelectContent>
+                {safetyOptions.map(opt => (
+                  <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={isBulkUpdating}>Отмена</AlertDialogCancel>
+            <AlertDialogAction 
+              onClick={handleBulkSafetyUpdate} 
+              disabled={isBulkUpdating || !bulkActionValue}
+            >
+              {isBulkUpdating ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : null}
+              Применить
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
