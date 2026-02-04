@@ -1,114 +1,62 @@
 
-# Комплексный план улучшений UI/UX
+# План: Исправление логики передачи вопросов и роликов
 
-## Статус реализации
+## Проблема
 
-### ✅ Завершено
+Сейчас есть несоответствие между статусами вопросов и фильтрацией роликов:
 
-#### Фаза 1: Экран «Вопросы» (Questions)
-- [x] **1.1 Inline-редактирование даты** — добавлен datetime picker с выбором времени
-- [x] **1.2 Массовые действия** — добавлена массовая установка даты публикации
-- [x] **1.3 Объединение RU/EN** — колонки объединены, EN доступен по hover
+1. **В таблице Вопросов** пользователь меняет статус на "Проверен" (checked)
+2. **В таблице Роликов** показываются только ролики со статусом "Одобрен" (approved)
+3. **Чекбокс в столбце "Статус"** предназначен для фильтрации вопросов, а не для изменения статуса
 
-#### Фаза 4: Экран «Канбан публикаций» (Kanban)
-- [x] **4.1 Drag&drop с изменением статуса** — колонки по статусам с перетаскиванием
-- [x] **4.2 Быстрые действия** — кнопки "Опубликовать" и "Повторить"
-- [x] **4.3 Отображение ошибок** — tooltip с текстом ошибки
-
-#### Фаза 2: Экран «Ролики» (Videos) — частично
-- [x] **2.6 Каналы публикации** — чекбоксы каналов с автосохранением в selected_channels
-- [x] **2.7 Дедубликация публикаций** — проверка video_id + channel_id перед созданием
-
-#### Фаза 3: Экран «Публикации» (Publications)
-- [x] **3.1 Массовая установка даты** — bulk date picker dialog
-- [x] **3.2 Редактор публикации** — PublicationEditDialog с текстом, датой, статусом
-- [x] **3.3 Дедубликация при импорте** — пропуск существующих пар video+channel
-
-#### Фаза 6: Экран «Задние обложки» (Back Covers)
-- [x] **6.1 Привязка к каналам** — миграция + рефакторинг BackCoversGrid
-
----
-
-### 🔄 В работе
-
-#### Фаза 2: Экран «Ролики» (Videos)
-- [ ] **2.1 Разделение генерации** — первичная/повторная генерация
-- [ ] **2.2 Варианты обложек/видео** — требуется миграция
-- [ ] **2.3 Галерея вариантов** — VariantsGallery.tsx
-- [ ] **2.4 Редактируемый промпт** — inline-edit cover_prompt
-- [ ] **2.5 Статусы с ошибками** — tooltip с error_message
-
-#### Фаза 5: Экран «Сцены» (Scenes)
-- [ ] **5.2 Варианты сцен** — требуется миграция
-- [ ] **5.3 Reject с комментарием** — rejection_reason
-
-#### Сквозные задачи
-- [ ] **S.1 Унификация кнопок** — variants в button.tsx
-- [ ] **S.2 Иконки удаления** — единый стиль
-- [ ] **S.3 Gemini API** — интеграция для генерации
-
----
-
-## Выполненные миграции
-
-```sql
--- ✅ Фаза 2.6: Выбранные каналы для ролика
-ALTER TABLE videos ADD COLUMN selected_channels uuid[] DEFAULT '{}';
-
--- ✅ Фаза 6.1: Back covers для каналов
-ALTER TABLE publishing_channels ADD COLUMN back_cover_url text;
-ALTER TABLE publishing_channels ADD COLUMN back_cover_video_url text;
+Текущая логика фильтрации в VideosTable:
+```
+let result = videos.filter(v => v.question_status === 'approved');
 ```
 
----
+Это означает, что вопросы со статусом "Проверен" (checked) не попадают в раздел "Ролики".
 
-## Оставшиеся миграции
+## Решение
 
-```sql
--- Фаза 2.2: Варианты обложек и видео
-CREATE TABLE cover_variants (
-  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  video_id uuid REFERENCES videos(id) ON DELETE CASCADE,
-  image_url text NOT NULL,
-  prompt text,
-  is_active boolean DEFAULT false,
-  created_at timestamptz DEFAULT now()
-);
+**Вариант 1**: Показывать ролики для всех проверенных вопросов (checked + approved)
 
-CREATE TABLE video_variants (
-  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  video_id uuid REFERENCES videos(id) ON DELETE CASCADE,
-  video_url text NOT NULL,
-  is_active boolean DEFAULT false,
-  created_at timestamptz DEFAULT now()
-);
+**Вариант 2**: Изменить workflow - "Проверен" автоматически переходит в "Одобрен"
 
--- Фаза 2.5: Ошибки генерации
-ALTER TABLE videos ADD COLUMN cover_error_message text;
-ALTER TABLE videos ADD COLUMN video_error_message text;
+**Рекомендуемый вариант 1**: Изменить фильтрацию в VideosTable
 
--- Фаза 5.3: Комментарий отклонения сцены
-ALTER TABLE playlist_scenes ADD COLUMN rejection_reason text;
+### Изменения в файле `src/components/videos/VideosTable.tsx`
 
--- Фаза 5.2: Варианты сцен
-CREATE TABLE scene_variants (
-  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  scene_id uuid REFERENCES playlist_scenes(id) ON DELETE CASCADE,
-  image_url text NOT NULL,
-  prompt text,
-  is_active boolean DEFAULT false,
-  created_at timestamptz DEFAULT now()
+Строка 180 - изменить фильтр с:
+```typescript
+let result = videos.filter(v => v.question_status === 'approved');
+```
+
+На:
+```typescript
+let result = videos.filter(v => 
+  v.question_status === 'approved' || v.question_status === 'checked'
 );
 ```
 
----
+### Изменения в файле `src/pages/Index.tsx`
 
-## Порядок реализации (оставшееся)
+Строка 80 - синхронизировать счётчик в sidebar:
+```typescript
+videos: videos.filter(v => 
+  v.question_status === 'approved' || v.question_status === 'checked'
+).length,
+```
 
-| Приоритет | Фаза | Описание | Сложность |
-|-----------|------|----------|-----------|
-| 1 | 2.2, 2.3 | Варианты обложек/видео + галерея | Высокая |
-| 2 | 2.5 | Статусы с ошибками | Низкая |
-| 3 | 5.2, 5.3 | Варианты сцен + reject комментарий | Средняя |
-| 4 | S.1, S.2 | Унификация UI | Низкая |
-| 5 | S.3 | Gemini API интеграция | Средняя |
+## Технические детали
+
+| Файл | Изменение |
+|------|-----------|
+| `src/components/videos/VideosTable.tsx` | Добавить `checked` к фильтру статусов (строка ~180) |
+| `src/pages/Index.tsx` | Обновить подсчёт sidebarCounts (строка ~80) |
+
+## Альтернативное уточнение
+
+Если нужно другое поведение (например, только "Одобрен" показывать в роликах, а "Проверен" - промежуточный статус для модерации), то UI остаётся как есть и нужно объяснить пользователю workflow:
+1. Вопрос создаётся → статус "Ожидает"
+2. Модератор проверяет → статус "Проверен"  
+3. Модератор одобряет → статус "Одобрен" → появляется в Роликах
