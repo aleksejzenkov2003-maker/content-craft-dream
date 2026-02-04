@@ -176,8 +176,8 @@ export function VideosTable({
 
   // Apply advanced filters
   const filteredVideos = useMemo(() => {
-    // Only show videos with approved question status
-    let result = videos.filter(v => v.question_status === 'approved');
+    // Only show videos with checked or approved question status
+    let result = videos.filter(v => v.question_status === 'approved' || v.question_status === 'checked');
 
     // Question filter
     if (filters.questionId !== undefined) {
