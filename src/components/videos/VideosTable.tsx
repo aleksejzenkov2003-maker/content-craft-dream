@@ -250,16 +250,17 @@ export function VideosTable({
     });
   }, [filteredVideos, sortColumn, sortDirection]);
 
-  // Group videos by question
+  // Group videos by composite key (question_id + question text)
   const groupedVideos = useMemo(() => {
     return sortedVideos.reduce((acc, video) => {
-      const question = video.question || 'Без вопроса';
-      if (!acc[question]) {
-        acc[question] = [];
+      const questionText = video.question_rus || video.question_eng || video.question || 'Без вопроса';
+      const uniqueKey = `${video.question_id}_${questionText}`;
+      if (!acc[uniqueKey]) {
+        acc[uniqueKey] = { questionId: video.question_id, questionText, videos: [] };
       }
-      acc[question].push(video);
+      acc[uniqueKey].videos.push(video);
       return acc;
-    }, {} as Record<string, Video[]>);
+    }, {} as Record<string, { questionId: number | null; questionText: string; videos: Video[] }>);
   }, [sortedVideos]);
 
   // Selection handlers
@@ -456,11 +457,11 @@ export function VideosTable({
         </div>
       ) : (
         <div className="space-y-2">
-          {Object.entries(groupedVideos).map(([question, questionVideos]) => (
-            <div key={question} className="border-b border-border/50">
+          {Object.entries(groupedVideos).map(([uniqueKey, { questionId, questionText, videos: questionVideos }]) => (
+            <div key={uniqueKey} className="border-b border-border/50">
               <Collapsible
-                open={isExpanded(question)}
-                onOpenChange={() => toggleQuestion(question)}
+                open={isExpanded(uniqueKey)}
+                onOpenChange={() => toggleQuestion(uniqueKey)}
               >
                 {/* Question Header */}
                 <CollapsibleTrigger asChild>
@@ -471,12 +472,13 @@ export function VideosTable({
                       onClick={(e) => e.stopPropagation()}
                     />
                     <Sparkles className="w-4 h-4 text-yellow-500" />
-                    {isExpanded(question) ? (
+                    {isExpanded(uniqueKey) ? (
                       <ChevronDown className="w-4 h-4 text-muted-foreground" />
                     ) : (
                       <ChevronRight className="w-4 h-4 text-muted-foreground" />
                     )}
-                    <span className="font-medium text-sm">{question}</span>
+                    <span className="text-muted-foreground text-xs font-mono">#{questionId}</span>
+                    <span className="font-medium text-sm">{questionText}</span>
                     <span className="text-muted-foreground text-sm ml-2">{questionVideos.length}</span>
                   </div>
                 </CollapsibleTrigger>

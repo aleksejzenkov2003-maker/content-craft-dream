@@ -30,8 +30,8 @@ interface QuestionsTableProps {
   videos: VideoType[];
   publications: Publication[];
   loading: boolean;
-  selectedQuestionIds?: number[];
-  onSelectionChange?: (questionIds: number[]) => void;
+  selectedQuestionIds?: string[];
+  onSelectionChange?: (questionKeys: string[]) => void;
   onAddQuestion?: (data: { 
     question_id: number; 
     question: string; 
@@ -44,17 +44,18 @@ interface QuestionsTableProps {
     publication_date?: string | null;
   }) => void;
   onGoToVideos?: () => void;
-  onUpdateQuestion?: (questionId: number, updates: { question?: string; question_eng?: string; safety_score?: string; publication_date?: string; question_status?: string }) => void;
+  onUpdateQuestion?: (uniqueKey: string, updates: { question?: string; question_eng?: string; safety_score?: string; publication_date?: string; question_status?: string }) => void;
   onBulkImport?: (data: Record<string, any>[]) => Promise<void>;
-  onDeleteQuestion?: (questionId: number) => Promise<void>;
+  onDeleteQuestion?: (uniqueKey: string) => Promise<void>;
   playlists?: Playlist[];
-  onBulkUpdateStatus?: (questionIds: number[], status: string) => Promise<void>;
-  onBulkUpdateSafety?: (questionIds: number[], safety: string) => Promise<void>;
-  onBulkGenerateCovers?: (questionIds: number[]) => Promise<void>;
-  onBulkUpdateDate?: (questionIds: number[], date: string) => Promise<void>;
+  onBulkUpdateStatus?: (uniqueKeys: string[], status: string) => Promise<void>;
+  onBulkUpdateSafety?: (uniqueKeys: string[], safety: string) => Promise<void>;
+  onBulkGenerateCovers?: (uniqueKeys: string[]) => Promise<void>;
+  onBulkUpdateDate?: (uniqueKeys: string[], date: string) => Promise<void>;
 }
 
 interface QuestionData {
+  unique_key: string;
   question_id: number;
   question: string;
   question_rus: string | null;
@@ -109,9 +110,9 @@ export function QuestionsTable({
   const [showImporter, setShowImporter] = useState(false);
   const [editingQuestion, setEditingQuestion] = useState<QuestionData | null>(null);
   const [showEditPanel, setShowEditPanel] = useState(false);
-  const [localSelectedIds, setLocalSelectedIds] = useState<number[]>(selectedQuestionIds);
-  const [bulkDeleteIds, setBulkDeleteIds] = useState<number[]>([]);
-  const [deleteQuestionId, setDeleteQuestionId] = useState<number | null>(null);
+  const [localSelectedIds, setLocalSelectedIds] = useState<string[]>(selectedQuestionIds || []);
+  const [bulkDeleteIds, setBulkDeleteIds] = useState<string[]>([]);
+  const [deleteQuestionKey, setDeleteQuestionKey] = useState<string | null>(null);
   const [showBulkDeleteDialog, setShowBulkDeleteDialog] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
   const [isBulkUpdating, setIsBulkUpdating] = useState(false);
@@ -139,13 +140,15 @@ export function QuestionsTable({
     setLocalSelectedIds(selectedQuestionIds);
   }, [selectedQuestionIds]);
 
-  // Aggregate questions from videos
+  // Aggregate questions from videos using composite key (question_id + question_rus)
   const questions = useMemo(() => {
-    const questionMap = new Map<number, QuestionData>();
+    const questionMap = new Map<string, QuestionData>();
     
     videos.forEach(video => {
       if (video.question_id !== null && video.question_id !== undefined) {
-        const existing = questionMap.get(video.question_id);
+        // Create unique key combining question_id and question text
+        const uniqueKey = `${video.question_id}_${video.question_rus || video.question_eng || video.question || ''}`;
+        const existing = questionMap.get(uniqueKey);
         const videoPublications = publications.filter(p => p.video_id === video.id);
         
         if (existing) {
@@ -161,7 +164,8 @@ export function QuestionsTable({
             existing.relevance_score = video.relevance_score || 0;
           }
         } else {
-          questionMap.set(video.question_id, {
+          questionMap.set(uniqueKey, {
+            unique_key: uniqueKey,
             question_id: video.question_id,
             question: video.question || '',
             question_rus: video.question_rus || null,
@@ -259,28 +263,28 @@ export function QuestionsTable({
   }, [questions]);
 
   const allBulkSelected = filteredQuestions.length > 0 && 
-    filteredQuestions.every(q => bulkDeleteIds.includes(q.question_id));
+    filteredQuestions.every(q => bulkDeleteIds.includes(q.unique_key));
 
   const toggleBulkSelectAll = () => {
     if (allBulkSelected) {
       setBulkDeleteIds([]);
     } else {
-      setBulkDeleteIds(filteredQuestions.map(q => q.question_id));
+      setBulkDeleteIds(filteredQuestions.map(q => q.unique_key));
     }
   };
 
-  const toggleBulkSelect = (questionId: number) => {
+  const toggleBulkSelect = (uniqueKey: string) => {
     setBulkDeleteIds(prev => 
-      prev.includes(questionId)
-        ? prev.filter(id => id !== questionId)
-        : [...prev, questionId]
+      prev.includes(uniqueKey)
+        ? prev.filter(id => id !== uniqueKey)
+        : [...prev, uniqueKey]
     );
   };
 
-  const toggleFilterSelect = (questionId: number) => {
-    const newSelection = localSelectedIds.includes(questionId)
-      ? localSelectedIds.filter(id => id !== questionId)
-      : [...localSelectedIds, questionId];
+  const toggleFilterSelect = (uniqueKey: string) => {
+    const newSelection = localSelectedIds.includes(uniqueKey)
+      ? localSelectedIds.filter(id => id !== uniqueKey)
+      : [...localSelectedIds, uniqueKey];
     setLocalSelectedIds(newSelection);
     onSelectionChange?.(newSelection);
   };
@@ -315,16 +319,16 @@ export function QuestionsTable({
     }
   };
 
-  const handleSaveQuestion = (questionId: number, updates: { question?: string; question_eng?: string; safety_score?: string; publication_date?: string; question_status?: string }) => {
-    onUpdateQuestion?.(questionId, updates);
+  const handleSaveQuestion = (uniqueKey: string, updates: { question?: string; question_eng?: string; safety_score?: string; publication_date?: string; question_status?: string }) => {
+    onUpdateQuestion?.(uniqueKey, updates);
   };
 
   const handleDeleteQuestion = async () => {
-    if (deleteQuestionId === null || !onDeleteQuestion) return;
+    if (deleteQuestionKey === null || !onDeleteQuestion) return;
     setIsDeleting(true);
     try {
-      await onDeleteQuestion(deleteQuestionId);
-      setDeleteQuestionId(null);
+      await onDeleteQuestion(deleteQuestionKey);
+      setDeleteQuestionKey(null);
     } finally {
       setIsDeleting(false);
     }
@@ -334,8 +338,8 @@ export function QuestionsTable({
     if (bulkDeleteIds.length === 0 || !onDeleteQuestion) return;
     setIsDeleting(true);
     try {
-      for (const questionId of bulkDeleteIds) {
-        await onDeleteQuestion(questionId);
+      for (const uniqueKey of bulkDeleteIds) {
+        await onDeleteQuestion(uniqueKey);
       }
       setBulkDeleteIds([]);
       setShowBulkDeleteDialog(false);
@@ -609,17 +613,17 @@ export function QuestionsTable({
         ) : (
           filteredQuestions.map((q) => (
             <div
-              key={q.question_id}
+              key={q.unique_key}
               className={`group grid grid-cols-[40px_60px_120px_80px_1fr_130px_100px] gap-0 px-4 py-2 border-b hover:bg-muted/30 cursor-pointer transition-colors text-sm ${
-                bulkDeleteIds.includes(q.question_id) ? 'bg-destructive/5' : localSelectedIds.includes(q.question_id) ? 'bg-primary/5' : ''
+                bulkDeleteIds.includes(q.unique_key) ? 'bg-destructive/5' : localSelectedIds.includes(q.unique_key) ? 'bg-primary/5' : ''
               }`}
               onClick={() => handleRowClick(q)}
             >
               {/* Column 1: Checkbox for bulk actions */}
               <div className="flex items-center justify-center" onClick={(e) => e.stopPropagation()}>
                 <Checkbox
-                  checked={bulkDeleteIds.includes(q.question_id)}
-                  onCheckedChange={() => toggleBulkSelect(q.question_id)}
+                  checked={bulkDeleteIds.includes(q.unique_key)}
+                  onCheckedChange={() => toggleBulkSelect(q.unique_key)}
                   className="rounded-sm"
                 />
               </div>
@@ -633,7 +637,7 @@ export function QuestionsTable({
                   type="select"
                   value={q.safety_score}
                   options={safetyOptions}
-                  onSave={(value) => handleSaveQuestion(q.question_id, { safety_score: value })}
+                  onSave={(value) => handleSaveQuestion(q.unique_key, { safety_score: value })}
                   formatDisplay={(val) => {
                     const opt = safetyOptions.find(o => o.value === val);
                     return opt?.label || 'Не проверено';
@@ -683,7 +687,7 @@ export function QuestionsTable({
                 <InlineEdit
                   type="datetime"
                   value={q.planned_date}
-                  onSave={(value) => handleSaveQuestion(q.question_id, { publication_date: value })}
+                  onSave={(value) => handleSaveQuestion(q.unique_key, { publication_date: value })}
                   placeholder="—"
                   displayClassName="text-xs text-muted-foreground"
                 />
@@ -695,7 +699,7 @@ export function QuestionsTable({
                   type="select"
                   value={q.question_status}
                   options={statusOptions}
-                  onSave={(value) => handleSaveQuestion(q.question_id, { question_status: value })}
+                  onSave={(value) => handleSaveQuestion(q.unique_key, { question_status: value })}
                   formatDisplay={(val) => {
                     const opt = statusOptions.find(o => o.value === val);
                     return opt?.label || 'Ожидает';
@@ -703,8 +707,8 @@ export function QuestionsTable({
                   displayClassName="text-xs"
                 />
                 <Checkbox
-                  checked={localSelectedIds.includes(q.question_id)}
-                  onCheckedChange={() => toggleFilterSelect(q.question_id)}
+                  checked={localSelectedIds.includes(q.unique_key)}
+                  onCheckedChange={() => toggleFilterSelect(q.unique_key)}
                   className="rounded-sm border-primary data-[state=checked]:bg-primary"
                 />
               </div>
@@ -745,10 +749,10 @@ export function QuestionsTable({
       />
 
       {/* Delete Confirmation Dialog */}
-      <AlertDialog open={deleteQuestionId !== null} onOpenChange={(open) => !open && setDeleteQuestionId(null)}>
+      <AlertDialog open={deleteQuestionKey !== null} onOpenChange={(open) => !open && setDeleteQuestionKey(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Удалить вопрос #{deleteQuestionId}?</AlertDialogTitle>
+            <AlertDialogTitle>Удалить вопрос?</AlertDialogTitle>
             <AlertDialogDescription>
               Это действие удалит вопрос и все связанные с ним ролики и публикации. Это действие нельзя отменить.
             </AlertDialogDescription>
