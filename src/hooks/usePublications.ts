@@ -95,7 +95,7 @@ export function usePublications(filters?: PublicationFilters) {
     fetchPublications();
   }, [fetchPublications]);
 
-  const addPublication = async (data: Partial<Publication>) => {
+  const addPublication = async (data: Partial<Publication>, autoGenerateText = true) => {
     try {
       // Дедубликация: проверяем существование пары video_id + channel_id
       if (data.video_id && data.channel_id) {
@@ -119,6 +119,18 @@ export function usePublications(filters?: PublicationFilters) {
         .single();
 
       if (error) throw error;
+
+      // Автогенерация текста при создании публикации
+      if (autoGenerateText && inserted?.id) {
+        try {
+          await supabase.functions.invoke('generate-post-text', {
+            body: { publicationId: inserted.id },
+          });
+        } catch (e) {
+          console.error('Auto-generate text failed:', e);
+          // Не блокируем создание публикации при ошибке генерации
+        }
+      }
 
       await fetchPublications();
       toast.success('Публикация создана');
