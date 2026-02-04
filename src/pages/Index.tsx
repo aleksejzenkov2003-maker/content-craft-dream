@@ -350,10 +350,8 @@ export default function Index() {
               publications={publications}
               loading={allVideosLoading}
               playlists={playlists}
-              selectedQuestionIds={videoFilters.questionIds || []}
-              onSelectionChange={(questionIds) => {
-                setVideoFilters(prev => ({ ...prev, questionIds: questionIds.length > 0 ? questionIds : undefined }));
-              }}
+              selectedQuestionIds={[]}
+              onSelectionChange={() => {}}
               onAddQuestion={async (data) => {
                 // Create one video per active advisor
                 const activeAdvisors = advisors.filter(a => a.is_active !== false);
@@ -374,8 +372,17 @@ export default function Index() {
                 }
               }}
               onGoToVideos={() => setActiveTab('videos')}
-              onUpdateQuestion={async (questionId, updates) => {
-                const videosToUpdate = allVideos.filter(v => v.question_id === questionId);
+              onUpdateQuestion={async (uniqueKey, updates) => {
+                // Parse the unique key to get question_id and question text
+                const separatorIndex = uniqueKey.indexOf('_');
+                const questionId = parseInt(uniqueKey.substring(0, separatorIndex));
+                const questionText = uniqueKey.substring(separatorIndex + 1);
+                
+                // Find videos that match BOTH question_id AND question text
+                const videosToUpdate = allVideos.filter(v => 
+                  v.question_id === questionId && 
+                  (v.question_rus || v.question_eng || v.question || '') === questionText
+                );
                 if (videosToUpdate.length === 0) return;
                 await bulkUpdateAll(
                   videosToUpdate.map(v => ({ id: v.id, data: updates })),
@@ -383,53 +390,88 @@ export default function Index() {
                 );
                 toast.success('Вопрос обновлён');
               }}
-              onDeleteQuestion={async (questionId) => {
-                const videosToDelete = allVideos.filter(v => v.question_id === questionId);
+              onDeleteQuestion={async (uniqueKey) => {
+                const separatorIndex = uniqueKey.indexOf('_');
+                const questionId = parseInt(uniqueKey.substring(0, separatorIndex));
+                const questionText = uniqueKey.substring(separatorIndex + 1);
+                
+                const videosToDelete = allVideos.filter(v => 
+                  v.question_id === questionId && 
+                  (v.question_rus || v.question_eng || v.question || '') === questionText
+                );
                 for (const video of videosToDelete) {
                   await deleteVideo(video.id);
                 }
               }}
-              onBulkUpdateStatus={async (questionIds, status) => {
+              onBulkUpdateStatus={async (uniqueKeys, status) => {
                 const updates: { id: string; data: Partial<Video> }[] = [];
-                for (const questionId of questionIds) {
-                  const videosToUpdate = allVideos.filter(v => v.question_id === questionId);
+                for (const uniqueKey of uniqueKeys) {
+                  const separatorIndex = uniqueKey.indexOf('_');
+                  const questionId = parseInt(uniqueKey.substring(0, separatorIndex));
+                  const questionText = uniqueKey.substring(separatorIndex + 1);
+                  
+                  const videosToUpdate = allVideos.filter(v => 
+                    v.question_id === questionId && 
+                    (v.question_rus || v.question_eng || v.question || '') === questionText
+                  );
                   videosToUpdate.forEach(v => updates.push({ id: v.id, data: { question_status: status } }));
                 }
                 if (updates.length > 0) {
                   await bulkUpdateAll(updates, { silent: true });
                 }
-                toast.success(`Статус обновлён для ${questionIds.length} вопросов`);
+                toast.success(`Статус обновлён для ${uniqueKeys.length} вопросов`);
               }}
-              onBulkUpdateSafety={async (questionIds, safety) => {
+              onBulkUpdateSafety={async (uniqueKeys, safety) => {
                 const updates: { id: string; data: Partial<Video> }[] = [];
-                for (const questionId of questionIds) {
-                  const videosToUpdate = allVideos.filter(v => v.question_id === questionId);
+                for (const uniqueKey of uniqueKeys) {
+                  const separatorIndex = uniqueKey.indexOf('_');
+                  const questionId = parseInt(uniqueKey.substring(0, separatorIndex));
+                  const questionText = uniqueKey.substring(separatorIndex + 1);
+                  
+                  const videosToUpdate = allVideos.filter(v => 
+                    v.question_id === questionId && 
+                    (v.question_rus || v.question_eng || v.question || '') === questionText
+                  );
                   videosToUpdate.forEach(v => updates.push({ id: v.id, data: { safety_score: safety } }));
                 }
                 if (updates.length > 0) {
                   await bulkUpdateAll(updates, { silent: true });
                 }
-                toast.success(`Безопасность обновлена для ${questionIds.length} вопросов`);
+                toast.success(`Безопасность обновлена для ${uniqueKeys.length} вопросов`);
               }}
-              onBulkGenerateCovers={async (questionIds) => {
-                toast.info(`Генерация обложек для ${questionIds.length} вопросов...`);
-                for (const questionId of questionIds) {
-                  const videosToUpdate = allVideos.filter(v => v.question_id === questionId);
+              onBulkGenerateCovers={async (uniqueKeys) => {
+                toast.info(`Генерация обложек для ${uniqueKeys.length} вопросов...`);
+                for (const uniqueKey of uniqueKeys) {
+                  const separatorIndex = uniqueKey.indexOf('_');
+                  const questionId = parseInt(uniqueKey.substring(0, separatorIndex));
+                  const questionText = uniqueKey.substring(separatorIndex + 1);
+                  
+                  const videosToUpdate = allVideos.filter(v => 
+                    v.question_id === questionId && 
+                    (v.question_rus || v.question_eng || v.question || '') === questionText
+                  );
                   for (const video of videosToUpdate) {
                     await handleGenerateCover(video);
                   }
                 }
               }}
-              onBulkUpdateDate={async (questionIds, date) => {
+              onBulkUpdateDate={async (uniqueKeys, date) => {
                 const updates: { id: string; data: Partial<Video> }[] = [];
-                for (const questionId of questionIds) {
-                  const videosToUpdate = allVideos.filter(v => v.question_id === questionId);
+                for (const uniqueKey of uniqueKeys) {
+                  const separatorIndex = uniqueKey.indexOf('_');
+                  const questionId = parseInt(uniqueKey.substring(0, separatorIndex));
+                  const questionText = uniqueKey.substring(separatorIndex + 1);
+                  
+                  const videosToUpdate = allVideos.filter(v => 
+                    v.question_id === questionId && 
+                    (v.question_rus || v.question_eng || v.question || '') === questionText
+                  );
                   videosToUpdate.forEach(v => updates.push({ id: v.id, data: { publication_date: date } }));
                 }
                 if (updates.length > 0) {
                   await bulkUpdateAll(updates, { silent: true });
                 }
-                toast.success(`Дата обновлена для ${questionIds.length} вопросов`);
+                toast.success(`Дата обновлена для ${uniqueKeys.length} вопросов`);
               }}
             />
           )}

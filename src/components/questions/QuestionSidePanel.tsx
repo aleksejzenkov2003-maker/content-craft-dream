@@ -14,6 +14,7 @@ import { ru } from 'date-fns/locale';
 import { cn } from '@/lib/utils';
 
 interface QuestionData {
+  unique_key: string;
   question_id: number;
   question: string;
   question_rus: string | null;
@@ -31,7 +32,7 @@ interface QuestionSidePanelProps {
   question: QuestionData | null;
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  onSave: (questionId: number, updates: { 
+  onSave: (uniqueKey: string, updates: { 
     question?: string; 
     question_rus?: string;
     question_eng?: string; 
@@ -83,7 +84,7 @@ export function QuestionSidePanel({ question, open, onOpenChange, onSave }: Ques
   const handleSave = () => {
     if (!question) return;
     
-    onSave(question.question_id, {
+    onSave(question.unique_key, {
       question: formData.question,
       question_rus: formData.question_rus || undefined,
       question_eng: formData.question_eng || undefined,
