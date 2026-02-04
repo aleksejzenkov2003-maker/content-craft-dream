@@ -627,18 +627,6 @@ const minuteOptions = [0, 5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55];
                         <div className="flex items-center gap-1">
                           <Button
                             size="xs"
-                            variant="outline"
-                            disabled={!!pub.generated_text || generatingIds.has(pub.id)}
-                            onClick={() => handleGenerateText(pub)}
-                          >
-                            {generatingIds.has(pub.id) ? (
-                              <Loader2 className="w-3 h-3 animate-spin" />
-                            ) : (
-                              <Sparkles className="w-3 h-3" />
-                            )}
-                          </Button>
-                          <Button
-                            size="xs"
                             variant="default"
                             disabled={pub.publication_status === 'published' || publishingIds.has(pub.id)}
                             onClick={() => handlePublish(pub)}
