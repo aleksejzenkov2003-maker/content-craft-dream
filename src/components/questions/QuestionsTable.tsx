@@ -82,8 +82,6 @@ const safetyOptions: SelectOption[] = [
 const statusOptions: SelectOption[] = [
   { value: 'pending', label: 'Ожидает' },
   { value: 'checked', label: 'Проверен' },
-  { value: 'approved', label: 'Одобрен' },
-  { value: 'rejected', label: 'Отклонён' },
 ];
 
 type SortColumn = 'id' | 'relevance' | 'date' | null;
@@ -439,8 +437,6 @@ export function QuestionsTable({
     const colors: Record<string, string> = {
       pending: 'bg-gray-100 text-gray-600',
       checked: 'bg-blue-100 text-blue-800',
-      approved: 'bg-green-100 text-green-800',
-      rejected: 'bg-red-100 text-red-800',
     };
     return (
       <div className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${colors[status] || colors.pending}`}>
