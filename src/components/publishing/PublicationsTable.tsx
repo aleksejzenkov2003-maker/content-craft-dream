@@ -532,9 +532,13 @@ const minuteOptions = [0, 5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55];
                   {pubs.map((pub) => (
                     <TableRow 
                       key={pub.id}
-                      className={cn(selectedIds.has(pub.id) && 'bg-primary/5')}
+                      className={cn(
+                        selectedIds.has(pub.id) && 'bg-primary/5',
+                        'cursor-pointer hover:bg-muted/50'
+                      )}
+                      onClick={() => setEditingPublication(pub)}
                     >
-                      <TableCell>
+                      <TableCell onClick={(e) => e.stopPropagation()}>
                         <Checkbox
                           checked={selectedIds.has(pub.id)}
                           onCheckedChange={(checked) => handleSelectOne(pub.id, !!checked)}
@@ -557,7 +561,7 @@ const minuteOptions = [0, 5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55];
                           <Badge variant="outline">{pub.channel?.name}</Badge>
                         </TableCell>
                       )}
-                      <TableCell>
+                      <TableCell onClick={(e) => e.stopPropagation()}>
                         <InlineEdit
                           type="datetime"
                           value={pub.post_date}
@@ -575,7 +579,7 @@ const minuteOptions = [0, 5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55];
                           <span className="text-muted-foreground">—</span>
                         )}
                       </TableCell>
-                      <TableCell>
+                      <TableCell onClick={(e) => e.stopPropagation()}>
                         <InlineEdit
                           type="select"
                           value={pub.publication_status}
@@ -595,7 +599,7 @@ const minuteOptions = [0, 5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55];
                       <TableCell className="text-right">
                         {pub.likes > 0 ? pub.likes.toLocaleString() : '—'}
                       </TableCell>
-                      <TableCell>
+                      <TableCell onClick={(e) => e.stopPropagation()}>
                         <div className="flex items-center gap-1">
                           <Button
                             size="xs"
