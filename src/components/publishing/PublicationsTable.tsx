@@ -509,6 +509,7 @@ const minuteOptions = [0, 5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55];
                     </TableHead>
                     <TableHead className="w-[80px]">Длина</TableHead>
                     <TableHead className="w-[120px]">Статус</TableHead>
+                    <TableHead className="w-[180px]">Текст</TableHead>
                     <TableHead 
                       className="w-[80px] text-right cursor-pointer hover:bg-accent/50"
                       onClick={() => handleSort('views')}
@@ -592,6 +593,29 @@ const minuteOptions = [0, 5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55];
                             return config?.label || val || 'Ожидает';
                           }}
                         />
+                      </TableCell>
+                      <TableCell onClick={(e) => e.stopPropagation()}>
+                        {pub.generated_text ? (
+                          <p className="text-xs text-muted-foreground line-clamp-2 max-w-[160px]">
+                            {pub.generated_text}
+                          </p>
+                        ) : (
+                          <Button
+                            size="xs"
+                            variant="outline"
+                            disabled={generatingIds.has(pub.id)}
+                            onClick={() => handleGenerateText(pub)}
+                          >
+                            {generatingIds.has(pub.id) ? (
+                              <Loader2 className="w-3 h-3 animate-spin" />
+                            ) : (
+                              <>
+                                <Sparkles className="w-3 h-3 mr-1" />
+                                Генерировать
+                              </>
+                            )}
+                          </Button>
+                        )}
                       </TableCell>
                       <TableCell className="text-right">
                         {pub.views > 0 ? pub.views.toLocaleString() : '—'}
