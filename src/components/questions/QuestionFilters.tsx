@@ -25,8 +25,6 @@ interface QuestionFiltersProps {
 const statusOptions = [
   { value: 'pending', label: 'Ожидает' },
   { value: 'checked', label: 'Проверен' },
-  { value: 'approved', label: 'Одобрен' },
-  { value: 'rejected', label: 'Отклонён' },
 ];
 
 const safetyOptions = [
