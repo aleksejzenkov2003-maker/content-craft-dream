@@ -357,10 +357,11 @@ export default function Index() {
                 );
                 // No toast - silent update
                 
+                // Refetch both video lists so Videos tab sees updated data
+                await Promise.all([refetchAllVideos(), refetchVideos()]);
+                
                 // Check auto-generation conditions after update
                 if (updates.question_status || updates.publication_date) {
-                  // Refetch to get latest state then trigger
-                  await refetchAllVideos();
                   triggerAutoGeneration(uniqueKey);
                 }
               }}
@@ -393,9 +394,9 @@ export default function Index() {
                 if (updates.length > 0) {
                   await bulkUpdateAll(updates, { silent: true });
                 }
-                // Check auto-generation for each updated question
+                // Refetch both lists and check auto-generation
+                await Promise.all([refetchAllVideos(), refetchVideos()]);
                 if (status === 'in_progress') {
-                  await refetchAllVideos();
                   for (const uniqueKey of uniqueKeys) {
                     triggerAutoGeneration(uniqueKey);
                   }
@@ -417,8 +418,8 @@ export default function Index() {
                 if (updates.length > 0) {
                   await bulkUpdateAll(updates, { silent: true });
                 }
-                // Check auto-generation after date update
-                await refetchAllVideos();
+                // Refetch both lists and check auto-generation
+                await Promise.all([refetchAllVideos(), refetchVideos()]);
                 for (const uniqueKey of uniqueKeys) {
                   triggerAutoGeneration(uniqueKey);
                 }
