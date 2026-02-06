@@ -14,7 +14,6 @@ export interface FilterState {
   statusFilter: string[];
   safetyFilter: string[];
   dateRange: { from: Date | null; to: Date | null };
-  hasVideos: boolean | null;
 }
 
 interface QuestionFiltersProps {
@@ -23,15 +22,16 @@ interface QuestionFiltersProps {
 }
 
 const statusOptions = [
-  { value: 'pending', label: 'Ожидает' },
-  { value: 'checked', label: 'Проверен' },
+  { value: 'not_selected', label: 'Не отобран' },
+  { value: 'in_progress', label: 'Взят в работу' },
+  { value: 'published', label: 'Опубликован' },
 ];
 
 const safetyOptions = [
   { value: 'safe', label: 'Безопасно' },
-  { value: 'warning', label: 'Внимание' },
-  { value: 'danger', label: 'Опасно' },
-  { value: 'unchecked', label: 'Не проверено' },
+  { value: 'critical', label: 'Критический' },
+  { value: 'medium_risk', label: 'Средний риск' },
+  { value: 'high_risk', label: 'Высокий риск' },
 ];
 
 export function QuestionFilters({ filters, onFiltersChange }: QuestionFiltersProps) {
@@ -40,8 +40,7 @@ export function QuestionFilters({ filters, onFiltersChange }: QuestionFiltersPro
   const activeFiltersCount = 
     filters.statusFilter.length + 
     filters.safetyFilter.length + 
-    (filters.dateRange.from || filters.dateRange.to ? 1 : 0) +
-    (filters.hasVideos !== null ? 1 : 0);
+    (filters.dateRange.from || filters.dateRange.to ? 1 : 0);
 
   const toggleArrayFilter = (
     key: 'statusFilter' | 'safetyFilter',
@@ -59,7 +58,6 @@ export function QuestionFilters({ filters, onFiltersChange }: QuestionFiltersPro
       statusFilter: [],
       safetyFilter: [],
       dateRange: { from: null, to: null },
-      hasVideos: null,
     });
   };
 
@@ -80,7 +78,7 @@ export function QuestionFilters({ filters, onFiltersChange }: QuestionFiltersPro
         <div className="p-3 border-b flex items-center justify-between">
           <span className="font-medium text-sm">Фильтры</span>
           {activeFiltersCount > 0 && (
-            <Button variant="ghost" size="xs" onClick={clearFilters} className="text-xs h-6">
+            <Button variant="ghost" size="sm" onClick={clearFilters} className="text-xs h-6">
               <X className="w-3 h-3 mr-1" />
               Сбросить
             </Button>
@@ -126,7 +124,7 @@ export function QuestionFilters({ filters, onFiltersChange }: QuestionFiltersPro
 
           {/* Date range filter */}
           <div className="space-y-2">
-            <Label className="text-xs font-medium text-muted-foreground">Дата публикации</Label>
+            <Label className="text-xs font-medium text-muted-foreground">Плановая публикация</Label>
             <div className="flex gap-2">
               <Popover>
                 <PopoverTrigger asChild>
@@ -168,31 +166,6 @@ export function QuestionFilters({ filters, onFiltersChange }: QuestionFiltersPro
                   />
                 </PopoverContent>
               </Popover>
-            </div>
-          </div>
-
-          <Separator />
-
-          {/* Has videos filter */}
-          <div className="space-y-2">
-            <Label className="text-xs font-medium text-muted-foreground">Наличие роликов</Label>
-            <div className="flex gap-2">
-              <Button 
-                variant={filters.hasVideos === true ? "default" : "outline"} 
-                size="sm" 
-                className="flex-1 text-xs"
-                onClick={() => onFiltersChange({ ...filters, hasVideos: filters.hasVideos === true ? null : true })}
-              >
-                С роликами
-              </Button>
-              <Button 
-                variant={filters.hasVideos === false ? "default" : "outline"} 
-                size="sm" 
-                className="flex-1 text-xs"
-                onClick={() => onFiltersChange({ ...filters, hasVideos: filters.hasVideos === false ? null : false })}
-              >
-                Без роликов
-              </Button>
             </div>
           </div>
         </div>
