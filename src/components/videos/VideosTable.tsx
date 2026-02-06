@@ -1,15 +1,7 @@
 import { useState, useMemo } from 'react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Input } from '@/components/ui/input';
 import { Checkbox } from '@/components/ui/checkbox';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
 import {
   Collapsible,
   CollapsibleContent,
@@ -20,7 +12,6 @@ import {
   HoverCardContent,
   HoverCardTrigger,
 } from '@/components/ui/hover-card';
-import { InlineEdit } from '@/components/ui/inline-edit';
 import { BulkActionsBar, BulkActionButton } from '@/components/ui/bulk-actions-bar';
 import { VideoFilters, VideoFilterState } from './VideoFilters';
 import { Video } from '@/hooks/useVideos';
@@ -28,10 +19,7 @@ import { Advisor } from '@/hooks/useAdvisors';
 import { Playlist } from '@/hooks/usePlaylists';
 import { Publication } from '@/hooks/usePublications';
 import {
-  Search,
   Loader2,
-  Plus,
-  Upload,
   ChevronDown,
   ChevronRight,
   Play,
@@ -43,6 +31,8 @@ import {
   Image as ImageIcon,
   Video as VideoIcon,
 } from 'lucide-react';
+import { format } from 'date-fns';
+import { ru } from 'date-fns/locale';
 
 interface VideosTableProps {
   videos: Video[];
@@ -72,21 +62,6 @@ interface VideosTableProps {
   onFilterChange: (filters: any) => void;
 }
 
-const coverStatusOptions = [
-  { value: 'pending', label: 'Pending' },
-  { value: 'generating', label: 'In progress' },
-  { value: 'ready', label: 'Ready' },
-  { value: 'error', label: 'Error' },
-];
-
-const videoStatusOptions = [
-  { value: 'pending', label: 'Pending' },
-  { value: 'generating', label: 'In progress' },
-  { value: 'ready', label: 'Ready' },
-  { value: 'published', label: 'Published' },
-  { value: 'error', label: 'Error' },
-];
-
 const coverStatusConfig: Record<string, string> = {
   pending: 'bg-muted-foreground/30',
   generating: 'bg-yellow-500',
@@ -100,6 +75,14 @@ const videoStatusConfig: Record<string, string> = {
   ready: 'bg-green-500',
   published: 'bg-blue-500',
   error: 'bg-red-500',
+};
+
+const statusLabels: Record<string, string> = {
+  pending: 'Pending',
+  generating: 'In progress',
+  ready: 'Ready',
+  published: 'Published',
+  error: 'Error',
 };
 
 type SortColumn = 'id' | 'advisor' | 'cover_status' | 'video_status' | 'duration' | null;
@@ -126,7 +109,6 @@ export function VideosTable({
   filters,
   onFilterChange,
 }: VideosTableProps) {
-  const [searchInput, setSearchInput] = useState(filters.search || '');
   const [expandedQuestions, setExpandedQuestions] = useState<Set<string>>(new Set());
   const [sortColumn, setSortColumn] = useState<SortColumn>('advisor');
   const [sortDirection, setSortDirection] = useState<SortDirection>('asc');
@@ -138,10 +120,6 @@ export function VideosTable({
     hasVideo: null,
     dateRange: { from: null, to: null },
   });
-
-  const handleSearch = () => {
-    onFilterChange({ ...filters, search: searchInput });
-  };
 
   const toggleQuestion = (question: string) => {
     const newExpanded = new Set(expandedQuestions);
@@ -174,10 +152,9 @@ export function VideosTable({
       : <ArrowDown className="w-3 h-3" />;
   };
 
-  // Apply advanced filters
+  // Filter: only show videos with question_status === 'in_progress'
   const filteredVideos = useMemo(() => {
-    // Only show videos with checked or approved question status
-    let result = videos.filter(v => v.question_status === 'approved' || v.question_status === 'checked');
+    let result = videos.filter(v => v.question_status === 'in_progress');
 
     // Question filter
     if (filters.questionId !== undefined) {
@@ -256,11 +233,15 @@ export function VideosTable({
       const questionText = video.question_rus || video.question_eng || video.question || 'Без вопроса';
       const uniqueKey = `${video.question_id}_${questionText}`;
       if (!acc[uniqueKey]) {
-        acc[uniqueKey] = { questionId: video.question_id, questionText, videos: [] };
+        acc[uniqueKey] = { questionId: video.question_id, questionText, videos: [], plannedDate: video.publication_date };
       }
       acc[uniqueKey].videos.push(video);
+      // Use earliest date
+      if (video.publication_date && (!acc[uniqueKey].plannedDate || video.publication_date < acc[uniqueKey].plannedDate!)) {
+        acc[uniqueKey].plannedDate = video.publication_date;
+      }
       return acc;
-    }, {} as Record<string, { questionId: number | null; questionText: string; videos: Video[] }>);
+    }, {} as Record<string, { questionId: number | null; questionText: string; videos: Video[]; plannedDate: string | null }>);
   }, [sortedVideos]);
 
   // Selection handlers
@@ -296,25 +277,6 @@ export function VideosTable({
 
   const isExpanded = (question: string) => expandedQuestions.has('__all__') || expandedQuestions.has(question);
 
-  // Inline edit handlers
-  const handleCoverStatusChange = async (videoId: string, value: string) => {
-    if (onUpdateVideo) {
-      await onUpdateVideo(videoId, { cover_status: value });
-    }
-  };
-
-  const handleVideoStatusChange = async (videoId: string, value: string) => {
-    if (onUpdateVideo) {
-      await onUpdateVideo(videoId, { generation_status: value });
-    }
-  };
-
-  const handleDurationChange = async (videoId: string, value: string) => {
-    if (onUpdateVideo) {
-      await onUpdateVideo(videoId, { video_duration: parseInt(value) || null });
-    }
-  };
-
   // Bulk actions
   const handleBulkDelete = async () => {
     if (onBulkDelete && selectedVideoIds.size > 0) {
@@ -332,6 +294,15 @@ export function VideosTable({
   const handleBulkGenerateVideos = async () => {
     if (onBulkGenerateVideos && selectedVideoIds.size > 0) {
       await onBulkGenerateVideos(Array.from(selectedVideoIds));
+    }
+  };
+
+  const formatPlannedDate = (date: string | null) => {
+    if (!date) return '';
+    try {
+      return format(new Date(date), 'dd.MM.yyyy', { locale: ru });
+    } catch {
+      return '';
     }
   };
 
@@ -374,60 +345,9 @@ export function VideosTable({
         </BulkActionButton>
       </BulkActionsBar>
 
-      {/* Filters */}
+      {/* Filters - only VideoFilters and question filter reset */}
       <div className="flex flex-wrap gap-4 items-center">
-        <div className="flex gap-2 flex-1 min-w-[200px]">
-          <Input
-            placeholder="Поиск по заголовку, вопросу..."
-            value={searchInput}
-            onChange={(e) => setSearchInput(e.target.value)}
-            onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
-            className="max-w-sm"
-          />
-          <Button variant="outline" size="icon" onClick={handleSearch}>
-            <Search className="w-4 h-4" />
-          </Button>
-        </div>
-
         <VideoFilters filters={advancedFilters} onFiltersChange={setAdvancedFilters} />
-
-        <Select
-          value={filters.advisorId || 'all'}
-          onValueChange={(value) =>
-            onFilterChange({ ...filters, advisorId: value === 'all' ? undefined : value })
-          }
-        >
-          <SelectTrigger className="w-[180px]">
-            <SelectValue placeholder="Духовник" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">Все духовники</SelectItem>
-            {advisors.map((a) => (
-              <SelectItem key={a.id} value={a.id}>
-                {a.name}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-
-        <Select
-          value={filters.playlistId || 'all'}
-          onValueChange={(value) =>
-            onFilterChange({ ...filters, playlistId: value === 'all' ? undefined : value })
-          }
-        >
-          <SelectTrigger className="w-[180px]">
-            <SelectValue placeholder="Плейлист" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">Все плейлисты</SelectItem>
-            {playlists.map((p) => (
-              <SelectItem key={p.id} value={p.id}>
-                {p.name}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
 
         {filters.questionId !== undefined && (
           <Button 
@@ -438,15 +358,6 @@ export function VideosTable({
             ✕ Сбросить фильтр вопроса
           </Button>
         )}
-
-        <Button variant="outline" onClick={onImportVideos}>
-          <Upload className="w-4 h-4 mr-2" />
-          Импорт
-        </Button>
-        <Button onClick={onAddVideo}>
-          <Plus className="w-4 h-4 mr-2" />
-          Новый ролик
-        </Button>
       </div>
 
       {/* Grouped Table */}
@@ -457,13 +368,13 @@ export function VideosTable({
         </div>
       ) : (
         <div className="space-y-2">
-          {Object.entries(groupedVideos).map(([uniqueKey, { questionId, questionText, videos: questionVideos }]) => (
+          {Object.entries(groupedVideos).map(([uniqueKey, { questionId, questionText, videos: questionVideos, plannedDate }]) => (
             <div key={uniqueKey} className="border-b border-border/50">
               <Collapsible
                 open={isExpanded(uniqueKey)}
                 onOpenChange={() => toggleQuestion(uniqueKey)}
               >
-                {/* Question Header */}
+                {/* Question Header - new format: #ID, Question, Date */}
                 <CollapsibleTrigger asChild>
                   <div className="flex items-center gap-2 py-2 cursor-pointer hover:bg-muted/30 transition-colors px-2">
                     <Checkbox
@@ -479,6 +390,9 @@ export function VideosTable({
                     )}
                     <span className="text-muted-foreground text-xs font-mono">#{questionId}</span>
                     <span className="font-medium text-sm">{questionText}</span>
+                    {plannedDate && (
+                      <span className="text-muted-foreground text-xs ml-1">{formatPlannedDate(plannedDate)}</span>
+                    )}
                     <span className="text-muted-foreground text-sm ml-2">{questionVideos.length}</span>
                   </div>
                 </CollapsibleTrigger>
@@ -531,8 +445,7 @@ export function VideosTable({
                     return (
                       <div
                         key={video.id}
-                        className="grid grid-cols-[40px_60px_150px_100px_100px_70px_80px_100px_100px_1fr] gap-2 px-4 py-2 text-sm hover:bg-muted/30 border-b border-border/20 items-center cursor-pointer"
-                        onClick={() => onViewVideo(video)}
+                        className="grid grid-cols-[40px_60px_150px_100px_100px_70px_80px_100px_100px_1fr] gap-2 px-4 py-2 text-sm hover:bg-muted/30 border-b border-border/20 items-center"
                       >
                         {/* Checkbox */}
                         <div onClick={(e) => e.stopPropagation()}>
@@ -542,8 +455,11 @@ export function VideosTable({
                           />
                         </div>
 
-                        {/* ID */}
-                        <div className="font-mono text-xs text-muted-foreground">
+                        {/* ID - clickable to open side panel */}
+                        <div 
+                          className="font-mono text-xs text-primary cursor-pointer hover:underline"
+                          onClick={() => onViewVideo(video)}
+                        >
                           {video.video_number || '—'}
                         </div>
 
@@ -554,41 +470,25 @@ export function VideosTable({
                           </Badge>
                         </div>
 
-                        {/* Cover status - inline edit */}
-                        <div onClick={(e) => e.stopPropagation()}>
-                          <InlineEdit
-                            type="select"
-                            value={video.cover_status || 'pending'}
-                            options={coverStatusOptions}
-                            onSave={(value) => handleCoverStatusChange(video.id, value)}
-                            className="w-full"
-                          />
+                        {/* Cover status - text only */}
+                        <div className="flex items-center gap-1.5">
+                          <div className={`w-2 h-2 rounded-full ${coverStatusConfig[video.cover_status || 'pending'] || coverStatusConfig.pending}`} />
+                          <span className="text-xs text-muted-foreground">{statusLabels[video.cover_status || 'pending'] || 'Pending'}</span>
                         </div>
 
-                        {/* Video status - inline edit */}
-                        <div onClick={(e) => e.stopPropagation()}>
-                          <InlineEdit
-                            type="select"
-                            value={video.generation_status || 'pending'}
-                            options={videoStatusOptions}
-                            onSave={(value) => handleVideoStatusChange(video.id, value)}
-                            className="w-full"
-                          />
+                        {/* Video status - text only */}
+                        <div className="flex items-center gap-1.5">
+                          <div className={`w-2 h-2 rounded-full ${videoStatusConfig[video.generation_status || 'pending'] || videoStatusConfig.pending}`} />
+                          <span className="text-xs text-muted-foreground">{statusLabels[video.generation_status || 'pending'] || 'Pending'}</span>
                         </div>
 
-                        {/* Duration - inline edit */}
-                        <div onClick={(e) => e.stopPropagation()}>
-                          <InlineEdit
-                            type="text"
-                            value={video.video_duration?.toString() || ''}
-                            onSave={(value) => handleDurationChange(video.id, value)}
-                            placeholder="—"
-                            formatDisplay={(val) => val ? `${val}s` : '—'}
-                          />
+                        {/* Duration - text only */}
+                        <div className="text-xs text-muted-foreground">
+                          {video.video_duration ? `${video.video_duration}s` : '—'}
                         </div>
 
                         {/* Cover preview */}
-                        <div onClick={(e) => e.stopPropagation()}>
+                        <div>
                           {coverUrl ? (
                             <HoverCard>
                               <HoverCardTrigger asChild>
@@ -616,7 +516,7 @@ export function VideosTable({
                         </div>
 
                         {/* Front cover button */}
-                        <div onClick={(e) => e.stopPropagation()}>
+                        <div>
                           {video.cover_status === 'generating' ? (
                             <Button size="xs" variant="outline" disabled>
                               <Loader2 className="w-3 h-3 animate-spin" />
@@ -633,7 +533,7 @@ export function VideosTable({
                         </div>
 
                         {/* Video Generate button */}
-                        <div onClick={(e) => e.stopPropagation()}>
+                        <div>
                           {video.generation_status === 'generating' ? (
                             <Button size="xs" variant="outline" disabled>
                               <Loader2 className="w-3 h-3 animate-spin" />

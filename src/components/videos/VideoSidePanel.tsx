@@ -5,6 +5,9 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Separator } from '@/components/ui/separator';
 import { ScrollArea } from '@/components/ui/scroll-area';
+import { Textarea } from '@/components/ui/textarea';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { Calendar } from '@/components/ui/calendar';
 import {
   Sheet,
   SheetContent,
@@ -30,8 +33,10 @@ import {
   RefreshCw,
   Check,
   Trash2,
+  CalendarIcon,
 } from 'lucide-react';
 import { format } from 'date-fns';
+import { ru } from 'date-fns/locale';
 import { cn } from '@/lib/utils';
 
 interface VideoSidePanelProps {
@@ -75,26 +80,19 @@ export function VideoSidePanel({
   isGenerating,
 }: VideoSidePanelProps) {
   const [selectedChannels, setSelectedChannels] = useState<string[]>([]);
+  const [advisorAnswer, setAdvisorAnswer] = useState('');
+  const [pubDateOpen, setPubDateOpen] = useState(false);
 
-  // Initialize selectedChannels from video data when video changes
+  // Initialize state from video data when video changes
   useEffect(() => {
     setSelectedChannels(video?.selected_channels || []);
-  }, [video?.id, video?.selected_channels]);
+    setAdvisorAnswer(video?.advisor_answer || '');
+  }, [video?.id, video?.selected_channels, video?.advisor_answer]);
 
   if (!video) return null;
 
   const advisor = advisors.find(a => a.id === video.advisor_id);
   const advisorName = advisor?.display_name || advisor?.name || 'Духовник';
-
-  const formatPublicationDate = () => {
-    if (!video.publication_date) return '—';
-    try {
-      const date = new Date(video.publication_date);
-      return format(date, 'yyyy-MM-dd HH:mm xxx');
-    } catch {
-      return video.publication_date;
-    }
-  };
 
   const handleCoverStatusChange = (value: string) => {
     onUpdateVideo(video.id, { cover_status: value });
@@ -110,7 +108,6 @@ export function VideoSidePanel({
       : [...selectedChannels, channelId];
     
     setSelectedChannels(newChannels);
-    // Auto-save selected channels to video
     onUpdateVideo(video.id, { selected_channels: newChannels } as any);
   };
 
@@ -119,6 +116,19 @@ export function VideoSidePanel({
       onPublish(video, selectedChannels);
     }
   };
+
+  const handleAdvisorAnswerSave = () => {
+    onUpdateVideo(video.id, { advisor_answer: advisorAnswer } as any);
+  };
+
+  const handleDateChange = (date: Date | undefined) => {
+    if (date) {
+      onUpdateVideo(video.id, { publication_date: date.toISOString() });
+    }
+    setPubDateOpen(false);
+  };
+
+  const pubDate = video.publication_date ? new Date(video.publication_date) : undefined;
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
@@ -151,10 +161,75 @@ export function VideoSidePanel({
 
         <ScrollArea className="flex-1">
           <div className="p-4 space-y-4">
-            {/* Publication date */}
+            {/* Publication channels - moved to top */}
+            <div>
+              <h4 className="font-medium text-sm mb-3">Каналы публикации</h4>
+              <div className="flex flex-wrap gap-2">
+                {publishingChannels.map((channel) => {
+                  const isSelected = selectedChannels.includes(channel.id);
+                  return (
+                    <Badge
+                      key={channel.id}
+                      variant={isSelected ? "default" : "outline"}
+                      className={cn(
+                        "cursor-pointer transition-colors px-3 py-1.5",
+                        isSelected 
+                          ? "bg-primary text-primary-foreground hover:bg-primary/90" 
+                          : "hover:bg-muted"
+                      )}
+                      onClick={() => handleChannelToggle(channel.id)}
+                    >
+                      {channel.name}
+                    </Badge>
+                  );
+                })}
+              </div>
+              
+              {/* Publish button */}
+              {selectedChannels.length > 0 && (
+                <Button
+                  className="w-full mt-4"
+                  onClick={handlePublish}
+                >
+                  Публикация ({selectedChannels.length})
+                </Button>
+              )}
+            </div>
+
+            <Separator className="my-4" />
+
+            {/* Advisor answer */}
+            <div className="space-y-2">
+              <Label className="text-sm">Ответ духовника</Label>
+              <Textarea
+                value={advisorAnswer}
+                onChange={(e) => setAdvisorAnswer(e.target.value)}
+                onBlur={handleAdvisorAnswerSave}
+                placeholder="Введите ответ духовника..."
+                className="min-h-[100px] text-sm"
+              />
+            </div>
+
+            {/* Publication date - editable */}
             <div className="grid grid-cols-[140px_1fr] gap-2 items-center">
-              <Label className="text-sm">Publication date</Label>
-              <div className="text-sm">{formatPublicationDate()}</div>
+              <Label className="text-sm">Плановая публикация</Label>
+              <Popover open={pubDateOpen} onOpenChange={setPubDateOpen}>
+                <PopoverTrigger asChild>
+                  <Button variant="outline" size="sm" className={cn("justify-start text-left text-sm", !pubDate && "text-muted-foreground")}>
+                    <CalendarIcon className="w-3 h-3 mr-2" />
+                    {pubDate ? format(pubDate, 'dd.MM.yyyy HH:mm', { locale: ru }) : 'Выбрать дату'}
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-auto p-0" align="start">
+                  <Calendar
+                    mode="single"
+                    selected={pubDate}
+                    onSelect={handleDateChange}
+                    locale={ru}
+                    className="p-3 pointer-events-auto"
+                  />
+                </PopoverContent>
+              </Popover>
             </div>
 
             {/* Front Cover Generate */}
@@ -172,16 +247,15 @@ export function VideoSidePanel({
                     Generating...
                   </>
                 ) : (
-                  'Generate'
+                  'Generate Cover'
                 )}
               </Button>
             </div>
 
-            {/* Cover Gallery - Placeholder */}
+            {/* Cover Gallery */}
             <div className="space-y-2">
               <Label className="text-sm">Галерея обложек</Label>
               <div className="grid grid-cols-3 gap-2">
-                {/* Placeholder covers */}
                 {video.front_cover_url ? (
                   <div className="relative aspect-[9/16] rounded-lg overflow-hidden border-2 border-primary bg-muted group cursor-pointer">
                     <img 
@@ -202,7 +276,6 @@ export function VideoSidePanel({
                     </div>
                   </div>
                 ) : null}
-                {/* Empty placeholder slots */}
                 {[...Array(video.front_cover_url ? 2 : 3)].map((_, i) => (
                   <div 
                     key={i}
@@ -260,12 +333,12 @@ export function VideoSidePanel({
                     Generating...
                   </>
                 ) : (
-                  'Generate'
+                  'Generate Video'
                 )}
               </Button>
             </div>
 
-            {/* Video Player - Placeholder */}
+            {/* Video Player - same aspect ratio as cover */}
             <div className="space-y-2">
               <Label className="text-sm">Видео</Label>
               {video.heygen_video_url ? (
@@ -348,43 +421,6 @@ export function VideoSidePanel({
               <div className="text-sm text-muted-foreground">
                 {video.video_duration ? `${video.video_duration}s` : '—'}
               </div>
-            </div>
-
-            <Separator className="my-4" />
-
-            {/* Publication channels - Tag selection */}
-            <div>
-              <h4 className="font-medium text-sm mb-3">Publication channels</h4>
-              <div className="flex flex-wrap gap-2">
-                {publishingChannels.map((channel) => {
-                  const isSelected = selectedChannels.includes(channel.id);
-                  return (
-                    <Badge
-                      key={channel.id}
-                      variant={isSelected ? "default" : "outline"}
-                      className={cn(
-                        "cursor-pointer transition-colors px-3 py-1.5",
-                        isSelected 
-                          ? "bg-primary text-primary-foreground hover:bg-primary/90" 
-                          : "hover:bg-muted"
-                      )}
-                      onClick={() => handleChannelToggle(channel.id)}
-                    >
-                      {channel.name}
-                    </Badge>
-                  );
-                })}
-              </div>
-              
-              {/* Publish button */}
-              {selectedChannels.length > 0 && (
-                <Button
-                  className="w-full mt-4"
-                  onClick={handlePublish}
-                >
-                  Опубликовать ({selectedChannels.length})
-                </Button>
-              )}
             </div>
           </div>
         </ScrollArea>

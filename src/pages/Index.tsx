@@ -54,9 +54,7 @@ export default function Index() {
   const [publicationsTab, setPublicationsTab] = useState('by-channel');
   const { advisors, loading: advisorsLoading, addAdvisor, updateAdvisor, deleteAdvisor, addPhoto, deletePhoto, setPrimaryPhoto, updatePhotoAssetId } = useAdvisors();
   const { playlists, loading: playlistsLoading, addPlaylist, updatePlaylist, deletePlaylist } = usePlaylists();
-  // All videos without filter - for Questions table
   const { videos: allVideos, loading: allVideosLoading, refetch: refetchAllVideos, bulkUpdate: bulkUpdateAll } = useVideos();
-  // Filtered videos - for Videos table
   const { videos, loading: videosLoading, addVideo, updateVideo, deleteVideo, refetch: refetchVideos, bulkImport, bulkUpdate } = useVideos(videoFilters);
   const { publications, loading: publicationsLoading, addPublication } = usePublications();
   const { channels: publishingChannels } = usePublishingChannels();
@@ -68,7 +66,6 @@ export default function Index() {
     cleanup: cleanupGeneration 
   } = useVideoGeneration({ onVideoUpdated: refetchVideos });
 
-  // Cleanup on unmount
   useEffect(() => {
     return () => cleanupGeneration();
   }, [cleanupGeneration]);
@@ -77,14 +74,9 @@ export default function Index() {
 
   const sidebarCounts = {
     advisors: advisors.length,
-    videos: videos.filter(v => v.question_status === 'approved' || v.question_status === 'checked').length,
+    videos: videos.filter(v => v.question_status === 'in_progress').length,
     playlists: playlists.length,
     publications: publications.length,
-  };
-
-  const handleUploadToHeygen = async (photo: any) => {
-    toast.info('Загрузка в HeyGen будет реализована');
-    // TODO: Implement HeyGen upload
   };
 
   const handleGenerateVideo = async (video: Video, photoAssetId: string) => {
@@ -158,7 +150,54 @@ export default function Index() {
     refetchVideos();
   };
 
-  // Get unique questions from videos
+  // Auto-generation logic: when question has status 'in_progress' and planned date, generate covers and videos
+  const triggerAutoGeneration = async (uniqueKey: string) => {
+    const separatorIndex = uniqueKey.indexOf('_');
+    const questionId = parseInt(uniqueKey.substring(0, separatorIndex));
+    const questionText = uniqueKey.substring(separatorIndex + 1);
+    
+    const questionVideos = allVideos.filter(v => 
+      v.question_id === questionId && 
+      (v.question_rus || v.question_eng || v.question || '') === questionText
+    );
+    
+    if (questionVideos.length === 0) return;
+    
+    // Check if conditions are met: status is in_progress AND has planned date
+    const firstVideo = questionVideos[0];
+    if (firstVideo.question_status !== 'in_progress' || !firstVideo.publication_date) return;
+    
+    // Generate covers for videos that don't have them yet
+    for (const video of questionVideos) {
+      if (video.cover_status !== 'ready' && video.cover_status !== 'generating') {
+        handleGenerateCover(video).catch(console.error);
+      }
+    }
+    
+    // Generate videos for videos that don't have them yet
+    for (const video of questionVideos) {
+      if (video.generation_status !== 'ready' && video.generation_status !== 'generating') {
+        // Trigger video generation via the side panel flow
+        // This would normally go through HeyGen but we trigger the generate-video edge function
+        try {
+          const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/generate-video-heygen`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
+            },
+            body: JSON.stringify({ videoId: video.id }),
+          });
+          if (!response.ok) {
+            console.error('Auto video generation failed for', video.id);
+          }
+        } catch (e) {
+          console.error('Auto video generation error:', e);
+        }
+      }
+    }
+  };
+
   const questions = [...new Set(videos.map(v => v.question).filter(Boolean))];
 
   const isLoading = advisorsLoading || playlistsLoading || videosLoading;
@@ -180,55 +219,14 @@ export default function Index() {
               ) : (
                 <>
                   <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-                    <StatsCard
-                      title="Духовников"
-                      value={advisors.length}
-                      change="активных"
-                      changeType="neutral"
-                      icon={Users}
-                    />
-                    <StatsCard
-                      title="Роликов"
-                      value={videos.length}
-                      change="всего"
-                      changeType="positive"
-                      icon={VideoIcon}
-                      iconColor="text-info"
-                    />
-                    <StatsCard
-                      title="Плейлистов"
-                      value={playlists.length}
-                      change="категорий"
-                      changeType="neutral"
-                      icon={ListVideo}
-                      iconColor="text-accent"
-                    />
-                    <StatsCard
-                      title="Готово"
-                      value={videos.filter(v => v.generation_status === 'ready').length}
-                      change="видео"
-                      changeType="positive"
-                      icon={CheckCircle}
-                      iconColor="text-success"
-                    />
+                    <StatsCard title="Духовников" value={advisors.length} change="активных" changeType="neutral" icon={Users} />
+                    <StatsCard title="Роликов" value={videos.length} change="всего" changeType="positive" icon={VideoIcon} iconColor="text-info" />
+                    <StatsCard title="Плейлистов" value={playlists.length} change="категорий" changeType="neutral" icon={ListVideo} iconColor="text-accent" />
+                    <StatsCard title="Готово" value={videos.filter(v => v.generation_status === 'ready').length} change="видео" changeType="positive" icon={CheckCircle} iconColor="text-success" />
                   </div>
-
                   <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-                    <StatsCard
-                      title="Вопросов"
-                      value={questions.length}
-                      change="уникальных"
-                      changeType="neutral"
-                      icon={HelpCircle}
-                    />
-                    <StatsCard
-                      title="Публикаций"
-                      value={publications.length}
-                      change="всего"
-                      changeType="positive"
-                      icon={Send}
-                      iconColor="text-info"
-                    />
+                    <StatsCard title="Вопросов" value={questions.length} change="уникальных" changeType="neutral" icon={HelpCircle} />
+                    <StatsCard title="Публикаций" value={publications.length} change="всего" changeType="positive" icon={Send} iconColor="text-info" />
                   </div>
                 </>
               )}
@@ -245,7 +243,7 @@ export default function Index() {
               onAddPhoto={addPhoto}
               onDeletePhoto={deletePhoto}
               onSetPrimaryPhoto={setPrimaryPhoto}
-              onUploadToHeygen={handleUploadToHeygen}
+              onUploadToHeygen={async () => { toast.info('Загрузка в HeyGen будет реализована'); }}
             />
           )}
 
@@ -266,26 +264,18 @@ export default function Index() {
                 onViewVideo={handleViewVideo}
                 onUpdateVideo={updateVideo}
                 onBulkDelete={async (videoIds) => {
-                  for (const id of videoIds) {
-                    await deleteVideo(id);
-                  }
+                  for (const id of videoIds) { await deleteVideo(id); }
                 }}
                 onBulkGenerateCovers={async (videoIds) => {
                   const videosToProcess = videos.filter(v => videoIds.includes(v.id));
-                  for (const video of videosToProcess) {
-                    await handleGenerateCover(video);
-                  }
+                  for (const video of videosToProcess) { await handleGenerateCover(video); }
                 }}
                 onBulkGenerateVideos={async (videoIds) => {
                   const videosToProcess = videos.filter(v => videoIds.includes(v.id));
-                  for (const video of videosToProcess) {
-                    handleViewVideo(video);
-                  }
+                  for (const video of videosToProcess) { handleViewVideo(video); }
                 }}
                 onBulkUpdateStatus={async (videoIds, status) => {
-                  for (const id of videoIds) {
-                    await updateVideo(id, { generation_status: status });
-                  }
+                  for (const id of videoIds) { await updateVideo(id, { generation_status: status }); }
                 }}
                 filters={videoFilters}
                 onFilterChange={setVideoFilters}
@@ -350,35 +340,12 @@ export default function Index() {
               publications={publications}
               loading={allVideosLoading}
               playlists={playlists}
-              selectedQuestionIds={[]}
-              onSelectionChange={() => {}}
-              onAddQuestion={async (data) => {
-                // Create one video per active advisor
-                const activeAdvisors = advisors.filter(a => a.is_active !== false);
-                for (let i = 0; i < activeAdvisors.length; i++) {
-                  const advisor = activeAdvisors[i];
-                  await addVideo({
-                    question_id: data.question_id,
-                    question: data.question,
-                    question_rus: data.question_rus || data.question,
-                    question_eng: data.question_eng,
-                    hook_rus: data.hook_rus,
-                    safety_score: data.safety_score,
-                    advisor_id: advisor.id,
-                    video_number: data.question_id * 100 + (i + 1),
-                    playlist_id: data.playlist_id || undefined,
-                    publication_date: data.publication_date || undefined,
-                  });
-                }
-              }}
               onGoToVideos={() => setActiveTab('videos')}
               onUpdateQuestion={async (uniqueKey, updates) => {
-                // Parse the unique key to get question_id and question text
                 const separatorIndex = uniqueKey.indexOf('_');
                 const questionId = parseInt(uniqueKey.substring(0, separatorIndex));
                 const questionText = uniqueKey.substring(separatorIndex + 1);
                 
-                // Find videos that match BOTH question_id AND question text
                 const videosToUpdate = allVideos.filter(v => 
                   v.question_id === questionId && 
                   (v.question_rus || v.question_eng || v.question || '') === questionText
@@ -388,7 +355,14 @@ export default function Index() {
                   videosToUpdate.map(v => ({ id: v.id, data: updates })),
                   { silent: true }
                 );
-                toast.success('Вопрос обновлён');
+                // No toast - silent update
+                
+                // Check auto-generation conditions after update
+                if (updates.question_status || updates.publication_date) {
+                  // Refetch to get latest state then trigger
+                  await refetchAllVideos();
+                  triggerAutoGeneration(uniqueKey);
+                }
               }}
               onDeleteQuestion={async (uniqueKey) => {
                 const separatorIndex = uniqueKey.indexOf('_');
@@ -419,39 +393,11 @@ export default function Index() {
                 if (updates.length > 0) {
                   await bulkUpdateAll(updates, { silent: true });
                 }
-                toast.success(`Статус обновлён для ${uniqueKeys.length} вопросов`);
-              }}
-              onBulkUpdateSafety={async (uniqueKeys, safety) => {
-                const updates: { id: string; data: Partial<Video> }[] = [];
-                for (const uniqueKey of uniqueKeys) {
-                  const separatorIndex = uniqueKey.indexOf('_');
-                  const questionId = parseInt(uniqueKey.substring(0, separatorIndex));
-                  const questionText = uniqueKey.substring(separatorIndex + 1);
-                  
-                  const videosToUpdate = allVideos.filter(v => 
-                    v.question_id === questionId && 
-                    (v.question_rus || v.question_eng || v.question || '') === questionText
-                  );
-                  videosToUpdate.forEach(v => updates.push({ id: v.id, data: { safety_score: safety } }));
-                }
-                if (updates.length > 0) {
-                  await bulkUpdateAll(updates, { silent: true });
-                }
-                toast.success(`Безопасность обновлена для ${uniqueKeys.length} вопросов`);
-              }}
-              onBulkGenerateCovers={async (uniqueKeys) => {
-                toast.info(`Генерация обложек для ${uniqueKeys.length} вопросов...`);
-                for (const uniqueKey of uniqueKeys) {
-                  const separatorIndex = uniqueKey.indexOf('_');
-                  const questionId = parseInt(uniqueKey.substring(0, separatorIndex));
-                  const questionText = uniqueKey.substring(separatorIndex + 1);
-                  
-                  const videosToUpdate = allVideos.filter(v => 
-                    v.question_id === questionId && 
-                    (v.question_rus || v.question_eng || v.question || '') === questionText
-                  );
-                  for (const video of videosToUpdate) {
-                    await handleGenerateCover(video);
+                // Check auto-generation for each updated question
+                if (status === 'in_progress') {
+                  await refetchAllVideos();
+                  for (const uniqueKey of uniqueKeys) {
+                    triggerAutoGeneration(uniqueKey);
                   }
                 }
               }}
@@ -471,14 +417,17 @@ export default function Index() {
                 if (updates.length > 0) {
                   await bulkUpdateAll(updates, { silent: true });
                 }
-                toast.success(`Дата обновлена для ${uniqueKeys.length} вопросов`);
+                // Check auto-generation after date update
+                await refetchAllVideos();
+                for (const uniqueKey of uniqueKeys) {
+                  triggerAutoGeneration(uniqueKey);
+                }
               }}
+              onBulkImport={bulkImport}
             />
           )}
 
-          {activeTab === 'scenes' && (
-            <ScenesMatrix />
-          )}
+          {activeTab === 'scenes' && <ScenesMatrix />}
 
           {activeTab === 'publications-list' && (
             <div className="space-y-6">
@@ -497,21 +446,10 @@ export default function Index() {
             </div>
           )}
 
-          {activeTab === 'publications-kanban' && (
-            <PublishingKanban />
-          )}
-
-          {activeTab === 'back-covers' && (
-            <BackCoversGrid />
-          )}
-
-          {activeTab === 'cover-thumbnails' && (
-            <CoverThumbnailsGrid />
-          )}
-
-          {activeTab === 'channels' && (
-            <PublishingChannelsGrid />
-          )}
+          {activeTab === 'publications-kanban' && <PublishingKanban />}
+          {activeTab === 'back-covers' && <BackCoversGrid />}
+          {activeTab === 'cover-thumbnails' && <CoverThumbnailsGrid />}
+          {activeTab === 'channels' && <PublishingChannelsGrid />}
 
           {activeTab === 'settings' && (
             <div className="space-y-6">
