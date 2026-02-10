@@ -17,11 +17,11 @@ serve(async (req) => {
     }
 
     // Just create a task to verify the API key works, don't poll
-    const response = await fetch('https://api.kie.ai/api/v1/task/createTask', {
+    const response = await fetch('https://api.kie.ai/api/v1/jobs/createTask', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'api-key': kieApiKey,
+        'Authorization': `Bearer ${kieApiKey}`,
       },
       body: JSON.stringify({
         modelId: 'nano-banana-pro',
