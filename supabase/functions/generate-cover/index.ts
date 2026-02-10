@@ -71,13 +71,14 @@ serve(async (req) => {
       .eq('id', videoId);
 
     // Build the prompt for cover generation
-    const coverPrompt = prompt || `Create a professional YouTube thumbnail cover for a spiritual guidance video. 
-The cover should feature a serene, contemplative atmosphere with soft lighting.
-Include space for text overlay on the right side.
-Style: Modern, clean, inspirational.
-Advisor name: ${advisorName || 'Spiritual Advisor'}
-Make it visually appealing for social media.
-Ultra high resolution, 16:9 aspect ratio.`;
+    const coverPrompt = prompt || `Create a professional social media video cover/thumbnail in 9:16 portrait orientation.
+The main focus should be a spiritual advisor named "${advisorName || 'Spiritual Advisor'}".
+IMPORTANT: Include a prominent circular portrait/headshot of the advisor in the lower-left corner of the image.
+Add the advisor's name "${advisorName || ''}" as text overlay near the portrait.
+The background should be a serene, contemplative scene with soft lighting and spiritual atmosphere.
+Style: Modern, clean, inspirational with dramatic lighting.
+Make it visually appealing for TikTok/Instagram Reels.
+Ultra high resolution, 9:16 aspect ratio.`;
 
     console.log('Generating cover with kie.ai Nano Banana, prompt:', coverPrompt);
 

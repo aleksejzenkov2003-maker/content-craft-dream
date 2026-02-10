@@ -101,6 +101,7 @@ export type Database = {
         Row: {
           back_cover_template_url: string | null
           created_at: string
+          default_channels: string[] | null
           display_name: string | null
           elevenlabs_voice_id: string | null
           id: string
@@ -112,6 +113,7 @@ export type Database = {
         Insert: {
           back_cover_template_url?: string | null
           created_at?: string
+          default_channels?: string[] | null
           display_name?: string | null
           elevenlabs_voice_id?: string | null
           id?: string
@@ -123,6 +125,7 @@ export type Database = {
         Update: {
           back_cover_template_url?: string | null
           created_at?: string
+          default_channels?: string[] | null
           display_name?: string | null
           elevenlabs_voice_id?: string | null
           id?: string
