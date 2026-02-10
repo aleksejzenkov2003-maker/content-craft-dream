@@ -1,104 +1,71 @@
 
-# Plan: Fix API Integrations and Add Settings Page
 
-## Issues Found
+# Fix Settings Page API Tests
 
-### 1. kie.ai (Nano Banana) -- CRITICAL BUG in polling
-Both `generate-cover` and `generate-image` edge functions have incorrect polling logic:
-- **Wrong field**: checking `result.data?.status` but the API returns `result.data?.state`
-- **Wrong values**: checking for `'completed'` / `'SUCCESS'` but the API returns `'success'`
-- **Wrong result extraction**: looking for `result.data?.output?.imageUrl` but the API returns results in `result.data?.resultJson` as a JSON string with `resultUrls` array
-- **Wrong model name**: using `'google/nano-banana'` -- needs to be `'nano-banana-pro'` per the docs
-- **Missing aspect_ratio**: kie.ai supports `aspect_ratio` in input but we're not passing it
+## Problems Found
 
-### 2. HeyGen -- Workflow issue
-The `generate-video-heygen` function uses HeyGen's built-in TTS (`voice.type: 'text'`) instead of the intended flow:
-- Current: sends text to HeyGen, HeyGen does both TTS and avatar animation
-- Required: first generate voiceover via ElevenLabs, then send audio to HeyGen to animate the talking photo
-- The function needs to either: (a) accept a pre-generated audio URL, or (b) call ElevenLabs first, then send audio to HeyGen
+1. **Anthropic "Проверить" always fails** -- the Settings page sends `{ prompt, maxTokens }` but the `test-prompt` edge function expects `{ systemPrompt, userTemplate, testContent }`. The function crashes trying to replace variables on `undefined`.
 
-### 3. ElevenLabs -- Voice selection hardcoded
-- Voice is hardcoded to "Григорий" (`B7vhQtHJ3xG23dClyJE4`) in `generate-voiceover`
-- Should use the advisor's `elevenlabs_voice_id` from the database
-- `get-elevenlabs-voices` function exists but isn't connected to any UI for voice selection
+2. **HeyGen "Проверить" gives false positive** -- the `get-heygen-avatars` function returns `{ success: true }` from database cache even if the API key is invalid. The test never actually reaches the HeyGen API.
 
-### 4. Anthropic -- Works correctly
-- `generate-post-text` properly calls Claude API with channel prompts
-- Auto-generation on publication creation is wired up in `usePublications.addPublication`
+3. **Kie.ai "Проверить" fires a real generation** -- currently sends a full image generation request, wasting API credits and taking 30+ seconds. Needs a lightweight connectivity check instead.
 
-### 5. Settings page is empty
-- Currently shows "Настройки будут добавлены позже"
-- Needs API configuration display/testing and voice selection
+4. **HeyGen spinner shows "C"** -- when testing HeyGen, the loading spinner character "C" is visible because the button shows `testingApi === api.key` while `api.key === 'heygen'` conflicts with display logic.
 
 ---
 
-## Implementation Plan
+## Plan
 
-### Step 1: Fix kie.ai polling in both edge functions
-Update `pollTaskStatus` in `generate-cover/index.ts` and `generate-image/index.ts`:
-- Check `result.data?.state` instead of `result.data?.status`
-- Match on `'success'` instead of `'completed'`/`'SUCCESS'`
-- Parse `result.data?.resultJson` (JSON string) and extract `resultUrls[0]`
-- Match failure on `'fail'` instead of `'FAILED'`/`'failed'`
-- Change model from `'google/nano-banana'` to `'nano-banana-pro'`
-- Pass `aspect_ratio` in the input object (e.g. `'9:16'` for covers)
+### Fix 1: Anthropic test -- correct parameters
+Update the `testApi('anthropic')` case in `SettingsPage.tsx` to send the correct fields:
+```typescript
+body: { 
+  systemPrompt: 'You are a test assistant.', 
+  userTemplate: '{{content}}', 
+  testContent: 'Say "API connected" in 3 words',
+  maxTokens: 20 
+}
+```
 
-### Step 2: Fix HeyGen video generation to use ElevenLabs audio
-Update `generate-video-heygen/index.ts`:
-- Accept optional `audioUrl` parameter
-- If no `audioUrl`, first call ElevenLabs to generate voiceover from script using the advisor's `elevenlabs_voice_id`
-- Then send audio to HeyGen using `voice.type: 'audio'` with `audio_url` instead of `voice.type: 'text'`
-- This ensures the correct advisor voice is used via ElevenLabs
+### Fix 2: HeyGen test -- force actual API call
+Pass `{ forceRefresh: true }` to `get-heygen-avatars` so it skips cache and hits the real API:
+```typescript
+const { data, error } = await supabase.functions.invoke('get-heygen-avatars', {
+  body: { forceRefresh: true }
+});
+```
+Also check for `data?.apiError` field which indicates the API failed but cache was returned.
 
-### Step 3: Fix voiceover to use advisor's voice
-Update `generate-voiceover/index.ts`:
-- Accept optional `voiceId` parameter
-- If `voiceId` provided, use it; otherwise look up advisor's `elevenlabs_voice_id`; fallback to Grigory voice
-- Accept optional `videoId` parameter to look up the advisor
+### Fix 3: Kie.ai test -- lightweight check
+Create a new edge function `test-kie-api` that only calls `createTask` and immediately returns without polling. This verifies the API key works without generating an image. Alternatively, use a simple balance/account check if available, or just validate the `createTask` response returns a `taskId` then return success.
 
-### Step 4: Build Settings page
-Create a settings page with sections:
-- **API Status**: show connected status for each API (Anthropic, ElevenLabs, HeyGen, Kie.ai) based on whether secrets exist
-- **Voice Settings**: dropdown to select default ElevenLabs voice, with option to test voices (uses `get-elevenlabs-voices`)
-- **Advisor Voice Config**: link to advisors page for per-advisor voice settings (already exists in AdvisorsGrid settings dialog)
-
-### Step 5: Add voice selection to Advisor settings dialog
-The dialog in `AdvisorsGrid.tsx` already has a text field for ElevenLabs Voice ID. Enhance it with:
-- A dropdown populated from `get-elevenlabs-voices` edge function
-- Preview/play button for each voice
+### Fix 4: Button loading state
+Ensure the loading spinner is properly displayed for all APIs by checking the `testingApi` state correctly. The "C" visible in the screenshot is the first letter of the Cyrillic "Проверить" button text bleeding through during the spinner transition -- fix by ensuring the button content is exclusively the spinner when loading.
 
 ---
+
+## Files to modify
+
+| File | Change |
+|------|--------|
+| `src/components/settings/SettingsPage.tsx` | Fix Anthropic params, HeyGen forceRefresh, Kie.ai lightweight test, button display |
+| `supabase/functions/test-kie-api/index.ts` | New edge function -- creates task and cancels immediately, just to verify API key |
 
 ## Technical Details
 
-### kie.ai polling fix (corrected code pattern):
-```typescript
-// Check state (not status)
-if (result.data?.state === 'success') {
-  const resultJson = JSON.parse(result.data.resultJson);
-  const urls = resultJson.resultUrls;
-  if (urls && urls.length > 0) return urls[0];
-  throw new Error('No result URLs found');
-}
-if (result.data?.state === 'fail') {
-  throw new Error('Task failed: ' + result.data.failMsg);
-}
-```
+### New `test-kie-api` edge function:
+- Calls `createTask` with a minimal prompt
+- If `taskId` is returned, the API key is valid -- return success immediately
+- Does NOT poll for completion (no image generated, no credits wasted)
+- If 401/403, API key is invalid
 
-### HeyGen with audio (corrected API call):
-```typescript
-// Using audio URL instead of text
-voice: {
-  type: 'audio',
-  audio_url: voiceoverUrl,  // Pre-generated ElevenLabs audio
-}
+### Settings page button fix:
+The `disabled` prop prevents double-click, but the content needs a strict conditional:
+```tsx
+{testingApi === api.key ? (
+  <Loader2 className="w-4 h-4 animate-spin" />
+) : (
+  'Проверить'
+)}
 ```
-
-### Files to modify:
-- `supabase/functions/generate-cover/index.ts` -- fix polling + model name
-- `supabase/functions/generate-image/index.ts` -- fix polling + model name
-- `supabase/functions/generate-video-heygen/index.ts` -- add ElevenLabs voiceover step
-- `supabase/functions/generate-voiceover/index.ts` -- use advisor voice ID
-- `src/pages/Index.tsx` -- replace settings placeholder with settings component
-- `src/components/settings/SettingsPage.tsx` -- new component
-- `src/components/advisors/AdvisorsGrid.tsx` -- enhance voice selection in dialog
+This is already correct in code, so the "C" is likely from a render timing issue. Adding `className="min-w-[90px]"` to the button will prevent layout shift.
