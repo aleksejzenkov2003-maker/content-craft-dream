@@ -1,108 +1,104 @@
 
+# Plan: Fix API Integrations and Add Settings Page
 
-# Аудит: Правки от 5 февраля -- что сделано, что нет
+## Issues Found
 
-## РАЗДЕЛ «ВОПРОСЫ»
+### 1. kie.ai (Nano Banana) -- CRITICAL BUG in polling
+Both `generate-cover` and `generate-image` edge functions have incorrect polling logic:
+- **Wrong field**: checking `result.data?.status` but the API returns `result.data?.state`
+- **Wrong values**: checking for `'completed'` / `'SUCCESS'` but the API returns `'success'`
+- **Wrong result extraction**: looking for `result.data?.output?.imageUrl` but the API returns results in `result.data?.resultJson` as a JSON string with `resultUrls` array
+- **Wrong model name**: using `'google/nano-banana'` -- needs to be `'nano-banana-pro'` per the docs
+- **Missing aspect_ratio**: kie.ai supports `aspect_ratio` in input but we're not passing it
 
-| # | Требование | Статус | Комментарий |
-|---|-----------|--------|-------------|
-| 1 | Безопасность: Безопасно / Критический / Средний риск / Высокий риск | Сделано | `safetyOptions` в QuestionsTable.tsx |
-| 2 | Актуальность: числовое 01-100 | Сделано | Отображается как число, не редактируемое |
-| 3 | Переименовать «Дата» в «Плановая публикация» | Сделано | Заголовок "Плановая публ." |
-| 4 | Статус: Не отобран / Взят в работу / Опубликован | Сделано | `statusOptions` в QuestionsTable.tsx |
-| 5 | Убрать чекбокс рядом с полем Статус | Сделано | Статус через InlineEdit select |
-| 6 | Сортировка: Безопасность, Актуальность, Вопрос, Статус | Сделано | handleSort поддерживает safety, relevance, question, status |
-| 7 | Клик на вопрос -- нет бокового окна | Сделано | Строка не кликабельна |
-| 8 | Убрать кнопку «Добавить» | Сделано | Кнопки нет |
-| 9 | Импорт в верхнее меню (Excel поддержка) | Сделано | Кнопка "Импорт" в верхней панели, CsvImporter поддерживает xlsx |
-| 10 | Убрать надписи «Interface/Questions» | Сделано | Header упрощен |
-| 11 | Убрать кнопки Group, Sort | Сделано | Кнопок нет |
-| 12 | HoverCard шире и темнее | Сделано | w-[500px], bg-popover/95 backdrop-blur-sm |
-| 13 | Убрать строку поиск/запуск/обновление из верхнего меню | Сделано | Header без search/run/refresh |
-| 14 | Не показывать «Вопрос обновлен» при изменении | Сделано | silent: true в bulkUpdateAll |
-| 15 | Bulk actions: Плановая дата, Статус, Удалить | Сделано | В правильной последовательности |
-| 16 | Обновить фильтр с учетом полей | Сделано | QuestionFilters обновлен |
-| 17 | Убрать из фильтра наличие роликов | Сделано | Нет такого фильтра |
-| 18 | Фильтр безопасность от/до (числовые) | НЕ СДЕЛАНО | Сейчас фильтр безопасности -- чекбоксы по категориям (safe/critical/medium_risk/high_risk), а не числовой диапазон. Документ просит числовой от___ до___ |
+### 2. HeyGen -- Workflow issue
+The `generate-video-heygen` function uses HeyGen's built-in TTS (`voice.type: 'text'`) instead of the intended flow:
+- Current: sends text to HeyGen, HeyGen does both TTS and avatar animation
+- Required: first generate voiceover via ElevenLabs, then send audio to HeyGen to animate the talking photo
+- The function needs to either: (a) accept a pre-generated audio URL, or (b) call ElevenLabs first, then send audio to HeyGen
 
----
+### 3. ElevenLabs -- Voice selection hardcoded
+- Voice is hardcoded to "Григорий" (`B7vhQtHJ3xG23dClyJE4`) in `generate-voiceover`
+- Should use the advisor's `elevenlabs_voice_id` from the database
+- `get-elevenlabs-voices` function exists but isn't connected to any UI for voice selection
 
-## Автоматические действия (раздел Вопросы)
+### 4. Anthropic -- Works correctly
+- `generate-post-text` properly calls Claude API with channel prompts
+- Auto-generation on publication creation is wired up in `usePublications.addPublication`
 
-| # | Требование | Статус | Комментарий |
-|---|-----------|--------|-------------|
-| 1 | Авто-генерация обложек при «Плановая публикация» + «Взят в работу» | Сделано | triggerAutoGeneration в Index.tsx |
-| 2 | Авто-генерация видео при тех же условиях | Сделано | Тот же triggerAutoGeneration |
-| 3 | Проверка для избежания повторной генерации | Сделано | Проверяет cover_status и generation_status |
-| 4 | Обложка = сцена (духовник, ответ, вопрос) + миниатюра духовника с надписью | Частично | generate-cover отправляет advisorPhotoUrl и advisorName, но наложение миниатюры и текста поверх сцены зависит от того, как именно kie.ai API обрабатывает промт. Композитинг (наложение фото духовника) НЕ реализован программно |
-| 5 | Видео = аудио (ответ духовника) + видео (фото плейлиста), без обложек | Сделано | generate-video-heygen вызывается напрямую |
+### 5. Settings page is empty
+- Currently shows "Настройки будут добавлены позже"
+- Needs API configuration display/testing and voice selection
 
 ---
 
-## РАЗДЕЛ «РОЛИКИ»
+## Implementation Plan
 
-| # | Требование | Статус | Комментарий |
-|---|-----------|--------|-------------|
-| 1 | Убрать строку поиска | Сделано | Нет поиска |
-| 2 | Убрать поле с духовниками | Сделано | Нет фильтра по духовникам |
-| 3 | Убрать поле с плейлистами | Сделано | Нет фильтра по плейлистам |
-| 4 | Убрать кнопку «новый ролик» | Сделано | Кнопки нет |
-| 5 | Показывать только вопросы со статусом «Взят в работу» | Сделано | filter: question_status === 'in_progress' |
-| 6 | Формат заголовка: #ID, Вопрос, Плановая дата | Сделано | В CollapsibleTrigger |
-| 7 | Исправить сортировку полей внутри вопроса | Сделано | handleSort работает для id, advisor, cover_status, video_status, duration |
-| 8 | Нет редактируемых полей в строке | Сделано | Все поля read-only |
-| 9 | Просмотр деталей по клику на ID ролика | Сделано | onClick на video_number вызывает onViewVideo |
+### Step 1: Fix kie.ai polling in both edge functions
+Update `pollTaskStatus` in `generate-cover/index.ts` and `generate-image/index.ts`:
+- Check `result.data?.state` instead of `result.data?.status`
+- Match on `'success'` instead of `'completed'`/`'SUCCESS'`
+- Parse `result.data?.resultJson` (JSON string) and extract `resultUrls[0]`
+- Match failure on `'fail'` instead of `'FAILED'`/`'failed'`
+- Change model from `'google/nano-banana'` to `'nano-banana-pro'`
+- Pass `aspect_ratio` in the input object (e.g. `'9:16'` for covers)
 
----
+### Step 2: Fix HeyGen video generation to use ElevenLabs audio
+Update `generate-video-heygen/index.ts`:
+- Accept optional `audioUrl` parameter
+- If no `audioUrl`, first call ElevenLabs to generate voiceover from script using the advisor's `elevenlabs_voice_id`
+- Then send audio to HeyGen using `voice.type: 'audio'` with `audio_url` instead of `voice.type: 'text'`
+- This ensures the correct advisor voice is used via ElevenLabs
 
-## Модальное окно «Ролики» (VideoSidePanel)
+### Step 3: Fix voiceover to use advisor's voice
+Update `generate-voiceover/index.ts`:
+- Accept optional `voiceId` parameter
+- If `voiceId` provided, use it; otherwise look up advisor's `elevenlabs_voice_id`; fallback to Grigory voice
+- Accept optional `videoId` parameter to look up the advisor
 
-| # | Требование | Статус | Комментарий |
-|---|-----------|--------|-------------|
-| 1 | Текстовое поле «Ответ духовника» | Сделано | Textarea для advisorAnswer |
-| 2 | Редактируемое поле Publication date | Сделано | Calendar Popover |
-| 3 | Первая обложка по умолчанию уже сгенерирована | Сделано | Через авто-генерацию при переходе в «Взят в работу» |
-| 4 | Повторная генерация обложки по кнопке | Сделано | Generate Cover кнопка |
-| 5 | Повторная генерация видео по кнопке | Сделано | Generate Video кнопка |
-| 6 | Не показывать «Ролик обновлен» | Сделано | Тосты отключены |
-| 7 | Видео и обложка одного размера | Сделано | Оба aspect-[9/16] |
-| 8 | Генерация видео через HeyGen без обложек | Сделано | Без front/back covers |
-| 9 | Каналы по умолчанию из настроек духовника | НЕ СДЕЛАНО | selectedChannels инициализируется из video.selected_channels, но нет логики предзаполнения каналами из таблицы advisors |
-| 10 | Каналы для публикации на самом верху | Сделано | Первый блок в ScrollArea |
+### Step 4: Build Settings page
+Create a settings page with sections:
+- **API Status**: show connected status for each API (Anthropic, ElevenLabs, HeyGen, Kie.ai) based on whether secrets exist
+- **Voice Settings**: dropdown to select default ElevenLabs voice, with option to test voices (uses `get-elevenlabs-voices`)
+- **Advisor Voice Config**: link to advisors page for per-advisor voice settings (already exists in AdvisorsGrid settings dialog)
 
----
-
-## Автоматические действия (модальное окно)
-
-| # | Требование | Статус | Комментарий |
-|---|-----------|--------|-------------|
-| 1 | Кнопка «Публикация» создает задачи по каждому каналу | Сделано | handlePublishVideo в Index.tsx создает publication для каждого channelId |
-| 2 | Авто-генерация текста описания через Claude при создании публикации | НЕ СДЕЛАНО | Edge function generate-post-text существует, но не вызывается автоматически при создании публикации. Текст описания не генерируется на основе промта канала и переменных (монолог, вопрос, духовник, хук) |
+### Step 5: Add voice selection to Advisor settings dialog
+The dialog in `AdvisorsGrid.tsx` already has a text field for ElevenLabs Voice ID. Enhance it with:
+- A dropdown populated from `get-elevenlabs-voices` edge function
+- Preview/play button for each voice
 
 ---
 
-## Итого: что нужно доделать
+## Technical Details
 
-### 1. Фильтр безопасности -- числовой диапазон (от/до)
-Документ на стр. 2 явно просит: "Добавить в фильтр безопасность вопроса от ___ до____ (числовые данные)". Сейчас безопасность -- это категория (safe/critical/medium_risk/high_risk), а не число. Нужно либо:
-- Добавить числовое поле safety_score_numeric к вопросам и фильтровать по нему
-- Либо уточнить, имелось ли в виду именно числовое поле или достаточно текущих чекбоксов
+### kie.ai polling fix (corrected code pattern):
+```typescript
+// Check state (not status)
+if (result.data?.state === 'success') {
+  const resultJson = JSON.parse(result.data.resultJson);
+  const urls = resultJson.resultUrls;
+  if (urls && urls.length > 0) return urls[0];
+  throw new Error('No result URLs found');
+}
+if (result.data?.state === 'fail') {
+  throw new Error('Task failed: ' + result.data.failMsg);
+}
+```
 
-### 2. Предзаполнение каналов из профиля духовника
-При открытии VideoSidePanel для ролика, каналы публикации должны быть предвыбраны из настроек духовника. Требуется:
-- Добавить поле default_channels в таблицу advisors (или использовать существующее)
-- При открытии панели, если video.selected_channels пусто, подставлять каналы из advisor
+### HeyGen with audio (corrected API call):
+```typescript
+// Using audio URL instead of text
+voice: {
+  type: 'audio',
+  audio_url: voiceoverUrl,  // Pre-generated ElevenLabs audio
+}
+```
 
-### 3. Авто-генерация текста описания при публикации
-При нажатии «Публикация» после создания записей в таблице publications нужно для каждой автоматически вызвать generate-post-text с параметрами:
-- Текст монолога (advisor_answer)
-- Вопрос
-- Духовник
-- Хук
-- Промт из настроек канала публикации
-
-### 4. Композитинг обложки (миниатюра духовника поверх сцены)
-Текущая генерация обложки отправляет данные в kie.ai для генерации изображения, но не выполняет наложение миниатюры духовника с надписью поверх сгенерированной сцены. Это может потребовать:
-- Серверного композитинга (например, через Canvas API в edge function)
-- Или включения инструкций по наложению в промт для kie.ai
-
+### Files to modify:
+- `supabase/functions/generate-cover/index.ts` -- fix polling + model name
+- `supabase/functions/generate-image/index.ts` -- fix polling + model name
+- `supabase/functions/generate-video-heygen/index.ts` -- add ElevenLabs voiceover step
+- `supabase/functions/generate-voiceover/index.ts` -- use advisor voice ID
+- `src/pages/Index.tsx` -- replace settings placeholder with settings component
+- `src/components/settings/SettingsPage.tsx` -- new component
+- `src/components/advisors/AdvisorsGrid.tsx` -- enhance voice selection in dialog
