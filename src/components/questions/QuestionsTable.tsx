@@ -13,7 +13,7 @@ import { Publication } from '@/hooks/usePublications';
 import { format, setHours, setMinutes } from 'date-fns';
 import { ru } from 'date-fns/locale';
 import { CsvImporter } from '@/components/import/CsvImporter';
-import { VIDEO_COLUMN_MAPPING, VIDEO_PREVIEW_COLUMNS } from '@/components/import/importConfigs';
+import { VIDEO_COLUMN_MAPPING, VIDEO_PREVIEW_COLUMNS, VIDEO_FIELD_DEFINITIONS } from '@/components/import/importConfigs';
 import { InlineEdit, SelectOption } from '@/components/ui/inline-edit';
 import { BulkActionsBar, BulkActionButton } from '@/components/ui/bulk-actions-bar';
 import { QuestionFilters, FilterState } from './QuestionFilters';
@@ -571,6 +571,7 @@ export function QuestionsTable({
             await onBulkImport(data);
           }
         }}
+        fieldDefinitions={VIDEO_FIELD_DEFINITIONS}
       />
 
       {/* Delete Confirmation Dialog */}

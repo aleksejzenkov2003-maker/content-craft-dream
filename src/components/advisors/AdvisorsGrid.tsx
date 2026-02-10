@@ -12,7 +12,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { ImageInput } from '@/components/ui/image-input';
 import { CsvImporter } from '@/components/import/CsvImporter';
-import { ADVISOR_COLUMN_MAPPING, ADVISOR_PREVIEW_COLUMNS } from '@/components/import/importConfigs';
+import { ADVISOR_COLUMN_MAPPING, ADVISOR_PREVIEW_COLUMNS, ADVISOR_FIELD_DEFINITIONS } from '@/components/import/importConfigs';
 
 interface AdvisorsGridProps {
   advisors: Advisor[];
@@ -404,6 +404,7 @@ export function AdvisorsGrid({
         previewColumns={ADVISOR_PREVIEW_COLUMNS}
         onImport={handleImport}
         requiredFields={['name']}
+        fieldDefinitions={ADVISOR_FIELD_DEFINITIONS}
       />
     </div>
   );

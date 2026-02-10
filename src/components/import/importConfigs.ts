@@ -1,5 +1,13 @@
 // Column mappings for different entity types
 
+export interface FieldDefinition {
+  field: string;
+  label: string;
+  aliases: string[];
+  required?: boolean;
+  description?: string;
+}
+
 // Videos / Questions (from Аудио и видео.csv)
 export const VIDEO_COLUMN_MAPPING: Record<string, string> = {
   // Video number/ID - exact matches from file
@@ -355,4 +363,77 @@ export const BACK_COVER_VIDEO_PREVIEW_COLUMNS = [
   { key: 'name', label: 'Название' },
   { key: 'back_cover_video_url', label: 'Видео URL' },
   { key: 'channel_names', label: 'Каналы' },
+];
+
+// =================== Field Definitions ===================
+
+export const VIDEO_FIELD_DEFINITIONS: FieldDefinition[] = [
+  { field: 'video_number', label: '№ ролика', aliases: ['id ролика', '# id ролика', 'video_number', 'номер'], required: true },
+  { field: 'advisor_name', label: 'Духовник', aliases: ['духовник', '≡ духовник', 'advisor'] },
+  { field: 'playlist_name', label: 'Плейлист', aliases: ['плейлист', '≡ плейлист', 'playlist'] },
+  { field: 'question', label: 'Вопрос', aliases: ['вопрос', 'вопрос к духовнику', 'question'] },
+  { field: 'question_rus', label: 'Вопрос (рус)', aliases: ['вопрос рус', 'question rus'] },
+  { field: 'safety_score', label: 'Безопасность', aliases: ['безопасность', 'safety', 'a безоп'] },
+  { field: 'relevance_score', label: 'Актуальность', aliases: ['актуальность', 'relevance'] },
+  { field: 'hook', label: 'Хук', aliases: ['хук', 'hook', 'хук eng'] },
+  { field: 'hook_rus', label: 'Хук (рус)', aliases: ['хук рус', 'hook rus'] },
+  { field: 'advisor_answer', label: 'Ответ духовника', aliases: ['ответ духовника', '≡ ответ духовника', 'answer'] },
+  { field: 'voiceover_url', label: 'Озвучка', aliases: ['озвучка', 'a озвучка', 'voiceover'] },
+  { field: 'heygen_video_url', label: 'Видео URL', aliases: ['video', '⚙ video (url)', 'video url'] },
+  { field: 'heygen_video_id', label: 'HeyGen ID', aliases: ['heygen_id', 'a heygen_id'] },
+  { field: 'generation_status', label: 'Статус видео', aliases: ['video status', '⊙ video status', 'статус'] },
+  { field: 'publication_date', label: 'Дата публикации', aliases: ['planned publication date', 'дата публикации'] },
+  { field: 'question_id', label: 'ID вопроса', aliases: ['id вопроса', 'question id'] },
+];
+
+export const ADVISOR_FIELD_DEFINITIONS: FieldDefinition[] = [
+  { field: 'name', label: 'Имя', aliases: ['name', 'имя', 'духовник', 'advisor'], required: true },
+  { field: 'display_name', label: 'Отображаемое имя', aliases: ['display_name', 'отображаемое имя', 'display name'] },
+  { field: 'elevenlabs_voice_id', label: 'Voice ID', aliases: ['voice_id', 'elevenlabs_voice_id'] },
+  { field: 'speech_speed', label: 'Скорость речи', aliases: ['speech_speed', 'скорость речи', 'speed'] },
+  { field: 'is_active', label: 'Активен', aliases: ['active', 'is_active', 'активен'] },
+];
+
+export const PLAYLIST_FIELD_DEFINITIONS: FieldDefinition[] = [
+  { field: 'name', label: 'Название', aliases: ['name', 'название', 'плейлист', 'playlist'], required: true },
+  { field: 'description', label: 'Описание', aliases: ['description', 'описание'] },
+  { field: 'scene_prompt', label: 'Промт для сцены', aliases: ['scene_prompt', 'промт для сцены', 'scene prompt'] },
+];
+
+export const CHANNEL_FIELD_DEFINITIONS: FieldDefinition[] = [
+  { field: 'name', label: 'Название', aliases: ['name', 'network name', 'канал'], required: true },
+  { field: 'network_type', label: 'Тип сети', aliases: ['network_type', 'social network type', 'сеть'], required: true },
+  { field: 'proxy_server', label: 'Прокси', aliases: ['proxy_server', 'proxy server', 'прокси'] },
+  { field: 'location', label: 'Локация', aliases: ['location', 'локация'] },
+  { field: 'post_text_prompt', label: 'Промт для поста', aliases: ['post_text_prompt', 'prompt', 'промт'] },
+  { field: 'is_active', label: 'Активен', aliases: ['is_active', 'active', 'активен'] },
+];
+
+export const PUBLICATION_FIELD_DEFINITIONS: FieldDefinition[] = [
+  { field: 'video_number', label: 'ID Ролика', aliases: ['video_number', 'id ролика', 'video id'] },
+  { field: 'channel_name', label: 'Канал', aliases: ['channel_name', 'канал', 'каналы публикаций'] },
+  { field: 'post_date', label: 'Дата', aliases: ['post_date', 'post date', 'дата', 'дата публикации'] },
+  { field: 'publication_status', label: 'Статус', aliases: ['publication_status', 'status', 'статус'] },
+  { field: 'post_url', label: 'Ссылка', aliases: ['post_url', 'post url', 'ссылка'] },
+  { field: 'generated_text', label: 'Текст', aliases: ['text', 'текст', 'generated_text'] },
+  { field: 'title', label: 'Заголовок', aliases: ['заголовок публикации', 'title'] },
+  { field: 'hook', label: 'Хук', aliases: ['хук', 'hook'] },
+  { field: 'advisor_name', label: 'Духовник', aliases: ['духовник', 'advisor'] },
+  { field: 'question_id', label: 'ID вопроса', aliases: ['id вопроса', 'question id'] },
+];
+
+export const SCENE_FIELD_DEFINITIONS: FieldDefinition[] = [
+  { field: 'advisor_name', label: 'Духовник', aliases: ['advisor_name', 'духовник', 'advisor'], required: true },
+  { field: 'playlist_name', label: 'Плейлист', aliases: ['playlist_name', 'плейлист', 'playlist'], required: true },
+  { field: 'scene_prompt', label: 'Промт для сцены', aliases: ['scene_prompt', 'промт для сцены', 'промт'] },
+  { field: 'scene_url', label: 'URL сцены', aliases: ['scene_url', 'фото сцены', 'scene url'] },
+  { field: 'status', label: 'Статус', aliases: ['status', 'статус'] },
+  { field: 'review_status', label: 'Статус проверки', aliases: ['review_status', 'статус проверки'] },
+];
+
+export const BACK_COVER_VIDEO_FIELD_DEFINITIONS: FieldDefinition[] = [
+  { field: 'name', label: 'Название', aliases: ['name', 'название', 'имя'] },
+  { field: 'back_cover_video_url', label: 'Видео URL', aliases: ['photo / video', 'photo/video', 'video', 'видео', 'video url'] },
+  { field: 'channel_names', label: 'Каналы', aliases: ['каналы публикаций', 'каналы', 'channels'] },
+  { field: 'comment', label: 'Комментарий', aliases: ['комментарий', 'comment'] },
 ];

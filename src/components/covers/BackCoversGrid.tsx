@@ -15,7 +15,7 @@ import { usePublishingChannels, PublishingChannel } from '@/hooks/usePublishingC
 import { toast } from 'sonner';
 import { ImageInput } from '@/components/ui/image-input';
 import { CsvImporter } from '@/components/import/CsvImporter';
-import { BACK_COVER_VIDEO_COLUMN_MAPPING, BACK_COVER_VIDEO_PREVIEW_COLUMNS } from '@/components/import/importConfigs';
+import { BACK_COVER_VIDEO_COLUMN_MAPPING, BACK_COVER_VIDEO_PREVIEW_COLUMNS, BACK_COVER_VIDEO_FIELD_DEFINITIONS } from '@/components/import/importConfigs';
 
 export function BackCoversGrid() {
   const { channels, loading, updateChannel } = usePublishingChannels();
@@ -240,6 +240,7 @@ export function BackCoversGrid() {
         columnMapping={BACK_COVER_VIDEO_COLUMN_MAPPING}
         previewColumns={BACK_COVER_VIDEO_PREVIEW_COLUMNS}
         onImport={handleImportBackCoverVideos}
+        fieldDefinitions={BACK_COVER_VIDEO_FIELD_DEFINITIONS}
       />
     </div>
   );

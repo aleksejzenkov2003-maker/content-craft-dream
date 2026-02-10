@@ -5,9 +5,12 @@ import { Badge } from '@/components/ui/badge';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Upload, FileSpreadsheet, AlertCircle, CheckCircle, Loader2, X } from 'lucide-react';
-import { parseCSV, readFileAsText, ParsedRow, ParseResult } from './csvUtils';
+import { parseCSV, readFileAsText, ParsedRow, ParseResult, ColumnMappingInfo, normalizeHeader, parseCSVLine, detectDelimiter } from './csvUtils';
 import { cn } from '@/lib/utils';
 import * as XLSX from 'xlsx';
+import { FieldDefinition } from './importConfigs';
+import { FieldStructureInfo } from './FieldStructureInfo';
+import { ColumnMappingEditor } from './ColumnMappingEditor';
 
 export interface PreviewColumn {
   key: string;
@@ -32,6 +35,7 @@ export interface CsvImporterProps {
   requiredFields?: string[];
   lookups?: Lookups;
   resolveRow?: (row: Record<string, any>, lookups: Lookups) => { data: Record<string, any>; errors: string[] };
+  fieldDefinitions?: FieldDefinition[];
 }
 
 export function CsvImporter({
@@ -44,6 +48,7 @@ export function CsvImporter({
   requiredFields,
   lookups,
   resolveRow,
+  fieldDefinitions,
 }: CsvImporterProps) {
   const [file, setFile] = useState<File | null>(null);
   const [parseResult, setParseResult] = useState<ParseResult | null>(null);
@@ -51,6 +56,8 @@ export function CsvImporter({
   const [isLoading, setIsLoading] = useState(false);
   const [isImporting, setIsImporting] = useState(false);
   const [dragActive, setDragActive] = useState(false);
+  const [customMapping, setCustomMapping] = useState<ColumnMappingInfo[] | null>(null);
+  const [rawFileContent, setRawFileContent] = useState<string>('');
 
   const resetState = () => {
     setFile(null);
@@ -58,11 +65,28 @@ export function CsvImporter({
     setResolvedRows([]);
     setIsLoading(false);
     setIsImporting(false);
+    setCustomMapping(null);
+    setRawFileContent('');
   };
 
   const handleClose = () => {
     resetState();
     onClose();
+  };
+
+  const resolveRows = (rows: ParsedRow[]) => {
+    if (resolveRow && lookups) {
+      return rows.map(row => {
+        const { data, errors } = resolveRow(row.data, lookups);
+        return {
+          ...row,
+          data,
+          errors: [...row.errors, ...errors],
+          isValid: row.errors.length === 0 && errors.length === 0,
+        };
+      });
+    }
+    return rows;
   };
 
   const processFile = async (selectedFile: File) => {
@@ -72,7 +96,6 @@ export function CsvImporter({
     try {
       let content: string;
 
-      // Handle Excel files
       if (selectedFile.name.endsWith('.xlsx') || selectedFile.name.endsWith('.xls')) {
         const arrayBuffer = await selectedFile.arrayBuffer();
         const workbook = XLSX.read(arrayBuffer, { type: 'array' });
@@ -82,24 +105,11 @@ export function CsvImporter({
         content = await readFileAsText(selectedFile);
       }
 
+      setRawFileContent(content);
       const result = parseCSV(content, columnMapping, requiredFields);
       setParseResult(result);
-
-      // Resolve lookups if provided
-      if (resolveRow && lookups) {
-        const resolved = result.rows.map(row => {
-          const { data, errors } = resolveRow(row.data, lookups);
-          return {
-            ...row,
-            data,
-            errors: [...row.errors, ...errors],
-            isValid: row.errors.length === 0 && errors.length === 0,
-          };
-        });
-        setResolvedRows(resolved);
-      } else {
-        setResolvedRows(result.rows);
-      }
+      setCustomMapping(result.mappedColumns);
+      setResolvedRows(resolveRows(result.rows));
     } catch (error) {
       console.error('Error parsing file:', error);
     } finally {
@@ -107,13 +117,76 @@ export function CsvImporter({
     }
   };
 
+  const handleMappingChange = (columnIndex: number, newField: string | null) => {
+    if (!customMapping) return;
+    const updated = customMapping.map(col =>
+      col.columnIndex === columnIndex ? { ...col, mappedField: newField } : col
+    );
+    setCustomMapping(updated);
+  };
+
+  const handleApplyMapping = () => {
+    if (!rawFileContent || !customMapping) return;
+
+    // Rebuild column mapping from customMapping
+    const newMapping: Record<string, string> = {};
+    customMapping.forEach(col => {
+      if (col.mappedField && col.csvHeader) {
+        newMapping[col.csvHeader.toLowerCase()] = col.mappedField;
+      }
+    });
+
+    const result = parseCSV(rawFileContent, newMapping, requiredFields);
+    // Preserve custom mapping selections
+    const updatedMapped = result.mappedColumns.map(col => {
+      const custom = customMapping.find(c => c.columnIndex === col.columnIndex);
+      return custom ? { ...col, mappedField: custom.mappedField } : col;
+    });
+    
+    // Re-parse rows with custom mapping
+    const delimiter = detectDelimiter(rawFileContent);
+    const lines = rawFileContent.replace(/^\uFEFF/, '').replace(/\r\n/g, '\n').replace(/\r/g, '\n').split('\n').filter(l => l.trim());
+    
+    if (lines.length <= 1) return;
+    
+    const headerToField: Record<number, string> = {};
+    customMapping.forEach(col => {
+      if (col.mappedField) {
+        headerToField[col.columnIndex] = col.mappedField;
+      }
+    });
+
+    const rows: ParsedRow[] = [];
+    for (let i = 1; i < lines.length; i++) {
+      const values = parseCSVLine(lines[i], delimiter);
+      const data: Record<string, string> = {};
+      const errors: string[] = [];
+      
+      values.forEach((value, index) => {
+        const fieldName = headerToField[index];
+        if (fieldName) data[fieldName] = value;
+      });
+
+      if (requiredFields) {
+        for (const field of requiredFields) {
+          if (!data[field] || !data[field].trim()) {
+            errors.push(`Отсутствует обязательное поле: ${field}`);
+          }
+        }
+      }
+
+      rows.push({ rowIndex: i, data, errors, isValid: errors.length === 0 });
+    }
+
+    setParseResult({ ...result, mappedColumns: updatedMapped });
+    setResolvedRows(resolveRows(rows));
+  };
+
   const handleDrop = useCallback((e: React.DragEvent) => {
     e.preventDefault();
     setDragActive(false);
     const droppedFile = e.dataTransfer.files[0];
-    if (droppedFile) {
-      processFile(droppedFile);
-    }
+    if (droppedFile) processFile(droppedFile);
   }, [columnMapping, requiredFields, lookups, resolveRow]);
 
   const handleDragOver = useCallback((e: React.DragEvent) => {
@@ -128,9 +201,7 @@ export function CsvImporter({
 
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const selectedFile = e.target.files?.[0];
-    if (selectedFile) {
-      processFile(selectedFile);
-    }
+    if (selectedFile) processFile(selectedFile);
   };
 
   const handleImport = async () => {
@@ -163,45 +234,35 @@ export function CsvImporter({
 
         <div className="flex-1 overflow-hidden">
           {!file ? (
-            // Upload zone
-            <div
-              className={cn(
-                "border-2 border-dashed rounded-lg p-12 text-center transition-colors",
-                dragActive ? "border-primary bg-primary/5" : "border-muted-foreground/30"
+            <div>
+              <div
+                className={cn(
+                  "border-2 border-dashed rounded-lg p-12 text-center transition-colors",
+                  dragActive ? "border-primary bg-primary/5" : "border-muted-foreground/30"
+                )}
+                onDrop={handleDrop}
+                onDragOver={handleDragOver}
+                onDragLeave={handleDragLeave}
+              >
+                <Upload className="w-12 h-12 mx-auto mb-4 text-muted-foreground" />
+                <p className="text-lg font-medium mb-2">Перетащите файл сюда</p>
+                <p className="text-sm text-muted-foreground mb-4">или нажмите для выбора файла</p>
+                <p className="text-xs text-muted-foreground mb-4">Поддерживаемые форматы: CSV, XLS, XLSX</p>
+                <input type="file" accept=".csv,.xls,.xlsx" onChange={handleFileSelect} className="hidden" id="csv-file-input" />
+                <label htmlFor="csv-file-input">
+                  <Button variant="outline" asChild><span>Выбрать файл</span></Button>
+                </label>
+              </div>
+              {fieldDefinitions && fieldDefinitions.length > 0 && (
+                <FieldStructureInfo fieldDefinitions={fieldDefinitions} />
               )}
-              onDrop={handleDrop}
-              onDragOver={handleDragOver}
-              onDragLeave={handleDragLeave}
-            >
-              <Upload className="w-12 h-12 mx-auto mb-4 text-muted-foreground" />
-              <p className="text-lg font-medium mb-2">Перетащите файл сюда</p>
-              <p className="text-sm text-muted-foreground mb-4">
-                или нажмите для выбора файла
-              </p>
-              <p className="text-xs text-muted-foreground mb-4">
-                Поддерживаемые форматы: CSV, XLS, XLSX
-              </p>
-              <input
-                type="file"
-                accept=".csv,.xls,.xlsx"
-                onChange={handleFileSelect}
-                className="hidden"
-                id="csv-file-input"
-              />
-              <label htmlFor="csv-file-input">
-                <Button variant="outline" asChild>
-                  <span>Выбрать файл</span>
-                </Button>
-              </label>
             </div>
           ) : isLoading ? (
-            // Loading state
             <div className="flex flex-col items-center justify-center py-12">
               <Loader2 className="w-8 h-8 animate-spin text-primary mb-4" />
               <p className="text-muted-foreground">Обработка файла...</p>
             </div>
           ) : (
-            // Preview
             <div className="space-y-4">
               {/* File info */}
               <div className="flex items-center justify-between p-3 bg-muted/50 rounded-lg">
@@ -223,19 +284,22 @@ export function CsvImporter({
                       {errorCount} ошибок
                     </Badge>
                   )}
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={resetState}
-                  >
+                  <Button variant="ghost" size="sm" onClick={resetState}>
                     <X className="w-4 h-4 mr-1" />
                     Другой файл
                   </Button>
                 </div>
               </div>
 
-              {/* Column mapping info */}
-              {parseResult && (
+              {/* Column mapping editor or fallback */}
+              {fieldDefinitions && fieldDefinitions.length > 0 && customMapping ? (
+                <ColumnMappingEditor
+                  mappedColumns={customMapping}
+                  fieldDefinitions={fieldDefinitions}
+                  onMappingChange={handleMappingChange}
+                  onApplyMapping={handleApplyMapping}
+                />
+              ) : parseResult && (
                 <div className="p-3 bg-muted/30 rounded-lg text-sm space-y-2">
                   <div className="flex items-center gap-2 text-muted-foreground">
                     <span>Разделитель:</span>
@@ -291,59 +355,35 @@ export function CsvImporter({
                       <TableRow className="bg-muted/50">
                         <TableHead className="w-10 text-center">#</TableHead>
                         {previewColumns.map((col) => (
-                          <TableHead 
-                            key={col.key} 
-                            className="whitespace-nowrap px-3"
-                          >
-                            {col.label}
-                          </TableHead>
+                          <TableHead key={col.key} className="whitespace-nowrap px-3">{col.label}</TableHead>
                         ))}
                         <TableHead className="w-28 text-center">Статус</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
                       {resolvedRows.map((row, index) => (
-                        <TableRow
-                          key={index}
-                          className={cn(
-                            !row.isValid && "bg-destructive/5"
-                          )}
-                        >
-                          <TableCell className="font-mono text-xs text-muted-foreground text-center w-10">
-                            {row.rowIndex}
-                          </TableCell>
+                        <TableRow key={index} className={cn(!row.isValid && "bg-destructive/5")}>
+                          <TableCell className="font-mono text-xs text-muted-foreground text-center w-10">{row.rowIndex}</TableCell>
                           {previewColumns.map((col) => {
                             const value = row.data[col.key];
-                            const displayValue = col.render
-                              ? col.render(value, row.data)
-                              : value || '—';
+                            const displayValue = col.render ? col.render(value, row.data) : value || '—';
                             const stringValue = String(value || '');
                             const isTruncated = stringValue.length > 30;
-                            
                             return (
-                              <TableCell 
-                                key={col.key} 
-                                className="px-3 max-w-[200px]"
-                                title={isTruncated ? stringValue : undefined}
-                              >
-                                <span className="block truncate">
-                                  {displayValue}
-                                </span>
+                              <TableCell key={col.key} className="px-3 max-w-[200px]" title={isTruncated ? stringValue : undefined}>
+                                <span className="block truncate">{displayValue}</span>
                               </TableCell>
                             );
                           })}
                           <TableCell className="text-center w-28">
                             {row.isValid ? (
                               <Badge variant="outline" className="text-green-600 border-green-600">
-                                <CheckCircle className="w-3 h-3 mr-1" />
-                                OK
+                                <CheckCircle className="w-3 h-3 mr-1" />OK
                               </Badge>
                             ) : (
                               <div className="space-y-1">
                                 {row.errors.map((error, i) => (
-                                  <Badge key={i} variant="destructive" className="text-xs block">
-                                    {error}
-                                  </Badge>
+                                  <Badge key={i} variant="destructive" className="text-xs block">{error}</Badge>
                                 ))}
                               </div>
                             )}
@@ -359,23 +399,12 @@ export function CsvImporter({
         </div>
 
         <DialogFooter>
-          <Button variant="outline" onClick={handleClose}>
-            Отмена
-          </Button>
-          <Button
-            onClick={handleImport}
-            disabled={!file || isImporting || validCount === 0}
-          >
+          <Button variant="outline" onClick={handleClose}>Отмена</Button>
+          <Button onClick={handleImport} disabled={!file || isImporting || validCount === 0}>
             {isImporting ? (
-              <>
-                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                Импорт...
-              </>
+              <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Импорт...</>
             ) : (
-              <>
-                <Upload className="w-4 h-4 mr-2" />
-                Импортировать {validCount} записей
-              </>
+              <><Upload className="w-4 h-4 mr-2" />Импортировать {validCount} записей</>
             )}
           </Button>
         </DialogFooter>

@@ -9,7 +9,7 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { Playlist } from '@/hooks/usePlaylists';
 import { Plus, Trash2, Edit, Loader2, ListVideo, FileSpreadsheet } from 'lucide-react';
 import { CsvImporter } from '@/components/import/CsvImporter';
-import { PLAYLIST_COLUMN_MAPPING, PLAYLIST_PREVIEW_COLUMNS } from '@/components/import/importConfigs';
+import { PLAYLIST_COLUMN_MAPPING, PLAYLIST_PREVIEW_COLUMNS, PLAYLIST_FIELD_DEFINITIONS } from '@/components/import/importConfigs';
 
 interface PlaylistsGridProps {
   playlists: Playlist[];
@@ -237,6 +237,7 @@ export function PlaylistsGrid({
         previewColumns={PLAYLIST_PREVIEW_COLUMNS}
         onImport={handleImport}
         requiredFields={['name']}
+        fieldDefinitions={PLAYLIST_FIELD_DEFINITIONS}
       />
 
       {/* Delete Confirmation Dialog */}
