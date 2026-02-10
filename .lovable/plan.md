@@ -1,71 +1,62 @@
 
 
-# Fix Settings Page API Tests
+## Добавить структуру полей и настройку маппинга во все CSV-импорты
 
-## Problems Found
+### Что будет сделано
 
-1. **Anthropic "Проверить" always fails** -- the Settings page sends `{ prompt, maxTokens }` but the `test-prompt` edge function expects `{ systemPrompt, userTemplate, testContent }`. The function crashes trying to replace variables on `undefined`.
+Перед загрузкой файла в каждом диалоге импорта будет показана **структура ожидаемых полей** (какие колонки система распознает и какие из них обязательные). После загрузки файла пользователь сможет **вручную настроить маппинг** -- переназначить колонку CSV на нужное поле через выпадающий список.
 
-2. **HeyGen "Проверить" gives false positive** -- the `get-heygen-avatars` function returns `{ success: true }` from database cache even if the API key is invalid. The test never actually reaches the HeyGen API.
+### Изменения
 
-3. **Kie.ai "Проверить" fires a real generation** -- currently sends a full image generation request, wasting API credits and taking 30+ seconds. Needs a lightweight connectivity check instead.
+**1. Новый компонент: `FieldStructureInfo`** (`src/components/import/FieldStructureInfo.tsx`)
+- Отображает таблицу-справку всех полей, которые система ожидает для данного типа импорта
+- Для каждого поля показывает: имя поля, примеры допустимых заголовков CSV, пометку "обязательное" если применимо
+- Показывается в диалоге импорта **до загрузки файла** (в зоне drag-and-drop)
 
-4. **HeyGen spinner shows "C"** -- when testing HeyGen, the loading spinner character "C" is visible because the button shows `testingApi === api.key` while `api.key === 'heygen'` conflicts with display logic.
+**2. Новый компонент: `ColumnMappingEditor`** (`src/components/import/ColumnMappingEditor.tsx`)
+- Показывается **после загрузки файла**, заменяет текущий блок "Показать все колонки"
+- Для каждой колонки CSV показывает выпадающий Select с вариантами полей
+- Автоматически заполненные маппинги подсвечены зеленым, нераспознанные -- пустые
+- Пользователь может вручную изменить маппинг любой колонки
+- Кнопка "Пересчитать" перестраивает данные предпросмотра по новому маппингу
 
----
+**3. Обновление `importConfigs.ts`**
+- Добавить структуру `FieldDefinition` для каждого типа импорта:
+  ```
+  { field: 'video_number', label: '№ ролика', aliases: ['id ролика', '# id ролика', ...], required: true }
+  ```
+- Экспортировать `VIDEO_FIELD_DEFINITIONS`, `ADVISOR_FIELD_DEFINITIONS`, `CHANNEL_FIELD_DEFINITIONS` и т.д. для всех 7 типов
 
-## Plan
+**4. Обновление `CsvImporter.tsx`**
+- Новый проп `fieldDefinitions` -- массив описаний полей
+- До загрузки файла: рядом с зоной drag-and-drop показывать `FieldStructureInfo`
+- После загрузки: вместо `<details>` блока показывать `ColumnMappingEditor`
+- При изменении маппинга пользователем -- пересчитывать `resolvedRows`
 
-### Fix 1: Anthropic test -- correct parameters
-Update the `testApi('anthropic')` case in `SettingsPage.tsx` to send the correct fields:
-```typescript
-body: { 
-  systemPrompt: 'You are a test assistant.', 
-  userTemplate: '{{content}}', 
-  testContent: 'Say "API connected" in 3 words',
-  maxTokens: 20 
+**5. Обновление всех 7 мест использования импортера**
+- `AdvisorsGrid.tsx` -- добавить `fieldDefinitions={ADVISOR_FIELD_DEFINITIONS}`
+- `PlaylistsGrid.tsx` -- добавить `fieldDefinitions={PLAYLIST_FIELD_DEFINITIONS}`
+- `PublishingChannelsGrid.tsx` -- добавить `fieldDefinitions={CHANNEL_FIELD_DEFINITIONS}`
+- `QuestionsTable.tsx` -- добавить `fieldDefinitions={VIDEO_FIELD_DEFINITIONS}`
+- `PublicationsTable.tsx` -- добавить `fieldDefinitions={PUBLICATION_FIELD_DEFINITIONS}`
+- `ScenesMatrix.tsx` -- добавить `fieldDefinitions={SCENE_FIELD_DEFINITIONS}`
+- `BackCoversGrid.tsx` -- добавить `fieldDefinitions={BACK_COVER_VIDEO_FIELD_DEFINITIONS}`
+
+### Техническая структура
+
+```text
+FieldDefinition {
+  field: string          -- имя поля в системе (например 'video_number')
+  label: string          -- отображаемое имя ('№ ролика')
+  aliases: string[]      -- все варианты заголовков CSV
+  required?: boolean     -- обязательное поле
+  description?: string   -- подсказка
 }
 ```
 
-### Fix 2: HeyGen test -- force actual API call
-Pass `{ forceRefresh: true }` to `get-heygen-avatars` so it skips cache and hits the real API:
-```typescript
-const { data, error } = await supabase.functions.invoke('get-heygen-avatars', {
-  body: { forceRefresh: true }
-});
-```
-Also check for `data?.apiError` field which indicates the API failed but cache was returned.
+Логика работы:
+1. При открытии диалога показывается зона загрузки + список ожидаемых полей
+2. После загрузки файла автоматический маппинг работает как раньше
+3. Пользователь видит таблицу "Колонка CSV -> Поле системы" с возможностью менять через Select
+4. При изменении маппинга данные пересчитываются и таблица предпросмотра обновляется
 
-### Fix 3: Kie.ai test -- lightweight check
-Create a new edge function `test-kie-api` that only calls `createTask` and immediately returns without polling. This verifies the API key works without generating an image. Alternatively, use a simple balance/account check if available, or just validate the `createTask` response returns a `taskId` then return success.
-
-### Fix 4: Button loading state
-Ensure the loading spinner is properly displayed for all APIs by checking the `testingApi` state correctly. The "C" visible in the screenshot is the first letter of the Cyrillic "Проверить" button text bleeding through during the spinner transition -- fix by ensuring the button content is exclusively the spinner when loading.
-
----
-
-## Files to modify
-
-| File | Change |
-|------|--------|
-| `src/components/settings/SettingsPage.tsx` | Fix Anthropic params, HeyGen forceRefresh, Kie.ai lightweight test, button display |
-| `supabase/functions/test-kie-api/index.ts` | New edge function -- creates task and cancels immediately, just to verify API key |
-
-## Technical Details
-
-### New `test-kie-api` edge function:
-- Calls `createTask` with a minimal prompt
-- If `taskId` is returned, the API key is valid -- return success immediately
-- Does NOT poll for completion (no image generated, no credits wasted)
-- If 401/403, API key is invalid
-
-### Settings page button fix:
-The `disabled` prop prevents double-click, but the content needs a strict conditional:
-```tsx
-{testingApi === api.key ? (
-  <Loader2 className="w-4 h-4 animate-spin" />
-) : (
-  'Проверить'
-)}
-```
-This is already correct in code, so the "C" is likely from a render timing issue. Adding `className="min-w-[90px]"` to the button will prevent layout shift.
