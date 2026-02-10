@@ -326,3 +326,33 @@ export const SCENE_PREVIEW_COLUMNS = [
   { key: 'scene_prompt', label: 'Промт' },
   { key: 'review_status', label: 'Статус проверки' },
 ];
+
+// Back Cover Videos
+export const BACK_COVER_VIDEO_COLUMN_MAPPING: Record<string, string> = {
+  'name': 'name',
+  'название': 'name',
+  'имя': 'name',
+  
+  'photo / video': 'back_cover_video_url',
+  'photo/video': 'back_cover_video_url',
+  'video': 'back_cover_video_url',
+  'видео': 'back_cover_video_url',
+  'video url': 'back_cover_video_url',
+  'url видео': 'back_cover_video_url',
+  'back cover video': 'back_cover_video_url',
+  'задняя обложка видео': 'back_cover_video_url',
+  
+  'каналы публикаций': 'channel_names',
+  'каналы': 'channel_names',
+  'channels': 'channel_names',
+  'publishing channels': 'channel_names',
+  
+  'комментарий': 'comment',
+  'comment': 'comment',
+};
+
+export const BACK_COVER_VIDEO_PREVIEW_COLUMNS = [
+  { key: 'name', label: 'Название' },
+  { key: 'back_cover_video_url', label: 'Видео URL' },
+  { key: 'channel_names', label: 'Каналы' },
+];

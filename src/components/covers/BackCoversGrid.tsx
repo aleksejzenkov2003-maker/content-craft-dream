@@ -10,15 +10,18 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { Label } from '@/components/ui/label';
-import { Loader2, Plus, Search, Image, Trash2, Monitor } from 'lucide-react';
+import { Loader2, Plus, Search, Image, Trash2, Monitor, Upload } from 'lucide-react';
 import { usePublishingChannels, PublishingChannel } from '@/hooks/usePublishingChannels';
 import { toast } from 'sonner';
 import { ImageInput } from '@/components/ui/image-input';
+import { CsvImporter } from '@/components/import/CsvImporter';
+import { BACK_COVER_VIDEO_COLUMN_MAPPING, BACK_COVER_VIDEO_PREVIEW_COLUMNS } from '@/components/import/importConfigs';
 
 export function BackCoversGrid() {
   const { channels, loading, updateChannel } = usePublishingChannels();
   const [search, setSearch] = useState('');
   const [showAddDialog, setShowAddDialog] = useState(false);
+  const [showImportDialog, setShowImportDialog] = useState(false);
   const [editingChannel, setEditingChannel] = useState<PublishingChannel | null>(null);
   const [backCoverUrl, setBackCoverUrl] = useState('');
 
@@ -65,6 +68,33 @@ export function BackCoversGrid() {
     }
   };
 
+  const handleImportBackCoverVideos = async (rows: Record<string, any>[]) => {
+    let updated = 0;
+    for (const row of rows) {
+      const videoUrl = row.back_cover_video_url;
+      if (!videoUrl) continue;
+
+      // Find channels by name from comma/space separated channel_names, or by row name
+      const channelNames = row.channel_names
+        ? String(row.channel_names).split(/[,\n]/).map((s: string) => s.trim()).filter(Boolean)
+        : row.name ? [row.name.trim()] : [];
+
+      for (const chName of channelNames) {
+        const ch = channels.find(c => c.name.toLowerCase() === chName.toLowerCase());
+        if (ch) {
+          try {
+            await updateChannel(ch.id, { back_cover_video_url: videoUrl } as any);
+            updated++;
+          } catch (e) {
+            console.error('Error updating channel', chName, e);
+          }
+        }
+      }
+    }
+    toast.success(`Обновлено ${updated} каналов`);
+    setShowImportDialog(false);
+  };
+
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
@@ -85,8 +115,14 @@ export function BackCoversGrid() {
             className="pl-10"
           />
         </div>
-        <div className="text-sm text-muted-foreground">
-          {channelsWithBackCovers.length} из {channels.length} с обложками
+        <div className="flex items-center gap-2">
+          <Button variant="outline" size="sm" onClick={() => setShowImportDialog(true)}>
+            <Upload className="w-4 h-4 mr-2" />
+            Импорт видео
+          </Button>
+          <div className="text-sm text-muted-foreground">
+            {channelsWithBackCovers.length} из {channels.length} с обложками
+          </div>
         </div>
       </div>
 
@@ -195,6 +231,16 @@ export function BackCoversGrid() {
           </div>
         </DialogContent>
       </Dialog>
+
+      {/* Import Back Cover Videos Dialog */}
+      <CsvImporter
+        open={showImportDialog}
+        onClose={() => setShowImportDialog(false)}
+        title="Импорт задних обложек (видео)"
+        columnMapping={BACK_COVER_VIDEO_COLUMN_MAPPING}
+        previewColumns={BACK_COVER_VIDEO_PREVIEW_COLUMNS}
+        onImport={handleImportBackCoverVideos}
+      />
     </div>
   );
 }
