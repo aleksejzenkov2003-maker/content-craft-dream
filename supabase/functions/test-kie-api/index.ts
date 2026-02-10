@@ -24,24 +24,25 @@ serve(async (req) => {
         'Authorization': `Bearer ${kieApiKey}`,
       },
       body: JSON.stringify({
-        modelId: 'nano-banana-pro',
+        model: 'nano-banana-pro',
         input: { prompt: 'test', aspect_ratio: '1:1' },
       }),
     });
 
+    const result = await response.json();
+    console.log('Kie.ai response:', JSON.stringify(result));
+
     if (!response.ok) {
-      const errorText = await response.text();
       if (response.status === 401 || response.status === 403) {
         throw new Error('Invalid KIE_API_KEY');
       }
-      throw new Error(`Kie.ai API error: ${response.status} - ${errorText}`);
+      throw new Error(`Kie.ai API error: ${response.status} - ${JSON.stringify(result)}`);
     }
 
-    const result = await response.json();
     const taskId = result.data?.taskId;
 
     if (!taskId) {
-      throw new Error('No taskId returned — unexpected API response');
+      throw new Error('No taskId returned: ' + JSON.stringify(result));
     }
 
     console.log('Kie.ai API key valid, taskId:', taskId);
