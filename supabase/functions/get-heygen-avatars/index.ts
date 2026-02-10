@@ -234,21 +234,22 @@ serve(async (req) => {
     // Update cache in database
     const now = new Date().toISOString();
     
-    // Upsert avatars into cache
-    for (const avatar of formattedAvatars) {
+    // Batch upsert avatars into cache (chunks of 500)
+    const BATCH_SIZE = 500;
+    for (let i = 0; i < formattedAvatars.length; i += BATCH_SIZE) {
+      const batch = formattedAvatars.slice(i, i + BATCH_SIZE).map((avatar: { avatar_id: string; avatar_name: string; preview_image_url: string | null; preview_video_url: string | null }) => ({
+        avatar_id: avatar.avatar_id,
+        avatar_name: avatar.avatar_name,
+        preview_image_url: avatar.preview_image_url,
+        preview_video_url: avatar.preview_video_url,
+        cached_at: now,
+        is_active: true,
+      }));
       const { error: upsertError } = await supabase
         .from('heygen_avatars')
-        .upsert({
-          avatar_id: avatar.avatar_id,
-          avatar_name: avatar.avatar_name,
-          preview_image_url: avatar.preview_image_url,
-          preview_video_url: avatar.preview_video_url,
-          cached_at: now,
-          is_active: true
-        }, { onConflict: 'avatar_id' });
-      
+        .upsert(batch, { onConflict: 'avatar_id' });
       if (upsertError) {
-        console.error('Cache upsert error for', avatar.avatar_id, upsertError);
+        console.error(`Cache batch upsert error (batch ${i / BATCH_SIZE + 1}):`, upsertError);
       }
     }
 
