@@ -83,6 +83,9 @@ export function VideoSidePanel({
   const [advisorAnswer, setAdvisorAnswer] = useState('');
   const [pubDateOpen, setPubDateOpen] = useState(false);
 
+  const advisor = advisors.find(a => a.id === video?.advisor_id);
+  const advisorName = advisor?.display_name || advisor?.name || 'Духовник';
+
   // Initialize state from video data when video changes
   useEffect(() => {
     // If video has no selected channels, pre-fill from advisor's default_channels
@@ -100,12 +103,9 @@ export function VideoSidePanel({
       setSelectedChannels([]);
     }
     setAdvisorAnswer(video?.advisor_answer || '');
-  }, [video?.id, video?.selected_channels, video?.advisor_answer]);
+  }, [video?.id, video?.selected_channels, video?.advisor_answer, advisor]);
 
   if (!video) return null;
-
-  const advisor = advisors.find(a => a.id === video.advisor_id);
-  const advisorName = advisor?.display_name || advisor?.name || 'Духовник';
 
   const handleCoverStatusChange = (value: string) => {
     onUpdateVideo(video.id, { cover_status: value });
