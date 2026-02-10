@@ -53,3 +53,6 @@ verify_jwt = false
 
 [functions.generate-scene]
 verify_jwt = false
+
+[functions.test-kie-api]
+verify_jwt = false
