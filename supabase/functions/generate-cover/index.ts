@@ -18,23 +18,37 @@ async function pollTaskStatus(taskId: string, apiKey: string, maxAttempts = 60, 
     }
 
     const result = await res.json();
-    console.log(`Poll attempt ${i + 1}, status:`, result.data?.status);
+    console.log(`Poll attempt ${i + 1}, state:`, result.data?.state, 'status:', result.data?.status);
 
-    if (result.data?.status === 'completed' || result.data?.status === 'SUCCESS') {
+    if (result.data?.state === 'success' || result.data?.status === 'SUCCESS' || result.data?.status === 'completed') {
+      // Try kie.ai v2 format: resultJson with resultUrls
+      if (result.data?.resultJson) {
+        try {
+          const parsed = typeof result.data.resultJson === 'string' 
+            ? JSON.parse(result.data.resultJson) 
+            : result.data.resultJson;
+          if (parsed.resultUrls && parsed.resultUrls.length > 0) {
+            return parsed.resultUrls[0];
+          }
+        } catch (e) {
+          console.log('Failed to parse resultJson:', e);
+        }
+      }
+      
+      // Fallback: try various output formats
       const imageUrl = result.data?.output?.imageUrl || result.data?.output?.image_url || result.data?.response?.imageUrl;
       if (imageUrl) return imageUrl;
 
-      // Try to find URL in output object
       const output = result.data?.output || result.data?.response;
       if (output) {
         const urls = Object.values(output).filter((v): v is string => typeof v === 'string' && v.startsWith('http'));
         if (urls.length > 0) return urls[0];
       }
-      throw new Error('Task completed but no image URL found in response: ' + JSON.stringify(result.data));
+      throw new Error('Task completed but no image URL found: ' + JSON.stringify(result.data));
     }
 
-    if (result.data?.status === 'FAILED' || result.data?.status === 'failed') {
-      throw new Error('Task failed: ' + JSON.stringify(result.data));
+    if (result.data?.state === 'fail' || result.data?.status === 'FAILED' || result.data?.status === 'failed') {
+      throw new Error('Task failed: ' + (result.data?.failMsg || JSON.stringify(result.data)));
     }
 
     await new Promise(resolve => setTimeout(resolve, intervalMs));
@@ -80,7 +94,7 @@ Style: Modern, clean, inspirational with dramatic lighting.
 Make it visually appealing for TikTok/Instagram Reels.
 Ultra high resolution, 9:16 aspect ratio.`;
 
-    console.log('Generating cover with kie.ai Nano Banana, prompt:', coverPrompt);
+    console.log('Generating cover with kie.ai nano-banana-pro, prompt:', coverPrompt);
 
     // Create task via kie.ai API
     const createRes = await fetch('https://api.kie.ai/api/v1/jobs/createTask', {
@@ -90,9 +104,10 @@ Ultra high resolution, 9:16 aspect ratio.`;
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        model: 'google/nano-banana',
+        model: 'nano-banana-pro',
         input: {
           prompt: coverPrompt,
+          aspect_ratio: '9:16',
           output_format: 'PNG',
         },
       }),
@@ -138,7 +153,6 @@ Ultra high resolution, 9:16 aspect ratio.`;
       throw new Error(`Failed to upload image: ${uploadError.message}`);
     }
 
-    // Get public URL
     const { data: urlData } = supabase.storage
       .from('media-files')
       .getPublicUrl(fileName);
@@ -182,7 +196,6 @@ Ultra high resolution, 9:16 aspect ratio.`;
     const errorMessage = error instanceof Error ? error.message : 'Unknown error';
     console.error('Error generating cover:', errorMessage);
 
-    // Try to update status to error
     try {
       const { videoId } = await req.clone().json();
       if (videoId) {

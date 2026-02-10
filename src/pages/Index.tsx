@@ -22,6 +22,7 @@ import { useVideos, Video, VideoFilters } from '@/hooks/useVideos';
 import { useVideoGeneration } from '@/hooks/useVideoGeneration';
 import { usePublications } from '@/hooks/usePublications';
 import { usePublishingChannels } from '@/hooks/usePublishingChannels';
+import { SettingsPage } from '@/components/settings/SettingsPage';
 import { Users, ListVideo, Video as VideoIcon, CheckCircle, Loader2, Send, HelpCircle } from 'lucide-react';
 import { toast } from 'sonner';
 import { Card, CardContent } from '@/components/ui/card';
@@ -452,16 +453,7 @@ export default function Index() {
           {activeTab === 'cover-thumbnails' && <CoverThumbnailsGrid />}
           {activeTab === 'channels' && <PublishingChannelsGrid />}
 
-          {activeTab === 'settings' && (
-            <div className="space-y-6">
-              <h2 className="text-2xl font-bold">Настройки</h2>
-              <Card className="glass-card">
-                <CardContent className="flex flex-col items-center justify-center py-12">
-                  <p className="text-muted-foreground">Настройки будут добавлены позже</p>
-                </CardContent>
-              </Card>
-            </div>
-          )}
+          {activeTab === 'settings' && <SettingsPage />}
         </div>
       </main>
     </div>

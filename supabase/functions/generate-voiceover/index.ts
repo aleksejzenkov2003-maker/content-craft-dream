@@ -6,13 +6,14 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
-// Hardcoded voice ID for "Григорий" from professional voices
-const GRIGORY_VOICE_ID = 'B7vhQtHJ3xG23dClyJE4';
+const DEFAULT_VOICE_ID = 'B7vhQtHJ3xG23dClyJE4'; // Григорий fallback
 
 interface VoiceoverRequest {
   rewriteId?: string;
   videoProjectId?: string;
+  videoId?: string;
   text: string;
+  voiceId?: string;
 }
 
 serve(async (req) => {
@@ -25,8 +26,7 @@ serve(async (req) => {
   let outputData: Record<string, unknown> = {};
 
   try {
-    const { rewriteId, videoProjectId, text } = await req.json() as VoiceoverRequest;
-    inputData = { rewriteId, videoProjectId, textLength: text?.length || 0, voiceId: GRIGORY_VOICE_ID };
+    const { rewriteId, videoProjectId, videoId, text, voiceId: providedVoiceId } = await req.json() as VoiceoverRequest;
     
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
     const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
@@ -34,11 +34,29 @@ serve(async (req) => {
     
     const supabase = createClient(supabaseUrl, supabaseKey);
 
-    console.log(`Generating voiceover with Григорий voice for ${rewriteId || videoProjectId}`);
+    // Determine voice ID: provided > advisor's voice > default
+    let selectedVoiceId = providedVoiceId || DEFAULT_VOICE_ID;
+    
+    if (!providedVoiceId && videoId) {
+      // Look up advisor's voice from video
+      const { data: video } = await supabase
+        .from('videos')
+        .select('advisor:advisors (elevenlabs_voice_id)')
+        .eq('id', videoId)
+        .single();
+      
+      if (video?.advisor?.elevenlabs_voice_id) {
+        selectedVoiceId = video.advisor.elevenlabs_voice_id;
+      }
+    }
 
-    // Call ElevenLabs API with hardcoded Григорий voice
+    inputData = { rewriteId, videoProjectId, videoId, textLength: text?.length || 0, voiceId: selectedVoiceId };
+
+    console.log(`Generating voiceover with voice ${selectedVoiceId} for ${rewriteId || videoProjectId || videoId}`);
+
+    // Call ElevenLabs API
     const response = await fetch(
-      `https://api.elevenlabs.io/v1/text-to-speech/${GRIGORY_VOICE_ID}?output_format=mp3_44100_128`,
+      `https://api.elevenlabs.io/v1/text-to-speech/${selectedVoiceId}?output_format=mp3_44100_128`,
       {
         method: 'POST',
         headers: {
@@ -67,10 +85,9 @@ serve(async (req) => {
     const audioBuffer = await response.arrayBuffer();
     outputData.audioSize = audioBuffer.byteLength;
     outputData.source = 'elevenlabs';
-    outputData.voiceName = 'Григорий';
 
     // Upload to storage
-    const entityId = rewriteId || videoProjectId;
+    const entityId = rewriteId || videoProjectId || videoId;
     const fileName = `voiceovers/${entityId}_${Date.now()}.mp3`;
     
     const { data: uploadData, error: uploadError } = await supabase.storage
@@ -83,7 +100,6 @@ serve(async (req) => {
 
     if (uploadError) {
       console.error('Upload error, trying media-files bucket:', uploadError);
-      // Try media-files bucket as fallback
       const { data: fallbackUpload, error: fallbackError } = await supabase.storage
         .from('media-files')
         .upload(fileName, audioBuffer, { contentType: 'audio/mpeg' });
@@ -107,7 +123,6 @@ serve(async (req) => {
 
     // Update the appropriate table
     if (rewriteId) {
-      // Update voiceovers table
       const { data: existing } = await supabase
         .from('voiceovers')
         .select('id')
@@ -141,7 +156,7 @@ serve(async (req) => {
         .from('video_projects')
         .update({ 
           voiceover_url: voiceoverUrl,
-          voice_id: GRIGORY_VOICE_ID,
+          voice_id: selectedVoiceId,
           audio_source: 'elevenlabs',
           status: 'voiceover',
           progress: 50
@@ -149,14 +164,21 @@ serve(async (req) => {
         .eq('id', videoProjectId);
     }
 
+    if (videoId) {
+      await supabase
+        .from('videos')
+        .update({ voiceover_url: voiceoverUrl })
+        .eq('id', videoId);
+    }
+
     const durationMs = Date.now() - startTime;
 
     // Log activity
     await supabase.from('activity_log').insert({
       action: 'voiceover_complete',
-      entity_type: rewriteId ? 'voiceover' : 'video_project',
-      entity_id: rewriteId || videoProjectId,
-      details: { voice_id: GRIGORY_VOICE_ID, voice_name: 'Григорий' },
+      entity_type: rewriteId ? 'voiceover' : (videoId ? 'video' : 'video_project'),
+      entity_id: rewriteId || videoId || videoProjectId,
+      details: { voice_id: selectedVoiceId },
       input_data: inputData,
       output_data: outputData,
       duration_ms: durationMs
