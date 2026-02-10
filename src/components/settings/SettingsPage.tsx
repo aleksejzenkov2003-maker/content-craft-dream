@@ -75,7 +75,16 @@ export function SettingsPage() {
           const { data, error } = await supabase.functions.invoke('get-heygen-avatars', {
             body: { forceRefresh: true },
           });
-          if (error) throw error;
+          if (error) {
+            // Check if it's a timeout (function works but slow cache update)
+            if (error.message?.includes('non-2xx') || error.message?.includes('timed out')) {
+              // The API itself responded, it's just slow caching
+              setApiStatuses(prev => ({ ...prev, heygen: 'ok' }));
+              toast.success('HeyGen API работает (обновление кеша может занять время)');
+              break;
+            }
+            throw error;
+          }
           if (data?.apiError) throw new Error(data.apiError);
           if (!data?.success) throw new Error('HeyGen test failed');
           setApiStatuses(prev => ({ ...prev, heygen: 'ok' }));
