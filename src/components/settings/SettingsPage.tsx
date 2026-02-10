@@ -2,11 +2,14 @@ import { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Label } from '@/components/ui/label';
 import { Loader2, CheckCircle, XCircle, Play, Volume2 } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
+import { usePrompts, DbPrompt } from '@/hooks/usePrompts';
+import { PromptLibrary } from '@/components/prompts/PromptLibrary';
+import { PromptEditor } from '@/components/prompts/PromptEditor';
+import { PromptForm } from '@/components/prompts/PromptForm';
 
 interface Voice {
   voice_id: string;
@@ -27,6 +30,11 @@ export function SettingsPage() {
     kie: 'unknown',
   });
   const [playingVoice, setPlayingVoice] = useState<string | null>(null);
+
+  // Prompts
+  const { prompts, loading: promptsLoading, updatePrompt, testPrompt, addPrompt, deletePrompt } = usePrompts();
+  const [editingPrompt, setEditingPrompt] = useState<DbPrompt | null>(null);
+  const [showPromptForm, setShowPromptForm] = useState(false);
 
   const fetchVoices = async () => {
     setLoadingVoices(true);
@@ -76,9 +84,7 @@ export function SettingsPage() {
             body: { forceRefresh: true },
           });
           if (error) {
-            // Check if it's a timeout (function works but slow cache update)
             if (error.message?.includes('non-2xx') || error.message?.includes('timed out')) {
-              // The API itself responded, it's just slow caching
               setApiStatuses(prev => ({ ...prev, heygen: 'ok' }));
               toast.success('HeyGen API работает (обновление кеша может занять время)');
               break;
@@ -111,12 +117,10 @@ export function SettingsPage() {
 
   const playVoicePreview = (voice: Voice) => {
     if (!voice.preview_url) return;
-    
     if (playingVoice === voice.voice_id) {
       setPlayingVoice(null);
       return;
     }
-
     setPlayingVoice(voice.voice_id);
     const audio = new Audio(voice.preview_url);
     audio.onended = () => setPlayingVoice(null);
@@ -137,6 +141,49 @@ export function SettingsPage() {
       case 'error': return <XCircle className="w-5 h-5 text-destructive" />;
       default: return <div className="w-5 h-5 rounded-full border-2 border-muted-foreground/30" />;
     }
+  };
+
+  // Prompt handlers
+  const handleEditPrompt = (prompt: DbPrompt) => {
+    setEditingPrompt(prompt);
+    setShowPromptForm(true);
+  };
+
+  const handleDuplicatePrompt = async (prompt: DbPrompt) => {
+    await addPrompt({
+      name: `${prompt.name} (копия)`,
+      type: prompt.type,
+      system_prompt: prompt.system_prompt,
+      user_template: prompt.user_template,
+      model: prompt.model,
+      temperature: prompt.temperature,
+      max_tokens: prompt.max_tokens,
+    });
+  };
+
+  const handleSetActive = async (id: string) => {
+    const prompt = prompts.find(p => p.id === id);
+    if (!prompt) return;
+    // Deactivate others of same type
+    for (const p of prompts.filter(p => p.type === prompt.type && p.is_active)) {
+      await updatePrompt(p.id, { is_active: false });
+    }
+    await updatePrompt(id, { is_active: true });
+  };
+
+  const handleCreateNew = () => {
+    setEditingPrompt(null);
+    setShowPromptForm(true);
+  };
+
+  const handleSavePromptForm = async (data: Omit<DbPrompt, 'id' | 'created_at' | 'is_active'>) => {
+    if (editingPrompt) {
+      await updatePrompt(editingPrompt.id, data);
+    } else {
+      await addPrompt(data);
+    }
+    setShowPromptForm(false);
+    setEditingPrompt(null);
   };
 
   return (
@@ -173,6 +220,68 @@ export function SettingsPage() {
               </Button>
             </div>
           ))}
+        </CardContent>
+      </Card>
+
+      {/* Prompts Section */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-lg">Промпты генерации</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-6">
+          {promptsLoading ? (
+            <div className="flex items-center justify-center py-8">
+              <Loader2 className="w-6 h-6 animate-spin text-primary" />
+            </div>
+          ) : (
+            <>
+              {/* Prompt variables reference */}
+              <div className="p-3 bg-muted/30 rounded-lg text-sm space-y-2">
+                <p className="font-medium text-muted-foreground">Доступные переменные для промптов:</p>
+                <div className="grid grid-cols-2 md:grid-cols-3 gap-2 text-xs">
+                  <div className="flex items-center gap-1.5">
+                    <Badge variant="outline" className="font-mono text-xs">{'{{content}}'}</Badge>
+                    <span className="text-muted-foreground">— исходный текст</span>
+                  </div>
+                  <div className="flex items-center gap-1.5">
+                    <Badge variant="outline" className="font-mono text-xs">{'{{title}}'}</Badge>
+                    <span className="text-muted-foreground">— заголовок</span>
+                  </div>
+                  <div className="flex items-center gap-1.5">
+                    <Badge variant="outline" className="font-mono text-xs">{'{{question}}'}</Badge>
+                    <span className="text-muted-foreground">— вопрос</span>
+                  </div>
+                  <div className="flex items-center gap-1.5">
+                    <Badge variant="outline" className="font-mono text-xs">{'{{hook}}'}</Badge>
+                    <span className="text-muted-foreground">— хук</span>
+                  </div>
+                  <div className="flex items-center gap-1.5">
+                    <Badge variant="outline" className="font-mono text-xs">{'{{answer}}'}</Badge>
+                    <span className="text-muted-foreground">— ответ духовника</span>
+                  </div>
+                  <div className="flex items-center gap-1.5">
+                    <Badge variant="outline" className="font-mono text-xs">{'{{advisor}}'}</Badge>
+                    <span className="text-muted-foreground">— имя духовника</span>
+                  </div>
+                </div>
+              </div>
+
+              <PromptLibrary
+                prompts={prompts}
+                onEdit={handleEditPrompt}
+                onDuplicate={handleDuplicatePrompt}
+                onDelete={deletePrompt}
+                onSetActive={handleSetActive}
+                onCreateNew={handleCreateNew}
+              />
+
+              <PromptEditor
+                prompts={prompts}
+                onUpdatePrompt={updatePrompt}
+                onTestPrompt={testPrompt}
+              />
+            </>
+          )}
         </CardContent>
       </Card>
 
@@ -244,6 +353,19 @@ export function SettingsPage() {
           <p>При генерации видео будет использован голос, привязанный к духовнику.</p>
         </CardContent>
       </Card>
+
+      {/* Prompt Form */}
+      {showPromptForm && (
+        <Card>
+          <CardContent className="pt-6">
+            <PromptForm
+              prompt={editingPrompt}
+              onCancel={() => { setShowPromptForm(false); setEditingPrompt(null); }}
+              onSave={handleSavePromptForm}
+            />
+          </CardContent>
+        </Card>
+      )}
     </div>
   );
 }
