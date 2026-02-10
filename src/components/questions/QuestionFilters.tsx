@@ -5,6 +5,7 @@ import { Label } from '@/components/ui/label';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Calendar } from '@/components/ui/calendar';
 import { Separator } from '@/components/ui/separator';
+import { Input } from '@/components/ui/input';
 import { Filter, CalendarIcon, X } from 'lucide-react';
 import { format } from 'date-fns';
 import { ru } from 'date-fns/locale';
@@ -13,6 +14,7 @@ import { cn } from '@/lib/utils';
 export interface FilterState {
   statusFilter: string[];
   safetyFilter: string[];
+  safetyRange: { from: number | null; to: number | null };
   dateRange: { from: Date | null; to: Date | null };
 }
 
@@ -40,6 +42,7 @@ export function QuestionFilters({ filters, onFiltersChange }: QuestionFiltersPro
   const activeFiltersCount = 
     filters.statusFilter.length + 
     filters.safetyFilter.length + 
+    (filters.safetyRange.from !== null || filters.safetyRange.to !== null ? 1 : 0) +
     (filters.dateRange.from || filters.dateRange.to ? 1 : 0);
 
   const toggleArrayFilter = (
@@ -57,6 +60,7 @@ export function QuestionFilters({ filters, onFiltersChange }: QuestionFiltersPro
     onFiltersChange({
       statusFilter: [],
       safetyFilter: [],
+      safetyRange: { from: null, to: null },
       dateRange: { from: null, to: null },
     });
   };
@@ -104,19 +108,35 @@ export function QuestionFilters({ filters, onFiltersChange }: QuestionFiltersPro
 
           <Separator />
 
-          {/* Safety filter */}
+          {/* Safety filter - numeric range */}
           <div className="space-y-2">
-            <Label className="text-xs font-medium text-muted-foreground">Безопасность</Label>
-            <div className="space-y-1">
-              {safetyOptions.map(opt => (
-                <label key={opt.value} className="flex items-center gap-2 cursor-pointer hover:bg-muted/50 p-1 rounded">
-                  <Checkbox
-                    checked={filters.safetyFilter.includes(opt.value)}
-                    onCheckedChange={() => toggleArrayFilter('safetyFilter', opt.value)}
-                  />
-                  <span className="text-sm">{opt.label}</span>
-                </label>
-              ))}
+            <Label className="text-xs font-medium text-muted-foreground">Безопасность (0-100)</Label>
+            <div className="flex gap-2 items-center">
+              <Input
+                type="number"
+                min={0}
+                max={100}
+                placeholder="От"
+                value={filters.safetyRange.from ?? ''}
+                onChange={(e) => onFiltersChange({
+                  ...filters,
+                  safetyRange: { ...filters.safetyRange, from: e.target.value ? Number(e.target.value) : null }
+                })}
+                className="h-8 text-xs w-20"
+              />
+              <span className="text-xs text-muted-foreground">—</span>
+              <Input
+                type="number"
+                min={0}
+                max={100}
+                placeholder="До"
+                value={filters.safetyRange.to ?? ''}
+                onChange={(e) => onFiltersChange({
+                  ...filters,
+                  safetyRange: { ...filters.safetyRange, to: e.target.value ? Number(e.target.value) : null }
+                })}
+                className="h-8 text-xs w-20"
+              />
             </div>
           </div>
 

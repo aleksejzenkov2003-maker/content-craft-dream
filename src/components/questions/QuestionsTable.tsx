@@ -109,6 +109,7 @@ export function QuestionsTable({
   const [filters, setFilters] = useState<FilterState>({
     statusFilter: [],
     safetyFilter: [],
+    safetyRange: { from: null, to: null },
     dateRange: { from: null, to: null },
   });
   const [sortColumn, setSortColumn] = useState<SortColumn>(null);
@@ -190,9 +191,20 @@ export function QuestionsTable({
       result = result.filter(q => filters.statusFilter.includes(q.question_status));
     }
     
-    // Safety filter
+    // Safety filter (category checkboxes)
     if (filters.safetyFilter.length > 0) {
       result = result.filter(q => filters.safetyFilter.includes(q.safety_score));
+    }
+    
+    // Safety range filter (numeric 0-100)
+    if (filters.safetyRange.from !== null || filters.safetyRange.to !== null) {
+      const safetyToNumber: Record<string, number> = { critical: 0, high_risk: 25, medium_risk: 50, safe: 100 };
+      result = result.filter(q => {
+        const numericValue = safetyToNumber[q.safety_score] ?? 50;
+        if (filters.safetyRange.from !== null && numericValue < filters.safetyRange.from) return false;
+        if (filters.safetyRange.to !== null && numericValue > filters.safetyRange.to) return false;
+        return true;
+      });
     }
     
     // Date range filter

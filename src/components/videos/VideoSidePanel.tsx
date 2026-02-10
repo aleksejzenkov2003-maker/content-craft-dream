@@ -85,7 +85,20 @@ export function VideoSidePanel({
 
   // Initialize state from video data when video changes
   useEffect(() => {
-    setSelectedChannels(video?.selected_channels || []);
+    // If video has no selected channels, pre-fill from advisor's default_channels
+    const channels = video?.selected_channels;
+    if (channels && channels.length > 0) {
+      setSelectedChannels(channels);
+    } else if (advisor?.default_channels && advisor.default_channels.length > 0) {
+      const defaults = advisor.default_channels;
+      setSelectedChannels(defaults);
+      // Save the defaults to the video
+      if (video?.id) {
+        onUpdateVideo(video.id, { selected_channels: defaults } as any);
+      }
+    } else {
+      setSelectedChannels([]);
+    }
     setAdvisorAnswer(video?.advisor_answer || '');
   }, [video?.id, video?.selected_channels, video?.advisor_answer]);
 
