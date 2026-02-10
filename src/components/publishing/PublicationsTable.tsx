@@ -43,7 +43,7 @@ import { useVideos } from '@/hooks/useVideos';
 import { format, setHours, setMinutes } from 'date-fns';
 import { ru } from 'date-fns/locale';
 import { CsvImporter, Lookups } from '@/components/import/CsvImporter';
-import { PUBLICATION_COLUMN_MAPPING, PUBLICATION_PREVIEW_COLUMNS } from '@/components/import/importConfigs';
+import { PUBLICATION_COLUMN_MAPPING, PUBLICATION_PREVIEW_COLUMNS, PUBLICATION_FIELD_DEFINITIONS } from '@/components/import/importConfigs';
 import { InlineEdit } from '@/components/ui/inline-edit';
 import { BulkActionsBar, BulkActionButton } from '@/components/ui/bulk-actions-bar';
 import { PublicationFilters, PublicationFilterState } from './PublicationFilters';
@@ -685,6 +685,7 @@ const minuteOptions = [0, 5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55];
         onImport={handleImport}
         lookups={{ channels, videos }}
         resolveRow={resolveRow}
+        fieldDefinitions={PUBLICATION_FIELD_DEFINITIONS}
       />
 
       {/* Edit Dialog */}

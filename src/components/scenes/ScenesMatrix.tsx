@@ -12,7 +12,7 @@ import { SceneSidePanel } from './SceneSidePanel';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { CsvImporter, Lookups } from '@/components/import/CsvImporter';
-import { SCENE_COLUMN_MAPPING, SCENE_PREVIEW_COLUMNS } from '@/components/import/importConfigs';
+import { SCENE_COLUMN_MAPPING, SCENE_PREVIEW_COLUMNS, SCENE_FIELD_DEFINITIONS } from '@/components/import/importConfigs';
 
 const statusLabels: Record<string, { label: string; variant: 'default' | 'secondary' | 'outline' | 'destructive' }> = {
   waiting: { label: 'Ожидает', variant: 'outline' },
@@ -401,6 +401,7 @@ export function ScenesMatrix() {
         onImport={handleImport}
         lookups={{ advisors, playlists }}
         resolveRow={resolveRow}
+        fieldDefinitions={SCENE_FIELD_DEFINITIONS}
       />
     </div>
   );

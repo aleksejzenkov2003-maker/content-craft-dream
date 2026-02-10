@@ -29,7 +29,7 @@ import { Plus, MoreVertical, Edit, Trash2, Instagram, Youtube, Globe, Facebook, 
 import { PublishingChannel, usePublishingChannels } from '@/hooks/usePublishingChannels';
 import { Textarea } from '@/components/ui/textarea';
 import { CsvImporter } from '@/components/import/CsvImporter';
-import { CHANNEL_COLUMN_MAPPING, CHANNEL_PREVIEW_COLUMNS } from '@/components/import/importConfigs';
+import { CHANNEL_COLUMN_MAPPING, CHANNEL_PREVIEW_COLUMNS, CHANNEL_FIELD_DEFINITIONS } from '@/components/import/importConfigs';
 
 const networkIcons: Record<string, React.ElementType> = {
   instagram: Instagram,
@@ -306,6 +306,7 @@ export function PublishingChannelsGrid() {
         previewColumns={CHANNEL_PREVIEW_COLUMNS}
         onImport={handleImport}
         requiredFields={['name', 'network_type']}
+        fieldDefinitions={CHANNEL_FIELD_DEFINITIONS}
       />
     </div>
   );
