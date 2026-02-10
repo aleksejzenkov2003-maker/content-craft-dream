@@ -58,43 +58,36 @@ export function SettingsPage() {
           break;
         case 'anthropic': {
           const { data, error } = await supabase.functions.invoke('test-prompt', {
-            body: { prompt: 'Say "API connected" in 3 words', maxTokens: 20 },
+            body: {
+              systemPrompt: 'You are a test assistant.',
+              userTemplate: '{{content}}',
+              testContent: 'Say "API connected" in 3 words',
+              maxTokens: 20,
+            },
           });
           if (error) throw error;
+          if (!data?.success) throw new Error(data?.error || 'Test failed');
           setApiStatuses(prev => ({ ...prev, anthropic: 'ok' }));
           toast.success('Anthropic API работает');
           break;
         }
         case 'heygen': {
-          const { data, error } = await supabase.functions.invoke('get-heygen-avatars');
+          const { data, error } = await supabase.functions.invoke('get-heygen-avatars', {
+            body: { forceRefresh: true },
+          });
           if (error) throw error;
-          setApiStatuses(prev => ({ ...prev, heygen: data?.success ? 'ok' : 'error' }));
-          if (data?.success) toast.success('HeyGen API работает');
-          else throw new Error('HeyGen test failed');
+          if (data?.apiError) throw new Error(data.apiError);
+          if (!data?.success) throw new Error('HeyGen test failed');
+          setApiStatuses(prev => ({ ...prev, heygen: 'ok' }));
+          toast.success(`HeyGen API работает (${data?.avatars?.length || 0} аватаров)`);
           break;
         }
         case 'kie': {
-          // Simple test - just check if the key exists by making a minimal request
-          const res = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/generate-image`, {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
-            },
-            body: JSON.stringify({ prompt: 'test', aspectRatio: '1:1', folder: 'test' }),
-          });
-          // We don't want to actually wait for generation, just check if it starts
-          if (res.status !== 500) {
-            setApiStatuses(prev => ({ ...prev, kie: 'ok' }));
-            toast.success('Kie.ai API доступен');
-          } else {
-            const data = await res.json();
-            if (data.error?.includes('KIE_API_KEY')) {
-              throw new Error('KIE_API_KEY not configured');
-            }
-            setApiStatuses(prev => ({ ...prev, kie: 'ok' }));
-            toast.success('Kie.ai API доступен');
-          }
+          const { data, error } = await supabase.functions.invoke('test-kie-api');
+          if (error) throw error;
+          if (!data?.success) throw new Error(data?.error || 'Kie.ai test failed');
+          setApiStatuses(prev => ({ ...prev, kie: 'ok' }));
+          toast.success('Kie.ai API доступен');
           break;
         }
       }
@@ -159,6 +152,7 @@ export function SettingsPage() {
               <Button
                 variant="outline"
                 size="sm"
+                className="min-w-[100px]"
                 onClick={() => testApi(api.key)}
                 disabled={testingApi === api.key}
               >
