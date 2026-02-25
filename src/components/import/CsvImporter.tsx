@@ -12,6 +12,7 @@ import * as XLSX from 'xlsx';
 import { FieldDefinition } from './importConfigs';
 import { FieldStructureInfo } from './FieldStructureInfo';
 import { ColumnMappingEditor } from './ColumnMappingEditor';
+import { toast } from 'sonner';
 
 export interface PreviewColumn {
   key: string;
@@ -245,11 +246,21 @@ export function CsvImporter({
 
   const handleImport = async () => {
     const validRows = resolvedRows.filter(r => r.isValid);
-    if (validRows.length === 0) return;
+    const nonEmptyRows = validRows.filter((row) =>
+      Object.values(row.data).some((value) => {
+        if (value === null || value === undefined) return false;
+        return String(value).trim() !== '';
+      })
+    );
+
+    if (nonEmptyRows.length === 0) {
+      toast.error('Нет данных для импорта: сопоставьте хотя бы одно поле с колонкой файла');
+      return;
+    }
 
     setIsImporting(true);
     try {
-      await onImport(validRows.map(r => r.data));
+      await onImport(nonEmptyRows.map(r => r.data));
       handleClose();
     } catch (error) {
       console.error('Import error:', error);
