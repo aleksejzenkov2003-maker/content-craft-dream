@@ -13,7 +13,7 @@ import { Publication } from '@/hooks/usePublications';
 import { format, setHours, setMinutes } from 'date-fns';
 import { ru } from 'date-fns/locale';
 import { CsvImporter } from '@/components/import/CsvImporter';
-import { VIDEO_COLUMN_MAPPING, VIDEO_PREVIEW_COLUMNS, VIDEO_FIELD_DEFINITIONS } from '@/components/import/importConfigs';
+import { QUESTION_COLUMN_MAPPING, QUESTION_PREVIEW_COLUMNS, QUESTION_FIELD_DEFINITIONS } from '@/components/import/importConfigs';
 import { InlineEdit, SelectOption } from '@/components/ui/inline-edit';
 import { BulkActionsBar, BulkActionButton } from '@/components/ui/bulk-actions-bar';
 import { QuestionFilters, FilterState } from './QuestionFilters';
@@ -563,15 +563,15 @@ export function QuestionsTable({
       <CsvImporter
         open={showImporter}
         onClose={() => setShowImporter(false)}
-        title="Импорт вопросов/роликов"
-        columnMapping={VIDEO_COLUMN_MAPPING}
-        previewColumns={VIDEO_PREVIEW_COLUMNS}
+        title="Импорт вопросов"
+        columnMapping={QUESTION_COLUMN_MAPPING}
+        previewColumns={QUESTION_PREVIEW_COLUMNS}
         onImport={async (data) => {
           if (onBulkImport) {
             await onBulkImport(data);
           }
         }}
-        fieldDefinitions={VIDEO_FIELD_DEFINITIONS}
+        fieldDefinitions={QUESTION_FIELD_DEFINITIONS}
       />
 
       {/* Delete Confirmation Dialog */}
