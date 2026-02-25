@@ -25,6 +25,12 @@ interface Playlist {
   name: string;
 }
 
+interface AdvisorLookup {
+  id: string;
+  name: string;
+  display_name?: string | null;
+}
+
 interface QuestionsTableProps {
   videos: VideoType[];
   publications: Publication[];
@@ -47,6 +53,7 @@ interface QuestionsTableProps {
   onBulkImport?: (data: Record<string, any>[]) => Promise<void>;
   onDeleteQuestion?: (uniqueKey: string) => Promise<void>;
   playlists?: Playlist[];
+  advisors?: AdvisorLookup[];
   onBulkUpdateStatus?: (uniqueKeys: string[], status: string) => Promise<void>;
   onBulkUpdateDate?: (uniqueKeys: string[], date: string) => Promise<void>;
 }
@@ -94,6 +101,7 @@ export function QuestionsTable({
   onBulkImport,
   onDeleteQuestion,
   playlists = [],
+  advisors = [],
   onBulkUpdateStatus,
   onBulkUpdateDate,
 }: QuestionsTableProps) {
@@ -566,48 +574,84 @@ export function QuestionsTable({
         title="Импорт вопросов"
         columnMapping={QUESTION_COLUMN_MAPPING}
         previewColumns={QUESTION_PREVIEW_COLUMNS}
+        lookups={{
+          advisors: advisors?.map(a => ({ id: a.id, name: a.name, display_name: a.display_name })),
+          playlists: playlists?.map(p => ({ id: p.id, name: p.name })),
+        }}
+        resolveRow={(row, lk) => {
+          const errors: string[] = [];
+          const data = { ...row };
+
+          // Resolve advisor_name → advisor_id
+          if (data.advisor_name && lk.advisors) {
+            const found = lk.advisors.find(a =>
+              a.name.toLowerCase() === String(data.advisor_name).toLowerCase() ||
+              (a.display_name && a.display_name.toLowerCase() === String(data.advisor_name).toLowerCase())
+            );
+            if (found) {
+              data.advisor_id = found.id;
+            } else {
+              errors.push(`Духовник не найден: ${data.advisor_name}`);
+            }
+            delete data.advisor_name;
+          }
+
+          // Resolve playlist_name → playlist_id
+          if (data.playlist_name && lk.playlists) {
+            const found = lk.playlists.find(p =>
+              p.name.toLowerCase() === String(data.playlist_name).toLowerCase()
+            );
+            if (found) {
+              data.playlist_id = found.id;
+            } else {
+              errors.push(`Плейлист не найден: ${data.playlist_name}`);
+            }
+            delete data.playlist_name;
+          }
+
+          return { data, errors };
+        }}
         onImport={async (data) => {
           if (onBulkImport) {
-            // Transform string values from CSV to proper types for the videos table
             const transformed = data.map(row => {
-              const result: Record<string, any> = {};
-              
+              const result: Record<string, any> = { ...row };
+
               // Integer fields
-              if (row.question_id !== undefined && row.question_id !== '') {
-                result.question_id = parseInt(String(row.question_id), 10);
+              if (result.question_id !== undefined && result.question_id !== '') {
+                result.question_id = parseInt(String(result.question_id), 10);
                 if (isNaN(result.question_id)) delete result.question_id;
               }
-              if (row.relevance_score !== undefined && row.relevance_score !== '') {
-                result.relevance_score = parseInt(String(row.relevance_score), 10);
+              if (result.video_number !== undefined && result.video_number !== '') {
+                result.video_number = parseInt(String(result.video_number), 10);
+                if (isNaN(result.video_number)) delete result.video_number;
+              }
+              if (result.relevance_score !== undefined && result.relevance_score !== '') {
+                result.relevance_score = parseInt(String(result.relevance_score), 10);
                 if (isNaN(result.relevance_score)) result.relevance_score = 0;
               }
-              
-              // String fields — copy directly
-              if (row.question) result.question = String(row.question);
-              if (row.question_rus) result.question_rus = String(row.question_rus);
-              if (row.question_eng) result.question_eng = row.question_eng ? String(row.question_eng) : (row.question ? String(row.question) : null);
-              if (row.hook) result.hook = String(row.hook);
-              if (row.hook_rus) result.hook_rus = String(row.hook_rus);
-              if (row.safety_score) result.safety_score = String(row.safety_score);
-              if (row.question_status) result.question_status = String(row.question_status);
-              
+
               // Date field
-              if (row.publication_date && String(row.publication_date).trim()) {
-                const dateStr = String(row.publication_date).trim();
-                const parsed = new Date(dateStr);
+              if (result.publication_date && String(result.publication_date).trim()) {
+                const parsed = new Date(String(result.publication_date).trim());
                 if (!isNaN(parsed.getTime())) {
                   result.publication_date = parsed.toISOString();
+                } else {
+                  delete result.publication_date;
                 }
               }
 
-              // Also set question_eng from question if not present
+              // Set question_eng from question if not present
               if (!result.question_eng && result.question) {
                 result.question_eng = result.question;
               }
-              
+
+              // Remove virtual fields that don't exist in DB
+              delete result.playlist_name;
+              delete result.advisor_name;
+
               return result;
             }).filter(row => row.question_id !== undefined);
-            
+
             await onBulkImport(transformed);
           }
         }}
