@@ -8,6 +8,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, Dialog
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { Playlist } from '@/hooks/usePlaylists';
 import { Plus, Trash2, Edit, Loader2, ListVideo, FileSpreadsheet } from 'lucide-react';
+import { toast } from 'sonner';
 import { CsvImporter } from '@/components/import/CsvImporter';
 import { PLAYLIST_COLUMN_MAPPING, PLAYLIST_PREVIEW_COLUMNS, PLAYLIST_FIELD_DEFINITIONS } from '@/components/import/importConfigs';
 
@@ -68,7 +69,12 @@ export function PlaylistsGrid({
 
   const handleImport = async (data: Record<string, any>[]) => {
     if (onBulkImport) {
-      await onBulkImport(data as Partial<Playlist>[]);
+      try {
+        await onBulkImport(data as Partial<Playlist>[]);
+      } catch (error: any) {
+        console.error('Playlist import error:', error);
+        toast.error(`Ошибка импорта плейлистов: ${error.message || 'Unknown error'}`);
+      }
     }
   };
 

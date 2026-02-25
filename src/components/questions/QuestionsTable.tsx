@@ -585,7 +585,7 @@ export function QuestionsTable({
           const errors: string[] = [];
           const data = { ...row };
 
-          // Resolve advisor_name → advisor_id
+          // Resolve advisor_name → advisor_id (don't error, will auto-create)
           if (data.advisor_name && lk.advisors) {
             const found = lk.advisors.find(a =>
               a.name.toLowerCase() === String(data.advisor_name).toLowerCase() ||
@@ -593,21 +593,19 @@ export function QuestionsTable({
             );
             if (found) {
               data.advisor_id = found.id;
-            } else {
-              errors.push(`Духовник не найден: ${data.advisor_name}`);
             }
-            delete data.advisor_name;
+            // Keep advisor_name for auto-create during import
           }
 
-          // Resolve playlist_name → playlist_id (skip if playlists empty, will be stored as name)
-          if (data.playlist_name && lk.playlists && lk.playlists.length > 0) {
+          // Resolve playlist_name → playlist_id (don't error, will auto-create)
+          if (data.playlist_name && lk.playlists) {
             const found = lk.playlists.find(p =>
               p.name.toLowerCase() === String(data.playlist_name).toLowerCase()
             );
             if (found) {
               data.playlist_id = found.id;
             }
-            // Don't error if not found - playlist will be auto-created during import
+            // Keep playlist_name for auto-create during import
           }
 
           return { data, errors };
@@ -615,105 +613,125 @@ export function QuestionsTable({
         onImport={async (data) => {
           if (!onBulkImport) return;
 
-          // Auto-create playlists that don't exist yet
-          const playlistNames = [...new Set(
-            data
-              .filter(row => row.playlist_name && !row.playlist_id)
-              .map(row => String(row.playlist_name).trim())
-              .filter(Boolean)
-          )];
-
-          const playlistMap: Record<string, string> = {};
-
-          if (playlistNames.length > 0) {
-            // Fetch existing playlists
-            const { data: existingPlaylists } = await supabase.from('playlists').select('id, name');
-            const existing = new Map((existingPlaylists || []).map(p => [p.name.toLowerCase(), p.id]));
-
-            const toCreate = playlistNames.filter(n => !existing.has(n.toLowerCase()));
-            if (toCreate.length > 0) {
-              const { data: created, error } = await supabase
-                .from('playlists')
-                .insert(toCreate.map(name => ({ name })))
-                .select('id, name');
-              if (!error && created) {
-                created.forEach(p => existing.set(p.name.toLowerCase(), p.id));
-                toast.success(`Создано ${created.length} новых плейлистов`);
+          try {
+            // Auto-create advisors that don't exist yet
+            const advisorNames = [...new Set(
+              data.filter(row => row.advisor_name && !row.advisor_id)
+                .map(row => String(row.advisor_name).trim()).filter(Boolean)
+            )];
+            const advisorMap: Record<string, string> = {};
+            if (advisorNames.length > 0) {
+              const { data: existingAdvisors } = await supabase.from('advisors').select('id, name');
+              const existing = new Map((existingAdvisors || []).map(a => [a.name.toLowerCase(), a.id]));
+              const toCreate = advisorNames.filter(n => !existing.has(n.toLowerCase()));
+              if (toCreate.length > 0) {
+                const { data: created, error } = await supabase.from('advisors').insert(toCreate.map(name => ({ name }))).select('id, name');
+                if (!error && created) {
+                  created.forEach(a => existing.set(a.name.toLowerCase(), a.id));
+                  toast.success(`Создано ${created.length} новых духовников`);
+                }
               }
+              existing.forEach((id, name) => { advisorMap[name] = id; });
             }
 
-            existing.forEach((id, name) => { playlistMap[name] = id; });
-          }
-
-          const transformed = data.map(row => {
-            const result: Record<string, any> = { ...row };
-
-            // Resolve playlist_name to playlist_id if not already resolved
-            if (result.playlist_name && !result.playlist_id) {
-              const pid = playlistMap[String(result.playlist_name).toLowerCase().trim()];
-              if (pid) result.playlist_id = pid;
-            }
-
-            // Integer fields
-            if (result.question_id !== undefined && result.question_id !== '') {
-              result.question_id = parseInt(String(result.question_id), 10);
-              if (isNaN(result.question_id)) delete result.question_id;
-            }
-            if (result.video_number !== undefined && result.video_number !== '') {
-              result.video_number = parseInt(String(result.video_number), 10);
-              if (isNaN(result.video_number)) delete result.video_number;
-            }
-            if (result.relevance_score !== undefined && result.relevance_score !== '') {
-              result.relevance_score = parseInt(String(result.relevance_score), 10);
-              if (isNaN(result.relevance_score)) result.relevance_score = 0;
-            }
-
-            // Normalize safety_score from display values to DB values
-            if (result.safety_score) {
-              const safetyStr = String(result.safety_score).toLowerCase().replace(/[✅⚠️🔴❌]/g, '').trim();
-              if (safetyStr.includes('безопасно') || safetyStr === 'safe') result.safety_score = 'safe';
-              else if (safetyStr.includes('критич') || safetyStr === 'critical') result.safety_score = 'critical';
-              else if (safetyStr.includes('средн') || safetyStr === 'medium') result.safety_score = 'medium_risk';
-              else if (safetyStr.includes('высок') || safetyStr === 'high') result.safety_score = 'high_risk';
-            }
-
-            // Normalize question_status from display values to DB values
-            if (result.question_status) {
-              const statusStr = String(result.question_status).toLowerCase().trim();
-              if (statusStr.includes('работ') || statusStr === 'in_progress' || statusStr === 'в работе') result.question_status = 'in_progress';
-              else if (statusStr.includes('опубликован') || statusStr === 'published' || statusStr === 'завершен') result.question_status = 'published';
-              else result.question_status = 'not_selected';
-            }
-
-            // Date field
-            if (result.publication_date && String(result.publication_date).trim()) {
-              const parsed = new Date(String(result.publication_date).trim());
-              if (!isNaN(parsed.getTime())) {
-                result.publication_date = parsed.toISOString();
-              } else {
-                delete result.publication_date;
+            // Auto-create playlists that don't exist yet
+            const playlistNames = [...new Set(
+              data.filter(row => (row.playlist_name || row.playlist_name_rus) && !row.playlist_id)
+                .map(row => String(row.playlist_name || row.playlist_name_rus).trim()).filter(Boolean)
+            )];
+            const playlistMap: Record<string, string> = {};
+            if (playlistNames.length > 0) {
+              const { data: existingPlaylists } = await supabase.from('playlists').select('id, name');
+              const existing = new Map((existingPlaylists || []).map(p => [p.name.toLowerCase(), p.id]));
+              const toCreate = playlistNames.filter(n => !existing.has(n.toLowerCase()));
+              if (toCreate.length > 0) {
+                const { data: created, error } = await supabase.from('playlists').insert(toCreate.map(name => ({ name }))).select('id, name');
+                if (!error && created) {
+                  created.forEach(p => existing.set(p.name.toLowerCase(), p.id));
+                  toast.success(`Создано ${created.length} новых плейлистов`);
+                }
               }
+              existing.forEach((id, name) => { playlistMap[name] = id; });
             }
 
-            // Set question_eng from question if not present
-            if (!result.question_eng && result.question) {
-              result.question_eng = result.question;
+            const transformed = data.map(row => {
+              const result: Record<string, any> = { ...row };
+
+              // Resolve names to IDs
+              if (result.advisor_name && !result.advisor_id) {
+                result.advisor_id = advisorMap[String(result.advisor_name).toLowerCase().trim()] || null;
+              }
+              // Use playlist_name or playlist_name_rus (eng preferred)
+              const pName = result.playlist_name || result.playlist_name_rus;
+              if (pName && !result.playlist_id) {
+                result.playlist_id = playlistMap[String(pName).toLowerCase().trim()] || null;
+              }
+
+              // Integer fields
+              if (result.question_id !== undefined && result.question_id !== '') {
+                result.question_id = parseInt(String(result.question_id), 10);
+                if (isNaN(result.question_id)) delete result.question_id;
+              }
+              if (result.video_number !== undefined && result.video_number !== '') {
+                result.video_number = parseInt(String(result.video_number), 10);
+                if (isNaN(result.video_number)) delete result.video_number;
+              }
+              if (result.relevance_score !== undefined && result.relevance_score !== '') {
+                result.relevance_score = parseInt(String(result.relevance_score), 10);
+                if (isNaN(result.relevance_score)) result.relevance_score = 0;
+              }
+
+              // Normalize safety_score
+              if (result.safety_score) {
+                const safetyStr = String(result.safety_score).toLowerCase().replace(/[✅⚠️🔴❌]/g, '').trim();
+                if (safetyStr.includes('безопасно') || safetyStr === 'safe') result.safety_score = 'safe';
+                else if (safetyStr.includes('критич') || safetyStr === 'critical') result.safety_score = 'critical';
+                else if (safetyStr.includes('средн') || safetyStr === 'medium') result.safety_score = 'medium_risk';
+                else if (safetyStr.includes('высок') || safetyStr === 'high') result.safety_score = 'high_risk';
+              }
+
+              // Normalize question_status
+              if (result.question_status) {
+                const statusStr = String(result.question_status).toLowerCase().trim();
+                if (statusStr.includes('работ') || statusStr === 'in_progress' || statusStr === 'в работе') result.question_status = 'in_progress';
+                else if (statusStr.includes('опубликован') || statusStr === 'published' || statusStr === 'завершен') result.question_status = 'published';
+                else result.question_status = 'not_selected';
+              }
+
+              // Date field
+              if (result.publication_date && String(result.publication_date).trim()) {
+                const parsed = new Date(String(result.publication_date).trim());
+                if (!isNaN(parsed.getTime())) {
+                  result.publication_date = parsed.toISOString();
+                } else {
+                  delete result.publication_date;
+                }
+              }
+
+              // Set question_eng from question if not present
+              if (!result.question_eng && result.question) {
+                result.question_eng = result.question;
+              }
+
+              // Remove ALL virtual fields
+              delete result.playlist_name;
+              delete result.playlist_name_rus;
+              delete result.advisor_name;
+              delete result._ignore;
+
+              return result;
+            }).filter(row => row.question_id !== undefined && row.question_id !== null);
+
+            if (transformed.length === 0) {
+              toast.error('Нет валидных строк: проверьте маппинг поля ID Вопроса');
+              return;
             }
 
-            // Remove virtual fields that don't exist in DB
-            delete result.playlist_name;
-            delete result.advisor_name;
-            delete result._ignore;
-
-            return result;
-          }).filter(row => row.question_id !== undefined && row.question_id !== null);
-
-          if (transformed.length === 0) {
-            toast.error('Нет валидных строк: проверьте маппинг поля ID Вопроса');
-            return;
+            await onBulkImport(transformed);
+          } catch (error: any) {
+            console.error('Question import error:', error);
+            toast.error(`Ошибка импорта: ${error.message || 'Unknown error'}`);
           }
-
-          await onBulkImport(transformed);
         }}
         fieldDefinitions={QUESTION_FIELD_DEFINITIONS}
       />

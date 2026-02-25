@@ -60,8 +60,8 @@ export const QUESTION_COLUMN_MAPPING: Record<string, string> = {
 
   'плейлист eng': 'playlist_name',
   'плейлист_eng': 'playlist_name',
-  'плейлист рус': 'playlist_name',
-  'плейлист_рус': 'playlist_name',
+  'плейлист рус': 'playlist_name_rus',
+  'плейлист_рус': 'playlist_name_rus',
   'плейлист': 'playlist_name',
   'playlist': 'playlist_name',
   'playlist eng': 'playlist_name',
