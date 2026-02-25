@@ -54,6 +54,7 @@ export function normalizeHeader(header: string): string {
     .replace(/[\u0300-\u036f]/g, '') // Remove diacritics
     .replace(/^[≡⊙⚙#⌘◉△▽□○●◆◇★☆♦♣♠♥a\s]+/gi, '') // Remove leading special chars and 'A' prefix
     .replace(/[^a-zA-Z0-9а-яёА-ЯЁ\s_()-]/gi, '') // Keep letters, numbers, spaces, underscores, hyphens, parens
+    .replace(/_/g, ' ') // Normalize underscores to spaces
     .replace(/\s+/g, ' ') // Normalize spaces
     .trim();
 }

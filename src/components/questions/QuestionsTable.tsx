@@ -633,6 +633,23 @@ export function QuestionsTable({
               if (isNaN(result.relevance_score)) result.relevance_score = 0;
             }
 
+            // Normalize safety_score from display values to DB values
+            if (result.safety_score) {
+              const safetyStr = String(result.safety_score).toLowerCase().replace(/[✅⚠️🔴❌]/g, '').trim();
+              if (safetyStr.includes('безопасно') || safetyStr === 'safe') result.safety_score = 'safe';
+              else if (safetyStr.includes('критич') || safetyStr === 'critical') result.safety_score = 'critical';
+              else if (safetyStr.includes('средн') || safetyStr === 'medium') result.safety_score = 'medium_risk';
+              else if (safetyStr.includes('высок') || safetyStr === 'high') result.safety_score = 'high_risk';
+            }
+
+            // Normalize question_status from display values to DB values
+            if (result.question_status) {
+              const statusStr = String(result.question_status).toLowerCase().trim();
+              if (statusStr.includes('работ') || statusStr === 'in_progress' || statusStr === 'в работе') result.question_status = 'in_progress';
+              else if (statusStr.includes('опубликован') || statusStr === 'published' || statusStr === 'завершен') result.question_status = 'published';
+              else result.question_status = 'not_selected';
+            }
+
             // Date field
             if (result.publication_date && String(result.publication_date).trim()) {
               const parsed = new Date(String(result.publication_date).trim());
@@ -651,6 +668,7 @@ export function QuestionsTable({
             // Remove virtual fields that don't exist in DB
             delete result.playlist_name;
             delete result.advisor_name;
+            delete result._ignore;
 
             return result;
           }).filter(row => row.question_id !== undefined && row.question_id !== null);
