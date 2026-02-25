@@ -699,12 +699,17 @@ export function QuestionsTable({
               }
 
               // Date field
-              if (result.publication_date && String(result.publication_date).trim()) {
-                const parsed = new Date(String(result.publication_date).trim());
-                if (!isNaN(parsed.getTime())) {
-                  result.publication_date = parsed.toISOString();
-                } else {
+              if (result.publication_date !== undefined) {
+                const dateStr = String(result.publication_date).trim();
+                if (dateStr === '') {
                   delete result.publication_date;
+                } else {
+                  const parsed = new Date(dateStr);
+                  if (!isNaN(parsed.getTime())) {
+                    result.publication_date = parsed.toISOString();
+                  } else {
+                    delete result.publication_date;
+                  }
                 }
               }
 
@@ -718,6 +723,13 @@ export function QuestionsTable({
               delete result.playlist_name_rus;
               delete result.advisor_name;
               delete result._ignore;
+
+              // Sanitize empty strings to null for all remaining fields
+              for (const key of Object.keys(result)) {
+                if (typeof result[key] === 'string' && result[key].trim() === '') {
+                  result[key] = null;
+                }
+              }
 
               return result;
             }).filter(row => row.question_id !== undefined && row.question_id !== null);
