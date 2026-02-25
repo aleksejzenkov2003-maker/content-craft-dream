@@ -341,6 +341,7 @@ export default function Index() {
               publications={publications}
               loading={allVideosLoading}
               playlists={playlists}
+              advisors={advisors}
               onGoToVideos={() => setActiveTab('videos')}
               onUpdateQuestion={async (uniqueKey, updates) => {
                 const separatorIndex = uniqueKey.indexOf('_');

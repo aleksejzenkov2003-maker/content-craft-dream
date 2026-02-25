@@ -15,6 +15,12 @@ export const QUESTION_COLUMN_MAPPING: Record<string, string> = {
   'question id': 'question_id',
   'id': 'question_id',
 
+  'id ролика': 'video_number',
+  '# id ролика': 'video_number',
+  'video_number': 'video_number',
+  'video number': 'video_number',
+  'номер': 'video_number',
+
   'planned publication date': 'publication_date',
   'дата публикации': 'publication_date',
   'плановая дата публикации': 'publication_date',
@@ -31,9 +37,6 @@ export const QUESTION_COLUMN_MAPPING: Record<string, string> = {
   'вопрос к духовнику рус': 'question_rus',
   'вопрос рус': 'question_rus',
   'question rus': 'question_rus',
-
-  'плейлист рус': 'playlist_rus',
-  'playlist rus': 'playlist_rus',
 
   'хук eng': 'hook',
   'хук': 'hook',
@@ -52,6 +55,24 @@ export const QUESTION_COLUMN_MAPPING: Record<string, string> = {
   'playlist': 'playlist_name',
   'playlist eng': 'playlist_name',
 
+  'духовник': 'advisor_name',
+  '≡ духовник': 'advisor_name',
+  'advisor': 'advisor_name',
+  'advisor name': 'advisor_name',
+
+  'ответ духовника': 'advisor_answer',
+  '≡ ответ духовника': 'advisor_answer',
+  'advisor answer': 'advisor_answer',
+  'ответ': 'advisor_answer',
+
+  'промт для ответа': 'answer_prompt',
+  'answer prompt': 'answer_prompt',
+  'answer_prompt': 'answer_prompt',
+
+  'заголовок видео': 'video_title',
+  'video title': 'video_title',
+  'title': 'video_title',
+
   'статус вопроса': 'question_status',
   'статус': 'question_status',
   'status': 'question_status',
@@ -63,14 +84,18 @@ export const QUESTION_COLUMN_MAPPING: Record<string, string> = {
 
 export const QUESTION_FIELD_DEFINITIONS: FieldDefinition[] = [
   { field: 'question_id', label: 'ID Вопроса', aliases: ['id вопроса', 'question id', 'id'], required: true },
+  { field: 'video_number', label: 'ID Ролика', aliases: ['id ролика', '# id ролика', 'video_number', 'номер'] },
   { field: 'publication_date', label: 'Плановая дата публикации', aliases: ['planned publication date', 'дата публикации', 'плановая дата публикации'] },
   { field: 'safety_score', label: 'Безопасность вопроса', aliases: ['безопасность вопроса', 'безопасность', 'safety'] },
   { field: 'hook_rus', label: 'Хук рус', aliases: ['хук рус', 'hook rus'] },
   { field: 'question_rus', label: 'Вопрос к духовнику рус', aliases: ['вопрос к духовнику рус', 'вопрос рус'] },
-  { field: 'playlist_rus', label: 'Плейлист рус', aliases: ['плейлист рус', 'playlist rus'] },
   { field: 'hook', label: 'Хук eng', aliases: ['хук eng', 'хук', 'hook eng', 'hook'] },
   { field: 'question', label: 'Вопрос к духовнику eng', aliases: ['вопрос к духовнику eng', 'вопрос', 'question'] },
-  { field: 'playlist_name', label: 'Плейлист eng', aliases: ['плейлист eng', 'плейлист', 'playlist'] },
+  { field: 'playlist_name', label: 'Плейлист', aliases: ['плейлист eng', 'плейлист', 'playlist'], description: 'Резолвится в playlist_id' },
+  { field: 'advisor_name', label: 'Духовник', aliases: ['духовник', '≡ духовник', 'advisor'], description: 'Резолвится в advisor_id' },
+  { field: 'advisor_answer', label: 'Ответ духовника', aliases: ['ответ духовника', '≡ ответ духовника', 'ответ'] },
+  { field: 'answer_prompt', label: 'Промт для ответа', aliases: ['промт для ответа', 'answer prompt', 'answer_prompt'] },
+  { field: 'video_title', label: 'Заголовок видео', aliases: ['заголовок видео', 'video title', 'title'] },
   { field: 'question_status', label: 'Статус вопроса', aliases: ['статус вопроса', 'статус', 'status'] },
   { field: 'relevance_score', label: 'Актуальность', aliases: ['актуальность', 'relevance'] },
 ];
@@ -193,6 +218,10 @@ export const VIDEO_COLUMN_MAPPING: Record<string, string> = {
 
   'безоп': 'safety_score',
   'a безоп': 'safety_score',
+
+  'промт для ответа': 'answer_prompt',
+  'answer prompt': 'answer_prompt',
+  'answer_prompt': 'answer_prompt',
 };
 
 export const VIDEO_FIELD_DEFINITIONS: FieldDefinition[] = [
@@ -201,6 +230,7 @@ export const VIDEO_FIELD_DEFINITIONS: FieldDefinition[] = [
   { field: 'advisor_name', label: 'Духовник', aliases: ['духовник', '≡ духовник', 'advisor'] },
   { field: 'question', label: 'Вопрос', aliases: ['вопрос', 'вопрос к духовнику eng', 'question'] },
   { field: 'advisor_answer', label: 'Ответ духовника', aliases: ['ответ духовника', '≡ ответ духовника', 'answer'] },
+  { field: 'answer_prompt', label: 'Промт для ответа', aliases: ['промт для ответа', 'answer prompt', 'answer_prompt'] },
   { field: 'hook', label: 'Хук англ', aliases: ['хук', 'хук англ', 'hook eng', 'hook'] },
   { field: 'playlist_name', label: 'Плейлист англ', aliases: ['плейлист', 'плейлист англ', 'playlist'], description: 'Связь с таблицей Плейлисты' },
   { field: 'safety_score', label: 'Безопасность вопроса', aliases: ['безопасность', 'безопасность вопроса', 'safety'] },
