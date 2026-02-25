@@ -54,7 +54,7 @@ export default function Index() {
   const [showSidePanel, setShowSidePanel] = useState(false);
   const [showImportDialog, setShowImportDialog] = useState(false);
   const [publicationsTab, setPublicationsTab] = useState('by-channel');
-  const { advisors, loading: advisorsLoading, addAdvisor, updateAdvisor, deleteAdvisor, addPhoto, deletePhoto, setPrimaryPhoto, updatePhotoAssetId } = useAdvisors();
+  const { advisors, loading: advisorsLoading, addAdvisor, updateAdvisor, deleteAdvisor, addPhoto, deletePhoto, setPrimaryPhoto, updatePhotoAssetId, bulkImport: bulkImportAdvisors } = useAdvisors();
   const { playlists, loading: playlistsLoading, addPlaylist, updatePlaylist, deletePlaylist } = usePlaylists();
   const { videos: allVideos, loading: allVideosLoading, refetch: refetchAllVideos, bulkUpdate: bulkUpdateAll } = useVideos();
   const { videos, loading: videosLoading, addVideo, updateVideo, deleteVideo, refetch: refetchVideos, bulkImport, bulkUpdate } = useVideos(videoFilters);
@@ -246,6 +246,7 @@ export default function Index() {
               onDeletePhoto={deletePhoto}
               onSetPrimaryPhoto={setPrimaryPhoto}
               onUploadToHeygen={async () => { toast.info('Загрузка в HeyGen будет реализована'); }}
+              onBulkImport={bulkImportAdvisors}
             />
           )}
 
