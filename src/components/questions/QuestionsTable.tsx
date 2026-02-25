@@ -650,7 +650,7 @@ export function QuestionsTable({
               delete result.advisor_name;
 
               return result;
-            }).filter(row => row.question_id !== undefined);
+            });
 
             await onBulkImport(transformed);
           }
