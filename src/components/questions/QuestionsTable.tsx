@@ -20,6 +20,7 @@ import { QuestionFilters, FilterState } from './QuestionFilters';
 import { cn } from '@/lib/utils';
 import { HoverCard, HoverCardContent, HoverCardTrigger } from '@/components/ui/hover-card';
 import { toast } from 'sonner';
+import { supabase } from '@/integrations/supabase/client';
 
 interface Playlist {
   id: string;
@@ -598,17 +599,15 @@ export function QuestionsTable({
             delete data.advisor_name;
           }
 
-          // Resolve playlist_name → playlist_id
-          if (data.playlist_name && lk.playlists) {
+          // Resolve playlist_name → playlist_id (skip if playlists empty, will be stored as name)
+          if (data.playlist_name && lk.playlists && lk.playlists.length > 0) {
             const found = lk.playlists.find(p =>
               p.name.toLowerCase() === String(data.playlist_name).toLowerCase()
             );
             if (found) {
               data.playlist_id = found.id;
-            } else {
-              errors.push(`Плейлист не найден: ${data.playlist_name}`);
             }
-            delete data.playlist_name;
+            // Don't error if not found - playlist will be auto-created during import
           }
 
           return { data, errors };
@@ -616,8 +615,44 @@ export function QuestionsTable({
         onImport={async (data) => {
           if (!onBulkImport) return;
 
+          // Auto-create playlists that don't exist yet
+          const playlistNames = [...new Set(
+            data
+              .filter(row => row.playlist_name && !row.playlist_id)
+              .map(row => String(row.playlist_name).trim())
+              .filter(Boolean)
+          )];
+
+          const playlistMap: Record<string, string> = {};
+
+          if (playlistNames.length > 0) {
+            // Fetch existing playlists
+            const { data: existingPlaylists } = await supabase.from('playlists').select('id, name');
+            const existing = new Map((existingPlaylists || []).map(p => [p.name.toLowerCase(), p.id]));
+
+            const toCreate = playlistNames.filter(n => !existing.has(n.toLowerCase()));
+            if (toCreate.length > 0) {
+              const { data: created, error } = await supabase
+                .from('playlists')
+                .insert(toCreate.map(name => ({ name })))
+                .select('id, name');
+              if (!error && created) {
+                created.forEach(p => existing.set(p.name.toLowerCase(), p.id));
+                toast.success(`Создано ${created.length} новых плейлистов`);
+              }
+            }
+
+            existing.forEach((id, name) => { playlistMap[name] = id; });
+          }
+
           const transformed = data.map(row => {
             const result: Record<string, any> = { ...row };
+
+            // Resolve playlist_name to playlist_id if not already resolved
+            if (result.playlist_name && !result.playlist_id) {
+              const pid = playlistMap[String(result.playlist_name).toLowerCase().trim()];
+              if (pid) result.playlist_id = pid;
+            }
 
             // Integer fields
             if (result.question_id !== undefined && result.question_id !== '') {
