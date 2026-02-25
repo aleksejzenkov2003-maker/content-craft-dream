@@ -426,7 +426,10 @@ export default function Index() {
                   triggerAutoGeneration(uniqueKey);
                 }
               }}
-              onBulkImport={bulkImport}
+              onBulkImport={async (data) => {
+                await bulkImport(data);
+                await Promise.all([refetchAllVideos(), refetchVideos()]);
+              }}
             />
           )}
 

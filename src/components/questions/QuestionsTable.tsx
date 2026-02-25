@@ -19,6 +19,7 @@ import { BulkActionsBar, BulkActionButton } from '@/components/ui/bulk-actions-b
 import { QuestionFilters, FilterState } from './QuestionFilters';
 import { cn } from '@/lib/utils';
 import { HoverCard, HoverCardContent, HoverCardTrigger } from '@/components/ui/hover-card';
+import { toast } from 'sonner';
 
 interface Playlist {
   id: string;
@@ -574,6 +575,7 @@ export function QuestionsTable({
         title="Импорт вопросов"
         columnMapping={QUESTION_COLUMN_MAPPING}
         previewColumns={QUESTION_PREVIEW_COLUMNS}
+        requiredFields={['question_id']}
         lookups={{
           advisors: advisors?.map(a => ({ id: a.id, name: a.name, display_name: a.display_name })),
           playlists: playlists?.map(p => ({ id: p.id, name: p.name })),
@@ -612,48 +614,53 @@ export function QuestionsTable({
           return { data, errors };
         }}
         onImport={async (data) => {
-          if (onBulkImport) {
-            const transformed = data.map(row => {
-              const result: Record<string, any> = { ...row };
+          if (!onBulkImport) return;
 
-              // Integer fields
-              if (result.question_id !== undefined && result.question_id !== '') {
-                result.question_id = parseInt(String(result.question_id), 10);
-                if (isNaN(result.question_id)) delete result.question_id;
+          const transformed = data.map(row => {
+            const result: Record<string, any> = { ...row };
+
+            // Integer fields
+            if (result.question_id !== undefined && result.question_id !== '') {
+              result.question_id = parseInt(String(result.question_id), 10);
+              if (isNaN(result.question_id)) delete result.question_id;
+            }
+            if (result.video_number !== undefined && result.video_number !== '') {
+              result.video_number = parseInt(String(result.video_number), 10);
+              if (isNaN(result.video_number)) delete result.video_number;
+            }
+            if (result.relevance_score !== undefined && result.relevance_score !== '') {
+              result.relevance_score = parseInt(String(result.relevance_score), 10);
+              if (isNaN(result.relevance_score)) result.relevance_score = 0;
+            }
+
+            // Date field
+            if (result.publication_date && String(result.publication_date).trim()) {
+              const parsed = new Date(String(result.publication_date).trim());
+              if (!isNaN(parsed.getTime())) {
+                result.publication_date = parsed.toISOString();
+              } else {
+                delete result.publication_date;
               }
-              if (result.video_number !== undefined && result.video_number !== '') {
-                result.video_number = parseInt(String(result.video_number), 10);
-                if (isNaN(result.video_number)) delete result.video_number;
-              }
-              if (result.relevance_score !== undefined && result.relevance_score !== '') {
-                result.relevance_score = parseInt(String(result.relevance_score), 10);
-                if (isNaN(result.relevance_score)) result.relevance_score = 0;
-              }
+            }
 
-              // Date field
-              if (result.publication_date && String(result.publication_date).trim()) {
-                const parsed = new Date(String(result.publication_date).trim());
-                if (!isNaN(parsed.getTime())) {
-                  result.publication_date = parsed.toISOString();
-                } else {
-                  delete result.publication_date;
-                }
-              }
+            // Set question_eng from question if not present
+            if (!result.question_eng && result.question) {
+              result.question_eng = result.question;
+            }
 
-              // Set question_eng from question if not present
-              if (!result.question_eng && result.question) {
-                result.question_eng = result.question;
-              }
+            // Remove virtual fields that don't exist in DB
+            delete result.playlist_name;
+            delete result.advisor_name;
 
-              // Remove virtual fields that don't exist in DB
-              delete result.playlist_name;
-              delete result.advisor_name;
+            return result;
+          }).filter(row => row.question_id !== undefined && row.question_id !== null);
 
-              return result;
-            });
-
-            await onBulkImport(transformed);
+          if (transformed.length === 0) {
+            toast.error('Нет валидных строк: проверьте маппинг поля ID Вопроса');
+            return;
           }
+
+          await onBulkImport(transformed);
         }}
         fieldDefinitions={QUESTION_FIELD_DEFINITIONS}
       />
