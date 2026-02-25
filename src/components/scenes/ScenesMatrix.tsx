@@ -148,46 +148,87 @@ export function ScenesMatrix() {
 
   const resolveRow = (row: Record<string, any>, lookups: Lookups) => {
     const errors: string[] = [];
+    const data = { ...row };
     
-    // Resolve advisor by name
-    let advisor_id: string | null = null;
-    if (row.advisor_name) {
-      const advisor = lookups.advisors?.find(a => 
-        a.name.toLowerCase() === row.advisor_name.toLowerCase() ||
-        a.display_name?.toLowerCase() === row.advisor_name.toLowerCase()
+    // Resolve advisor by name (don't error if not found — will auto-create)
+    if (data.advisor_name && lookups.advisors) {
+      const advisor = lookups.advisors.find(a => 
+        a.name.toLowerCase() === String(data.advisor_name).toLowerCase() ||
+        a.display_name?.toLowerCase() === String(data.advisor_name).toLowerCase()
       );
       if (advisor) {
-        advisor_id = advisor.id;
-      } else {
-        errors.push(`Духовник "${row.advisor_name}" не найден`);
+        data.advisor_id = advisor.id;
       }
+      // Keep advisor_name for auto-create during import
     }
     
-    // Resolve playlist by name
-    let playlist_id: string | null = null;
-    if (row.playlist_name) {
-      const playlist = lookups.playlists?.find(p => 
-        p.name.toLowerCase() === row.playlist_name.toLowerCase()
+    // Resolve playlist by name (don't error if not found — will auto-create)
+    if (data.playlist_name && lookups.playlists) {
+      const playlist = lookups.playlists.find(p => 
+        p.name.toLowerCase() === String(data.playlist_name).toLowerCase()
       );
       if (playlist) {
-        playlist_id = playlist.id;
-      } else {
-        errors.push(`Плейлист "${row.playlist_name}" не найден`);
+        data.playlist_id = playlist.id;
       }
+      // Keep playlist_name for auto-create during import
     }
 
-    return {
-      data: {
-        ...row,
-        advisor_id,
-        playlist_id,
-      },
-      errors,
-    };
+    return { data, errors };
   };
 
   const handleImport = async (data: Record<string, any>[]) => {
-    await bulkImport(data as Partial<PlaylistScene>[]);
+    try {
+      // Auto-create missing advisors
+      const advisorNames = [...new Set(
+        data.filter(r => r.advisor_name && !r.advisor_id).map(r => String(r.advisor_name).trim()).filter(Boolean)
+      )];
+      if (advisorNames.length > 0) {
+        const { data: existing } = await supabase.from('advisors').select('id, name');
+        const existingMap = new Map((existing || []).map(a => [a.name.toLowerCase(), a.id]));
+        const toCreate = advisorNames.filter(n => !existingMap.has(n.toLowerCase()));
+        if (toCreate.length > 0) {
+          const { data: created } = await supabase.from('advisors').insert(toCreate.map(name => ({ name }))).select('id, name');
+          created?.forEach(a => existingMap.set(a.name.toLowerCase(), a.id));
+          toast.success(`Создано ${toCreate.length} новых духовников`);
+        }
+        data.forEach(r => {
+          if (r.advisor_name && !r.advisor_id) {
+            r.advisor_id = existingMap.get(String(r.advisor_name).toLowerCase().trim()) || null;
+          }
+        });
+      }
+
+      // Auto-create missing playlists
+      const playlistNames = [...new Set(
+        data.filter(r => r.playlist_name && !r.playlist_id).map(r => String(r.playlist_name).trim()).filter(Boolean)
+      )];
+      if (playlistNames.length > 0) {
+        const { data: existing } = await supabase.from('playlists').select('id, name');
+        const existingMap = new Map((existing || []).map(p => [p.name.toLowerCase(), p.id]));
+        const toCreate = playlistNames.filter(n => !existingMap.has(n.toLowerCase()));
+        if (toCreate.length > 0) {
+          const { data: created } = await supabase.from('playlists').insert(toCreate.map(name => ({ name }))).select('id, name');
+          created?.forEach(p => existingMap.set(p.name.toLowerCase(), p.id));
+          toast.success(`Создано ${toCreate.length} новых плейлистов`);
+        }
+        data.forEach(r => {
+          if (r.playlist_name && !r.playlist_id) {
+            r.playlist_id = existingMap.get(String(r.playlist_name).toLowerCase().trim()) || null;
+          }
+        });
+      }
+
+      // Strip virtual fields before DB insert
+      const cleaned = data.map(r => {
+        const { advisor_name, playlist_name, scene_name, _ignore, ...rest } = r;
+        return rest;
+      });
+
+      await bulkImport(cleaned as Partial<PlaylistScene>[]);
+    } catch (error: any) {
+      console.error('Scene import error:', error);
+      toast.error(`Ошибка импорта сцен: ${error.message || 'Unknown error'}`);
+    }
   };
 
   if (loading) {

@@ -135,7 +135,12 @@ export function AdvisorsGrid({
 
   const handleImport = async (data: Record<string, any>[]) => {
     if (onBulkImport) {
-      await onBulkImport(data as Partial<Advisor>[]);
+      try {
+        await onBulkImport(data as Partial<Advisor>[]);
+      } catch (error: any) {
+        console.error('Advisor import error:', error);
+        toast.error(`Ошибка импорта духовников: ${error.message || 'Unknown error'}`);
+      }
     }
   };
 

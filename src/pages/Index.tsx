@@ -25,6 +25,7 @@ import { usePublishingChannels } from '@/hooks/usePublishingChannels';
 import { SettingsPage } from '@/components/settings/SettingsPage';
 import { Users, ListVideo, Video as VideoIcon, CheckCircle, Loader2, Send, HelpCircle } from 'lucide-react';
 import { toast } from 'sonner';
+import { supabase } from '@/integrations/supabase/client';
 import { Card, CardContent } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 
@@ -331,6 +332,18 @@ export default function Index() {
               onSelectPlaylist={(playlist) => {
                 setVideoFilters({ playlistId: playlist.id });
                 setActiveTab('videos');
+              }}
+              onBulkImport={async (data) => {
+                const { error } = await supabase
+                  .from('playlists')
+                  .upsert(data.map((item: any) => ({
+                    name: item.name!,
+                    description: item.description || null,
+                    scene_prompt: item.scene_prompt || null,
+                  })), { onConflict: 'name' });
+                if (error) throw error;
+                toast.success(`Импортировано ${data.length} плейлистов`);
+                window.location.reload();
               }}
             />
           )}

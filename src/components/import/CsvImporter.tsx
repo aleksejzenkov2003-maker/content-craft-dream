@@ -6,7 +6,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Upload, FileSpreadsheet, AlertCircle, CheckCircle, Loader2, X } from 'lucide-react';
-import { parseCSV, readFileAsText, ParsedRow, ParseResult, ColumnMappingInfo, normalizeHeader, parseCSVLine, detectDelimiter } from './csvUtils';
+import { parseCSV, readFileAsText, ParsedRow, ParseResult, ColumnMappingInfo } from './csvUtils';
 import { cn } from '@/lib/utils';
 import * as XLSX from 'xlsx';
 import { FieldDefinition } from './importConfigs';
@@ -171,6 +171,7 @@ export function CsvImporter({
   const handleApplyMapping = () => {
     if (!rawFileContent || !customMapping) return;
 
+    // Build new mapping from custom mapping state
     const newMapping: Record<string, string> = {};
     customMapping.forEach(col => {
       if (col.mappedField && col.csvHeader) {
@@ -178,48 +179,17 @@ export function CsvImporter({
       }
     });
 
+    // Re-parse using the proper parseCSV which handles multiline correctly
     const result = parseCSV(rawFileContent, newMapping, requiredFields);
+    
+    // Preserve custom mapping selections on the result columns
     const updatedMapped = result.mappedColumns.map(col => {
       const custom = customMapping.find(c => c.columnIndex === col.columnIndex);
       return custom ? { ...col, mappedField: custom.mappedField } : col;
     });
-    
-    const delimiter = detectDelimiter(rawFileContent);
-    const lines = rawFileContent.replace(/^\uFEFF/, '').replace(/\r\n/g, '\n').replace(/\r/g, '\n').split('\n').filter(l => l.trim());
-    
-    if (lines.length <= 1) return;
-    
-    const headerToField: Record<number, string> = {};
-    customMapping.forEach(col => {
-      if (col.mappedField) {
-        headerToField[col.columnIndex] = col.mappedField;
-      }
-    });
-
-    const rows: ParsedRow[] = [];
-    for (let i = 1; i < lines.length; i++) {
-      const values = parseCSVLine(lines[i], delimiter);
-      const data: Record<string, string> = {};
-      const errors: string[] = [];
-      
-      values.forEach((value, index) => {
-        const fieldName = headerToField[index];
-        if (fieldName) data[fieldName] = value;
-      });
-
-      if (requiredFields) {
-        for (const field of requiredFields) {
-          if (!data[field] || !data[field].trim()) {
-            errors.push(`Отсутствует обязательное поле: ${field}`);
-          }
-        }
-      }
-
-      rows.push({ rowIndex: i, data, errors, isValid: errors.length === 0 });
-    }
 
     setParseResult({ ...result, mappedColumns: updatedMapped });
-    setResolvedRows(resolveRows(rows));
+    setResolvedRows(resolveRows(result.rows));
   };
 
   const handleDrop = useCallback((e: React.DragEvent) => {
