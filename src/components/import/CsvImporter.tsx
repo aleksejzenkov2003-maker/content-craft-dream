@@ -4,6 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { ScrollArea } from '@/components/ui/scroll-area';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Upload, FileSpreadsheet, AlertCircle, CheckCircle, Loader2, X } from 'lucide-react';
 import { parseCSV, readFileAsText, ParsedRow, ParseResult, ColumnMappingInfo, normalizeHeader, parseCSVLine, detectDelimiter } from './csvUtils';
 import { cn } from '@/lib/utils';
@@ -58,6 +59,11 @@ export function CsvImporter({
   const [dragActive, setDragActive] = useState(false);
   const [customMapping, setCustomMapping] = useState<ColumnMappingInfo[] | null>(null);
   const [rawFileContent, setRawFileContent] = useState<string>('');
+  
+  // Excel multi-sheet support
+  const [workbook, setWorkbook] = useState<XLSX.WorkBook | null>(null);
+  const [sheetNames, setSheetNames] = useState<string[]>([]);
+  const [selectedSheet, setSelectedSheet] = useState<string>('');
 
   const resetState = () => {
     setFile(null);
@@ -67,6 +73,9 @@ export function CsvImporter({
     setIsImporting(false);
     setCustomMapping(null);
     setRawFileContent('');
+    setWorkbook(null);
+    setSheetNames([]);
+    setSelectedSheet('');
   };
 
   const handleClose = () => {
@@ -89,29 +98,62 @@ export function CsvImporter({
     return rows;
   };
 
+  const processContent = (content: string) => {
+    setRawFileContent(content);
+    const result = parseCSV(content, columnMapping, requiredFields);
+    setParseResult(result);
+    setCustomMapping(result.mappedColumns);
+    setResolvedRows(resolveRows(result.rows));
+  };
+
   const processFile = async (selectedFile: File) => {
     setIsLoading(true);
     setFile(selectedFile);
 
     try {
-      let content: string;
-
       if (selectedFile.name.endsWith('.xlsx') || selectedFile.name.endsWith('.xls')) {
         const arrayBuffer = await selectedFile.arrayBuffer();
-        const workbook = XLSX.read(arrayBuffer, { type: 'array' });
-        const firstSheet = workbook.Sheets[workbook.SheetNames[0]];
-        content = XLSX.utils.sheet_to_csv(firstSheet, { FS: ',' });
+        const wb = XLSX.read(arrayBuffer, { type: 'array' });
+        
+        if (wb.SheetNames.length > 1) {
+          // Multiple sheets — show picker
+          setWorkbook(wb);
+          setSheetNames(wb.SheetNames);
+          setSelectedSheet(wb.SheetNames[0]);
+          setIsLoading(false);
+          return;
+        }
+        
+        // Single sheet — proceed directly
+        const firstSheet = wb.Sheets[wb.SheetNames[0]];
+        const content = XLSX.utils.sheet_to_csv(firstSheet, { FS: ',' });
+        processContent(content);
       } else {
-        content = await readFileAsText(selectedFile);
+        const content = await readFileAsText(selectedFile);
+        processContent(content);
       }
-
-      setRawFileContent(content);
-      const result = parseCSV(content, columnMapping, requiredFields);
-      setParseResult(result);
-      setCustomMapping(result.mappedColumns);
-      setResolvedRows(resolveRows(result.rows));
     } catch (error) {
       console.error('Error parsing file:', error);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleSheetSelect = (sheetName: string) => {
+    setSelectedSheet(sheetName);
+  };
+
+  const handleConfirmSheet = () => {
+    if (!workbook || !selectedSheet) return;
+    setIsLoading(true);
+    try {
+      const sheet = workbook.Sheets[selectedSheet];
+      const content = XLSX.utils.sheet_to_csv(sheet, { FS: ',' });
+      processContent(content);
+      setWorkbook(null); // Hide picker
+      setSheetNames([]);
+    } catch (error) {
+      console.error('Error processing sheet:', error);
     } finally {
       setIsLoading(false);
     }
@@ -128,7 +170,6 @@ export function CsvImporter({
   const handleApplyMapping = () => {
     if (!rawFileContent || !customMapping) return;
 
-    // Rebuild column mapping from customMapping
     const newMapping: Record<string, string> = {};
     customMapping.forEach(col => {
       if (col.mappedField && col.csvHeader) {
@@ -137,13 +178,11 @@ export function CsvImporter({
     });
 
     const result = parseCSV(rawFileContent, newMapping, requiredFields);
-    // Preserve custom mapping selections
     const updatedMapped = result.mappedColumns.map(col => {
       const custom = customMapping.find(c => c.columnIndex === col.columnIndex);
       return custom ? { ...col, mappedField: custom.mappedField } : col;
     });
     
-    // Re-parse rows with custom mapping
     const delimiter = detectDelimiter(rawFileContent);
     const lines = rawFileContent.replace(/^\uFEFF/, '').replace(/\r\n/g, '\n').replace(/\r/g, '\n').split('\n').filter(l => l.trim());
     
@@ -222,6 +261,9 @@ export function CsvImporter({
   const validCount = resolvedRows.filter(r => r.isValid).length;
   const errorCount = resolvedRows.filter(r => !r.isValid).length;
 
+  // Sheet picker view
+  const showSheetPicker = sheetNames.length > 1 && workbook !== null;
+
   return (
     <Dialog open={open} onOpenChange={(isOpen) => !isOpen && handleClose()}>
       <DialogContent className="max-w-4xl max-h-[90vh] flex flex-col">
@@ -233,7 +275,37 @@ export function CsvImporter({
         </DialogHeader>
 
         <div className="flex-1 overflow-hidden">
-          {!file ? (
+          {showSheetPicker ? (
+            /* Sheet selection for multi-sheet Excel */
+            <div className="space-y-4 py-4">
+              <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                <FileSpreadsheet className="w-4 h-4" />
+                <span>Файл <strong>{file?.name}</strong> содержит {sheetNames.length} листов. Выберите лист для импорта:</span>
+              </div>
+              <div className="space-y-2">
+                {sheetNames.map((name) => (
+                  <button
+                    key={name}
+                    onClick={() => handleSheetSelect(name)}
+                    className={cn(
+                      "w-full text-left p-3 rounded-lg border transition-colors text-sm",
+                      selectedSheet === name 
+                        ? "border-primary bg-primary/5 font-medium" 
+                        : "border-border hover:bg-muted/50"
+                    )}
+                  >
+                    {name}
+                  </button>
+                ))}
+              </div>
+              <div className="flex justify-end gap-2">
+                <Button variant="outline" onClick={resetState}>Назад</Button>
+                <Button onClick={handleConfirmSheet} disabled={!selectedSheet}>
+                  Загрузить лист «{selectedSheet}»
+                </Button>
+              </div>
+            </div>
+          ) : !file ? (
             <div>
               <div
                 className={cn(
@@ -291,7 +363,7 @@ export function CsvImporter({
                 </div>
               </div>
 
-              {/* Column mapping editor or fallback */}
+              {/* Column mapping editor */}
               {fieldDefinitions && fieldDefinitions.length > 0 && customMapping ? (
                 <ColumnMappingEditor
                   mappedColumns={customMapping}
@@ -400,7 +472,7 @@ export function CsvImporter({
 
         <DialogFooter>
           <Button variant="outline" onClick={handleClose}>Отмена</Button>
-          <Button onClick={handleImport} disabled={!file || isImporting || validCount === 0}>
+          <Button onClick={handleImport} disabled={!file || isImporting || validCount === 0 || showSheetPicker}>
             {isImporting ? (
               <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Импорт...</>
             ) : (
