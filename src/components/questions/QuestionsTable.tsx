@@ -568,7 +568,47 @@ export function QuestionsTable({
         previewColumns={QUESTION_PREVIEW_COLUMNS}
         onImport={async (data) => {
           if (onBulkImport) {
-            await onBulkImport(data);
+            // Transform string values from CSV to proper types for the videos table
+            const transformed = data.map(row => {
+              const result: Record<string, any> = {};
+              
+              // Integer fields
+              if (row.question_id !== undefined && row.question_id !== '') {
+                result.question_id = parseInt(String(row.question_id), 10);
+                if (isNaN(result.question_id)) delete result.question_id;
+              }
+              if (row.relevance_score !== undefined && row.relevance_score !== '') {
+                result.relevance_score = parseInt(String(row.relevance_score), 10);
+                if (isNaN(result.relevance_score)) result.relevance_score = 0;
+              }
+              
+              // String fields — copy directly
+              if (row.question) result.question = String(row.question);
+              if (row.question_rus) result.question_rus = String(row.question_rus);
+              if (row.question_eng) result.question_eng = row.question_eng ? String(row.question_eng) : (row.question ? String(row.question) : null);
+              if (row.hook) result.hook = String(row.hook);
+              if (row.hook_rus) result.hook_rus = String(row.hook_rus);
+              if (row.safety_score) result.safety_score = String(row.safety_score);
+              if (row.question_status) result.question_status = String(row.question_status);
+              
+              // Date field
+              if (row.publication_date && String(row.publication_date).trim()) {
+                const dateStr = String(row.publication_date).trim();
+                const parsed = new Date(dateStr);
+                if (!isNaN(parsed.getTime())) {
+                  result.publication_date = parsed.toISOString();
+                }
+              }
+
+              // Also set question_eng from question if not present
+              if (!result.question_eng && result.question) {
+                result.question_eng = result.question;
+              }
+              
+              return result;
+            }).filter(row => row.question_id !== undefined);
+            
+            await onBulkImport(transformed);
           }
         }}
         fieldDefinitions={QUESTION_FIELD_DEFINITIONS}
