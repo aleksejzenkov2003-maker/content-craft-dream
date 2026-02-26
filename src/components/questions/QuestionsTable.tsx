@@ -141,7 +141,7 @@ export function QuestionsTable({
     
     videos.forEach(video => {
       if (video.question_id !== null && video.question_id !== undefined) {
-        const uniqueKey = `${video.question_id}_${video.question_rus || video.question_eng || video.question || ''}`;
+        const uniqueKey = `${video.question_id}`;
         const existing = questionMap.get(uniqueKey);
         const videoPublications = publications.filter(p => p.video_id === video.id);
         
@@ -157,6 +157,11 @@ export function QuestionsTable({
           if ((video.relevance_score || 0) > existing.relevance_score) {
             existing.relevance_score = video.relevance_score || 0;
           }
+          // Merge language fields from all videos in the group
+          if (!existing.question_rus && video.question_rus) existing.question_rus = video.question_rus;
+          if (!existing.question_eng && video.question_eng) existing.question_eng = video.question_eng;
+          if (!existing.hook_rus && video.hook_rus) existing.hook_rus = video.hook_rus;
+          if (!existing.hook && video.hook) existing.hook = video.hook;
         } else {
           questionMap.set(uniqueKey, {
             unique_key: uniqueKey,
