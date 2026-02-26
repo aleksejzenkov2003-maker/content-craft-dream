@@ -280,6 +280,20 @@ export default function Index() {
                 onBulkUpdateStatus={async (videoIds, status) => {
                   for (const id of videoIds) { await updateVideo(id, { generation_status: status }); }
                 }}
+                onBulkPublish={async (videoIds) => {
+                  const videosToPublish = videos.filter(v => videoIds.includes(v.id));
+                  let totalCreated = 0;
+                  for (const video of videosToPublish) {
+                    const channelIds = video.selected_channels?.length ? video.selected_channels : publishingChannels.filter(c => c.is_active).map(c => c.id);
+                    if (channelIds.length > 0) {
+                      await handlePublishVideo(video, channelIds);
+                      totalCreated += channelIds.length;
+                    }
+                  }
+                  if (totalCreated === 0) {
+                    toast.info('Нет каналов для публикации. Добавьте каналы в настройках.');
+                  }
+                }}
                 filters={videoFilters}
                 onFilterChange={setVideoFilters}
               />
