@@ -18,6 +18,7 @@ import { Video } from '@/hooks/useVideos';
 import { Advisor } from '@/hooks/useAdvisors';
 import { Playlist } from '@/hooks/usePlaylists';
 import { Publication } from '@/hooks/usePublications';
+import { PublishingChannel } from '@/hooks/usePublishingChannels';
 import {
   Loader2,
   ChevronDown,
@@ -40,6 +41,7 @@ interface VideosTableProps {
   advisors: Advisor[];
   playlists: Playlist[];
   publications: Publication[];
+  publishingChannels: PublishingChannel[];
   loading: boolean;
   onEditVideo: (video: Video) => void;
   onDeleteVideo: (id: string) => void;
@@ -95,6 +97,7 @@ export function VideosTable({
   advisors,
   playlists,
   publications,
+  publishingChannels,
   loading,
   onEditVideo,
   onDeleteVideo,
@@ -559,21 +562,32 @@ export function VideosTable({
                           )}
                         </div>
 
-                        {/* Publication channels */}
+                        {/* Publication channels - tag selection */}
                         <div className="flex flex-wrap gap-1">
-                          {videoPubs.length > 0 ? (
-                            videoPubs.map((pub) => (
+                          {publishingChannels.filter(c => c.is_active).map((channel) => {
+                            const isSelected = video.selected_channels?.includes(channel.id) || false;
+                            return (
                               <Badge
-                                key={pub.id}
-                                variant="secondary"
-                                className="text-xs font-normal"
+                                key={channel.id}
+                                variant={isSelected ? "default" : "outline"}
+                                className={`text-xs font-normal cursor-pointer transition-colors ${
+                                  isSelected 
+                                    ? 'bg-primary text-primary-foreground hover:bg-primary/80' 
+                                    : 'hover:bg-muted'
+                                }`}
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  const currentChannels = video.selected_channels || [];
+                                  const newChannels = isSelected
+                                    ? currentChannels.filter(id => id !== channel.id)
+                                    : [...currentChannels, channel.id];
+                                  onUpdateVideo?.(video.id, { selected_channels: newChannels });
+                                }}
                               >
-                                {pub.channel?.name || pub.channel?.network_type}
+                                {channel.name}
                               </Badge>
-                            ))
-                          ) : (
-                            <span className="text-muted-foreground">—</span>
-                          )}
+                            );
+                          })}
                         </div>
                       </div>
                     );
