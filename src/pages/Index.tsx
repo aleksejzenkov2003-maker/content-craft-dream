@@ -548,8 +548,15 @@ export default function Index() {
                   v.question_id === questionId && 
                   (v.question_rus || v.question_eng || v.question || '') === questionText
                 );
-                for (const video of videosToDelete) {
-                  await deleteVideo(video.id);
+                
+                if (videosToDelete.length > 0) {
+                  const { error } = await supabase
+                    .from('videos')
+                    .delete()
+                    .in('id', videosToDelete.map(v => v.id));
+                  if (error) throw error;
+                  await Promise.all([refetchAllVideos(), refetchVideos()]);
+                  toast.success(`Удалено ${videosToDelete.length} роликов`);
                 }
               }}
               onBulkUpdateStatus={async (uniqueKeys, status) => {
