@@ -33,6 +33,7 @@ import {
   Video as VideoIcon,
   Send,
   Download,
+  Upload,
 } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import { format } from 'date-fns';
@@ -406,7 +407,11 @@ export function VideosTable({
           </Button>
         )}
 
-        <div className="ml-auto">
+        <div className="ml-auto flex gap-2">
+          <Button variant="outline" size="sm" onClick={onImportVideos}>
+            <Upload className="w-3.5 h-3.5 mr-1.5" />
+            Импорт
+          </Button>
           <Button variant="outline" size="sm" onClick={handleExportXlsx}>
             <Download className="w-3.5 h-3.5 mr-1.5" />
             Выгрузка
