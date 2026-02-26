@@ -84,14 +84,14 @@ export function Sidebar({
           <img src="/favicon.png" alt="ArtPatent" className="w-6 h-6 object-contain" />
         </div>
         {!isCollapsed && <div className="flex flex-col">
-            <span className="text-lg font-bold gradient-text">Content byNadlex </span>
+            <span className="text-lg font-bold gradient-text">WisdomDialogue AI </span>
             <span className="text-xs text-muted-foreground">Генерация видео</span>
           </div>}
       </div>
 
       {/* Navigation */}
       <nav className="flex-1 p-3 space-y-1">
-        {navItems.map(item => {
+        {navItems.map((item) => {
         const badge = getBadge(item.badgeKey);
         return <button key={item.id} onClick={() => onTabChange(item.id)} className={cn('flex items-center gap-3 w-full px-3 py-2.5 rounded-lg transition-all duration-200', 'hover:bg-sidebar-accent', activeTab === item.id ? 'bg-primary/10 text-primary border border-primary/20' : 'text-sidebar-foreground')}>
               <item.icon className={cn('w-5 h-5 flex-shrink-0', activeTab === item.id ? 'text-primary' : 'text-muted-foreground')} />
