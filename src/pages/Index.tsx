@@ -6,7 +6,8 @@ import { AdvisorsGrid } from '@/components/advisors/AdvisorsGrid';
 import { PlaylistsGrid } from '@/components/playlists/PlaylistsGrid';
 import { VideosTable } from '@/components/videos/VideosTable';
 import { VideoEditorDialog } from '@/components/videos/VideoEditorDialog';
-import { VideoImportDialog } from '@/components/videos/VideoImportDialog';
+import { CsvImporter } from '@/components/import/CsvImporter';
+import { VIDEO_COLUMN_MAPPING, VIDEO_FIELD_DEFINITIONS, VIDEO_PREVIEW_COLUMNS } from '@/components/import/importConfigs';
 import { VideoDetailModal } from '@/components/videos/VideoDetailModal';
 import { VideoSidePanel } from '@/components/videos/VideoSidePanel';
 import { PublishingChannelsGrid } from '@/components/publishing/PublishingChannelsGrid';
@@ -306,12 +307,152 @@ export default function Index() {
                 onClose={() => { setShowVideoEditor(false); setEditingVideo(null); }}
                 onSave={handleSaveVideo}
               />
-              <VideoImportDialog
+              <CsvImporter
                 open={showImportDialog}
                 onClose={() => setShowImportDialog(false)}
-                onImport={bulkImport}
-                advisors={advisors}
-                playlists={playlists}
+                title="Импорт роликов"
+                columnMapping={VIDEO_COLUMN_MAPPING}
+                previewColumns={VIDEO_PREVIEW_COLUMNS}
+                fieldDefinitions={VIDEO_FIELD_DEFINITIONS}
+                requiredFields={['video_number']}
+                lookups={{ advisors, playlists }}
+                resolveRow={(row, lk) => {
+                  const errors: string[] = [];
+                  const data = { ...row };
+
+                  if (data.advisor_name && lk.advisors) {
+                    const found = lk.advisors.find(a =>
+                      a.name.toLowerCase() === String(data.advisor_name).toLowerCase() ||
+                      (a.display_name && a.display_name.toLowerCase() === String(data.advisor_name).toLowerCase())
+                    );
+                    if (found) data.advisor_id = found.id;
+                  }
+
+                  if (data.playlist_name && lk.playlists) {
+                    const found = lk.playlists.find(p =>
+                      p.name.toLowerCase() === String(data.playlist_name).toLowerCase()
+                    );
+                    if (found) data.playlist_id = found.id;
+                  }
+
+                  return { data, errors };
+                }}
+                onImport={async (data) => {
+                  try {
+                    // Auto-create advisors
+                    const advisorNames = [...new Set(
+                      data.filter(row => row.advisor_name && !row.advisor_id)
+                        .map(row => String(row.advisor_name).trim()).filter(Boolean)
+                    )];
+                    const advisorMap: Record<string, string> = {};
+                    if (advisorNames.length > 0) {
+                      const { data: existing } = await supabase.from('advisors').select('id, name, display_name');
+                      const map = new Map<string, string>();
+                      (existing || []).forEach(a => {
+                        map.set(a.name.toLowerCase(), a.id);
+                        if (a.display_name) map.set(a.display_name.toLowerCase(), a.id);
+                      });
+                      const toCreate = advisorNames.filter(n => !map.has(n.toLowerCase()));
+                      if (toCreate.length > 0) {
+                        const { data: created } = await supabase.from('advisors').insert(toCreate.map(name => ({ name }))).select('id, name');
+                        if (created) created.forEach(a => map.set(a.name.toLowerCase(), a.id));
+                        toast.success(`Создано ${toCreate.length} новых духовников`);
+                      }
+                      map.forEach((id, name) => { advisorMap[name] = id; });
+                    }
+
+                    // Auto-create playlists
+                    const playlistNames = [...new Set(
+                      data.filter(row => row.playlist_name && !row.playlist_id)
+                        .map(row => String(row.playlist_name).trim()).filter(Boolean)
+                    )];
+                    const playlistMap: Record<string, string> = {};
+                    if (playlistNames.length > 0) {
+                      const { data: existing } = await supabase.from('playlists').select('id, name');
+                      const map = new Map((existing || []).map(p => [p.name.toLowerCase(), p.id]));
+                      const toCreate = playlistNames.filter(n => !map.has(n.toLowerCase()));
+                      if (toCreate.length > 0) {
+                        const { data: created } = await supabase.from('playlists').insert(toCreate.map(name => ({ name }))).select('id, name');
+                        if (created) created.forEach(p => map.set(p.name.toLowerCase(), p.id));
+                        toast.success(`Создано ${toCreate.length} новых плейлистов`);
+                      }
+                      map.forEach((id, name) => { playlistMap[name] = id; });
+                    }
+
+                    const transformed = data.map(row => {
+                      const result: Record<string, any> = { ...row };
+
+                      // Resolve names to IDs
+                      if (result.advisor_name && !result.advisor_id) {
+                        result.advisor_id = advisorMap[String(result.advisor_name).toLowerCase().trim()] || null;
+                      }
+                      if (result.playlist_name && !result.playlist_id) {
+                        result.playlist_id = playlistMap[String(result.playlist_name).toLowerCase().trim()] || null;
+                      }
+
+                      // Integer fields
+                      for (const f of ['question_id', 'video_number', 'relevance_score', 'video_duration']) {
+                        if (result[f] !== undefined && result[f] !== '') {
+                          result[f] = parseInt(String(result[f]), 10);
+                          if (isNaN(result[f])) delete result[f];
+                        }
+                      }
+
+                      // Normalize safety_score
+                      if (result.safety_score) {
+                        const s = String(result.safety_score).toLowerCase().replace(/[✅⚠️🔴❌🚫]/g, '').trim();
+                        if (s.includes('безопасно') || s === 'safe') result.safety_score = 'safe';
+                        else if (s.includes('критич') || s === 'critical') result.safety_score = 'critical';
+                        else if (s.includes('средн') || s === 'medium') result.safety_score = 'medium_risk';
+                        else if (s.includes('высок') || s === 'high') result.safety_score = 'high_risk';
+                      }
+
+                      // Normalize question_status
+                      if (result.question_status) {
+                        const st = String(result.question_status).toLowerCase().trim();
+                        if (st.includes('работ') || st === 'in_progress') result.question_status = 'in_progress';
+                        else if (st.includes('опубликован') || st === 'published') result.question_status = 'published';
+                        else result.question_status = 'not_selected';
+                      }
+
+                      // Date field
+                      if (result.publication_date !== undefined) {
+                        const dateStr = String(result.publication_date).trim();
+                        if (dateStr === '') { delete result.publication_date; }
+                        else {
+                          const parsed = new Date(dateStr);
+                          if (!isNaN(parsed.getTime())) result.publication_date = parsed.toISOString();
+                          else delete result.publication_date;
+                        }
+                      }
+
+                      // Set question_eng from question
+                      if (!result.question_eng && result.question) result.question_eng = result.question;
+
+                      // Remove virtual fields
+                      delete result.playlist_name;
+                      delete result.advisor_name;
+                      delete result._ignore;
+
+                      // Sanitize empty strings to null
+                      for (const key of Object.keys(result)) {
+                        if (typeof result[key] === 'string' && result[key].trim() === '') result[key] = null;
+                      }
+
+                      return result;
+                    }).filter(row => row.video_number !== undefined && row.video_number !== null);
+
+                    if (transformed.length === 0) {
+                      toast.error('Нет валидных строк: проверьте маппинг поля ID Ролика');
+                      return;
+                    }
+
+                    await bulkImport(transformed);
+                  } catch (error: any) {
+                    console.error('Video import error:', error);
+                    toast.error(`Ошибка импорта: ${error.message || 'Unknown error'}`);
+                  }
+                }}
               />
               <VideoDetailModal
                 open={showVideoDetail}
