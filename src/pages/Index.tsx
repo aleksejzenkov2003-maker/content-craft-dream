@@ -128,16 +128,44 @@ export default function Index() {
 
   const handlePublishVideo = async (video: Video, channelIds: string[]) => {
     try {
-      for (const channelId of channelIds) {
-        await addPublication({
+      // Check existing publications to avoid duplicates
+      const { data: existing } = await supabase
+        .from('publications')
+        .select('channel_id')
+        .eq('video_id', video.id)
+        .in('channel_id', channelIds);
+
+      const existingIds = new Set((existing || []).map(e => e.channel_id));
+      const newChannelIds = channelIds.filter(id => !existingIds.has(id));
+
+      if (newChannelIds.length === 0) {
+        toast.info('Публикации уже существуют');
+        return;
+      }
+
+      // Batch insert all at once
+      const { data: inserted, error } = await supabase
+        .from('publications')
+        .insert(newChannelIds.map(channelId => ({
           video_id: video.id,
           channel_id: channelId,
           publication_status: 'pending',
-        });
+        })))
+        .select('id');
+
+      if (error) throw error;
+
+      toast.success(`Добавлено ${newChannelIds.length} публикаций`);
+
+      // Fire-and-forget text generation — no per-item toasts
+      for (const pub of (inserted || [])) {
+        supabase.functions.invoke('generate-post-text', {
+          body: { publicationId: pub.id },
+        }).catch(console.error);
       }
-      toast.success(`Добавлено ${channelIds.length} публикаций`);
     } catch (error) {
       console.error('Error publishing video:', error);
+      toast.error('Ошибка публикации');
     }
   };
 

@@ -178,7 +178,7 @@ export function VideoSidePanel({
             <div>
               <h4 className="font-medium text-sm mb-3">Каналы публикации</h4>
               <div className="flex flex-wrap gap-2">
-                {publishingChannels.map((channel) => {
+                {publishingChannels.filter(c => c.is_active).map((channel) => {
                   const isSelected = selectedChannels.includes(channel.id);
                   return (
                     <Badge
