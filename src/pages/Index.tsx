@@ -257,6 +257,7 @@ export default function Index() {
                 advisors={advisors}
                 playlists={playlists}
                 publications={publications}
+                publishingChannels={publishingChannels}
                 loading={videosLoading}
                 onEditVideo={(video) => { setEditingVideo(video); setShowVideoEditor(true); }}
                 onDeleteVideo={deleteVideo}
