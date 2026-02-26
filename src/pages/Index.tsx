@@ -561,14 +561,8 @@ export default function Index() {
               advisors={advisors}
               onGoToVideos={() => setActiveTab('videos')}
               onUpdateQuestion={async (uniqueKey, updates) => {
-                const separatorIndex = uniqueKey.indexOf('_');
-                const questionId = parseInt(uniqueKey.substring(0, separatorIndex));
-                const questionText = uniqueKey.substring(separatorIndex + 1);
-                
-                const videosToUpdate = allVideos.filter(v => 
-                  v.question_id === questionId && 
-                  (v.question_rus || v.question_eng || v.question || '') === questionText
-                );
+                const questionId = parseInt(uniqueKey);
+                const videosToUpdate = allVideos.filter(v => v.question_id === questionId);
                 if (videosToUpdate.length === 0) return;
                 
                 // Build the update payload, including playlist_id if provided
@@ -589,14 +583,8 @@ export default function Index() {
                 }
               }}
               onDeleteQuestion={async (uniqueKey) => {
-                const separatorIndex = uniqueKey.indexOf('_');
-                const questionId = parseInt(uniqueKey.substring(0, separatorIndex));
-                const questionText = uniqueKey.substring(separatorIndex + 1);
-                
-                const videosToDelete = allVideos.filter(v => 
-                  v.question_id === questionId && 
-                  (v.question_rus || v.question_eng || v.question || '') === questionText
-                );
+                const questionId = parseInt(uniqueKey);
+                const videosToDelete = allVideos.filter(v => v.question_id === questionId);
                 
                 if (videosToDelete.length > 0) {
                   const { error } = await supabase
@@ -611,14 +599,8 @@ export default function Index() {
               onBulkUpdateStatus={async (uniqueKeys, status) => {
                 const updates: { id: string; data: Partial<Video> }[] = [];
                 for (const uniqueKey of uniqueKeys) {
-                  const separatorIndex = uniqueKey.indexOf('_');
-                  const questionId = parseInt(uniqueKey.substring(0, separatorIndex));
-                  const questionText = uniqueKey.substring(separatorIndex + 1);
-                  
-                  const videosToUpdate = allVideos.filter(v => 
-                    v.question_id === questionId && 
-                    (v.question_rus || v.question_eng || v.question || '') === questionText
-                  );
+                  const questionId = parseInt(uniqueKey);
+                  const videosToUpdate = allVideos.filter(v => v.question_id === questionId);
                   videosToUpdate.forEach(v => updates.push({ id: v.id, data: { question_status: status } }));
                 }
                 if (updates.length > 0) {
@@ -635,14 +617,8 @@ export default function Index() {
               onBulkUpdateDate={async (uniqueKeys, date) => {
                 const updates: { id: string; data: Partial<Video> }[] = [];
                 for (const uniqueKey of uniqueKeys) {
-                  const separatorIndex = uniqueKey.indexOf('_');
-                  const questionId = parseInt(uniqueKey.substring(0, separatorIndex));
-                  const questionText = uniqueKey.substring(separatorIndex + 1);
-                  
-                  const videosToUpdate = allVideos.filter(v => 
-                    v.question_id === questionId && 
-                    (v.question_rus || v.question_eng || v.question || '') === questionText
-                  );
+                  const questionId = parseInt(uniqueKey);
+                  const videosToUpdate = allVideos.filter(v => v.question_id === questionId);
                   videosToUpdate.forEach(v => updates.push({ id: v.id, data: { publication_date: date } }));
                 }
                 if (updates.length > 0) {
