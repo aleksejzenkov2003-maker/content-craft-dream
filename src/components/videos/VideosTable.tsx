@@ -30,6 +30,7 @@ import {
   Trash2,
   Image as ImageIcon,
   Video as VideoIcon,
+  Send,
 } from 'lucide-react';
 import { format } from 'date-fns';
 import { ru } from 'date-fns/locale';
@@ -52,6 +53,7 @@ interface VideosTableProps {
   onBulkGenerateCovers?: (videoIds: string[]) => Promise<void>;
   onBulkGenerateVideos?: (videoIds: string[]) => Promise<void>;
   onBulkUpdateStatus?: (videoIds: string[], status: string) => Promise<void>;
+  onBulkPublish?: (videoIds: string[]) => Promise<void>;
   filters: {
     advisorId?: string;
     playlistId?: string;
@@ -106,6 +108,7 @@ export function VideosTable({
   onBulkGenerateCovers,
   onBulkGenerateVideos,
   onBulkUpdateStatus,
+  onBulkPublish,
   filters,
   onFilterChange,
 }: VideosTableProps) {
@@ -342,6 +345,13 @@ export function VideosTable({
           onClick={handleBulkGenerateVideos}
         >
           Генерация видео
+        </BulkActionButton>
+        <BulkActionButton
+          variant="default"
+          icon={<Send className="w-3 h-3 mr-1" />}
+          onClick={() => onBulkPublish?.(Array.from(selectedVideoIds))}
+        >
+          На публикацию
         </BulkActionButton>
       </BulkActionsBar>
 
