@@ -237,6 +237,8 @@ export const VIDEO_COLUMN_MAPPING: Record<string, string> = {
   'промт для ответа': 'answer_prompt',
   'answer prompt': 'answer_prompt',
   'answer_prompt': 'answer_prompt',
+  'сцены для плейлистов': '_ignore',
+  'scenes': '_ignore',
 };
 
 export const VIDEO_FIELD_DEFINITIONS: FieldDefinition[] = [
