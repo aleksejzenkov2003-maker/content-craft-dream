@@ -450,6 +450,23 @@ export default function Index() {
                     }
 
                     await bulkImport(transformed);
+                    
+                    // Auto-update question_status to 'in_progress' for all matching question_ids
+                    const questionIds = [...new Set(
+                      transformed
+                        .filter(row => row.question_id !== undefined && row.question_id !== null)
+                        .map(row => row.question_id as number)
+                    )];
+                    if (questionIds.length > 0) {
+                      const { error: statusError } = await supabase
+                        .from('videos')
+                        .update({ question_status: 'in_progress' })
+                        .in('question_id', questionIds)
+                        .neq('question_status', 'in_progress');
+                      if (statusError) console.error('Failed to update question statuses:', statusError);
+                    }
+                    
+                    await Promise.all([refetchAllVideos(), refetchVideos()]);
                   } catch (error: any) {
                     console.error('Video import error:', error);
                     toast.error(`Ошибка импорта: ${error.message || 'Unknown error'}`);
@@ -525,8 +542,12 @@ export default function Index() {
                   (v.question_rus || v.question_eng || v.question || '') === questionText
                 );
                 if (videosToUpdate.length === 0) return;
+                
+                // Build the update payload, including playlist_id if provided
+                const updatePayload: Partial<Video> = { ...updates };
+                
                 await bulkUpdateAll(
-                  videosToUpdate.map(v => ({ id: v.id, data: updates })),
+                  videosToUpdate.map(v => ({ id: v.id, data: updatePayload })),
                   { silent: true }
                 );
                 // No toast - silent update

@@ -51,7 +51,7 @@ interface QuestionsTableProps {
     publication_date?: string | null;
   }) => void;
   onGoToVideos?: () => void;
-  onUpdateQuestion?: (uniqueKey: string, updates: { question?: string; question_eng?: string; safety_score?: string; publication_date?: string; question_status?: string }) => void;
+  onUpdateQuestion?: (uniqueKey: string, updates: { question?: string; question_eng?: string; safety_score?: string; publication_date?: string; question_status?: string; playlist_id?: string }) => void;
   onBulkImport?: (data: Record<string, any>[]) => Promise<void>;
   onDeleteQuestion?: (uniqueKey: string) => Promise<void>;
   playlists?: Playlist[];
@@ -77,6 +77,8 @@ interface QuestionData {
   has_video: boolean;
   has_cover: boolean;
   has_published: boolean;
+  playlist_id: string | null;
+  playlist_name: string | null;
 }
 
 const safetyOptions: SelectOption[] = [
@@ -173,6 +175,8 @@ export function QuestionsTable({
             has_video: !!video.heygen_video_url,
             has_cover: !!(video.front_cover_url || video.cover_url),
             has_published: videoPublications.some(p => p.publication_status === 'published'),
+            playlist_id: video.playlist_id || null,
+            playlist_name: video.playlist?.name || null,
           });
         }
       }
@@ -282,7 +286,7 @@ export function QuestionsTable({
     );
   };
 
-  const handleSaveQuestion = (uniqueKey: string, updates: { question?: string; question_eng?: string; safety_score?: string; publication_date?: string; question_status?: string }) => {
+  const handleSaveQuestion = (uniqueKey: string, updates: { question?: string; question_eng?: string; safety_score?: string; publication_date?: string; question_status?: string; playlist_id?: string }) => {
     onUpdateQuestion?.(uniqueKey, updates);
   };
 
@@ -432,7 +436,7 @@ export function QuestionsTable({
       )}
 
       {/* Table header */}
-      <div className="grid grid-cols-[40px_60px_120px_80px_1fr_130px_100px] gap-0 px-4 py-2 border-b bg-muted/20 text-xs font-medium text-muted-foreground sticky top-0">
+      <div className="grid grid-cols-[40px_60px_120px_80px_1fr_140px_130px_100px] gap-0 px-4 py-2 border-b bg-muted/20 text-xs font-medium text-muted-foreground sticky top-0">
         <div className="flex items-center justify-center">
           <Checkbox
             checked={allBulkSelected}
@@ -457,6 +461,7 @@ export function QuestionsTable({
         <button className="flex items-center cursor-pointer hover:text-foreground" onClick={() => handleSort('date')}>
           Плановая публ. {getSortIcon('date')}
         </button>
+        <div className="flex items-center">Плейлист</div>
         <button className="flex items-center cursor-pointer hover:text-foreground" onClick={() => handleSort('status')}>
           Статус {getSortIcon('status')}
         </button>
@@ -472,7 +477,7 @@ export function QuestionsTable({
           filteredQuestions.map((q) => (
             <div
               key={q.unique_key}
-              className={`group grid grid-cols-[40px_60px_120px_80px_1fr_130px_100px] gap-0 px-4 py-2 border-b hover:bg-muted/30 transition-colors text-sm ${
+              className={`group grid grid-cols-[40px_60px_120px_80px_1fr_140px_130px_100px] gap-0 px-4 py-2 border-b hover:bg-muted/30 transition-colors text-sm ${
                 bulkDeleteIds.includes(q.unique_key) ? 'bg-destructive/5' : ''
               }`}
             >
@@ -550,7 +555,24 @@ export function QuestionsTable({
                 />
               </div>
               
-              {/* Column 7: Status - Inline Edit (no filter checkbox) */}
+              {/* Column 7: Playlist - Inline Edit */}
+              <div className="flex items-center">
+                <InlineEdit
+                  type="select"
+                  value={q.playlist_id || ''}
+                  options={playlists.map(p => ({ value: p.id, label: p.name }))}
+                  onSave={(value) => handleSaveQuestion(q.unique_key, { playlist_id: value })}
+                  formatDisplay={(val) => {
+                    if (!val) return '—';
+                    const pl = playlists.find(p => p.id === val);
+                    return pl?.name || '—';
+                  }}
+                  displayClassName="text-xs text-muted-foreground"
+                  placeholder="—"
+                />
+              </div>
+              
+              {/* Column 8: Status - Inline Edit (no filter checkbox) */}
               <div className="flex items-center">
                 <InlineEdit
                   type="select"
