@@ -59,7 +59,7 @@ export default function Index() {
   const { playlists, loading: playlistsLoading, addPlaylist, updatePlaylist, deletePlaylist } = usePlaylists();
   const { videos: allVideos, loading: allVideosLoading, refetch: refetchAllVideos, bulkUpdate: bulkUpdateAll } = useVideos();
   const { videos, loading: videosLoading, addVideo, updateVideo, deleteVideo, refetch: refetchVideos, bulkImport, bulkUpdate } = useVideos(videoFilters);
-  const { publications, loading: publicationsLoading, addPublication } = usePublications();
+  const { publications, loading: publicationsLoading, addPublication, refetch: refetchPublications } = usePublications();
   const { channels: publishingChannels } = usePublishingChannels();
   
   const { 
@@ -155,6 +155,8 @@ export default function Index() {
 
       if (error) throw error;
 
+      // Refresh publications list so sidebar count updates
+      await refetchPublications();
       toast.success(`Добавлено ${newChannelIds.length} публикаций`);
 
       // Fire-and-forget text generation — no per-item toasts
