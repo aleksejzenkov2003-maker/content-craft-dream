@@ -213,172 +213,208 @@ export function AdvisorsGrid({
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {advisors.map((advisor) => (
-          <Card key={advisor.id} className="overflow-hidden">
-            <CardHeader className="pb-2">
-              <div className="flex items-start justify-between">
-                <div>
-                  <CardTitle className="text-lg">{advisor.name}</CardTitle>
-                  {advisor.display_name && (
-                    <p className="text-sm text-muted-foreground">{advisor.display_name}</p>
-                  )}
-                </div>
-                <div className="flex gap-1">
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    onClick={() => setSelectedAdvisor(advisor)}
-                  >
-                    <Settings className="w-4 h-4" />
-                  </Button>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="text-destructive hover:text-destructive"
-                    onClick={() => onDeleteAdvisor(advisor.id)}
-                  >
-                    <Trash2 className="w-4 h-4" />
-                  </Button>
-                </div>
-              </div>
-              <div className="flex gap-2 mt-2">
-                <Badge variant={advisor.is_active ? 'default' : 'secondary'}>
-                  {advisor.is_active ? 'Активен' : 'Неактивен'}
-                </Badge>
-                <Badge variant="outline">
-                  {advisor.photos?.length || 0} фото
-                </Badge>
-              </div>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="grid grid-cols-3 gap-2">
-                {advisor.photos?.map((photo) => (
-                  <div
-                    key={photo.id}
-                    className={cn(
-                      "relative aspect-square rounded-lg overflow-hidden border-2 group",
-                      photo.is_primary ? "border-primary" : "border-transparent"
-                    )}
-                  >
+        {advisors.map((advisor) => {
+          const primaryPhoto = advisor.photos?.find(p => p.is_primary) || advisor.photos?.[0];
+          return (
+            <Card
+              key={advisor.id}
+              className="overflow-hidden cursor-pointer hover:border-primary/40 transition-colors"
+              onClick={() => setSelectedAdvisor(advisor)}
+            >
+              <CardHeader className="pb-2">
+                <div className="flex items-start gap-3">
+                  {primaryPhoto && (
                     <img
-                      src={photo.photo_url}
+                      src={primaryPhoto.photo_url}
                       alt=""
-                      className="w-full h-full object-cover"
+                      className="w-14 h-14 rounded-lg object-cover flex-shrink-0"
                     />
-                    {photo.is_primary && (
-                      <Star className="absolute top-1 left-1 w-4 h-4 text-primary fill-primary" />
+                  )}
+                  <div className="flex-1 min-w-0">
+                    <CardTitle className="text-lg">{advisor.display_name || advisor.name}</CardTitle>
+                    {advisor.display_name && (
+                      <p className="text-sm text-muted-foreground">{advisor.name}</p>
                     )}
-                    {photo.heygen_asset_id && (
-                      <Badge className="absolute bottom-1 left-1 text-[10px] px-1">
-                        HeyGen
+                    <div className="flex gap-2 mt-2">
+                      <Badge variant={advisor.is_active ? 'default' : 'secondary'}>
+                        {advisor.is_active ? 'Активен' : 'Неактивен'}
                       </Badge>
-                    )}
-                    <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-1">
-                      {!photo.is_primary && (
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="h-7 w-7 text-white hover:text-primary"
-                          onClick={() => onSetPrimaryPhoto(advisor.id, photo.id)}
-                        >
-                          <Star className="w-4 h-4" />
-                        </Button>
-                      )}
-                      {!photo.heygen_asset_id && (
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="h-7 w-7 text-white hover:text-primary"
-                          onClick={() => onUploadToHeygen(photo)}
-                        >
-                          <Upload className="w-4 h-4" />
-                        </Button>
-                      )}
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="h-7 w-7 text-white hover:text-destructive"
-                        onClick={() => onDeletePhoto(photo.id)}
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </Button>
+                      <Badge variant="outline">
+                        {advisor.photos?.length || 0} фото
+                      </Badge>
                     </div>
                   </div>
-                ))}
-                <div className="aspect-square rounded-lg border-2 border-dashed border-muted-foreground/30 flex items-center justify-center">
-                  <Dialog>
-                    <DialogTrigger asChild>
-                      <Button variant="ghost" size="icon" className="h-full w-full rounded-lg">
-                        <Plus className="w-6 h-6 text-muted-foreground" />
-                      </Button>
-                    </DialogTrigger>
-                    <DialogContent>
-                      <DialogHeader>
-                        <DialogTitle>Добавить фото для {advisor.name}</DialogTitle>
-                      </DialogHeader>
-                      <div className="space-y-4 py-4">
-                        <ImageInput
-                          value={newPhotoUrl}
-                          onChange={(url) => {
-                            setNewPhotoUrl(url);
-                            onAddPhoto(advisor.id, url, false);
-                            setNewPhotoUrl('');
-                          }}
-                          folder={`advisors/${advisor.id}`}
-                          aspectRatio="1:1"
-                          generatePromptPrefix={`Professional portrait photo of ${advisor.display_name || advisor.name}, a spiritual advisor. High quality headshot suitable for video content.`}
-                          showPreview={false}
-                        />
-                      </div>
-                    </DialogContent>
-                  </Dialog>
                 </div>
-              </div>
-
-              {advisor.elevenlabs_voice_id && (
-                <div className="text-xs text-muted-foreground">
-                  Voice ID: {advisor.elevenlabs_voice_id}
-                </div>
-              )}
-            </CardContent>
-          </Card>
-        ))}
+              </CardHeader>
+            </Card>
+          );
+        })}
       </div>
 
+      {/* Full-size advisor detail dialog */}
       <Dialog open={!!selectedAdvisor} onOpenChange={(open) => !open && setSelectedAdvisor(null)}>
-        <DialogContent>
+        <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>Настройки: {selectedAdvisor?.name}</DialogTitle>
+            <div className="flex items-center justify-between">
+              <DialogTitle className="text-xl">{selectedAdvisor?.display_name || selectedAdvisor?.name}</DialogTitle>
+              <div className="flex gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    if (selectedAdvisor) {
+                      onUpdateAdvisor(selectedAdvisor.id, { is_active: !selectedAdvisor.is_active });
+                      setSelectedAdvisor({ ...selectedAdvisor, is_active: !selectedAdvisor.is_active });
+                    }
+                  }}
+                >
+                  {selectedAdvisor?.is_active ? 'Деактивировать' : 'Активировать'}
+                </Button>
+                <Button
+                  variant="destructive"
+                  size="sm"
+                  onClick={() => {
+                    if (selectedAdvisor) {
+                      onDeleteAdvisor(selectedAdvisor.id);
+                      setSelectedAdvisor(null);
+                    }
+                  }}
+                >
+                  <Trash2 className="w-4 h-4 mr-1" />
+                  Удалить
+                </Button>
+              </div>
+            </div>
           </DialogHeader>
+
           {selectedAdvisor && (
-            <div className="space-y-4 py-4">
-              <div className="space-y-2">
-                <Label>Отображаемое имя</Label>
-                <Input
-                  value={selectedAdvisor.display_name || ''}
-                  onChange={(e) => setSelectedAdvisor({ ...selectedAdvisor, display_name: e.target.value })}
-                />
+            <div className="space-y-6 py-4">
+              {/* Settings section */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label>Имя (ID)</Label>
+                  <Input
+                    value={selectedAdvisor.name}
+                    onChange={(e) => setSelectedAdvisor({ ...selectedAdvisor, name: e.target.value })}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>Отображаемое имя</Label>
+                  <Input
+                    value={selectedAdvisor.display_name || ''}
+                    onChange={(e) => setSelectedAdvisor({ ...selectedAdvisor, display_name: e.target.value })}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>Скорость речи</Label>
+                  <Input
+                    type="number"
+                    step="0.1"
+                    min="0.5"
+                    max="2"
+                    value={selectedAdvisor.speech_speed}
+                    onChange={(e) => setSelectedAdvisor({ ...selectedAdvisor, speech_speed: parseFloat(e.target.value) })}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>ElevenLabs Voice ID</Label>
+                  <Input
+                    value={selectedAdvisor.elevenlabs_voice_id || ''}
+                    onChange={(e) => setSelectedAdvisor({ ...selectedAdvisor, elevenlabs_voice_id: e.target.value })}
+                  />
+                </div>
               </div>
-              <div className="space-y-2">
-                <Label>Скорость речи</Label>
-                <Input
-                  type="number"
-                  step="0.1"
-                  min="0.5"
-                  max="2"
-                  value={selectedAdvisor.speech_speed}
-                  onChange={(e) => setSelectedAdvisor({ ...selectedAdvisor, speech_speed: parseFloat(e.target.value) })}
-                />
-              </div>
-              <div className="space-y-2">
-                <Label>ElevenLabs Voice ID</Label>
-                <Input
-                  value={selectedAdvisor.elevenlabs_voice_id || ''}
-                  onChange={(e) => setSelectedAdvisor({ ...selectedAdvisor, elevenlabs_voice_id: e.target.value })}
-                />
+
+              {/* Photos section */}
+              <div className="space-y-3">
+                <h3 className="font-medium text-sm">Фотографии ({selectedAdvisor.photos?.length || 0})</h3>
+                <div className="grid grid-cols-4 gap-3">
+                  {selectedAdvisor.photos?.map((photo) => (
+                    <div
+                      key={photo.id}
+                      className={cn(
+                        "relative aspect-square rounded-lg overflow-hidden border-2 group",
+                        photo.is_primary ? "border-primary" : "border-transparent"
+                      )}
+                    >
+                      <img
+                        src={photo.photo_url}
+                        alt=""
+                        className="w-full h-full object-cover"
+                      />
+                      {photo.is_primary && (
+                        <Star className="absolute top-1 left-1 w-4 h-4 text-primary fill-primary" />
+                      )}
+                      {photo.heygen_asset_id && (
+                        <Badge className="absolute bottom-1 left-1 text-[10px] px-1">
+                          HeyGen
+                        </Badge>
+                      )}
+                      <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-1">
+                        {!photo.is_primary && (
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-7 w-7 text-white hover:text-primary"
+                            onClick={() => onSetPrimaryPhoto(selectedAdvisor.id, photo.id)}
+                          >
+                            <Star className="w-4 h-4" />
+                          </Button>
+                        )}
+                        {!photo.heygen_asset_id && (
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-7 w-7 text-white hover:text-primary"
+                            onClick={() => onUploadToHeygen(photo)}
+                          >
+                            <Upload className="w-4 h-4" />
+                          </Button>
+                        )}
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-7 w-7 text-white hover:text-destructive"
+                          onClick={() => onDeletePhoto(photo.id)}
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </Button>
+                      </div>
+                    </div>
+                  ))}
+                  <div className="aspect-square rounded-lg border-2 border-dashed border-muted-foreground/30 flex items-center justify-center">
+                    <Dialog>
+                      <DialogTrigger asChild>
+                        <Button variant="ghost" size="icon" className="h-full w-full rounded-lg">
+                          <Plus className="w-6 h-6 text-muted-foreground" />
+                        </Button>
+                      </DialogTrigger>
+                      <DialogContent>
+                        <DialogHeader>
+                          <DialogTitle>Добавить фото для {selectedAdvisor.name}</DialogTitle>
+                        </DialogHeader>
+                        <div className="space-y-4 py-4">
+                          <ImageInput
+                            value={newPhotoUrl}
+                            onChange={(url) => {
+                              setNewPhotoUrl(url);
+                              onAddPhoto(selectedAdvisor.id, url, false);
+                              setNewPhotoUrl('');
+                            }}
+                            folder={`advisors/${selectedAdvisor.id}`}
+                            aspectRatio="1:1"
+                            generatePromptPrefix={`Professional portrait photo of ${selectedAdvisor.display_name || selectedAdvisor.name}, a spiritual advisor. High quality headshot suitable for video content.`}
+                            showPreview={false}
+                          />
+                        </div>
+                      </DialogContent>
+                    </Dialog>
+                  </div>
+                </div>
               </div>
             </div>
           )}
+
           <DialogFooter>
             <Button variant="outline" onClick={() => setSelectedAdvisor(null)}>
               Отмена
@@ -387,9 +423,11 @@ export function AdvisorsGrid({
               onClick={async () => {
                 if (selectedAdvisor) {
                   await onUpdateAdvisor(selectedAdvisor.id, {
+                    name: selectedAdvisor.name,
                     display_name: selectedAdvisor.display_name,
                     speech_speed: selectedAdvisor.speech_speed,
                     elevenlabs_voice_id: selectedAdvisor.elevenlabs_voice_id,
+                    is_active: selectedAdvisor.is_active,
                   });
                   setSelectedAdvisor(null);
                 }

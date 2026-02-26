@@ -16,7 +16,7 @@ import { PublishingKanban } from '@/components/publishing/PublishingKanban';
 import { ScenesMatrix } from '@/components/scenes/ScenesMatrix';
 import { QuestionsTable } from '@/components/questions/QuestionsTable';
 import { BackCoversGrid } from '@/components/covers/BackCoversGrid';
-import { CoverThumbnailsGrid } from '@/components/covers/CoverThumbnailsGrid';
+
 import { useAdvisors } from '@/hooks/useAdvisors';
 import { usePlaylists } from '@/hooks/usePlaylists';
 import { useVideos, Video, VideoFilters } from '@/hooks/useVideos';
@@ -35,10 +35,8 @@ const headerTitles: Record<string, { title: string; subtitle: string }> = {
   questions: { title: 'Вопросы', subtitle: 'Список вопросов для роликов' },
   videos: { title: 'Ролики', subtitle: 'Все видео с духовниками' },
   'publications-list': { title: 'Публикации', subtitle: 'Список публикаций по каналам' },
-  'publications-kanban': { title: 'Канбан публикаций', subtitle: 'Управление статусами публикаций' },
   scenes: { title: 'Сцены', subtitle: 'Генерация сцен для плейлистов' },
   'back-covers': { title: 'Задние обложки', subtitle: 'Шаблоны задних обложек по духовникам' },
-  'cover-thumbnails': { title: 'Миниатюры обложек', subtitle: 'Сгенерированные обложки' },
   advisors: { title: 'Духовники', subtitle: 'Управление аватарами и настройками' },
   playlists: { title: 'Плейлисты', subtitle: 'Группировка видео по категориям' },
   channels: { title: 'Каналы', subtitle: 'Настройка каналов публикации' },
@@ -647,6 +645,7 @@ export default function Index() {
                 <TabsList>
                   <TabsTrigger value="by-channel">По каналам</TabsTrigger>
                   <TabsTrigger value="by-question">По вопросам</TabsTrigger>
+                  <TabsTrigger value="kanban">Канбан</TabsTrigger>
                 </TabsList>
                 <TabsContent value="by-channel" className="mt-4">
                   <PublicationsTable groupBy="channel" />
@@ -654,13 +653,14 @@ export default function Index() {
                 <TabsContent value="by-question" className="mt-4">
                   <PublicationsTable groupBy="question" />
                 </TabsContent>
+                <TabsContent value="kanban" className="mt-4">
+                  <PublishingKanban />
+                </TabsContent>
               </Tabs>
             </div>
           )}
 
-          {activeTab === 'publications-kanban' && <PublishingKanban />}
           {activeTab === 'back-covers' && <BackCoversGrid />}
-          {activeTab === 'cover-thumbnails' && <CoverThumbnailsGrid />}
           {activeTab === 'channels' && <PublishingChannelsGrid />}
 
           {activeTab === 'settings' && <SettingsPage />}

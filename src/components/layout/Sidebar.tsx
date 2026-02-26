@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { cn } from '@/lib/utils';
-import { LayoutDashboard, Video, Settings, ChevronLeft, ChevronRight, Users, ListVideo, Send, Globe, Image, HelpCircle, Kanban, ImageIcon, Layers } from 'lucide-react';
+import { LayoutDashboard, Video, Settings, ChevronLeft, ChevronRight, Users, ListVideo, Send, Globe, Image, HelpCircle, ImageIcon } from 'lucide-react';
 interface NavItem {
   id: string;
   label: string;
@@ -26,10 +26,6 @@ const navItems: NavItem[] = [{
   icon: Send,
   badgeKey: 'publications'
 }, {
-  id: 'publications-kanban',
-  label: 'Канбан',
-  icon: Kanban
-}, {
   id: 'scenes',
   label: 'Сцены',
   icon: Image
@@ -37,10 +33,6 @@ const navItems: NavItem[] = [{
   id: 'back-covers',
   label: 'Задние обложки',
   icon: ImageIcon
-}, {
-  id: 'cover-thumbnails',
-  label: 'Миниатюры',
-  icon: Layers
 }, {
   id: 'advisors',
   label: 'Духовники',
