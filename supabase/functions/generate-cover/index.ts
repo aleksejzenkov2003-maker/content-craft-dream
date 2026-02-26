@@ -108,7 +108,6 @@ Ultra high resolution, 9:16 aspect ratio.`;
         input: {
           prompt: coverPrompt,
           aspect_ratio: '9:16',
-          output_format: 'PNG',
         },
       }),
     });
