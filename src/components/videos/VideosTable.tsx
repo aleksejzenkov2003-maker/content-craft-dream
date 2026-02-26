@@ -32,7 +32,9 @@ import {
   Image as ImageIcon,
   Video as VideoIcon,
   Send,
+  Download,
 } from 'lucide-react';
+import * as XLSX from 'xlsx';
 import { format } from 'date-fns';
 import { ru } from 'date-fns/locale';
 
@@ -312,6 +314,38 @@ export function VideosTable({
     }
   };
 
+  const handleExportXlsx = () => {
+    const safetyMap: Record<string, string> = {
+      safe: '✅ Безопасно',
+      caution: '⚠️ Осторожно',
+      unsafe: '🚫 Небезопасно',
+    };
+
+    const rows = filteredVideos.map((video) => {
+      const advisorName = video.advisor?.display_name || video.advisor?.name || '';
+      const playlistName = video.playlist?.name || '';
+      return {
+        'ID ролика': video.video_number ?? '',
+        'ID вопроса': video.question_id ?? '',
+        'Духовник': advisorName,
+        'Безопасность вопроса': safetyMap[video.safety_score || ''] || video.safety_score || '',
+        'Актуальность': video.relevance_score ?? '',
+        'Хук': video.hook || '',
+        'Вопрос': video.question || '',
+        'Плейлист': playlistName,
+        'Ответ духовника': video.advisor_answer || '',
+        'Сцены для плейлистов': playlistName && advisorName ? `${playlistName} - ${advisorName}` : '',
+        'Заголовок видео': video.video_title || '',
+        'Промт для ответа': video.answer_prompt || '',
+      };
+    });
+
+    const ws = XLSX.utils.json_to_sheet(rows);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'Ролики');
+    XLSX.writeFile(wb, `Ролики_${format(new Date(), 'yyyy-MM-dd')}.xlsx`);
+  };
+
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
@@ -371,6 +405,13 @@ export function VideosTable({
             ✕ Сбросить фильтр вопроса
           </Button>
         )}
+
+        <div className="ml-auto">
+          <Button variant="outline" size="sm" onClick={handleExportXlsx}>
+            <Download className="w-3.5 h-3.5 mr-1.5" />
+            Выгрузка
+          </Button>
+        </div>
       </div>
 
       {/* Grouped Table */}
