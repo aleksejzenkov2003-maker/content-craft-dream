@@ -1,44 +1,81 @@
 
 
-## Plan: Auto-status on video import + Playlist column in Questions table
+## Plan: Fix 3 issues — active channels only, preserve selection after publish, stop notification loop
 
-### Problem
-1. When videos are imported with `question_id` values that match existing questions, those questions should automatically switch to "Взят в работу" (`in_progress`) status -- currently they stay in their old status.
-2. The Questions table has no Playlist column -- users need to see and change playlists via a dropdown.
+### Problem Analysis
+
+1. **Inactive channels displayed**: `VideoSidePanel.tsx` line 181 iterates `publishingChannels` without filtering by `is_active`. The `VideosTable` already filters correctly (line 613), but the side panel does not.
+
+2. **Selected channels reset after publish**: The `handlePublishVideo` function (Index.tsx lines 129-142) loops through channels calling `addPublication` sequentially. Each call triggers `fetchPublications()` + `toast.success('Публикация создана')`. This causes massive re-rendering and toast spam. The `selected_channels` field on the video is never cleared — the real issue is the cascade of re-fetches and toasts creating the appearance of a broken UI.
+
+3. **Infinite notification loop**: For each channel, `addPublication` (usePublications.ts line 136) fires `toast.success('Публикация создана')`. Then auto-generate text fires for each publication (line 126), and afterward `fetchPublications()` runs again. With 13 channels selected, this produces 13+ toasts and 26+ data refetches — creating a flood of notifications and re-renders.
 
 ### Changes
 
-#### 1. Auto-update question status after video import (`src/pages/Index.tsx`)
+#### 1. Filter inactive channels in VideoSidePanel (`src/components/videos/VideoSidePanel.tsx`)
 
-After the video `bulkImport()` call completes in the video import handler (~line 452), add logic to:
-- Collect all unique `question_id` values from the imported videos
-- Find all existing videos in the DB with those `question_id`s that have `question_status != 'in_progress'`
-- Bulk update them to `question_status = 'in_progress'`
-- Refetch both video lists
+Line ~181: Change `publishingChannels.map(...)` to `publishingChannels.filter(c => c.is_active).map(...)`.
 
-This ensures that when you import videos referencing question IDs, the corresponding questions in the Questions tab immediately show "Взят в работу".
+#### 2. Rewrite `handlePublishVideo` to batch operations (`src/pages/Index.tsx`)
 
-#### 2. Add Playlist column to Questions table (`src/components/questions/QuestionsTable.tsx`)
+Replace the sequential loop (lines 129-142) with:
+- Deduplicate first: check which video+channel pairs already exist
+- Batch insert all new publications in a single DB call
+- Skip auto-generate text during batch (or run it after all inserts)
+- Show a single toast at the end
+- Do NOT modify `selected_channels` — keep them as-is
 
-**Data model changes:**
-- Add `playlist_id` and `playlist_name` fields to the `QuestionData` interface
-- In the `questions` useMemo aggregation, capture `playlist_id` from the first video of each question group
+```typescript
+const handlePublishVideo = async (video: Video, channelIds: string[]) => {
+  try {
+    // Check existing pairs
+    const { data: existing } = await supabase
+      .from('publications')
+      .select('channel_id')
+      .eq('video_id', video.id)
+      .in('channel_id', channelIds);
+    
+    const existingIds = new Set((existing || []).map(e => e.channel_id));
+    const newChannelIds = channelIds.filter(id => !existingIds.has(id));
+    
+    if (newChannelIds.length === 0) {
+      toast.info('Публикации уже существуют');
+      return;
+    }
+    
+    // Batch insert
+    const { data: inserted, error } = await supabase
+      .from('publications')
+      .insert(newChannelIds.map(channelId => ({
+        video_id: video.id,
+        channel_id: channelId,
+        publication_status: 'pending',
+      })))
+      .select('id');
+    
+    if (error) throw error;
+    
+    // Single toast
+    toast.success(`Добавлено ${newChannelIds.length} публикаций`);
+    
+    // Generate text for all new publications (fire-and-forget, no toast each)
+    for (const pub of (inserted || [])) {
+      supabase.functions.invoke('generate-post-text', {
+        body: { publicationId: pub.id },
+      }).catch(console.error);
+    }
+  } catch (error) {
+    console.error('Error publishing video:', error);
+    toast.error('Ошибка публикации');
+  }
+};
+```
 
-**UI changes:**
-- Add a "Плейлист" column to the table grid (update grid template from 7 columns to 8)
-- Render an `InlineEdit` dropdown (type `select`) populated with playlists from the `playlists` prop
-- Wire the save handler to call `onUpdateQuestion` with `playlist_id`
+#### 3. Update `onBulkPublish` in Index.tsx (lines 285-298)
 
-**Update handler changes:**
-- Extend `handleSaveQuestion` and `onUpdateQuestion` type signatures to accept `playlist_id`
-- In `Index.tsx`, extend the `onUpdateQuestion` handler to pass `playlist_id` through to `bulkUpdateAll`
-
-#### 3. Grid layout update
-
-Current: `grid-cols-[40px_60px_120px_80px_1fr_130px_100px]` (7 cols)
-New: `grid-cols-[40px_60px_120px_80px_1fr_140px_130px_100px]` (8 cols, playlist column ~140px before date)
+Update to use the new batched `handlePublishVideo` and show a single summary toast instead of per-video toasts.
 
 ### Files to modify
-- `src/pages/Index.tsx` -- add post-import status sync + extend onUpdateQuestion for playlist_id
-- `src/components/questions/QuestionsTable.tsx` -- add playlist_id to QuestionData, add playlist column with InlineEdit dropdown, update grid layout and types
+- `src/components/videos/VideoSidePanel.tsx` — filter `publishingChannels` by `is_active`
+- `src/pages/Index.tsx` — rewrite `handlePublishVideo` to batch insert + single toast, no per-item notifications
 
