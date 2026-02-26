@@ -739,7 +739,25 @@ export function QuestionsTable({
               return;
             }
 
-            await onBulkImport(transformed);
+            // Expand: create one video per active advisor for rows without advisor_id
+            const { data: allAdvisorsData } = await supabase.from('advisors').select('id').eq('is_active', true);
+            const activeAdvisorIds = (allAdvisorsData || []).map(a => a.id);
+
+            const expanded: Record<string, any>[] = [];
+            for (const row of transformed) {
+              if (row.advisor_id) {
+                expanded.push(row);
+              } else if (activeAdvisorIds.length > 0) {
+                for (const advisorId of activeAdvisorIds) {
+                  expanded.push({ ...row, advisor_id: advisorId });
+                }
+              } else {
+                expanded.push(row);
+              }
+            }
+
+            toast.info(`Создание ${expanded.length} роликов (${transformed.length} вопросов × ${activeAdvisorIds.length} духовников)`);
+            await onBulkImport(expanded);
           } catch (error: any) {
             console.error('Question import error:', error);
             toast.error(`Ошибка импорта: ${error.message || 'Unknown error'}`);
