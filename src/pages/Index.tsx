@@ -407,12 +407,14 @@ export default function Index() {
                         else if (s.includes('высок') || s === 'high') result.safety_score = 'high_risk';
                       }
 
-                      // Normalize question_status
+                      // Normalize question_status — default to in_progress for imports
                       if (result.question_status) {
                         const st = String(result.question_status).toLowerCase().trim();
                         if (st.includes('работ') || st === 'in_progress') result.question_status = 'in_progress';
                         else if (st.includes('опубликован') || st === 'published') result.question_status = 'published';
-                        else result.question_status = 'not_selected';
+                        else result.question_status = 'in_progress';
+                      } else {
+                        result.question_status = 'in_progress';
                       }
 
                       // Date field
