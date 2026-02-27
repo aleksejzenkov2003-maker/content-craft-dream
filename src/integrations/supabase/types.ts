@@ -804,6 +804,7 @@ export type Database = {
           video_number: number | null
           video_path: string | null
           video_title: string | null
+          voiceover_status: string | null
           voiceover_url: string | null
           youtube_url: string | null
         }
@@ -848,6 +849,7 @@ export type Database = {
           video_number?: number | null
           video_path?: string | null
           video_title?: string | null
+          voiceover_status?: string | null
           voiceover_url?: string | null
           youtube_url?: string | null
         }
@@ -892,6 +894,7 @@ export type Database = {
           video_number?: number | null
           video_path?: string | null
           video_title?: string | null
+          voiceover_status?: string | null
           voiceover_url?: string | null
           youtube_url?: string | null
         }

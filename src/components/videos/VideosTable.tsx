@@ -51,6 +51,7 @@ interface VideosTableProps {
   onGenerateVideo: (video: Video) => void;
   onGenerateCover: (video: Video) => void;
   onGenerateAtmosphere?: (video: Video) => void;
+  onGenerateVoiceover?: (video: Video) => void;
   onAddVideo: () => void;
   onImportVideos: () => void;
   onViewVideo: (video: Video) => void;
@@ -86,6 +87,13 @@ const videoStatusConfig: Record<string, string> = {
   error: 'bg-red-500',
 };
 
+const voiceoverStatusConfig: Record<string, string> = {
+  pending: 'bg-muted-foreground/30',
+  generating: 'bg-yellow-500',
+  ready: 'bg-green-500',
+  error: 'bg-red-500',
+};
+
 const statusLabels: Record<string, string> = {
   pending: 'Pending',
   generating: 'In progress',
@@ -110,6 +118,7 @@ export function VideosTable({
   onGenerateVideo,
   onGenerateCover,
   onGenerateAtmosphere,
+  onGenerateVoiceover,
   onAddVideo,
   onImportVideos,
   onViewVideo,
@@ -462,7 +471,7 @@ export function VideosTable({
 
                 <CollapsibleContent>
                   {/* Table Header */}
-                  <div className="grid grid-cols-[40px_60px_150px_100px_100px_70px_80px_80px_100px_100px_1fr] gap-2 px-4 py-2 text-xs text-muted-foreground bg-muted/20 border-y border-border/30">
+                  <div className="grid grid-cols-[40px_60px_150px_100px_100px_100px_70px_80px_80px_100px_80px_100px_1fr] gap-2 px-4 py-2 text-xs text-muted-foreground bg-muted/20 border-y border-border/30">
                     <div></div>
                     <button
                       onClick={() => handleSort('id')}
@@ -482,6 +491,7 @@ export function VideosTable({
                     >
                       Cover {getSortIcon('cover_status')}
                     </button>
+                    <div>Озвучка</div>
                     <button
                       onClick={() => handleSort('video_status')}
                       className="flex items-center gap-1 hover:text-foreground"
@@ -497,6 +507,7 @@ export function VideosTable({
                     <div>Превью</div>
                     <div>Фон</div>
                     <div>Обложка</div>
+                    <div>Озвучка</div>
                     <div>Video</div>
                     <div>Каналы</div>
                   </div>
@@ -511,7 +522,7 @@ export function VideosTable({
                     return (
                       <div
                         key={video.id}
-                        className="grid grid-cols-[40px_60px_150px_100px_100px_70px_80px_80px_100px_100px_1fr] gap-2 px-4 py-2 text-sm hover:bg-muted/30 border-b border-border/20 items-center"
+                        className="grid grid-cols-[40px_60px_150px_100px_100px_100px_70px_80px_80px_100px_80px_100px_1fr] gap-2 px-4 py-2 text-sm hover:bg-muted/30 border-b border-border/20 items-center"
                       >
                         {/* Checkbox */}
                         <div onClick={(e) => e.stopPropagation()}>
@@ -540,6 +551,12 @@ export function VideosTable({
                         <div className="flex items-center gap-1.5">
                           <div className={`w-2 h-2 rounded-full ${coverStatusConfig[effectiveCoverStatus] || coverStatusConfig.pending}`} />
                           <span className="text-xs text-muted-foreground">{statusLabels[effectiveCoverStatus] || 'Pending'}</span>
+                        </div>
+
+                        {/* Voiceover status */}
+                        <div className="flex items-center gap-1.5">
+                          <div className={`w-2 h-2 rounded-full ${voiceoverStatusConfig[video.voiceover_status || 'pending'] || voiceoverStatusConfig.pending}`} />
+                          <span className="text-xs text-muted-foreground">{statusLabels[video.voiceover_status || 'pending'] || 'Pending'}</span>
                         </div>
 
                         {/* Video status - text only */}
@@ -616,6 +633,35 @@ export function VideosTable({
                               disabled={!(video as any).atmosphere_url}
                             >
                               Обложка
+                            </Button>
+                          )}
+                        </div>
+
+                        {/* Voiceover button */}
+                        <div>
+                          {video.voiceover_status === 'generating' ? (
+                            <Button size="xs" variant="outline" disabled>
+                              <Loader2 className="w-3 h-3 animate-spin" />
+                            </Button>
+                          ) : video.voiceover_url ? (
+                            <Button
+                              size="xs"
+                              variant="outline"
+                              onClick={() => {
+                                const audio = new Audio(video.voiceover_url!);
+                                audio.play();
+                              }}
+                            >
+                              <Play className="w-3 h-3" />
+                            </Button>
+                          ) : (
+                            <Button
+                              size="xs"
+                              variant="secondary"
+                              onClick={() => onGenerateVoiceover?.(video)}
+                              disabled={!video.advisor_answer}
+                            >
+                              Озвучка
                             </Button>
                           )}
                         </div>

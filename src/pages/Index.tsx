@@ -140,6 +140,30 @@ export default function Index() {
     }
   };
 
+  const handleGenerateVoiceover = async (video: Video) => {
+    try {
+      toast.info('Генерация озвучки...');
+      await updateVideo(video.id, { voiceover_status: 'generating' } as any, { silent: true });
+      
+      const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/generate-voiceover-for-video`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
+        },
+        body: JSON.stringify({ videoId: video.id }),
+      });
+
+      if (!response.ok) throw new Error('Failed to generate voiceover');
+      toast.success('Озвучка сгенерирована!');
+      refetchVideos();
+    } catch (error) {
+      console.error('Error generating voiceover:', error);
+      toast.error('Ошибка генерации озвучки');
+      refetchVideos();
+    }
+  };
+
   const handleViewVideo = (video: Video) => {
     setViewingVideo(video);
     setShowSidePanel(true);
@@ -314,6 +338,7 @@ export default function Index() {
                 onGenerateVideo={(video) => handleViewVideo(video)}
                 onGenerateCover={handleGenerateCover}
                 onGenerateAtmosphere={handleGenerateAtmosphere}
+                onGenerateVoiceover={handleGenerateVoiceover}
                 onAddVideo={() => { setEditingVideo(null); setShowVideoEditor(true); }}
                 onImportVideos={() => setShowImportDialog(true)}
                 onViewVideo={handleViewVideo}
@@ -541,6 +566,7 @@ export default function Index() {
                 publishingChannels={publishingChannels}
                 onGenerateAtmosphere={handleGenerateAtmosphere}
                 onGenerateCover={handleGenerateCover}
+                onGenerateVoiceover={handleGenerateVoiceover}
                 onGenerateVideo={(video) => { setShowVideoDetail(true); }}
                 onUpdateVideo={updateVideo}
                 onPublish={handlePublishVideo}
