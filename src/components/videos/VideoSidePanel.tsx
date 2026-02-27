@@ -30,12 +30,14 @@ import {
   X,
   Image as ImageIcon,
   Play,
+  Pause,
   RefreshCw,
   Check,
   Trash2,
   CalendarIcon,
   Sun,
   Layers,
+  Volume2,
 } from 'lucide-react';
 import { format } from 'date-fns';
 import { ru } from 'date-fns/locale';
@@ -50,6 +52,7 @@ interface VideoSidePanelProps {
   onGenerateAtmosphere: (video: Video) => void;
   onGenerateCover: (video: Video) => void;
   onGenerateVideo: (video: Video) => void;
+  onGenerateVoiceover?: (video: Video) => void;
   onUpdateVideo: (id: string, updates: Partial<Video>) => void;
   onPublish: (video: Video, channelIds: string[]) => void;
   isGenerating: boolean;
@@ -80,6 +83,7 @@ export function VideoSidePanel({
   onGenerateAtmosphere,
   onGenerateCover,
   onGenerateVideo,
+  onGenerateVoiceover,
   onUpdateVideo,
   onPublish,
   isGenerating,
@@ -247,7 +251,68 @@ export function VideoSidePanel({
 
             <Separator className="my-4" />
 
-            {/* === COVER SECTION: 2-step generation === */}
+            {/* === VOICEOVER SECTION === */}
+            <div className="space-y-3">
+              <div className="flex items-center justify-between">
+                <h4 className="font-medium text-sm flex items-center gap-1.5">
+                  <Volume2 className="w-4 h-4" />
+                  Озвучка
+                </h4>
+                <Button
+                  size="sm"
+                  variant="secondary"
+                  className="h-7 text-xs"
+                  onClick={() => onGenerateVoiceover?.(video)}
+                  disabled={video.voiceover_status === 'generating' || !video.advisor_answer}
+                >
+                  {video.voiceover_status === 'generating' ? (
+                    <>
+                      <Loader2 className="w-3 h-3 mr-1 animate-spin" />
+                      Генерация...
+                    </>
+                  ) : video.voiceover_url ? (
+                    'Перегенерировать'
+                  ) : (
+                    'Сгенерировать'
+                  )}
+                </Button>
+              </div>
+
+              {/* Audio player */}
+              {video.voiceover_url && (
+                <audio controls className="w-full h-8" src={video.voiceover_url}>
+                  Your browser does not support the audio element.
+                </audio>
+              )}
+
+              {!video.voiceover_url && video.voiceover_status !== 'generating' && (
+                <div className="py-4 rounded-lg border-2 border-dashed border-muted-foreground/20 bg-muted/30 flex flex-col items-center justify-center gap-1">
+                  <Volume2 className="w-5 h-5 text-muted-foreground/30" />
+                  <span className="text-[10px] text-muted-foreground/40">Озвучка не сгенерирована</span>
+                </div>
+              )}
+
+              {/* Voiceover status */}
+              <div className="grid grid-cols-[100px_1fr] gap-2 items-center">
+                <Label className="text-xs text-muted-foreground">Статус</Label>
+                <Select
+                  value={video.voiceover_status || 'pending'}
+                  onValueChange={(value) => onUpdateVideo(video.id, { voiceover_status: value } as any)}
+                >
+                  <SelectTrigger className="h-7 text-xs">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="pending">Pending</SelectItem>
+                    <SelectItem value="generating">In progress</SelectItem>
+                    <SelectItem value="ready">Ready</SelectItem>
+                    <SelectItem value="error">Error</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+
+            <Separator className="my-4" />
             <div className="space-y-3">
               <h4 className="font-medium text-sm">Обложка</h4>
               

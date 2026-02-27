@@ -1,0 +1,1 @@
+ALTER TABLE videos ADD COLUMN IF NOT EXISTS voiceover_status text DEFAULT 'pending';
