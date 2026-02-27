@@ -43,16 +43,17 @@ async function uploadAssetToHeygen(imageUrl: string, heygenKey: string): Promise
   console.log('Downloading scene image for HeyGen upload...');
   const imgRes = await fetch(imageUrl);
   if (!imgRes.ok) throw new Error(`Failed to download scene image: ${imgRes.status}`);
-  const imgBuffer = await imgRes.arrayBuffer();
+  const imgBlob = await imgRes.blob();
 
-  const formData = new FormData();
-  formData.append('file', new Blob([imgBuffer], { type: 'image/png' }), 'scene.png');
-
-  console.log('Uploading scene to HeyGen assets...');
+  // Upload as raw binary (matching n8n workflow contentType: "binaryData")
+  console.log('Uploading scene to HeyGen assets (raw binary)...');
   const uploadRes = await fetch('https://upload.heygen.com/v1/asset', {
     method: 'POST',
-    headers: { 'X-Api-Key': heygenKey },
-    body: formData,
+    headers: {
+      'X-Api-Key': heygenKey,
+      'Content-Type': imgBlob.type || 'image/png',
+    },
+    body: imgBlob,
   });
 
   if (!uploadRes.ok) {
@@ -61,6 +62,7 @@ async function uploadAssetToHeygen(imageUrl: string, heygenKey: string): Promise
   }
 
   const uploadData = await uploadRes.json();
+  console.log('HeyGen upload response:', JSON.stringify(uploadData));
   const imageKey = uploadData.data?.image_key || uploadData.data?.asset_id || uploadData.data?.id;
   if (!imageKey) throw new Error('No image_key returned from HeyGen: ' + JSON.stringify(uploadData));
   
@@ -72,16 +74,16 @@ async function uploadAudioToHeygen(audioUrl: string, heygenKey: string): Promise
   console.log('Downloading audio for HeyGen upload...');
   const audioRes = await fetch(audioUrl);
   if (!audioRes.ok) throw new Error(`Failed to download audio: ${audioRes.status}`);
-  const audioBuffer = await audioRes.arrayBuffer();
+  const audioBlob = await audioRes.blob();
 
-  const formData = new FormData();
-  formData.append('file', new Blob([audioBuffer], { type: 'audio/mpeg' }), 'voiceover.mp3');
-
-  console.log('Uploading audio to HeyGen assets...');
+  console.log('Uploading audio to HeyGen assets (raw binary)...');
   const uploadRes = await fetch('https://upload.heygen.com/v1/asset', {
     method: 'POST',
-    headers: { 'X-Api-Key': heygenKey },
-    body: formData,
+    headers: {
+      'X-Api-Key': heygenKey,
+      'Content-Type': audioBlob.type || 'audio/mpeg',
+    },
+    body: audioBlob,
   });
 
   if (!uploadRes.ok) {
@@ -90,7 +92,8 @@ async function uploadAudioToHeygen(audioUrl: string, heygenKey: string): Promise
   }
 
   const uploadData = await uploadRes.json();
-  const audioAssetId = uploadData.data?.audio_asset_id || uploadData.data?.asset_id || uploadData.data?.id;
+  console.log('HeyGen audio upload response:', JSON.stringify(uploadData));
+  const audioAssetId = uploadData.data?.id || uploadData.data?.audio_asset_id || uploadData.data?.asset_id;
   if (!audioAssetId) throw new Error('No audio_asset_id returned from HeyGen: ' + JSON.stringify(uploadData));
 
   console.log('HeyGen audio uploaded, asset_id:', audioAssetId);
