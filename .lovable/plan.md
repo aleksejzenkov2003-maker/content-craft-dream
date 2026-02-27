@@ -1,59 +1,72 @@
 
 
-## Problem
+## Analysis of n8n Workflows vs Current Edge Functions
 
-Questions are duplicated in the table because the grouping key is `${question_id}_${question_text}`. When one video for question_id 1042 has `question_rus = null` (falling back to `question_eng = "Can I kiss before marriage?"`), and another has `question_rus = "Можно ли целоваться до свадьбы?"`, two different keys are created — so the same question appears twice.
+From the uploaded n8n workflows, the real production logic has two critical differences from the current implementation:
 
-## Fix
+### 1. Cover Creation is a 2-Step Process
 
-**Group questions by `question_id` only**, not by question text. The text was added as a safety measure but it's causing real duplication. Since `question_id` is the actual identifier, grouping by it alone is correct.
+**n8n logic (correct):**
+1. **Step 1 - Atmosphere**: Claude generates a visual concept prompt from question/hook/answer/religion, then Kie.ai `google/nano-banana` generates a background atmosphere image (no avatar)
+2. **Step 2 - Overlay ("Подписать обложку")**: Kie.ai `nano-banana-pro` takes the atmosphere image + advisor photo as `image_input` and composites a circular avatar portrait onto the background
 
-### Changes
+**Current `generate-cover` edge function (wrong):** Does everything in ONE step with a text-only prompt asking for a background with a circle portrait embedded. No actual photo compositing happens.
 
-#### 1. `src/components/questions/QuestionsTable.tsx` — Fix unique key
+### 2. Video Generation Uses Scene Photo, Not Just Avatar
 
-Line 144: Change the unique key from composite to ID-only:
-```typescript
-// Before:
-const uniqueKey = `${video.question_id}_${video.question_rus || video.question_eng || video.question || ''}`;
+**n8n logic (correct):**
+1. Find the **scene** (Фото сцены) for the video's playlist+advisor combination
+2. Download the scene photo (which is a composite of advisor + background)
+3. Upload it to HeyGen as a new asset via `POST /upload/v1/asset` → get `image_key`
+4. Upload voiceover audio to HeyGen → get `audio_asset_id`
+5. Call HeyGen **`/v2/video/av4/generate`** with `image_key`, `audio_asset_id`, and `custom_motion_prompt`
 
-// After:
-const uniqueKey = `${video.question_id}`;
+**Current `generate-video-heygen` edge function (wrong):**
+- Uses a pre-uploaded `talking_photo_id` (just the raw avatar photo)
+- Calls HeyGen `/v2/video/generate` with `talking_photo` character type
+- Does NOT use the scene as the background image
+
+### Plan
+
+#### A. Rewrite `generate-cover` edge function — 2-step process
+
+1. Accept `videoId` and optionally `atmospherePrompt`
+2. Fetch video data (question, hook, answer) + advisor info (name, religion/playlist) + advisor primary photo URL
+3. **Step 1**: Call AI (Lovable AI gateway with gemini-2.5-flash) to generate atmosphere prompt from content, then send to Kie.ai `google/nano-banana` to generate the atmosphere background
+4. Save `atmosphere_url` to video record, set `cover_status = 'atmosphere_ready'`
+5. **Step 2**: Call Kie.ai `nano-banana-pro` with the atmosphere image + advisor photo as `image_input` to composite the circular avatar overlay
+6. Save final `front_cover_url`, set `cover_status = 'ready'`
+
+New DB fields needed on `videos` table:
+- `atmosphere_url` (text) — stores the intermediate atmosphere image
+- `atmosphere_prompt` (text) — stores the generated atmosphere prompt
+
+#### B. Rewrite `generate-video-heygen` edge function — use scene photo
+
+1. Fetch video with advisor and playlist data
+2. Look up the **scene** from `playlist_scenes` matching the video's `playlist_id` + `advisor_id` with status 'approved' and a `scene_url`
+3. If no scene found, fall back to current behavior (talking_photo_id)
+4. If scene found:
+   - Download the scene image
+   - Upload it to HeyGen via `POST https://upload.heygen.com/v1/asset` → get `image_key`
+   - Generate/use voiceover, upload audio to HeyGen → get `audio_asset_id`
+   - Call **`POST /v2/video/av4/generate`** with `image_key`, `audio_asset_id`, and `custom_motion_prompt: "calm spiritual mentor, light hand movement, soft breathing, subtle head motion, natural eye contact, steady posture, gentle facial expressions, slow rhythm"`
+5. Save `heygen_video_id` to video record
+
+#### C. Add DB migration for new fields
+
+```sql
+ALTER TABLE videos ADD COLUMN IF NOT EXISTS atmosphere_url text;
+ALTER TABLE videos ADD COLUMN IF NOT EXISTS atmosphere_prompt text;
 ```
 
-Also update the data aggregation (line 161+) to merge `question_rus` and `question_eng` from all videos in the group — take the first non-null value:
-```typescript
-if (existing) {
-  // Merge language fields if missing
-  if (!existing.question_rus && video.question_rus) existing.question_rus = video.question_rus;
-  if (!existing.question_eng && video.question_eng) existing.question_eng = video.question_eng;
-  if (!existing.hook_rus && video.hook_rus) existing.hook_rus = video.hook_rus;
-  // ...existing count logic...
-}
-```
+#### D. Update UI to show atmosphere step
 
-#### 2. `src/pages/Index.tsx` — Update key parsing in handlers
-
-All handlers (`onUpdateQuestion`, `onDeleteQuestion`, `onBulkUpdateStatus`, `onBulkDateUpdate`) currently parse `uniqueKey` by splitting on `_` to get `questionId` and `questionText`, then filter videos by both. Since the key is now just the ID:
-
-```typescript
-// Before:
-const separatorIndex = uniqueKey.indexOf('_');
-const questionId = parseInt(uniqueKey.substring(0, separatorIndex));
-const questionText = uniqueKey.substring(separatorIndex + 1);
-const videosToUpdate = allVideos.filter(v =>
-  v.question_id === questionId &&
-  (v.question_rus || v.question_eng || v.question || '') === questionText
-);
-
-// After:
-const questionId = parseInt(uniqueKey);
-const videosToUpdate = allVideos.filter(v => v.question_id === questionId);
-```
-
-This applies to ~4 places in Index.tsx (lines 563-570, 591-598, 611-621, and the bulk date handler).
+In `VideoSidePanel.tsx`, display `atmosphere_url` as an intermediate preview and show the 2-step cover status (atmosphere → final cover).
 
 ### Files to modify
-- `src/components/questions/QuestionsTable.tsx` — change unique key to ID-only, merge language fields
-- `src/pages/Index.tsx` — simplify key parsing in all question handlers
+- `supabase/functions/generate-cover/index.ts` — full rewrite to 2-step
+- `supabase/functions/generate-video-heygen/index.ts` — use scene photo + av4 API
+- DB migration — add `atmosphere_url`, `atmosphere_prompt` columns
+- `src/components/videos/VideoSidePanel.tsx` — show atmosphere preview
 
