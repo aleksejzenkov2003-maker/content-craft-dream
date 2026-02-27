@@ -34,20 +34,16 @@ serve(async (req) => {
     }
 
     const imageBlob = await imageResponse.blob();
-    const imageArrayBuffer = await imageBlob.arrayBuffer();
-    const imageBytes = new Uint8Array(imageArrayBuffer);
 
-    // Create form data for HeyGen
-    const formData = new FormData();
-    formData.append('file', new Blob([imageBytes], { type: 'image/jpeg' }), 'photo.jpg');
-
-    // Upload to HeyGen Talking Photo API
-    const heygenResponse = await fetch('https://api.heygen.com/v2/photo_avatar/talking_photo', {
+    // Upload to HeyGen using the correct upload endpoint: https://upload.heygen.com/v1/asset
+    // This matches the n8n workflow which sends binary data to this endpoint
+    const heygenResponse = await fetch('https://upload.heygen.com/v1/asset', {
       method: 'POST',
       headers: {
         'X-Api-Key': heygenKey,
+        'Content-Type': imageBlob.type || 'image/png',
       },
-      body: formData,
+      body: imageBlob,
     });
 
     if (!heygenResponse.ok) {
@@ -57,19 +53,20 @@ serve(async (req) => {
     }
 
     const result = await heygenResponse.json();
-    console.log('HeyGen upload result:', result);
+    console.log('HeyGen upload result:', JSON.stringify(result));
 
-    // Extract asset ID from response
-    const assetId = result.data?.talking_photo_id;
+    // Extract image_key from response — this is what's used for video generation
+    const imageKey = result.data?.image_key;
+    const assetId = result.data?.id || imageKey;
     
     if (!assetId) {
       throw new Error('No asset ID returned from HeyGen');
     }
 
-    // Update photo record with HeyGen asset ID
+    // Update photo record with HeyGen asset ID (store image_key for video generation)
     const { error: updateError } = await supabase
       .from('advisor_photos')
-      .update({ heygen_asset_id: assetId })
+      .update({ heygen_asset_id: imageKey || assetId })
       .eq('id', photoId);
 
     if (updateError) {
@@ -77,18 +74,18 @@ serve(async (req) => {
       throw updateError;
     }
 
-    console.log(`Photo ${photoId} uploaded to HeyGen with asset ID: ${assetId}`);
+    console.log(`Photo ${photoId} uploaded to HeyGen with image_key: ${imageKey}, asset_id: ${assetId}`);
 
     // Log activity
     await supabase.from('activity_log').insert({
       action: 'heygen_photo_uploaded',
       entity_type: 'advisor_photo',
       entity_id: photoId,
-      details: { heygen_asset_id: assetId },
+      details: { heygen_asset_id: assetId, image_key: imageKey },
     });
 
     return new Response(
-      JSON.stringify({ success: true, assetId }),
+      JSON.stringify({ success: true, assetId, imageKey }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
 
