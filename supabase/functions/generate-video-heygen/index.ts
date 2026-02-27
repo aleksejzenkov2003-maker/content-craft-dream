@@ -179,10 +179,7 @@ serve(async (req) => {
     // =============================================
     // Step 2: Generate video via HeyGen
     // =============================================
-    const selectedAspectRatio = aspectRatio || '9:16';
-    const dimensions = selectedAspectRatio === '16:9' 
-      ? { width: 1920, height: 1080 }
-      : { width: 1080, height: 1920 };
+    const selectedOrientation = aspectRatio === '16:9' ? 'landscape' : 'portrait';
 
     let heygenVideoId: string;
 
@@ -201,11 +198,12 @@ serve(async (req) => {
         },
         body: JSON.stringify({
           video_title: video.video_title || video.question || `Video ${videoId}`,
+          video_orientation: selectedOrientation,
+          fit: 'cover',
           image_key: imageKey,
           audio_asset_id: audioAssetId,
-          dimension: dimensions,
-          aspect_ratio: selectedAspectRatio,
           custom_motion_prompt: 'calm spiritual mentor, light hand movement, soft breathing, subtle head motion, natural eye contact, steady posture, gentle facial expressions, slow rhythm',
+          enhance_custom_motion_prompt: true,
         }),
       });
 
@@ -254,11 +252,12 @@ serve(async (req) => {
         },
         body: JSON.stringify({
           video_title: video.video_title || video.question || `Video ${videoId}`,
+          video_orientation: selectedOrientation,
+          fit: 'cover',
           image_key: imageKey,
           audio_asset_id: audioAssetId,
-          dimension: dimensions,
-          aspect_ratio: selectedAspectRatio,
           custom_motion_prompt: 'calm spiritual mentor, light hand movement, soft breathing, subtle head motion, natural eye contact, steady posture, gentle facial expressions, slow rhythm',
+          enhance_custom_motion_prompt: true,
         }),
       });
 
