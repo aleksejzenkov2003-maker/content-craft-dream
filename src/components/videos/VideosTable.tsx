@@ -50,6 +50,7 @@ interface VideosTableProps {
   onDeleteVideo: (id: string) => void;
   onGenerateVideo: (video: Video) => void;
   onGenerateCover: (video: Video) => void;
+  onGenerateAtmosphere?: (video: Video) => void;
   onAddVideo: () => void;
   onImportVideos: () => void;
   onViewVideo: (video: Video) => void;
@@ -72,6 +73,7 @@ interface VideosTableProps {
 const coverStatusConfig: Record<string, string> = {
   pending: 'bg-muted-foreground/30',
   generating: 'bg-yellow-500',
+  atmosphere_ready: 'bg-amber-500',
   ready: 'bg-green-500',
   error: 'bg-red-500',
 };
@@ -87,6 +89,7 @@ const videoStatusConfig: Record<string, string> = {
 const statusLabels: Record<string, string> = {
   pending: 'Pending',
   generating: 'In progress',
+  atmosphere_ready: 'Фон готов',
   ready: 'Ready',
   published: 'Published',
   error: 'Error',
@@ -106,6 +109,7 @@ export function VideosTable({
   onDeleteVideo,
   onGenerateVideo,
   onGenerateCover,
+  onGenerateAtmosphere,
   onAddVideo,
   onImportVideos,
   onViewVideo,
@@ -458,7 +462,7 @@ export function VideosTable({
 
                 <CollapsibleContent>
                   {/* Table Header */}
-                  <div className="grid grid-cols-[40px_60px_150px_100px_100px_70px_80px_100px_100px_1fr] gap-2 px-4 py-2 text-xs text-muted-foreground bg-muted/20 border-y border-border/30">
+                  <div className="grid grid-cols-[40px_60px_150px_100px_100px_70px_80px_80px_100px_100px_1fr] gap-2 px-4 py-2 text-xs text-muted-foreground bg-muted/20 border-y border-border/30">
                     <div></div>
                     <button
                       onClick={() => handleSort('id')}
@@ -491,7 +495,8 @@ export function VideosTable({
                       Длина {getSortIcon('duration')}
                     </button>
                     <div>Превью</div>
-                    <div>Front cover</div>
+                    <div>Фон</div>
+                    <div>Обложка</div>
                     <div>Video</div>
                     <div>Каналы</div>
                   </div>
@@ -504,7 +509,7 @@ export function VideosTable({
                     return (
                       <div
                         key={video.id}
-                        className="grid grid-cols-[40px_60px_150px_100px_100px_70px_80px_100px_100px_1fr] gap-2 px-4 py-2 text-sm hover:bg-muted/30 border-b border-border/20 items-center"
+                        className="grid grid-cols-[40px_60px_150px_100px_100px_70px_80px_80px_100px_100px_1fr] gap-2 px-4 py-2 text-sm hover:bg-muted/30 border-b border-border/20 items-center"
                       >
                         {/* Checkbox */}
                         <div onClick={(e) => e.stopPropagation()}>
@@ -546,25 +551,17 @@ export function VideosTable({
                           {video.video_duration ? `${video.video_duration}s` : '—'}
                         </div>
 
-                        {/* Cover preview */}
+                        {/* Cover preview (final cover) */}
                         <div>
                           {coverUrl ? (
                             <HoverCard>
                               <HoverCardTrigger asChild>
                                 <div className="w-12 h-8 rounded overflow-hidden cursor-pointer border border-border">
-                                  <img
-                                    src={coverUrl}
-                                    alt="Cover"
-                                    className="w-full h-full object-cover"
-                                  />
+                                  <img src={coverUrl} alt="Cover" className="w-full h-full object-cover" />
                                 </div>
                               </HoverCardTrigger>
                               <HoverCardContent className="w-80 p-2">
-                                <img
-                                  src={coverUrl}
-                                  alt="Cover preview"
-                                  className="w-full rounded"
-                                />
+                                <img src={coverUrl} alt="Cover preview" className="w-full rounded" />
                               </HoverCardContent>
                             </HoverCard>
                           ) : (
@@ -574,7 +571,36 @@ export function VideosTable({
                           )}
                         </div>
 
-                        {/* Front cover button */}
+                        {/* Atmosphere (Step 1) button */}
+                        <div>
+                          {video.cover_status === 'generating' ? (
+                            <Button size="xs" variant="outline" disabled>
+                              <Loader2 className="w-3 h-3 animate-spin" />
+                            </Button>
+                          ) : (video as any).atmosphere_url ? (
+                            <HoverCard>
+                              <HoverCardTrigger asChild>
+                                <div className="w-12 h-8 rounded overflow-hidden cursor-pointer border border-border" onClick={() => onGenerateAtmosphere?.(video)}>
+                                  <img src={(video as any).atmosphere_url} alt="Фон" className="w-full h-full object-cover" />
+                                </div>
+                              </HoverCardTrigger>
+                              <HoverCardContent className="w-80 p-2">
+                                <img src={(video as any).atmosphere_url} alt="Atmosphere preview" className="w-full rounded" />
+                              </HoverCardContent>
+                            </HoverCard>
+                          ) : (
+                            <Button
+                              size="xs"
+                              variant="outline"
+                              className="text-amber-700 border-amber-500/50"
+                              onClick={() => onGenerateAtmosphere?.(video)}
+                            >
+                              Фон
+                            </Button>
+                          )}
+                        </div>
+
+                        {/* Cover (Step 2) button */}
                         <div>
                           {video.cover_status === 'generating' ? (
                             <Button size="xs" variant="outline" disabled>
@@ -585,8 +611,9 @@ export function VideosTable({
                               size="xs"
                               variant="generate-cover"
                               onClick={() => onGenerateCover(video)}
+                              disabled={!(video as any).atmosphere_url}
                             >
-                              Generate
+                              Обложка
                             </Button>
                           )}
                         </div>

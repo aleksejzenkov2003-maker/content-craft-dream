@@ -313,6 +313,7 @@ export default function Index() {
                 onDeleteVideo={deleteVideo}
                 onGenerateVideo={(video) => handleViewVideo(video)}
                 onGenerateCover={handleGenerateCover}
+                onGenerateAtmosphere={handleGenerateAtmosphere}
                 onAddVideo={() => { setEditingVideo(null); setShowVideoEditor(true); }}
                 onImportVideos={() => setShowImportDialog(true)}
                 onViewVideo={handleViewVideo}
