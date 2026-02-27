@@ -708,32 +708,44 @@ export function VideosTable({
                           )}
                         </div>
 
-                        {/* Publication channels - tag selection */}
-                        <div className="flex flex-wrap gap-1">
-                          {publishingChannels.filter(c => c.is_active).map((channel) => {
-                            const isSelected = video.selected_channels?.includes(channel.id) || false;
-                            return (
-                              <Badge
-                                key={channel.id}
-                                variant={isSelected ? "default" : "outline"}
-                                className={`text-xs font-normal cursor-pointer transition-colors ${
-                                  isSelected 
-                                    ? 'bg-primary text-primary-foreground hover:bg-primary/80' 
-                                    : 'hover:bg-muted'
-                                }`}
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  const currentChannels = video.selected_channels || [];
-                                  const newChannels = isSelected
-                                    ? currentChannels.filter(id => id !== channel.id)
-                                    : [...currentChannels, channel.id];
-                                  onUpdateVideo?.(video.id, { selected_channels: newChannels });
-                                }}
-                              >
-                                {channel.name}
-                              </Badge>
-                            );
-                          })}
+                        {/* Publication channels - compact popover */}
+                        <div>
+                          <Popover>
+                            <PopoverTrigger asChild>
+                              <Button size="xs" variant="outline" className="text-xs h-6 px-2">
+                                <Send className="w-3 h-3 mr-1" />
+                                {(video.selected_channels?.length || 0)}
+                              </Button>
+                            </PopoverTrigger>
+                            <PopoverContent className="w-48 p-2" side="left">
+                              <div className="flex flex-wrap gap-1">
+                                {publishingChannels.filter(c => c.is_active).map((channel) => {
+                                  const isSelected = video.selected_channels?.includes(channel.id) || false;
+                                  return (
+                                    <Badge
+                                      key={channel.id}
+                                      variant={isSelected ? "default" : "outline"}
+                                      className={`text-[10px] font-normal cursor-pointer transition-colors ${
+                                        isSelected 
+                                          ? 'bg-primary text-primary-foreground hover:bg-primary/80' 
+                                          : 'hover:bg-muted'
+                                      }`}
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        const currentChannels = video.selected_channels || [];
+                                        const newChannels = isSelected
+                                          ? currentChannels.filter(id => id !== channel.id)
+                                          : [...currentChannels, channel.id];
+                                        onUpdateVideo?.(video.id, { selected_channels: newChannels });
+                                      }}
+                                    >
+                                      {channel.name}
+                                    </Badge>
+                                  );
+                                })}
+                              </div>
+                            </PopoverContent>
+                          </Popover>
                         </div>
                       </div>
                     );
