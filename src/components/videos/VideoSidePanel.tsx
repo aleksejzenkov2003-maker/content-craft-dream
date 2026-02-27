@@ -55,6 +55,7 @@ interface VideoSidePanelProps {
 const coverStatusOptions = [
   { value: 'pending', label: 'Pending' },
   { value: 'generating', label: 'In progress' },
+  { value: 'atmosphere_ready', label: 'Атмосфера готова' },
   { value: 'ready', label: 'Completed' },
   { value: 'error', label: 'Error' },
 ];
@@ -265,9 +266,31 @@ export function VideoSidePanel({
               </Button>
             </div>
 
+            {/* Atmosphere Preview (Step 1) */}
+            {(video as any).atmosphere_url && (
+              <div className="space-y-2">
+                <Label className="text-sm flex items-center gap-2">
+                  Атмосфера (шаг 1)
+                  {video.cover_status === 'atmosphere_ready' && (
+                    <Badge variant="outline" className="text-[9px] px-1.5 py-0 border-amber-500 text-amber-600">Шаг 2 в очереди</Badge>
+                  )}
+                </Label>
+                <div className="relative aspect-[9/16] rounded-lg overflow-hidden border bg-muted max-w-[140px]">
+                  <img 
+                    src={(video as any).atmosphere_url} 
+                    alt="Atmosphere" 
+                    className="w-full h-full object-cover"
+                  />
+                </div>
+                {(video as any).atmosphere_prompt && (
+                  <p className="text-[10px] text-muted-foreground italic line-clamp-2">{(video as any).atmosphere_prompt}</p>
+                )}
+              </div>
+            )}
+
             {/* Cover Gallery */}
             <div className="space-y-2">
-              <Label className="text-sm">Галерея обложек</Label>
+              <Label className="text-sm">Обложка (шаг 2 — финал)</Label>
               <div className="grid grid-cols-3 gap-2">
                 {video.front_cover_url ? (
                   <div className="relative aspect-[9/16] rounded-lg overflow-hidden border-2 border-primary bg-muted group cursor-pointer">

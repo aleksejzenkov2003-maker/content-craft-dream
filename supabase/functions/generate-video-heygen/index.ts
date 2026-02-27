@@ -17,7 +17,6 @@ interface GenerateRequest {
 
 async function generateVoiceover(text: string, voiceId: string, elevenLabsKey: string): Promise<ArrayBuffer> {
   console.log(`Generating voiceover with ElevenLabs, voice: ${voiceId}`);
-  
   const response = await fetch(
     `https://api.elevenlabs.io/v1/text-to-speech/${voiceId}?output_format=mp3_44100_128`,
     {
@@ -29,23 +28,73 @@ async function generateVoiceover(text: string, voiceId: string, elevenLabsKey: s
       body: JSON.stringify({
         text,
         model_id: 'eleven_multilingual_v2',
-        voice_settings: {
-          stability: 0.5,
-          similarity_boost: 0.75,
-          style: 0.5,
-          use_speaker_boost: true,
-        }
+        voice_settings: { stability: 0.5, similarity_boost: 0.75, style: 0.5, use_speaker_boost: true }
       })
     }
   );
-
   if (!response.ok) {
     const errorText = await response.text();
-    console.error('ElevenLabs error:', errorText);
-    throw new Error(`ElevenLabs API error: ${response.status}`);
+    throw new Error(`ElevenLabs API error: ${response.status} - ${errorText}`);
+  }
+  return await response.arrayBuffer();
+}
+
+async function uploadAssetToHeygen(imageUrl: string, heygenKey: string): Promise<string> {
+  console.log('Downloading scene image for HeyGen upload...');
+  const imgRes = await fetch(imageUrl);
+  if (!imgRes.ok) throw new Error(`Failed to download scene image: ${imgRes.status}`);
+  const imgBuffer = await imgRes.arrayBuffer();
+
+  const formData = new FormData();
+  formData.append('file', new Blob([imgBuffer], { type: 'image/png' }), 'scene.png');
+
+  console.log('Uploading scene to HeyGen assets...');
+  const uploadRes = await fetch('https://upload.heygen.com/v1/asset', {
+    method: 'POST',
+    headers: { 'X-Api-Key': heygenKey },
+    body: formData,
+  });
+
+  if (!uploadRes.ok) {
+    const errText = await uploadRes.text();
+    throw new Error(`HeyGen asset upload failed: ${uploadRes.status} - ${errText}`);
   }
 
-  return await response.arrayBuffer();
+  const uploadData = await uploadRes.json();
+  const imageKey = uploadData.data?.image_key || uploadData.data?.asset_id || uploadData.data?.id;
+  if (!imageKey) throw new Error('No image_key returned from HeyGen: ' + JSON.stringify(uploadData));
+  
+  console.log('HeyGen asset uploaded, image_key:', imageKey);
+  return imageKey;
+}
+
+async function uploadAudioToHeygen(audioUrl: string, heygenKey: string): Promise<string> {
+  console.log('Downloading audio for HeyGen upload...');
+  const audioRes = await fetch(audioUrl);
+  if (!audioRes.ok) throw new Error(`Failed to download audio: ${audioRes.status}`);
+  const audioBuffer = await audioRes.arrayBuffer();
+
+  const formData = new FormData();
+  formData.append('file', new Blob([audioBuffer], { type: 'audio/mpeg' }), 'voiceover.mp3');
+
+  console.log('Uploading audio to HeyGen assets...');
+  const uploadRes = await fetch('https://upload.heygen.com/v1/asset', {
+    method: 'POST',
+    headers: { 'X-Api-Key': heygenKey },
+    body: formData,
+  });
+
+  if (!uploadRes.ok) {
+    const errText = await uploadRes.text();
+    throw new Error(`HeyGen audio upload failed: ${uploadRes.status} - ${errText}`);
+  }
+
+  const uploadData = await uploadRes.json();
+  const audioAssetId = uploadData.data?.audio_asset_id || uploadData.data?.asset_id || uploadData.data?.id;
+  if (!audioAssetId) throw new Error('No audio_asset_id returned from HeyGen: ' + JSON.stringify(uploadData));
+
+  console.log('HeyGen audio uploaded, asset_id:', audioAssetId);
+  return audioAssetId;
 }
 
 serve(async (req) => {
@@ -67,7 +116,7 @@ serve(async (req) => {
 
     console.log(`Generating HeyGen video for video ${videoId}`);
 
-    // Get video with advisor info
+    // Get video with advisor and playlist info
     const { data: video, error: videoError } = await supabase
       .from('videos')
       .select(`
@@ -77,166 +126,174 @@ serve(async (req) => {
       .eq('id', videoId)
       .single();
 
-    if (videoError || !video) {
-      throw new Error('Video not found');
-    }
+    if (videoError || !video) throw new Error('Video not found');
 
-    // Update status to generating
-    await supabase
-      .from('videos')
-      .update({ generation_status: 'generating' })
-      .eq('id', videoId);
+    await supabase.from('videos').update({ generation_status: 'generating' }).eq('id', videoId);
 
-    // Determine the script text
     const scriptText = script || video.advisor_answer;
-    if (!scriptText) {
-      throw new Error('No script/answer text available for video generation');
-    }
+    if (!scriptText) throw new Error('No script/answer text available for video generation');
 
-    // Determine talking photo ID - use provided or find from advisor photos
-    let talkingPhotoId = photoAssetId;
-    if (!talkingPhotoId && video.advisor_id) {
-      const { data: photos } = await supabase
-        .from('advisor_photos')
-        .select('heygen_asset_id')
+    // =============================================
+    // Try to find an approved scene for this video
+    // =============================================
+    let sceneUrl: string | null = null;
+    if (video.playlist_id && video.advisor_id) {
+      const { data: scenes } = await supabase
+        .from('playlist_scenes')
+        .select('scene_url')
+        .eq('playlist_id', video.playlist_id)
         .eq('advisor_id', video.advisor_id)
-        .eq('is_primary', true)
+        .eq('review_status', 'approved')
+        .not('scene_url', 'is', null)
         .limit(1);
       
-      talkingPhotoId = photos?.[0]?.heygen_asset_id || null;
-      
-      if (!talkingPhotoId) {
-        // Fallback: get any photo with heygen_asset_id
-        const { data: anyPhotos } = await supabase
-          .from('advisor_photos')
-          .select('heygen_asset_id')
-          .eq('advisor_id', video.advisor_id)
-          .not('heygen_asset_id', 'is', null)
-          .limit(1);
-        
-        talkingPhotoId = anyPhotos?.[0]?.heygen_asset_id || null;
-      }
+      sceneUrl = scenes?.[0]?.scene_url || null;
+      console.log('Scene found:', sceneUrl ? 'YES' : 'NO');
     }
 
-    if (!talkingPhotoId) {
-      throw new Error('No HeyGen photo asset found. Upload a photo to HeyGen first.');
-    }
-
-    // Step 1: Generate voiceover via ElevenLabs or use provided audio URL
+    // =============================================
+    // Step 1: Prepare voiceover
+    // =============================================
     let voiceoverUrl = audioUrl || video.voiceover_url;
     
     if (!voiceoverUrl) {
-      // Generate voiceover with ElevenLabs
       const selectedVoiceId = voiceId || video.advisor?.elevenlabs_voice_id || 'B7vhQtHJ3xG23dClyJE4';
-      
       const audioBuffer = await generateVoiceover(scriptText, selectedVoiceId, elevenLabsKey);
       
-      // Upload to storage
       const fileName = `voiceovers/${videoId}_${Date.now()}.mp3`;
-      const { data: uploadData, error: uploadError } = await supabase.storage
+      const { error: uploadError } = await supabase.storage
         .from('media-files')
         .upload(fileName, audioBuffer, { contentType: 'audio/mpeg', upsert: true });
+      if (uploadError) throw new Error(`Failed to upload voiceover: ${uploadError.message}`);
 
-      if (uploadError) {
-        throw new Error(`Failed to upload voiceover: ${uploadError.message}`);
-      }
-
-      const { data: urlData } = supabase.storage
-        .from('media-files')
-        .getPublicUrl(fileName);
+      const { data: urlData } = supabase.storage.from('media-files').getPublicUrl(fileName);
       voiceoverUrl = urlData.publicUrl;
 
-      // Save voiceover URL to video
-      await supabase
-        .from('videos')
-        .update({ voiceover_url: voiceoverUrl })
-        .eq('id', videoId);
-
-      console.log('Voiceover generated and uploaded:', voiceoverUrl);
+      await supabase.from('videos').update({ voiceover_url: voiceoverUrl }).eq('id', videoId);
+      console.log('Voiceover generated:', voiceoverUrl);
     }
 
-    // Step 2: Send to HeyGen with audio URL
+    // =============================================
+    // Step 2: Generate video via HeyGen
+    // =============================================
     const selectedAspectRatio = aspectRatio || '9:16';
     const dimensions = selectedAspectRatio === '16:9' 
       ? { width: 1920, height: 1080 }
       : { width: 1080, height: 1920 };
 
-    console.log(`Creating HeyGen video with aspect ratio ${selectedAspectRatio}, audio: ${voiceoverUrl}`);
+    let heygenVideoId: string;
 
-    const response = await fetch('https://api.heygen.com/v2/video/generate', {
-      method: 'POST',
-      headers: {
-        'X-Api-Key': heygenKey,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        video_inputs: [
-          {
-            character: {
-              type: 'talking_photo',
-              talking_photo_id: talkingPhotoId,
-            },
-            voice: {
-              type: 'audio',
-              audio_url: voiceoverUrl,
-            },
-          }
-        ],
-        dimension: dimensions,
-        aspect_ratio: selectedAspectRatio,
-      }),
-    });
-
-    if (!response.ok) {
-      const errorText = await response.text();
-      console.error('HeyGen API error:', errorText);
+    if (sceneUrl) {
+      // === NEW: Scene-based generation via av4 API ===
+      console.log('Using scene-based generation (av4 API)...');
       
-      await supabase
-        .from('videos')
-        .update({ generation_status: 'error' })
-        .eq('id', videoId);
+      const imageKey = await uploadAssetToHeygen(sceneUrl, heygenKey);
+      const audioAssetId = await uploadAudioToHeygen(voiceoverUrl, heygenKey);
+
+      const av4Response = await fetch('https://api.heygen.com/v2/video/av4/generate', {
+        method: 'POST',
+        headers: {
+          'X-Api-Key': heygenKey,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          image_key: imageKey,
+          audio_asset_id: audioAssetId,
+          dimension: dimensions,
+          aspect_ratio: selectedAspectRatio,
+          custom_motion_prompt: 'calm spiritual mentor, light hand movement, soft breathing, subtle head motion, natural eye contact, steady posture, gentle facial expressions, slow rhythm',
+        }),
+      });
+
+      if (!av4Response.ok) {
+        const errorText = await av4Response.text();
+        console.error('HeyGen av4 API error:', errorText);
+        await supabase.from('videos').update({ generation_status: 'error' }).eq('id', videoId);
+        throw new Error(`HeyGen av4 API error: ${av4Response.status} - ${errorText}`);
+      }
+
+      const av4Result = await av4Response.json();
+      heygenVideoId = av4Result.data?.video_id;
+      if (!heygenVideoId) throw new Error('No video ID from HeyGen av4: ' + JSON.stringify(av4Result));
+
+    } else {
+      // === FALLBACK: Traditional talking_photo approach ===
+      console.log('Using fallback talking_photo approach...');
       
-      throw new Error(`HeyGen API error: ${response.status} - ${errorText}`);
-    }
+      let talkingPhotoId = photoAssetId;
+      if (!talkingPhotoId && video.advisor_id) {
+        const { data: photos } = await supabase
+          .from('advisor_photos')
+          .select('heygen_asset_id')
+          .eq('advisor_id', video.advisor_id)
+          .eq('is_primary', true)
+          .limit(1);
+        talkingPhotoId = photos?.[0]?.heygen_asset_id || null;
+        
+        if (!talkingPhotoId) {
+          const { data: anyPhotos } = await supabase
+            .from('advisor_photos')
+            .select('heygen_asset_id')
+            .eq('advisor_id', video.advisor_id)
+            .not('heygen_asset_id', 'is', null)
+            .limit(1);
+          talkingPhotoId = anyPhotos?.[0]?.heygen_asset_id || null;
+        }
+      }
 
-    const result = await response.json();
-    const heygenVideoId = result.data?.video_id;
+      if (!talkingPhotoId) throw new Error('No HeyGen photo asset found. Upload a photo to HeyGen first.');
 
-    if (!heygenVideoId) {
-      throw new Error('No video ID returned from HeyGen');
+      const response = await fetch('https://api.heygen.com/v2/video/generate', {
+        method: 'POST',
+        headers: {
+          'X-Api-Key': heygenKey,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          video_inputs: [{
+            character: { type: 'talking_photo', talking_photo_id: talkingPhotoId },
+            voice: { type: 'audio', audio_url: voiceoverUrl },
+          }],
+          dimension: dimensions,
+          aspect_ratio: selectedAspectRatio,
+        }),
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        await supabase.from('videos').update({ generation_status: 'error' }).eq('id', videoId);
+        throw new Error(`HeyGen API error: ${response.status} - ${errorText}`);
+      }
+
+      const result = await response.json();
+      heygenVideoId = result.data?.video_id;
+      if (!heygenVideoId) throw new Error('No video ID returned from HeyGen');
     }
 
     console.log('HeyGen video created:', heygenVideoId);
 
-    // Update video with HeyGen ID
-    await supabase
-      .from('videos')
-      .update({ 
-        heygen_video_id: heygenVideoId,
-        generation_status: 'generating',
-      })
-      .eq('id', videoId);
+    await supabase.from('videos').update({ 
+      heygen_video_id: heygenVideoId,
+      generation_status: 'generating',
+    }).eq('id', videoId);
 
     const durationMs = Date.now() - startTime;
-
-    // Log activity
     await supabase.from('activity_log').insert({
       action: 'heygen_video_started',
       entity_type: 'video',
       entity_id: videoId,
-      details: { heygen_video_id: heygenVideoId, photo_asset_id: talkingPhotoId },
+      details: { heygen_video_id: heygenVideoId, used_scene: !!sceneUrl },
       duration_ms: durationMs,
     });
 
     return new Response(
-      JSON.stringify({ success: true, heygenVideoId }),
+      JSON.stringify({ success: true, heygenVideoId, usedScene: !!sceneUrl }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
 
   } catch (error: unknown) {
     console.error('HeyGen error:', error);
     const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-    
     return new Response(
       JSON.stringify({ success: false, error: errorMessage }),
       { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }

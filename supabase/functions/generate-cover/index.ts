@@ -21,7 +21,6 @@ async function pollTaskStatus(taskId: string, apiKey: string, maxAttempts = 60, 
     console.log(`Poll attempt ${i + 1}, state:`, result.data?.state, 'status:', result.data?.status);
 
     if (result.data?.state === 'success' || result.data?.status === 'SUCCESS' || result.data?.status === 'completed') {
-      // Try kie.ai v2 format: resultJson with resultUrls
       if (result.data?.resultJson) {
         try {
           const parsed = typeof result.data.resultJson === 'string' 
@@ -35,7 +34,6 @@ async function pollTaskStatus(taskId: string, apiKey: string, maxAttempts = 60, 
         }
       }
       
-      // Fallback: try various output formats
       const imageUrl = result.data?.output?.imageUrl || result.data?.output?.image_url || result.data?.response?.imageUrl;
       if (imageUrl) return imageUrl;
 
@@ -56,138 +54,248 @@ async function pollTaskStatus(taskId: string, apiKey: string, maxAttempts = 60, 
   throw new Error('Task polling timeout');
 }
 
+async function downloadAndUpload(
+  imageUrl: string, 
+  supabase: any, 
+  path: string
+): Promise<string> {
+  const imageRes = await fetch(imageUrl);
+  if (!imageRes.ok) throw new Error(`Failed to download image: ${imageRes.status}`);
+  const imageBuffer = new Uint8Array(await imageRes.arrayBuffer());
+
+  const { error: uploadError } = await supabase.storage
+    .from('media-files')
+    .upload(path, imageBuffer, { contentType: 'image/png', upsert: true });
+
+  if (uploadError) throw new Error(`Failed to upload image: ${uploadError.message}`);
+
+  const { data: urlData } = supabase.storage.from('media-files').getPublicUrl(path);
+  return urlData.publicUrl;
+}
+
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
   }
 
   try {
-    const { videoId, prompt, advisorPhotoUrl, advisorName } = await req.json();
-
-    if (!videoId) {
-      throw new Error('Video ID is required');
-    }
+    const { videoId, atmospherePrompt } = await req.json();
+    if (!videoId) throw new Error('Video ID is required');
 
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
     const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
     const kieApiKey = Deno.env.get('KIE_API_KEY');
+    const lovableApiKey = Deno.env.get('LOVABLE_API_KEY');
 
-    if (!kieApiKey) {
-      throw new Error('KIE_API_KEY is not configured');
-    }
+    if (!kieApiKey) throw new Error('KIE_API_KEY is not configured');
 
     const supabase = createClient(supabaseUrl, supabaseKey);
 
-    // Update video status to generating
-    await supabase
+    // Fetch video + advisor + playlist + primary photo
+    const { data: video, error: videoError } = await supabase
       .from('videos')
-      .update({ cover_status: 'generating' })
-      .eq('id', videoId);
+      .select(`
+        *,
+        advisor:advisors (id, name, display_name),
+        playlist:playlists (id, name)
+      `)
+      .eq('id', videoId)
+      .single();
 
-    // Build the prompt for cover generation
-    const coverPrompt = prompt || `Create a professional social media video cover/thumbnail in 9:16 portrait orientation.
-The main focus should be a spiritual advisor named "${advisorName || 'Spiritual Advisor'}".
-IMPORTANT: Include a prominent circular portrait/headshot of the advisor in the lower-left corner of the image.
-Add the advisor's name "${advisorName || ''}" as text overlay near the portrait.
-The background should be a serene, contemplative scene with soft lighting and spiritual atmosphere.
-Style: Modern, clean, inspirational with dramatic lighting.
-Make it visually appealing for TikTok/Instagram Reels.
-Ultra high resolution, 9:16 aspect ratio.`;
+    if (videoError || !video) throw new Error('Video not found');
 
-    console.log('Generating cover with kie.ai nano-banana-pro, prompt:', coverPrompt);
+    // Get advisor primary photo
+    let advisorPhotoUrl: string | null = null;
+    if (video.advisor_id) {
+      const { data: photos } = await supabase
+        .from('advisor_photos')
+        .select('photo_url')
+        .eq('advisor_id', video.advisor_id)
+        .eq('is_primary', true)
+        .limit(1);
+      
+      advisorPhotoUrl = photos?.[0]?.photo_url || null;
 
-    // Create task via kie.ai API
-    const createRes = await fetch('https://api.kie.ai/api/v1/jobs/createTask', {
+      if (!advisorPhotoUrl) {
+        const { data: anyPhotos } = await supabase
+          .from('advisor_photos')
+          .select('photo_url')
+          .eq('advisor_id', video.advisor_id)
+          .limit(1);
+        advisorPhotoUrl = anyPhotos?.[0]?.photo_url || null;
+      }
+    }
+
+    // Update status
+    await supabase.from('videos').update({ cover_status: 'generating' }).eq('id', videoId);
+
+    // =============================================
+    // STEP 1: Generate atmosphere background
+    // =============================================
+    
+    let generatedAtmospherePrompt = atmospherePrompt;
+
+    // If no atmosphere prompt provided, generate one via AI
+    if (!generatedAtmospherePrompt && lovableApiKey) {
+      const advisorName = video.advisor?.display_name || video.advisor?.name || '';
+      const playlistName = video.playlist?.name || '';
+      
+      console.log('Generating atmosphere prompt via AI...');
+      const aiResponse = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${lovableApiKey}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          model: 'google/gemini-2.5-flash',
+          messages: [
+            {
+              role: 'system',
+              content: `You are a visual concept designer. Generate a short, vivid prompt for an atmospheric background image for a spiritual video cover. 
+The image should NOT contain any people or faces - only atmosphere, scenery, and mood.
+Output ONLY the image generation prompt, nothing else. Keep it under 100 words.
+The prompt should be in English.`
+            },
+            {
+              role: 'user',
+              content: `Create an atmosphere background prompt for:
+Question: ${video.question || ''}
+Hook: ${video.hook || ''}
+Answer: ${video.advisor_answer || ''}
+Advisor: ${advisorName}
+Religion/Topic: ${playlistName}
+
+The background should evoke the spiritual and emotional tone of this content.`
+            }
+          ],
+        }),
+      });
+
+      if (aiResponse.ok) {
+        const aiData = await aiResponse.json();
+        generatedAtmospherePrompt = aiData.choices?.[0]?.message?.content?.trim() || '';
+        console.log('AI generated atmosphere prompt:', generatedAtmospherePrompt);
+      }
+    }
+
+    if (!generatedAtmospherePrompt) {
+      generatedAtmospherePrompt = `Serene spiritual atmosphere, soft ethereal light, contemplative mood, 9:16 portrait orientation, no people, abstract spiritual background`;
+    }
+
+    console.log('Step 1: Generating atmosphere with google/nano-banana...');
+    
+    // Call Kie.ai with google/nano-banana for atmosphere
+    const atmosRes = await fetch('https://api.kie.ai/api/v1/jobs/createTask', {
       method: 'POST',
       headers: {
         'Authorization': `Bearer ${kieApiKey}`,
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        model: 'nano-banana-pro',
+        model: 'google/nano-banana',
         input: {
-          prompt: coverPrompt,
+          prompt: generatedAtmospherePrompt + '. Ultra high resolution, 9:16 aspect ratio.',
           aspect_ratio: '9:16',
         },
       }),
     });
 
-    if (!createRes.ok) {
-      const errText = await createRes.text();
-      console.error('kie.ai createTask error:', errText);
-      throw new Error(`kie.ai createTask error: ${createRes.status} - ${errText}`);
+    if (!atmosRes.ok) {
+      const errText = await atmosRes.text();
+      throw new Error(`Atmosphere generation failed: ${atmosRes.status} - ${errText}`);
     }
 
-    const createData = await createRes.json();
-    const taskId = createData.data?.taskId;
+    const atmosData = await atmosRes.json();
+    const atmosTaskId = atmosData.data?.taskId;
+    if (!atmosTaskId) throw new Error('No taskId for atmosphere: ' + JSON.stringify(atmosData));
 
-    if (!taskId) {
-      throw new Error('No taskId returned from kie.ai: ' + JSON.stringify(createData));
-    }
+    console.log('Atmosphere task created:', atmosTaskId);
+    const atmosImageUrl = await pollTaskStatus(atmosTaskId, kieApiKey);
+    console.log('Atmosphere generated:', atmosImageUrl);
 
-    console.log('kie.ai task created:', taskId);
+    // Download and upload atmosphere
+    const atmosPath = `covers/${videoId}/atmosphere_${Date.now()}.png`;
+    const atmosphereStorageUrl = await downloadAndUpload(atmosImageUrl, supabase, atmosPath);
 
-    // Poll for completion
-    const generatedImageUrl = await pollTaskStatus(taskId, kieApiKey);
-    console.log('Image generated, URL:', generatedImageUrl);
+    // Save atmosphere to video
+    await supabase.from('videos').update({
+      atmosphere_url: atmosphereStorageUrl,
+      atmosphere_prompt: generatedAtmospherePrompt,
+      cover_status: 'atmosphere_ready',
+    }).eq('id', videoId);
 
-    // Download the image
-    const imageRes = await fetch(generatedImageUrl);
-    if (!imageRes.ok) {
-      throw new Error(`Failed to download image: ${imageRes.status}`);
-    }
-    const imageBuffer = new Uint8Array(await imageRes.arrayBuffer());
+    console.log('Atmosphere saved:', atmosphereStorageUrl);
 
-    const fileName = `covers/${videoId}/front_cover_${Date.now()}.png`;
+    // =============================================
+    // STEP 2: Overlay advisor photo onto atmosphere
+    // =============================================
 
-    const { error: uploadError } = await supabase.storage
-      .from('media-files')
-      .upload(fileName, imageBuffer, {
-        contentType: 'image/png',
-        upsert: true
-      });
-
-    if (uploadError) {
-      console.error('Upload error:', uploadError);
-      throw new Error(`Failed to upload image: ${uploadError.message}`);
-    }
-
-    const { data: urlData } = supabase.storage
-      .from('media-files')
-      .getPublicUrl(fileName);
-
-    const frontCoverUrl = urlData.publicUrl;
-
-    // Update video with the new cover
-    const { error: updateError } = await supabase
-      .from('videos')
-      .update({
+    if (!advisorPhotoUrl) {
+      console.log('No advisor photo found, skipping overlay step');
+      // Use atmosphere as final cover
+      await supabase.from('videos').update({
+        front_cover_url: atmosphereStorageUrl,
         cover_status: 'ready',
-        front_cover_url: frontCoverUrl,
-        cover_prompt: prompt
-      })
-      .eq('id', videoId);
+      }).eq('id', videoId);
+    } else {
+      console.log('Step 2: Overlaying advisor photo with nano-banana-pro...');
+      
+      const overlayPrompt = `Take this background atmosphere image and composite a circular portrait of the person from the second image into the bottom-left corner of the background. The portrait should be in a clean circle shape, about 30% of the image width. Add the name "${video.advisor?.display_name || video.advisor?.name || ''}" as elegant text near the portrait. Keep the background atmosphere intact. 9:16 portrait orientation.`;
 
-    if (updateError) {
-      throw new Error(`Failed to update video: ${updateError.message}`);
-    }
-
-    // Also save to cover_thumbnails table for history
-    await supabase
-      .from('cover_thumbnails')
-      .insert({
-        video_id: videoId,
-        prompt: coverPrompt,
-        front_cover_url: frontCoverUrl,
-        status: 'ready'
+      const overlayRes = await fetch('https://api.kie.ai/api/v1/jobs/createTask', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${kieApiKey}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          model: 'nano-banana-pro',
+          input: {
+            prompt: overlayPrompt,
+            image_input: [atmosphereStorageUrl, advisorPhotoUrl],
+            aspect_ratio: '9:16',
+          },
+        }),
       });
+
+      if (!overlayRes.ok) {
+        const errText = await overlayRes.text();
+        throw new Error(`Overlay generation failed: ${overlayRes.status} - ${errText}`);
+      }
+
+      const overlayData = await overlayRes.json();
+      const overlayTaskId = overlayData.data?.taskId;
+      if (!overlayTaskId) throw new Error('No taskId for overlay: ' + JSON.stringify(overlayData));
+
+      console.log('Overlay task created:', overlayTaskId);
+      const overlayImageUrl = await pollTaskStatus(overlayTaskId, kieApiKey);
+      console.log('Overlay generated:', overlayImageUrl);
+
+      // Download and upload final cover
+      const coverPath = `covers/${videoId}/front_cover_${Date.now()}.png`;
+      const frontCoverUrl = await downloadAndUpload(overlayImageUrl, supabase, coverPath);
+
+      // Update video with final cover
+      await supabase.from('videos').update({
+        front_cover_url: frontCoverUrl,
+        cover_status: 'ready',
+        cover_prompt: generatedAtmospherePrompt,
+      }).eq('id', videoId);
+
+      // Save to cover_thumbnails history
+      await supabase.from('cover_thumbnails').insert({
+        video_id: videoId,
+        prompt: generatedAtmospherePrompt,
+        front_cover_url: frontCoverUrl,
+        status: 'ready',
+      });
+
+      console.log('Final cover saved:', frontCoverUrl);
+    }
 
     return new Response(
-      JSON.stringify({
-        success: true,
-        frontCoverUrl,
-        message: 'Cover generated successfully'
-      }),
+      JSON.stringify({ success: true, message: 'Cover generated (2-step process)' }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
 
@@ -198,14 +306,8 @@ Ultra high resolution, 9:16 aspect ratio.`;
     try {
       const { videoId } = await req.clone().json();
       if (videoId) {
-        const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
-        const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
-        const supabase = createClient(supabaseUrl, supabaseKey);
-
-        await supabase
-          .from('videos')
-          .update({ cover_status: 'error' })
-          .eq('id', videoId);
+        const supabase = createClient(Deno.env.get('SUPABASE_URL')!, Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!);
+        await supabase.from('videos').update({ cover_status: 'error' }).eq('id', videoId);
       }
     } catch (e) {
       console.error('Failed to update error status:', e);
