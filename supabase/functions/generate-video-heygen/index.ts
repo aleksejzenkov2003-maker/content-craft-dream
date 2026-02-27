@@ -219,11 +219,13 @@ serve(async (req) => {
       if (!heygenVideoId) throw new Error('No video ID from HeyGen av4: ' + JSON.stringify(av4Result));
 
     } else {
-      // === FALLBACK: Use advisor photo + av4 API (no talking_photo look_id dependency) ===
-      console.log('Using advisor photo fallback (av4 API)...');
+      // === FALLBACK: Use front_cover_url or atmosphere_url or advisor photo ===
+      console.log('Using fallback image for av4 API...');
 
-      let fallbackPhotoUrl: string | null = null;
-      if (video.advisor_id) {
+      // Priority: front_cover_url > atmosphere_url > advisor photo
+      let fallbackImageUrl: string | null = video.front_cover_url || video.atmosphere_url || null;
+
+      if (!fallbackImageUrl && video.advisor_id) {
         const { data: photos } = await supabase
           .from('advisor_photos')
           .select('photo_url, is_primary')
@@ -232,16 +234,17 @@ serve(async (req) => {
           .order('is_primary', { ascending: false })
           .limit(5);
 
-        fallbackPhotoUrl = photos?.find((p: { is_primary: boolean | null }) => p.is_primary)?.photo_url
+        fallbackImageUrl = photos?.find((p: { is_primary: boolean | null }) => p.is_primary)?.photo_url
           || photos?.[0]?.photo_url
           || null;
       }
 
-      if (!fallbackPhotoUrl) {
-        throw new Error('No advisor photo found. Upload advisor photo first.');
+      if (!fallbackImageUrl) {
+        throw new Error('No image found. Generate a cover or upload advisor photo first.');
       }
 
-      const imageKey = await uploadAssetToHeygen(fallbackPhotoUrl, heygenKey);
+      console.log('Using fallback image:', fallbackImageUrl.substring(0, 80) + '...');
+      const imageKey = await uploadAssetToHeygen(fallbackImageUrl, heygenKey);
       const audioAssetId = await uploadAudioToHeygen(voiceoverUrl, heygenKey);
 
       const av4Response = await fetch('https://api.heygen.com/v2/video/av4/generate', {

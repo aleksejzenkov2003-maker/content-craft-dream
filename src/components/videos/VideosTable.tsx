@@ -12,6 +12,7 @@ import {
   HoverCardContent,
   HoverCardTrigger,
 } from '@/components/ui/hover-card';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { BulkActionsBar, BulkActionButton } from '@/components/ui/bulk-actions-bar';
 import { VideoFilters, VideoFilterState } from './VideoFilters';
 import { Video } from '@/hooks/useVideos';
@@ -664,6 +665,28 @@ export function VideosTable({
                               Озвучка
                             </Button>
                           )}
+                        </div>
+
+                        {/* Video Play button (if video exists) */}
+                        <div>
+                          {video.heygen_video_url ? (
+                            <Popover>
+                              <PopoverTrigger asChild>
+                                <Button size="xs" variant="outline" title="Смотреть видео">
+                                  <VideoIcon className="w-3 h-3" />
+                                </Button>
+                              </PopoverTrigger>
+                              <PopoverContent className="w-80 p-2" side="top">
+                                <video
+                                  src={video.heygen_video_url}
+                                  controls
+                                  autoPlay
+                                  className="w-full rounded-md"
+                                  poster={video.front_cover_url || undefined}
+                                />
+                              </PopoverContent>
+                            </Popover>
+                          ) : null}
                         </div>
 
                         {/* Video Generate button */}
