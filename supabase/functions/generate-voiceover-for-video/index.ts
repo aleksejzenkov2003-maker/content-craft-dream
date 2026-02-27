@@ -40,7 +40,7 @@ serve(async (req) => {
     // Set status to generating
     await supabase.from('videos').update({ voiceover_status: 'generating' }).eq('id', videoId);
 
-    const voiceId = video.advisor?.elevenlabs_voice_id || 'B7vhQtHJ3xG23dClyJE4';
+    const voiceId = video.advisor?.elevenlabs_voice_id || 'JBFqnCBsd6RMkjVDRZzb';
 
     console.log(`Calling ElevenLabs TTS, voice: ${voiceId}`);
     const response = await fetch(
