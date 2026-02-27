@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useRef } from 'react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Checkbox } from '@/components/ui/checkbox';
@@ -25,6 +25,7 @@ import {
   ChevronDown,
   ChevronRight,
   Play,
+  Pause,
   Sparkles,
   ArrowUpDown,
   ArrowUp,
@@ -143,6 +144,23 @@ export function VideosTable({
     hasVideo: null,
     dateRange: { from: null, to: null },
   });
+  const [playingAudioId, setPlayingAudioId] = useState<string | null>(null);
+  const audioRef = useRef<HTMLAudioElement | null>(null);
+
+  const toggleAudio = (videoId: string, url: string) => {
+    if (playingAudioId === videoId) {
+      audioRef.current?.pause();
+      audioRef.current = null;
+      setPlayingAudioId(null);
+    } else {
+      audioRef.current?.pause();
+      const audio = new Audio(url);
+      audio.onended = () => { setPlayingAudioId(null); audioRef.current = null; };
+      audio.play();
+      audioRef.current = audio;
+      setPlayingAudioId(videoId);
+    }
+  };
 
   const toggleQuestion = (question: string) => {
     const newExpanded = new Set(expandedQuestions);
@@ -472,7 +490,7 @@ export function VideosTable({
 
                 <CollapsibleContent>
                   {/* Table Header */}
-                  <div className="grid grid-cols-[40px_60px_150px_100px_100px_100px_70px_80px_80px_100px_80px_100px_1fr] gap-2 px-4 py-2 text-xs text-muted-foreground bg-muted/20 border-y border-border/30">
+                  <div className="grid grid-cols-[40px_60px_150px_100px_100px_100px_70px_80px_80px_100px_80px_120px] gap-2 px-4 py-2 text-xs text-muted-foreground bg-muted/20 border-y border-border/30">
                     <div></div>
                     <button
                       onClick={() => handleSort('id')}
@@ -510,7 +528,6 @@ export function VideosTable({
                     <div>Обложка</div>
                     <div>Озвучка</div>
                     <div>Video</div>
-                    <div>Каналы</div>
                   </div>
 
                   {/* Table Rows */}
@@ -523,7 +540,7 @@ export function VideosTable({
                     return (
                       <div
                         key={video.id}
-                        className="grid grid-cols-[40px_60px_150px_100px_100px_100px_70px_80px_80px_100px_80px_100px_1fr] gap-2 px-4 py-2 text-sm hover:bg-muted/30 border-b border-border/20 items-center"
+                        className="grid grid-cols-[40px_60px_150px_100px_100px_100px_70px_80px_80px_100px_80px_120px] gap-2 px-4 py-2 text-sm hover:bg-muted/30 border-b border-border/20 items-center"
                       >
                         {/* Checkbox */}
                         <div onClick={(e) => e.stopPropagation()}>
@@ -648,12 +665,13 @@ export function VideosTable({
                             <Button
                               size="xs"
                               variant="outline"
-                              onClick={() => {
-                                const audio = new Audio(video.voiceover_url!);
-                                audio.play();
-                              }}
+                              onClick={() => toggleAudio(video.id, video.voiceover_url!)}
                             >
-                              <Play className="w-3 h-3" />
+                              {playingAudioId === video.id ? (
+                                <Pause className="w-3 h-3" />
+                              ) : (
+                                <Play className="w-3 h-3" />
+                              )}
                             </Button>
                           ) : (
                             <Button
@@ -667,8 +685,8 @@ export function VideosTable({
                           )}
                         </div>
 
-                        {/* Video Play button (if video exists) */}
-                        <div>
+                        {/* Video: play + generate combined */}
+                        <div className="flex items-center gap-1">
                           {video.heygen_video_url ? (
                             <Popover>
                               <PopoverTrigger asChild>
@@ -687,10 +705,6 @@ export function VideosTable({
                               </PopoverContent>
                             </Popover>
                           ) : null}
-                        </div>
-
-                        {/* Video Generate button */}
-                        <div>
                           {video.generation_status === 'generating' ? (
                             <Button size="xs" variant="outline" disabled>
                               <Loader2 className="w-3 h-3 animate-spin" />
@@ -706,46 +720,6 @@ export function VideosTable({
                               Generate
                             </Button>
                           )}
-                        </div>
-
-                        {/* Publication channels - compact popover */}
-                        <div>
-                          <Popover>
-                            <PopoverTrigger asChild>
-                              <Button size="xs" variant="outline" className="text-xs h-6 px-2">
-                                <Send className="w-3 h-3 mr-1" />
-                                {(video.selected_channels?.length || 0)}
-                              </Button>
-                            </PopoverTrigger>
-                            <PopoverContent className="w-48 p-2" side="left">
-                              <div className="flex flex-wrap gap-1">
-                                {publishingChannels.filter(c => c.is_active).map((channel) => {
-                                  const isSelected = video.selected_channels?.includes(channel.id) || false;
-                                  return (
-                                    <Badge
-                                      key={channel.id}
-                                      variant={isSelected ? "default" : "outline"}
-                                      className={`text-[10px] font-normal cursor-pointer transition-colors ${
-                                        isSelected 
-                                          ? 'bg-primary text-primary-foreground hover:bg-primary/80' 
-                                          : 'hover:bg-muted'
-                                      }`}
-                                      onClick={(e) => {
-                                        e.stopPropagation();
-                                        const currentChannels = video.selected_channels || [];
-                                        const newChannels = isSelected
-                                          ? currentChannels.filter(id => id !== channel.id)
-                                          : [...currentChannels, channel.id];
-                                        onUpdateVideo?.(video.id, { selected_channels: newChannels });
-                                      }}
-                                    >
-                                      {channel.name}
-                                    </Badge>
-                                  );
-                                })}
-                              </div>
-                            </PopoverContent>
-                          </Popover>
                         </div>
                       </div>
                     );
