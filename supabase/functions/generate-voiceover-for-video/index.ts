@@ -12,9 +12,11 @@ serve(async (req) => {
   }
 
   const startTime = Date.now();
+  let videoId: string | null = null;
 
   try {
-    const { videoId } = await req.json();
+    const body = await req.json();
+    videoId = body?.videoId ?? null;
     if (!videoId) throw new Error('videoId is required');
 
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
@@ -105,11 +107,9 @@ serve(async (req) => {
 
     // Try to update status to error
     try {
-      const supabase = createClient(Deno.env.get('SUPABASE_URL')!, Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!);
-      // We need videoId but it may not be available if parsing failed
-      const body = await req.clone().json().catch(() => null);
-      if (body?.videoId) {
-        await supabase.from('videos').update({ voiceover_status: 'error' }).eq('id', body.videoId);
+      if (videoId) {
+        const supabase = createClient(Deno.env.get('SUPABASE_URL')!, Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!);
+        await supabase.from('videos').update({ voiceover_status: 'error' }).eq('id', videoId);
       }
     } catch (_) { /* ignore */ }
 
