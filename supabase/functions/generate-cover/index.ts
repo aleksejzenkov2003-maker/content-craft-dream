@@ -79,7 +79,7 @@ serve(async (req) => {
   }
 
   try {
-    const { videoId, atmospherePrompt } = await req.json();
+    const { videoId, atmospherePrompt, step } = await req.json();
     if (!videoId) throw new Error('Video ID is required');
 
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
@@ -129,37 +129,42 @@ serve(async (req) => {
     // Update status
     await supabase.from('videos').update({ cover_status: 'generating' }).eq('id', videoId);
 
+    // Determine which steps to run
+    const runAtmosphere = !step || step === 'atmosphere';
+    const runOverlay = !step || step === 'overlay';
+
+    let atmosphereStorageUrl = video.atmosphere_url;
+
     // =============================================
     // STEP 1: Generate atmosphere background
     // =============================================
-    
-    let generatedAtmospherePrompt = atmospherePrompt;
+    if (runAtmosphere) {
+      let generatedAtmospherePrompt = atmospherePrompt;
 
-    // If no atmosphere prompt provided, generate one via AI
-    if (!generatedAtmospherePrompt && lovableApiKey) {
-      const advisorName = video.advisor?.display_name || video.advisor?.name || '';
-      const playlistName = video.playlist?.name || '';
-      
-      console.log('Generating atmosphere prompt via AI...');
-      const aiResponse = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${lovableApiKey}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          model: 'google/gemini-2.5-flash',
-          messages: [
-            {
-              role: 'system',
-              content: `You are a visual concept designer. Generate a short, vivid prompt for an atmospheric background image for a spiritual video cover. 
+      if (!generatedAtmospherePrompt && lovableApiKey) {
+        const advisorName = video.advisor?.display_name || video.advisor?.name || '';
+        const playlistName = video.playlist?.name || '';
+        
+        console.log('Generating atmosphere prompt via AI...');
+        const aiResponse = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${lovableApiKey}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            model: 'google/gemini-2.5-flash',
+            messages: [
+              {
+                role: 'system',
+                content: `You are a visual concept designer. Generate a short, vivid prompt for an atmospheric background image for a spiritual video cover. 
 The image should NOT contain any people or faces - only atmosphere, scenery, and mood.
 Output ONLY the image generation prompt, nothing else. Keep it under 100 words.
 The prompt should be in English.`
-            },
-            {
-              role: 'user',
-              content: `Create an atmosphere background prompt for:
+              },
+              {
+                role: 'user',
+                content: `Create an atmosphere background prompt for:
 Question: ${video.question || ''}
 Hook: ${video.hook || ''}
 Answer: ${video.advisor_answer || ''}
@@ -167,69 +172,78 @@ Advisor: ${advisorName}
 Religion/Topic: ${playlistName}
 
 The background should evoke the spiritual and emotional tone of this content.`
-            }
-          ],
+              }
+            ],
+          }),
+        });
+
+        if (aiResponse.ok) {
+          const aiData = await aiResponse.json();
+          generatedAtmospherePrompt = aiData.choices?.[0]?.message?.content?.trim() || '';
+          console.log('AI generated atmosphere prompt:', generatedAtmospherePrompt);
+        }
+      }
+
+      if (!generatedAtmospherePrompt) {
+        generatedAtmospherePrompt = `Serene spiritual atmosphere, soft ethereal light, contemplative mood, 9:16 portrait orientation, no people, abstract spiritual background`;
+      }
+
+      console.log('Step 1: Generating atmosphere with google/nano-banana...');
+      
+      const atmosRes = await fetch('https://api.kie.ai/api/v1/jobs/createTask', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${kieApiKey}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          model: 'google/nano-banana',
+          input: {
+            prompt: generatedAtmospherePrompt + '. Ultra high resolution, 9:16 aspect ratio.',
+            aspect_ratio: '9:16',
+          },
         }),
       });
 
-      if (aiResponse.ok) {
-        const aiData = await aiResponse.json();
-        generatedAtmospherePrompt = aiData.choices?.[0]?.message?.content?.trim() || '';
-        console.log('AI generated atmosphere prompt:', generatedAtmospherePrompt);
+      if (!atmosRes.ok) {
+        const errText = await atmosRes.text();
+        throw new Error(`Atmosphere generation failed: ${atmosRes.status} - ${errText}`);
+      }
+
+      const atmosData = await atmosRes.json();
+      const atmosTaskId = atmosData.data?.taskId;
+      if (!atmosTaskId) throw new Error('No taskId for atmosphere: ' + JSON.stringify(atmosData));
+
+      console.log('Atmosphere task created:', atmosTaskId);
+      const atmosImageUrl = await pollTaskStatus(atmosTaskId, kieApiKey);
+
+      const atmosPath = `covers/${videoId}/atmosphere_${Date.now()}.png`;
+      atmosphereStorageUrl = await downloadAndUpload(atmosImageUrl, supabase, atmosPath);
+
+      await supabase.from('videos').update({
+        atmosphere_url: atmosphereStorageUrl,
+        atmosphere_prompt: generatedAtmospherePrompt,
+        cover_status: 'atmosphere_ready',
+      }).eq('id', videoId);
+
+      console.log('Atmosphere saved:', atmosphereStorageUrl);
+
+      // If only atmosphere step requested, return here
+      if (step === 'atmosphere') {
+        return new Response(
+          JSON.stringify({ success: true, step: 'atmosphere', atmosphereUrl: atmosphereStorageUrl }),
+          { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
       }
     }
-
-    if (!generatedAtmospherePrompt) {
-      generatedAtmospherePrompt = `Serene spiritual atmosphere, soft ethereal light, contemplative mood, 9:16 portrait orientation, no people, abstract spiritual background`;
-    }
-
-    console.log('Step 1: Generating atmosphere with google/nano-banana...');
-    
-    // Call Kie.ai with google/nano-banana for atmosphere
-    const atmosRes = await fetch('https://api.kie.ai/api/v1/jobs/createTask', {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${kieApiKey}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        model: 'google/nano-banana',
-        input: {
-          prompt: generatedAtmospherePrompt + '. Ultra high resolution, 9:16 aspect ratio.',
-          aspect_ratio: '9:16',
-        },
-      }),
-    });
-
-    if (!atmosRes.ok) {
-      const errText = await atmosRes.text();
-      throw new Error(`Atmosphere generation failed: ${atmosRes.status} - ${errText}`);
-    }
-
-    const atmosData = await atmosRes.json();
-    const atmosTaskId = atmosData.data?.taskId;
-    if (!atmosTaskId) throw new Error('No taskId for atmosphere: ' + JSON.stringify(atmosData));
-
-    console.log('Atmosphere task created:', atmosTaskId);
-    const atmosImageUrl = await pollTaskStatus(atmosTaskId, kieApiKey);
-    console.log('Atmosphere generated:', atmosImageUrl);
-
-    // Download and upload atmosphere
-    const atmosPath = `covers/${videoId}/atmosphere_${Date.now()}.png`;
-    const atmosphereStorageUrl = await downloadAndUpload(atmosImageUrl, supabase, atmosPath);
-
-    // Save atmosphere to video
-    await supabase.from('videos').update({
-      atmosphere_url: atmosphereStorageUrl,
-      atmosphere_prompt: generatedAtmospherePrompt,
-      cover_status: 'atmosphere_ready',
-    }).eq('id', videoId);
-
-    console.log('Atmosphere saved:', atmosphereStorageUrl);
 
     // =============================================
     // STEP 2: Overlay advisor photo onto atmosphere
     // =============================================
+
+    if (!atmosphereStorageUrl) {
+      throw new Error('No atmosphere image available. Generate atmosphere first (step 1).');
+    }
 
     if (!advisorPhotoUrl) {
       console.log('No advisor photo found, skipping overlay step');
