@@ -318,7 +318,8 @@ const minuteOptions = [0, 5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55];
   const groupedPublications = sortedPublications.reduce((acc, pub) => {
     let key: string;
     if (groupBy === 'channel') {
-      key = pub.channel?.name || 'Без канала';
+      // Group by social network type
+      key = pub.channel?.network_type || 'Без сети';
     } else {
       key = pub.video?.question || 'Без вопроса';
     }
@@ -469,10 +470,7 @@ const minuteOptions = [0, 5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55];
               <div className="p-4 border-b border-border flex items-center justify-between">
                 <div>
                   <div className="flex items-center gap-2">
-                    <h3 className="font-semibold">{groupName}</h3>
-                    {groupBy === 'channel' && networkType && (
-                      <Badge variant="outline">{networkType}</Badge>
-                    )}
+                    <h3 className="font-semibold capitalize">{groupName}</h3>
                   </div>
                   <p className="text-sm text-muted-foreground">{pubs.length} публикаций</p>
                 </div>
@@ -498,7 +496,7 @@ const minuteOptions = [0, 5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55];
                         ID {getSortIcon('video_number')}
                       </div>
                     </TableHead>
-                    {groupBy !== 'channel' && <TableHead className="w-[120px]">Канал</TableHead>}
+                    <TableHead className="w-[120px]">Канал</TableHead>
                     <TableHead 
                       className="w-[150px] cursor-pointer hover:bg-accent/50"
                       onClick={() => handleSort('post_date')}
@@ -557,11 +555,9 @@ const minuteOptions = [0, 5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55];
                           {pub.video?.video_number || '—'}
                         </Badge>
                       </TableCell>
-                      {groupBy !== 'channel' && (
-                        <TableCell>
-                          <Badge variant="outline">{pub.channel?.name}</Badge>
+                      <TableCell>
+                          <Badge variant="outline" className="text-xs">{pub.channel?.name || '—'}</Badge>
                         </TableCell>
-                      )}
                       <TableCell onClick={(e) => e.stopPropagation()}>
                         <InlineEdit
                           type="datetime"
