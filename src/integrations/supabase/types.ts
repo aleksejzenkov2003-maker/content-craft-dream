@@ -768,6 +768,8 @@ export type Database = {
           advisor_id: string | null
           answer_prompt: string | null
           answer_status: string | null
+          atmosphere_prompt: string | null
+          atmosphere_url: string | null
           back_cover_url: string | null
           cover_prompt: string | null
           cover_status: string | null
@@ -810,6 +812,8 @@ export type Database = {
           advisor_id?: string | null
           answer_prompt?: string | null
           answer_status?: string | null
+          atmosphere_prompt?: string | null
+          atmosphere_url?: string | null
           back_cover_url?: string | null
           cover_prompt?: string | null
           cover_status?: string | null
@@ -852,6 +856,8 @@ export type Database = {
           advisor_id?: string | null
           answer_prompt?: string | null
           answer_status?: string | null
+          atmosphere_prompt?: string | null
+          atmosphere_url?: string | null
           back_cover_url?: string | null
           cover_prompt?: string | null
           cover_status?: string | null
