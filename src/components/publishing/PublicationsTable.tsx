@@ -496,7 +496,7 @@ const minuteOptions = [0, 5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55];
                         ID {getSortIcon('video_number')}
                       </div>
                     </TableHead>
-                    <TableHead className="w-[120px]">Канал</TableHead>
+                    <TableHead className="w-[120px]">Учетная запись</TableHead>
                     <TableHead 
                       className="w-[150px] cursor-pointer hover:bg-accent/50"
                       onClick={() => handleSort('post_date')}
