@@ -490,7 +490,7 @@ export function VideosTable({
 
                 <CollapsibleContent>
                   {/* Table Header */}
-                  <div className="grid grid-cols-[40px_60px_150px_100px_100px_100px_70px_80px_80px_100px_80px_120px] gap-2 px-4 py-2 text-xs text-muted-foreground bg-muted/20 border-y border-border/30">
+                  <div className="grid grid-cols-[40px_60px_150px_100px_100px_100px_70px_80px_80px_100px_80px_120px_40px] gap-2 px-4 py-2 text-xs text-muted-foreground bg-muted/20 border-y border-border/30">
                     <div></div>
                     <button
                       onClick={() => handleSort('id')}
@@ -528,6 +528,7 @@ export function VideosTable({
                     <div>Обложка</div>
                     <div>Озвучка</div>
                     <div>Video</div>
+                    <div></div>
                   </div>
 
                   {/* Table Rows */}
@@ -540,7 +541,7 @@ export function VideosTable({
                     return (
                       <div
                         key={video.id}
-                        className="grid grid-cols-[40px_60px_150px_100px_100px_100px_70px_80px_80px_100px_80px_120px] gap-2 px-4 py-2 text-sm hover:bg-muted/30 border-b border-border/20 items-center"
+                        className="grid grid-cols-[40px_60px_150px_100px_100px_100px_70px_80px_80px_100px_80px_120px_40px] gap-2 px-4 py-2 text-sm hover:bg-muted/30 border-b border-border/20 items-center"
                       >
                         {/* Checkbox */}
                         <div onClick={(e) => e.stopPropagation()}>
@@ -720,6 +721,45 @@ export function VideosTable({
                               Generate
                             </Button>
                           )}
+                        </div>
+
+                        {/* Channels popover */}
+                        <div>
+                          <Popover>
+                            <PopoverTrigger asChild>
+                              <Button size="xs" variant="ghost" className="h-6 w-6 p-0" title="Каналы публикации">
+                                <Send className="w-3 h-3" />
+                              </Button>
+                            </PopoverTrigger>
+                            <PopoverContent className="w-48 p-2" side="left">
+                              <div className="flex flex-wrap gap-1">
+                                {publishingChannels.filter(c => c.is_active).map((channel) => {
+                                  const isSelected = video.selected_channels?.includes(channel.id) || false;
+                                  return (
+                                    <Badge
+                                      key={channel.id}
+                                      variant={isSelected ? "default" : "outline"}
+                                      className={`text-[10px] font-normal cursor-pointer transition-colors ${
+                                        isSelected 
+                                          ? 'bg-primary text-primary-foreground hover:bg-primary/80' 
+                                          : 'hover:bg-muted'
+                                      }`}
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        const currentChannels = video.selected_channels || [];
+                                        const newChannels = isSelected
+                                          ? currentChannels.filter(id => id !== channel.id)
+                                          : [...currentChannels, channel.id];
+                                        onUpdateVideo?.(video.id, { selected_channels: newChannels });
+                                      }}
+                                    >
+                                      {channel.name}
+                                    </Badge>
+                                  );
+                                })}
+                              </div>
+                            </PopoverContent>
+                          </Popover>
                         </div>
                       </div>
                     );
