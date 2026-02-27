@@ -79,7 +79,8 @@ serve(async (req) => {
   }
 
   try {
-    const { videoId, atmospherePrompt, step } = await req.json();
+    const body = await req.json();
+    const { videoId, atmospherePrompt, step } = body;
     if (!videoId) throw new Error('Video ID is required');
 
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
@@ -134,6 +135,7 @@ serve(async (req) => {
     const runOverlay = !step || step === 'overlay';
 
     let atmosphereStorageUrl = video.atmosphere_url;
+    let finalAtmospherePrompt = video.atmosphere_prompt || '';
 
     // =============================================
     // STEP 1: Generate atmosphere background
@@ -220,9 +222,11 @@ The background should evoke the spiritual and emotional tone of this content.`
       const atmosPath = `covers/${videoId}/atmosphere_${Date.now()}.png`;
       atmosphereStorageUrl = await downloadAndUpload(atmosImageUrl, supabase, atmosPath);
 
+      finalAtmospherePrompt = generatedAtmospherePrompt;
+
       await supabase.from('videos').update({
         atmosphere_url: atmosphereStorageUrl,
-        atmosphere_prompt: generatedAtmospherePrompt,
+        atmosphere_prompt: finalAtmospherePrompt,
         cover_status: 'atmosphere_ready',
       }).eq('id', videoId);
 
@@ -294,13 +298,13 @@ The background should evoke the spiritual and emotional tone of this content.`
       await supabase.from('videos').update({
         front_cover_url: frontCoverUrl,
         cover_status: 'ready',
-        cover_prompt: generatedAtmospherePrompt,
+        cover_prompt: finalAtmospherePrompt,
       }).eq('id', videoId);
 
       // Save to cover_thumbnails history
       await supabase.from('cover_thumbnails').insert({
         video_id: videoId,
-        prompt: generatedAtmospherePrompt,
+        prompt: finalAtmospherePrompt,
         front_cover_url: frontCoverUrl,
         status: 'ready',
       });
@@ -318,10 +322,9 @@ The background should evoke the spiritual and emotional tone of this content.`
     console.error('Error generating cover:', errorMessage);
 
     try {
-      const { videoId } = await req.clone().json();
-      if (videoId) {
+      if (body?.videoId) {
         const supabase = createClient(Deno.env.get('SUPABASE_URL')!, Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!);
-        await supabase.from('videos').update({ cover_status: 'error' }).eq('id', videoId);
+        await supabase.from('videos').update({ cover_status: 'error' }).eq('id', body.videoId);
       }
     } catch (e) {
       console.error('Failed to update error status:', e);
