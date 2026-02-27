@@ -437,13 +437,16 @@ export function VideoSidePanel({
                   size="sm"
                   className="h-7 text-xs bg-green-600 hover:bg-green-700 text-white"
                   onClick={() => onGenerateVideo(video)}
-                  disabled={video.generation_status === 'generating' || isGenerating}
+                  disabled={video.generation_status === 'generating' || isGenerating || !video.voiceover_url}
+                  title={!video.voiceover_url ? 'Сначала создайте озвучку' : undefined}
                 >
                   {video.generation_status === 'generating' || isGenerating ? (
                     <>
                       <Loader2 className="w-3 h-3 mr-1 animate-spin" />
                       Generating...
                     </>
+                  ) : !video.voiceover_url ? (
+                    'Нужна озвучка'
                   ) : (
                     'Generate Video'
                   )}
