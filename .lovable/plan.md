@@ -1,72 +1,54 @@
 
 
-## Analysis of n8n Workflows vs Current Edge Functions
+## Add Voiceover Step to Video Workflow
 
-From the uploaded n8n workflows, the real production logic has two critical differences from the current implementation:
+Currently voiceover generation is embedded inside the `generate-video-heygen` edge function. The user wants it as a separate, visible step in the pipeline — both in the table and side panel.
 
-### 1. Cover Creation is a 2-Step Process
+### Changes
 
-**n8n logic (correct):**
-1. **Step 1 - Atmosphere**: Claude generates a visual concept prompt from question/hook/answer/religion, then Kie.ai `google/nano-banana` generates a background atmosphere image (no avatar)
-2. **Step 2 - Overlay ("Подписать обложку")**: Kie.ai `nano-banana-pro` takes the atmosphere image + advisor photo as `image_input` and composites a circular avatar portrait onto the background
-
-**Current `generate-cover` edge function (wrong):** Does everything in ONE step with a text-only prompt asking for a background with a circle portrait embedded. No actual photo compositing happens.
-
-### 2. Video Generation Uses Scene Photo, Not Just Avatar
-
-**n8n logic (correct):**
-1. Find the **scene** (Фото сцены) for the video's playlist+advisor combination
-2. Download the scene photo (which is a composite of advisor + background)
-3. Upload it to HeyGen as a new asset via `POST /upload/v1/asset` → get `image_key`
-4. Upload voiceover audio to HeyGen → get `audio_asset_id`
-5. Call HeyGen **`/v2/video/av4/generate`** with `image_key`, `audio_asset_id`, and `custom_motion_prompt`
-
-**Current `generate-video-heygen` edge function (wrong):**
-- Uses a pre-uploaded `talking_photo_id` (just the raw avatar photo)
-- Calls HeyGen `/v2/video/generate` with `talking_photo` character type
-- Does NOT use the scene as the background image
-
-### Plan
-
-#### A. Rewrite `generate-cover` edge function — 2-step process
-
-1. Accept `videoId` and optionally `atmospherePrompt`
-2. Fetch video data (question, hook, answer) + advisor info (name, religion/playlist) + advisor primary photo URL
-3. **Step 1**: Call AI (Lovable AI gateway with gemini-2.5-flash) to generate atmosphere prompt from content, then send to Kie.ai `google/nano-banana` to generate the atmosphere background
-4. Save `atmosphere_url` to video record, set `cover_status = 'atmosphere_ready'`
-5. **Step 2**: Call Kie.ai `nano-banana-pro` with the atmosphere image + advisor photo as `image_input` to composite the circular avatar overlay
-6. Save final `front_cover_url`, set `cover_status = 'ready'`
-
-New DB fields needed on `videos` table:
-- `atmosphere_url` (text) — stores the intermediate atmosphere image
-- `atmosphere_prompt` (text) — stores the generated atmosphere prompt
-
-#### B. Rewrite `generate-video-heygen` edge function — use scene photo
-
-1. Fetch video with advisor and playlist data
-2. Look up the **scene** from `playlist_scenes` matching the video's `playlist_id` + `advisor_id` with status 'approved' and a `scene_url`
-3. If no scene found, fall back to current behavior (talking_photo_id)
-4. If scene found:
-   - Download the scene image
-   - Upload it to HeyGen via `POST https://upload.heygen.com/v1/asset` → get `image_key`
-   - Generate/use voiceover, upload audio to HeyGen → get `audio_asset_id`
-   - Call **`POST /v2/video/av4/generate`** with `image_key`, `audio_asset_id`, and `custom_motion_prompt: "calm spiritual mentor, light hand movement, soft breathing, subtle head motion, natural eye contact, steady posture, gentle facial expressions, slow rhythm"`
-5. Save `heygen_video_id` to video record
-
-#### C. Add DB migration for new fields
+#### 1. Add voiceover status column to `videos` table
+New migration adding `voiceover_status` column (values: `pending`, `generating`, `ready`, `error`).
 
 ```sql
-ALTER TABLE videos ADD COLUMN IF NOT EXISTS atmosphere_url text;
-ALTER TABLE videos ADD COLUMN IF NOT EXISTS atmosphere_prompt text;
+ALTER TABLE videos ADD COLUMN IF NOT EXISTS voiceover_status text DEFAULT 'pending';
 ```
 
-#### D. Update UI to show atmosphere step
+#### 2. Create `generate-voiceover-for-video` edge function
+A dedicated function that:
+- Takes `videoId`
+- Reads `advisor_answer` text and advisor's `elevenlabs_voice_id`
+- Calls ElevenLabs TTS API
+- Uploads audio to Supabase Storage (`media-files` bucket)
+- Updates `voiceover_url` and `voiceover_status` on the `videos` record
 
-In `VideoSidePanel.tsx`, display `atmosphere_url` as an intermediate preview and show the 2-step cover status (atmosphere → final cover).
+#### 3. Update `VideosTable.tsx`
+- Add a new column "Озвучка" between the Cover and Video columns in the table header and rows
+- Show voiceover status indicator (dot + label) 
+- Add a "Озвучка" button to trigger generation
+- When `voiceover_url` exists, show a small play button to preview audio
+- Add `voiceover_status` to status configs and labels
+
+#### 4. Update `VideoSidePanel.tsx`
+- Add a new "Озвучка" section between "Ответ духовника" and "Обложка"
+- Include: generate button, audio player (when URL exists), status selector
+- The audio player shows play/pause with the voiceover audio
+
+#### 5. Update `Index.tsx`
+- Add `handleGenerateVoiceover(video)` handler that calls the new edge function
+- Pass it as `onGenerateVoiceover` prop to both `VideosTable` and `VideoSidePanel`
+
+#### 6. Update `generate-video-heygen` edge function
+- Skip voiceover generation if `voiceover_url` already exists on the video
+- This is already partially done (it checks `audioUrl || video.voiceover_url`) — just ensure it works correctly with the new flow
+
+#### 7. Update `Video` interface in `useVideos.ts`
+- Add `voiceover_status: string | null` field
 
 ### Files to modify
-- `supabase/functions/generate-cover/index.ts` — full rewrite to 2-step
-- `supabase/functions/generate-video-heygen/index.ts` — use scene photo + av4 API
-- DB migration — add `atmosphere_url`, `atmosphere_prompt` columns
-- `src/components/videos/VideoSidePanel.tsx` — show atmosphere preview
+- New migration (add `voiceover_status` column)
+- New edge function: `supabase/functions/generate-voiceover-for-video/index.ts`
+- `src/hooks/useVideos.ts` — add `voiceover_status` to interface
+- `src/pages/Index.tsx` — add handler
+- `src/components/videos/VideosTable.tsx` — add column
+- `src/components/videos/VideoSidePanel.tsx` — add section
 
