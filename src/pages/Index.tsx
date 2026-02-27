@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Sidebar } from '@/components/layout/Sidebar';
 import { Header } from '@/components/layout/Header';
 import { StatsCard } from '@/components/dashboard/StatsCard';
@@ -80,8 +80,61 @@ export default function Index() {
     publications: publications.length,
   };
 
-  const handleGenerateVideo = async (video: Video, photoAssetId: string) => {
-    await generateVideo(video, photoAssetId);
+  const videoPollingRef = useRef<Record<string, NodeJS.Timeout>>({});
+
+  const stopVideoPolling = (videoId: string) => {
+    if (videoPollingRef.current[videoId]) {
+      clearInterval(videoPollingRef.current[videoId]);
+      delete videoPollingRef.current[videoId];
+    }
+  };
+
+  const startVideoPolling = (videoId: string) => {
+    stopVideoPolling(videoId);
+    videoPollingRef.current[videoId] = setInterval(async () => {
+      try {
+        const { data, error } = await supabase.functions.invoke('check-video-status', {
+          body: { videoId },
+        });
+        if (error) { console.error('Video polling error:', error); return; }
+        if (data.status === 'ready') {
+          stopVideoPolling(videoId);
+          toast.success('Видео готово!');
+          refetchVideos();
+        } else if (data.status === 'error' || data.status === 'failed') {
+          stopVideoPolling(videoId);
+          toast.error('Ошибка генерации видео');
+          refetchVideos();
+        }
+      } catch (err) { console.error('Video polling error:', err); }
+    }, 12000);
+  };
+
+  const handleGenerateVideo = async (video: Video) => {
+    if (!video.voiceover_url) {
+      toast.error('Сначала создайте озвучку');
+      return;
+    }
+    try {
+      toast.info('Запуск генерации видео...');
+      await updateVideo(video.id, { generation_status: 'generating' }, { silent: true });
+      refetchVideos();
+
+      const { data, error } = await supabase.functions.invoke('generate-video-heygen', {
+        body: { videoId: video.id },
+      });
+
+      if (error) throw error;
+      if (!data?.success) throw new Error(data?.error || 'Failed to start video generation');
+
+      toast.success('Генерация видео запущена');
+      startVideoPolling(video.id);
+    } catch (error: any) {
+      console.error('Error generating video:', error);
+      toast.error('Ошибка запуска генерации видео');
+      await updateVideo(video.id, { generation_status: 'error' }, { silent: true });
+      refetchVideos();
+    }
   };
 
   const handleUploadPhotoToHeygen = async (photo: any) => {
@@ -335,7 +388,7 @@ export default function Index() {
                 loading={videosLoading}
                 onEditVideo={(video) => { setEditingVideo(video); setShowVideoEditor(true); }}
                 onDeleteVideo={deleteVideo}
-                onGenerateVideo={(video) => handleViewVideo(video)}
+                onGenerateVideo={handleGenerateVideo}
                 onGenerateCover={handleGenerateCover}
                 onGenerateAtmosphere={handleGenerateAtmosphere}
                 onGenerateVoiceover={handleGenerateVoiceover}
@@ -352,7 +405,7 @@ export default function Index() {
                 }}
                 onBulkGenerateVideos={async (videoIds) => {
                   const videosToProcess = videos.filter(v => videoIds.includes(v.id));
-                  for (const video of videosToProcess) { handleViewVideo(video); }
+                  for (const video of videosToProcess) { await handleGenerateVideo(video); }
                 }}
                 onBulkUpdateStatus={async (videoIds, status) => {
                   for (const id of videoIds) { await updateVideo(id, { generation_status: status }); }

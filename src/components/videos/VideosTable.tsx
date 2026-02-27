@@ -677,6 +677,8 @@ export function VideosTable({
                               size="xs"
                               variant="generate-video"
                               onClick={() => onGenerateVideo(video)}
+                              disabled={!video.voiceover_url}
+                              title={!video.voiceover_url ? 'Сначала создайте озвучку' : undefined}
                             >
                               Generate
                             </Button>
