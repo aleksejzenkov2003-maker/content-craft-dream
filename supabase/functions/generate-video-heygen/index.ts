@@ -200,6 +200,7 @@ serve(async (req) => {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
+          video_title: video.video_title || video.question || `Video ${videoId}`,
           image_key: imageKey,
           audio_asset_id: audioAssetId,
           dimension: dimensions,
@@ -252,6 +253,7 @@ serve(async (req) => {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
+          video_title: video.video_title || video.question || `Video ${videoId}`,
           image_key: imageKey,
           audio_asset_id: audioAssetId,
           dimension: dimensions,
