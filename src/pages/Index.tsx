@@ -88,6 +88,32 @@ export default function Index() {
     return await uploadPhotoToHeygen(photo);
   };
 
+  const handleGenerateAtmosphere = async (video: Video) => {
+    try {
+      toast.info('Генерация фона (атмосферы)...');
+      
+      const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/generate-cover`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
+        },
+        body: JSON.stringify({
+          videoId: video.id,
+          step: 'atmosphere',
+        }),
+      });
+
+      if (!response.ok) throw new Error('Failed to generate atmosphere');
+      toast.success('Фон (атмосфера) сгенерирован!');
+      refetchVideos();
+    } catch (error) {
+      console.error('Error generating atmosphere:', error);
+      toast.error('Ошибка генерации фона');
+      refetchVideos();
+    }
+  };
+
   const handleGenerateCover = async (video: Video) => {
     try {
       toast.info('Генерация обложки...');
@@ -100,16 +126,11 @@ export default function Index() {
         },
         body: JSON.stringify({
           videoId: video.id,
-          prompt: video.cover_prompt,
-          advisorPhotoUrl: video.main_photo_url,
-          advisorName: video.advisor?.display_name || video.advisor?.name,
+          step: 'overlay',
         }),
       });
 
-      if (!response.ok) {
-        throw new Error('Failed to generate cover');
-      }
-
+      if (!response.ok) throw new Error('Failed to generate cover');
       toast.success('Обложка сгенерирована!');
       refetchVideos();
     } catch (error) {
@@ -517,6 +538,7 @@ export default function Index() {
                 onOpenChange={(open) => { setShowSidePanel(open); if (!open) setViewingVideo(null); }}
                 advisors={advisors}
                 publishingChannels={publishingChannels}
+                onGenerateAtmosphere={handleGenerateAtmosphere}
                 onGenerateCover={handleGenerateCover}
                 onGenerateVideo={(video) => { setShowVideoDetail(true); }}
                 onUpdateVideo={updateVideo}

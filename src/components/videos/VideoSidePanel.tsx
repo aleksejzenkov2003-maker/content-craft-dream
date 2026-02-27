@@ -34,6 +34,8 @@ import {
   Check,
   Trash2,
   CalendarIcon,
+  Sun,
+  Layers,
 } from 'lucide-react';
 import { format } from 'date-fns';
 import { ru } from 'date-fns/locale';
@@ -45,6 +47,7 @@ interface VideoSidePanelProps {
   onOpenChange: (open: boolean) => void;
   advisors: Advisor[];
   publishingChannels: PublishingChannel[];
+  onGenerateAtmosphere: (video: Video) => void;
   onGenerateCover: (video: Video) => void;
   onGenerateVideo: (video: Video) => void;
   onUpdateVideo: (id: string, updates: Partial<Video>) => void;
@@ -74,6 +77,7 @@ export function VideoSidePanel({
   onOpenChange,
   advisors,
   publishingChannels,
+  onGenerateAtmosphere,
   onGenerateCover,
   onGenerateVideo,
   onUpdateVideo,
@@ -87,16 +91,13 @@ export function VideoSidePanel({
   const advisor = advisors.find(a => a.id === video?.advisor_id);
   const advisorName = advisor?.display_name || advisor?.name || 'Духовник';
 
-  // Initialize state from video data when video changes
   useEffect(() => {
-    // If video has no selected channels, pre-fill from advisor's default_channels
     const channels = video?.selected_channels;
     if (channels && channels.length > 0) {
       setSelectedChannels(channels);
     } else if (advisor?.default_channels && advisor.default_channels.length > 0) {
       const defaults = advisor.default_channels;
       setSelectedChannels(defaults);
-      // Save the defaults to the video
       if (video?.id) {
         onUpdateVideo(video.id, { selected_channels: defaults } as any);
       }
@@ -120,7 +121,6 @@ export function VideoSidePanel({
     const newChannels = selectedChannels.includes(channelId)
       ? selectedChannels.filter(id => id !== channelId)
       : [...selectedChannels, channelId];
-    
     setSelectedChannels(newChannels);
     onUpdateVideo(video.id, { selected_channels: newChannels } as any);
   };
@@ -143,6 +143,9 @@ export function VideoSidePanel({
   };
 
   const pubDate = video.publication_date ? new Date(video.publication_date) : undefined;
+  const atmosphereUrl = (video as any).atmosphere_url;
+  const atmospherePrompt = (video as any).atmosphere_prompt;
+  const isGeneratingCover = video.cover_status === 'generating';
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
@@ -175,7 +178,7 @@ export function VideoSidePanel({
 
         <ScrollArea className="flex-1">
           <div className="p-4 space-y-4">
-            {/* Publication channels - moved to top */}
+            {/* Publication channels */}
             <div>
               <h4 className="font-medium text-sm mb-3">Каналы публикации</h4>
               <div className="flex flex-wrap gap-2">
@@ -198,13 +201,8 @@ export function VideoSidePanel({
                   );
                 })}
               </div>
-              
-              {/* Publish button */}
               {selectedChannels.length > 0 && (
-                <Button
-                  className="w-full mt-4"
-                  onClick={handlePublish}
-                >
+                <Button className="w-full mt-4" onClick={handlePublish}>
                   Публикация ({selectedChannels.length})
                 </Button>
               )}
@@ -224,7 +222,7 @@ export function VideoSidePanel({
               />
             </div>
 
-            {/* Publication date - editable */}
+            {/* Publication date */}
             <div className="grid grid-cols-[140px_1fr] gap-2 items-center">
               <Label className="text-sm">Плановая публикация</Label>
               <Popover open={pubDateOpen} onOpenChange={setPubDateOpen}>
@@ -246,137 +244,147 @@ export function VideoSidePanel({
               </Popover>
             </div>
 
-            {/* Front Cover Generate */}
-            <div className="grid grid-cols-[140px_1fr] gap-2 items-center">
-              <Label className="text-sm">Front Cover</Label>
-              <Button
-                size="sm"
-                className="w-fit h-7 text-xs bg-orange-500 hover:bg-orange-600 text-white"
-                onClick={() => onGenerateCover(video)}
-                disabled={video.cover_status === 'generating'}
-              >
-                {video.cover_status === 'generating' ? (
-                  <>
-                    <Loader2 className="w-3 h-3 mr-1 animate-spin" />
-                    Generating...
-                  </>
-                ) : (
-                  'Generate Cover'
-                )}
-              </Button>
-            </div>
+            <Separator className="my-4" />
 
-            {/* Atmosphere Preview (Step 1) */}
-            {(video as any).atmosphere_url && (
-              <div className="space-y-2">
-                <Label className="text-sm flex items-center gap-2">
-                  Атмосфера (шаг 1)
-                  {video.cover_status === 'atmosphere_ready' && (
-                    <Badge variant="outline" className="text-[9px] px-1.5 py-0 border-amber-500 text-amber-600">Шаг 2 в очереди</Badge>
+            {/* === COVER SECTION: 2-step generation === */}
+            <div className="space-y-3">
+              <h4 className="font-medium text-sm">Обложка</h4>
+              
+              {/* Two generation buttons */}
+              <div className="grid grid-cols-2 gap-2">
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="h-8 text-xs border-amber-500/50 text-amber-700 hover:bg-amber-50 dark:hover:bg-amber-950/20"
+                  onClick={() => onGenerateAtmosphere(video)}
+                  disabled={isGeneratingCover}
+                >
+                  {isGeneratingCover ? (
+                    <Loader2 className="w-3 h-3 mr-1 animate-spin" />
+                  ) : (
+                    <Sun className="w-3 h-3 mr-1" />
                   )}
-                </Label>
-                <div className="relative aspect-[9/16] rounded-lg overflow-hidden border bg-muted max-w-[140px]">
-                  <img 
-                    src={(video as any).atmosphere_url} 
-                    alt="Atmosphere" 
-                    className="w-full h-full object-cover"
-                  />
-                </div>
-                {(video as any).atmosphere_prompt && (
-                  <p className="text-[10px] text-muted-foreground italic line-clamp-2">{(video as any).atmosphere_prompt}</p>
-                )}
-              </div>
-            )}
-
-            {/* Cover Gallery */}
-            <div className="space-y-2">
-              <Label className="text-sm">Обложка (шаг 2 — финал)</Label>
-              <div className="grid grid-cols-3 gap-2">
-                {video.front_cover_url ? (
-                  <div className="relative aspect-[9/16] rounded-lg overflow-hidden border-2 border-primary bg-muted group cursor-pointer">
-                    <img 
-                      src={video.front_cover_url} 
-                      alt="Cover" 
-                      className="w-full h-full object-cover"
-                    />
-                    <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-1">
-                      <Button size="icon" variant="ghost" className="h-6 w-6 text-white hover:text-white hover:bg-white/20">
-                        <Check className="w-3 h-3" />
-                      </Button>
-                      <Button size="icon" variant="ghost" className="h-6 w-6 text-white hover:text-white hover:bg-white/20">
-                        <Trash2 className="w-3 h-3" />
-                      </Button>
-                    </div>
-                    <div className="absolute top-1 right-1">
-                      <Badge className="text-[9px] px-1 py-0 bg-primary">Active</Badge>
-                    </div>
-                  </div>
-                ) : null}
-                {[...Array(video.front_cover_url ? 2 : 3)].map((_, i) => (
-                  <div 
-                    key={i}
-                    className="aspect-[9/16] rounded-lg border-2 border-dashed border-muted-foreground/30 bg-muted/50 flex flex-col items-center justify-center gap-1 cursor-pointer hover:border-muted-foreground/50 transition-colors"
-                  >
-                    <ImageIcon className="w-6 h-6 text-muted-foreground/50" />
-                    <span className="text-[10px] text-muted-foreground/50">Пусто</span>
-                  </div>
-                ))}
-              </div>
-              <Button 
-                variant="outline" 
-                size="sm" 
-                className="w-full text-xs"
-                onClick={() => onGenerateCover(video)}
-                disabled={video.cover_status === 'generating'}
-              >
-                <RefreshCw className="w-3 h-3 mr-1" />
-                Сгенерировать ещё
-              </Button>
-            </div>
-
-            {/* Cover status */}
-            <div className="grid grid-cols-[140px_1fr] gap-2 items-center">
-              <Label className="text-sm">Cover status</Label>
-              <Select
-                value={video.cover_status || 'pending'}
-                onValueChange={handleCoverStatusChange}
-              >
-                <SelectTrigger className="h-8">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {coverStatusOptions.map((option) => (
-                    <SelectItem key={option.value} value={option.value}>
-                      {option.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-
-            {/* Video Generate */}
-            <div className="grid grid-cols-[140px_1fr] gap-2 items-center">
-              <Label className="text-sm">Video</Label>
-              <Button
-                size="sm"
-                className="w-fit h-7 text-xs bg-green-500 hover:bg-green-600 text-white"
-                onClick={() => onGenerateVideo(video)}
-                disabled={video.generation_status === 'generating' || isGenerating}
-              >
-                {video.generation_status === 'generating' || isGenerating ? (
-                  <>
+                  Шаг 1: Фон
+                </Button>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="h-8 text-xs border-orange-500/50 text-orange-700 hover:bg-orange-50 dark:hover:bg-orange-950/20"
+                  onClick={() => onGenerateCover(video)}
+                  disabled={isGeneratingCover || !atmosphereUrl}
+                >
+                  {isGeneratingCover ? (
                     <Loader2 className="w-3 h-3 mr-1 animate-spin" />
-                    Generating...
-                  </>
-                ) : (
-                  'Generate Video'
-                )}
-              </Button>
+                  ) : (
+                    <Layers className="w-3 h-3 mr-1" />
+                  )}
+                  Шаг 2: Обложка
+                </Button>
+              </div>
+
+              {/* Side-by-side previews: Atmosphere + Final Cover */}
+              <div className="grid grid-cols-2 gap-3">
+                {/* Atmosphere (Step 1) */}
+                <div className="space-y-1.5">
+                  <Label className="text-[11px] text-muted-foreground flex items-center gap-1">
+                    <Sun className="w-3 h-3" />
+                    Фон (атмосфера)
+                  </Label>
+                  {atmosphereUrl ? (
+                    <div className="relative aspect-[9/16] rounded-lg overflow-hidden border bg-muted group cursor-pointer"
+                         onClick={() => window.open(atmosphereUrl, '_blank')}>
+                      <img src={atmosphereUrl} alt="Atmosphere" className="w-full h-full object-cover" />
+                      <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                        <RefreshCw className="w-4 h-4 text-white" />
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="aspect-[9/16] rounded-lg border-2 border-dashed border-muted-foreground/20 bg-muted/30 flex flex-col items-center justify-center gap-1">
+                      <Sun className="w-5 h-5 text-muted-foreground/30" />
+                      <span className="text-[9px] text-muted-foreground/40">Нет фона</span>
+                    </div>
+                  )}
+                  {atmospherePrompt && (
+                    <p className="text-[9px] text-muted-foreground/60 italic line-clamp-2">{atmospherePrompt}</p>
+                  )}
+                </div>
+
+                {/* Final Cover (Step 2) */}
+                <div className="space-y-1.5">
+                  <Label className="text-[11px] text-muted-foreground flex items-center gap-1">
+                    <Layers className="w-3 h-3" />
+                    Обложка (финал)
+                  </Label>
+                  {video.front_cover_url ? (
+                    <div className="relative aspect-[9/16] rounded-lg overflow-hidden border-2 border-primary bg-muted group cursor-pointer"
+                         onClick={() => window.open(video.front_cover_url!, '_blank')}>
+                      <img src={video.front_cover_url} alt="Cover" className="w-full h-full object-cover" />
+                      <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-1">
+                        <Button size="icon" variant="ghost" className="h-6 w-6 text-white hover:text-white hover:bg-white/20">
+                          <Check className="w-3 h-3" />
+                        </Button>
+                        <Button size="icon" variant="ghost" className="h-6 w-6 text-white hover:text-white hover:bg-white/20">
+                          <Trash2 className="w-3 h-3" />
+                        </Button>
+                      </div>
+                      <div className="absolute top-1 right-1">
+                        <Badge className="text-[8px] px-1 py-0 bg-primary">Active</Badge>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="aspect-[9/16] rounded-lg border-2 border-dashed border-muted-foreground/20 bg-muted/30 flex flex-col items-center justify-center gap-1">
+                      <ImageIcon className="w-5 h-5 text-muted-foreground/30" />
+                      <span className="text-[9px] text-muted-foreground/40">Нет обложки</span>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Cover status */}
+              <div className="grid grid-cols-[100px_1fr] gap-2 items-center">
+                <Label className="text-xs text-muted-foreground">Статус</Label>
+                <Select
+                  value={video.cover_status || 'pending'}
+                  onValueChange={handleCoverStatusChange}
+                >
+                  <SelectTrigger className="h-7 text-xs">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {coverStatusOptions.map((option) => (
+                      <SelectItem key={option.value} value={option.value}>
+                        {option.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
             </div>
 
-            {/* Video Player - same aspect ratio as cover */}
-            <div className="space-y-2">
-              <Label className="text-sm">Видео</Label>
+            <Separator className="my-4" />
+
+            {/* === VIDEO SECTION === */}
+            <div className="space-y-3">
+              <div className="flex items-center justify-between">
+                <h4 className="font-medium text-sm">Видео</h4>
+                <Button
+                  size="sm"
+                  className="h-7 text-xs bg-green-600 hover:bg-green-700 text-white"
+                  onClick={() => onGenerateVideo(video)}
+                  disabled={video.generation_status === 'generating' || isGenerating}
+                >
+                  {video.generation_status === 'generating' || isGenerating ? (
+                    <>
+                      <Loader2 className="w-3 h-3 mr-1 animate-spin" />
+                      Generating...
+                    </>
+                  ) : (
+                    'Generate Video'
+                  )}
+                </Button>
+              </div>
+
+              {/* Video Player */}
               {video.heygen_video_url ? (
                 <div className="relative aspect-[9/16] rounded-lg overflow-hidden bg-black">
                   <video 
@@ -387,75 +395,58 @@ export function VideoSidePanel({
                   />
                 </div>
               ) : (
-                <div className="aspect-[9/16] rounded-lg border-2 border-dashed border-muted-foreground/30 bg-muted/50 flex flex-col items-center justify-center gap-2">
-                  <div className="w-12 h-12 rounded-full bg-muted flex items-center justify-center">
-                    <Play className="w-6 h-6 text-muted-foreground/50" />
+                <div className="aspect-[9/16] rounded-lg border-2 border-dashed border-muted-foreground/20 bg-muted/30 flex flex-col items-center justify-center gap-2">
+                  <div className="w-10 h-10 rounded-full bg-muted flex items-center justify-center">
+                    <Play className="w-5 h-5 text-muted-foreground/40" />
                   </div>
-                  <span className="text-xs text-muted-foreground/50">Видео не сгенерировано</span>
-                  <Button 
-                    variant="outline" 
-                    size="sm" 
-                    className="text-xs mt-2"
-                    onClick={() => onGenerateVideo(video)}
-                    disabled={video.generation_status === 'generating' || isGenerating}
-                  >
-                    {video.generation_status === 'generating' || isGenerating ? (
-                      <>
-                        <Loader2 className="w-3 h-3 mr-1 animate-spin" />
-                        Генерация...
-                      </>
-                    ) : (
-                      'Сгенерировать видео'
-                    )}
-                  </Button>
+                  <span className="text-xs text-muted-foreground/40">Видео не сгенерировано</span>
                 </div>
               )}
-            </div>
 
-            {/* Video status */}
-            <div className="grid grid-cols-[140px_1fr] gap-2 items-center">
-              <Label className="text-sm">Video status</Label>
-              <Select
-                value={video.generation_status || 'pending'}
-                onValueChange={handleVideoStatusChange}
-              >
-                <SelectTrigger className="h-8">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {videoStatusOptions.map((option) => (
-                    <SelectItem key={option.value} value={option.value}>
-                      {option.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-
-            {/* Front cover URL */}
-            <div className="grid grid-cols-[140px_1fr] gap-2 items-center">
-              <Label className="text-sm">Front cover URL</Label>
-              <Input
-                value={video.front_cover_url || ''}
-                onChange={(e) => onUpdateVideo(video.id, { front_cover_url: e.target.value })}
-                placeholder=""
-                className="h-8 text-sm"
-              />
-            </div>
-
-            {/* Video URL */}
-            <div className="grid grid-cols-[140px_1fr] gap-2 items-center">
-              <Label className="text-sm">Video URL</Label>
-              <div className="text-sm text-muted-foreground">
-                {video.heygen_video_url || '—'}
+              {/* Video status */}
+              <div className="grid grid-cols-[100px_1fr] gap-2 items-center">
+                <Label className="text-xs text-muted-foreground">Статус</Label>
+                <Select
+                  value={video.generation_status || 'pending'}
+                  onValueChange={handleVideoStatusChange}
+                >
+                  <SelectTrigger className="h-7 text-xs">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {videoStatusOptions.map((option) => (
+                      <SelectItem key={option.value} value={option.value}>
+                        {option.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
             </div>
 
-            {/* Duration */}
-            <div className="grid grid-cols-[140px_1fr] gap-2 items-center">
-              <Label className="text-sm">Длина ролика</Label>
-              <div className="text-sm text-muted-foreground">
-                {video.video_duration ? `${video.video_duration}s` : '—'}
+            <Separator className="my-4" />
+
+            {/* Meta fields */}
+            <div className="space-y-2">
+              <div className="grid grid-cols-[100px_1fr] gap-2 items-center">
+                <Label className="text-xs text-muted-foreground">Cover URL</Label>
+                <Input
+                  value={video.front_cover_url || ''}
+                  onChange={(e) => onUpdateVideo(video.id, { front_cover_url: e.target.value })}
+                  className="h-7 text-xs"
+                />
+              </div>
+              <div className="grid grid-cols-[100px_1fr] gap-2 items-center">
+                <Label className="text-xs text-muted-foreground">Video URL</Label>
+                <div className="text-xs text-muted-foreground truncate">
+                  {video.heygen_video_url || '—'}
+                </div>
+              </div>
+              <div className="grid grid-cols-[100px_1fr] gap-2 items-center">
+                <Label className="text-xs text-muted-foreground">Длительность</Label>
+                <div className="text-xs text-muted-foreground">
+                  {video.video_duration ? `${video.video_duration}s` : '—'}
+                </div>
               </div>
             </div>
           </div>
