@@ -145,7 +145,8 @@ export function VideoSidePanel({
   const pubDate = video.publication_date ? new Date(video.publication_date) : undefined;
   const atmosphereUrl = (video as any).atmosphere_url;
   const atmospherePrompt = (video as any).atmosphere_prompt;
-  const isGeneratingCover = video.cover_status === 'generating';
+  const normalizedCoverStatus = video.cover_status === 'generating' && !!video.front_cover_url ? 'ready' : (video.cover_status || 'pending');
+  const isGeneratingCover = normalizedCoverStatus === 'generating';
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
@@ -344,7 +345,7 @@ export function VideoSidePanel({
               <div className="grid grid-cols-[100px_1fr] gap-2 items-center">
                 <Label className="text-xs text-muted-foreground">Статус</Label>
                 <Select
-                  value={video.cover_status || 'pending'}
+                  value={normalizedCoverStatus}
                   onValueChange={handleCoverStatusChange}
                 >
                   <SelectTrigger className="h-7 text-xs">

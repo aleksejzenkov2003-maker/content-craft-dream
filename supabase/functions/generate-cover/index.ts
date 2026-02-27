@@ -78,9 +78,11 @@ serve(async (req) => {
     return new Response(null, { headers: corsHeaders });
   }
 
+  let requestBody: { videoId?: string; atmospherePrompt?: string; step?: string } | null = null;
+
   try {
-    const body = await req.json();
-    const { videoId, atmospherePrompt, step } = body;
+    requestBody = await req.json();
+    const { videoId, atmospherePrompt, step } = requestBody;
     if (!videoId) throw new Error('Video ID is required');
 
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
@@ -322,9 +324,9 @@ The background should evoke the spiritual and emotional tone of this content.`
     console.error('Error generating cover:', errorMessage);
 
     try {
-      if (body?.videoId) {
+      if (requestBody?.videoId) {
         const supabase = createClient(Deno.env.get('SUPABASE_URL')!, Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!);
-        await supabase.from('videos').update({ cover_status: 'error' }).eq('id', body.videoId);
+        await supabase.from('videos').update({ cover_status: 'error' }).eq('id', requestBody.videoId);
       }
     } catch (e) {
       console.error('Failed to update error status:', e);

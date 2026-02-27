@@ -505,6 +505,8 @@ export function VideosTable({
                   {questionVideos.map((video) => {
                     const videoPubs = getVideoPublications(video.id);
                     const coverUrl = video.front_cover_url || video.cover_url;
+                    const effectiveCoverStatus = video.cover_status === 'generating' && coverUrl ? 'ready' : (video.cover_status || 'pending');
+                    const isCoverGenerating = effectiveCoverStatus === 'generating';
                     
                     return (
                       <div
@@ -536,8 +538,8 @@ export function VideosTable({
 
                         {/* Cover status - text only */}
                         <div className="flex items-center gap-1.5">
-                          <div className={`w-2 h-2 rounded-full ${coverStatusConfig[video.cover_status || 'pending'] || coverStatusConfig.pending}`} />
-                          <span className="text-xs text-muted-foreground">{statusLabels[video.cover_status || 'pending'] || 'Pending'}</span>
+                          <div className={`w-2 h-2 rounded-full ${coverStatusConfig[effectiveCoverStatus] || coverStatusConfig.pending}`} />
+                          <span className="text-xs text-muted-foreground">{statusLabels[effectiveCoverStatus] || 'Pending'}</span>
                         </div>
 
                         {/* Video status - text only */}
@@ -573,7 +575,7 @@ export function VideosTable({
 
                         {/* Atmosphere (Step 1) button */}
                         <div>
-                          {video.cover_status === 'generating' ? (
+                          {isCoverGenerating ? (
                             <Button size="xs" variant="outline" disabled>
                               <Loader2 className="w-3 h-3 animate-spin" />
                             </Button>
@@ -602,7 +604,7 @@ export function VideosTable({
 
                         {/* Cover (Step 2) button */}
                         <div>
-                          {video.cover_status === 'generating' ? (
+                          {isCoverGenerating ? (
                             <Button size="xs" variant="outline" disabled>
                               <Loader2 className="w-3 h-3 animate-spin" />
                             </Button>
