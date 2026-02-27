@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { Sidebar } from '@/components/layout/Sidebar';
 import { Header } from '@/components/layout/Header';
 import { StatsCard } from '@/components/dashboard/StatsCard';
@@ -81,34 +81,79 @@ export default function Index() {
   };
 
   const videoPollingRef = useRef<Record<string, NodeJS.Timeout>>({});
+  const pollingErrorsRef = useRef<Record<string, number>>({});
+  const POLL_INTERVAL_MS = 12000;
+  const MAX_POLL_ERRORS = 8;
 
-  const stopVideoPolling = (videoId: string) => {
+  const stopVideoPolling = useCallback((videoId: string) => {
     if (videoPollingRef.current[videoId]) {
       clearInterval(videoPollingRef.current[videoId]);
       delete videoPollingRef.current[videoId];
     }
-  };
+    delete pollingErrorsRef.current[videoId];
+  }, []);
 
-  const startVideoPolling = (videoId: string) => {
-    stopVideoPolling(videoId);
-    videoPollingRef.current[videoId] = setInterval(async () => {
-      try {
-        const { data, error } = await supabase.functions.invoke('check-video-status', {
-          body: { videoId },
-        });
-        if (error) { console.error('Video polling error:', error); return; }
-        if (data.status === 'ready') {
+  const pollVideoStatus = useCallback(async (videoId: string) => {
+    try {
+      const { data, error } = await supabase.functions.invoke('check-video-status', {
+        body: { videoId },
+      });
+
+      if (error) {
+        pollingErrorsRef.current[videoId] = (pollingErrorsRef.current[videoId] ?? 0) + 1;
+        if (pollingErrorsRef.current[videoId] >= MAX_POLL_ERRORS) {
           stopVideoPolling(videoId);
-          toast.success('Видео готово!');
-          refetchVideos();
-        } else if (data.status === 'error' || data.status === 'failed') {
-          stopVideoPolling(videoId);
-          toast.error('Ошибка генерации видео');
-          refetchVideos();
+          toast.error('Не удалось обновить статус видео');
         }
-      } catch (err) { console.error('Video polling error:', err); }
-    }, 12000);
-  };
+        return;
+      }
+
+      pollingErrorsRef.current[videoId] = 0;
+
+      if (data?.status === 'ready') {
+        stopVideoPolling(videoId);
+        toast.success('Видео готово!');
+        refetchVideos();
+      } else if (data?.status === 'error' || data?.status === 'failed') {
+        stopVideoPolling(videoId);
+        toast.error('Ошибка генерации видео');
+        refetchVideos();
+      }
+    } catch (err) {
+      console.error('Video polling error:', err);
+    }
+  }, [refetchVideos, stopVideoPolling]);
+
+  const startVideoPolling = useCallback((videoId: string) => {
+    if (videoPollingRef.current[videoId]) return;
+
+    pollingErrorsRef.current[videoId] = 0;
+    void pollVideoStatus(videoId);
+
+    videoPollingRef.current[videoId] = setInterval(() => {
+      void pollVideoStatus(videoId);
+    }, POLL_INTERVAL_MS);
+  }, [pollVideoStatus]);
+
+  useEffect(() => {
+    const generatingVideoIds = videos
+      .filter((video) => video.generation_status === 'generating' && video.heygen_video_id && !video.heygen_video_url)
+      .map((video) => video.id);
+
+    generatingVideoIds.forEach((videoId) => startVideoPolling(videoId));
+
+    Object.keys(videoPollingRef.current).forEach((videoId) => {
+      if (!generatingVideoIds.includes(videoId)) {
+        stopVideoPolling(videoId);
+      }
+    });
+  }, [videos, startVideoPolling, stopVideoPolling]);
+
+  useEffect(() => {
+    return () => {
+      Object.keys(videoPollingRef.current).forEach((videoId) => stopVideoPolling(videoId));
+    };
+  }, [stopVideoPolling]);
 
   const handleGenerateVideo = async (video: Video) => {
     if (!video.voiceover_url) {
