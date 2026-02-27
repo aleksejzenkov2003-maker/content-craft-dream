@@ -103,15 +103,14 @@ export function VideoDetailModal({
   };
 
   const handleGenerate = async () => {
-    if (!video || !selectedPhoto?.heygen_asset_id) {
-      toast.error('Выберите фото с HeyGen asset ID');
+    if (!video) return;
+    if (!video.voiceover_url) {
+      toast.error('Сначала создайте озвучку');
       return;
     }
-    if (!script.trim()) {
-      toast.error('Добавьте текст для озвучки');
-      return;
-    }
-    await onGenerateVideo(video, selectedPhoto.heygen_asset_id);
+    // Photo asset ID will be resolved by the edge function
+    const photoAssetId = selectedPhoto?.heygen_asset_id || '';
+    await onGenerateVideo(video, photoAssetId);
   };
 
   const copyToClipboard = async (text: string) => {
@@ -316,13 +315,18 @@ export function VideoDetailModal({
             <div className="flex gap-2">
               <Button
                 onClick={handleGenerate}
-                disabled={isGenerating || !selectedPhoto?.heygen_asset_id || !script.trim()}
+                disabled={isGenerating || !video.voiceover_url}
                 className="flex-1"
               >
                 {isGenerating ? (
                   <>
                     <Loader2 className="w-4 h-4 mr-2 animate-spin" />
                     Генерация...
+                  </>
+                ) : !video.voiceover_url ? (
+                  <>
+                    <AlertCircle className="w-4 h-4 mr-2" />
+                    Сначала создайте озвучку
                   </>
                 ) : (
                   <>
