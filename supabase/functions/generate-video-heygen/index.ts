@@ -220,57 +220,56 @@ serve(async (req) => {
       if (!heygenVideoId) throw new Error('No video ID from HeyGen av4: ' + JSON.stringify(av4Result));
 
     } else {
-      // === FALLBACK: Traditional talking_photo approach ===
-      console.log('Using fallback talking_photo approach...');
-      
-      let talkingPhotoId = photoAssetId;
-      if (!talkingPhotoId && video.advisor_id) {
+      // === FALLBACK: Use advisor photo + av4 API (no talking_photo look_id dependency) ===
+      console.log('Using advisor photo fallback (av4 API)...');
+
+      let fallbackPhotoUrl: string | null = null;
+      if (video.advisor_id) {
         const { data: photos } = await supabase
           .from('advisor_photos')
-          .select('heygen_asset_id')
+          .select('photo_url, is_primary')
           .eq('advisor_id', video.advisor_id)
-          .eq('is_primary', true)
-          .limit(1);
-        talkingPhotoId = photos?.[0]?.heygen_asset_id || null;
-        
-        if (!talkingPhotoId) {
-          const { data: anyPhotos } = await supabase
-            .from('advisor_photos')
-            .select('heygen_asset_id')
-            .eq('advisor_id', video.advisor_id)
-            .not('heygen_asset_id', 'is', null)
-            .limit(1);
-          talkingPhotoId = anyPhotos?.[0]?.heygen_asset_id || null;
-        }
+          .not('photo_url', 'is', null)
+          .order('is_primary', { ascending: false })
+          .limit(5);
+
+        fallbackPhotoUrl = photos?.find((p: { is_primary: boolean | null }) => p.is_primary)?.photo_url
+          || photos?.[0]?.photo_url
+          || null;
       }
 
-      if (!talkingPhotoId) throw new Error('No HeyGen photo asset found. Upload a photo to HeyGen first.');
+      if (!fallbackPhotoUrl) {
+        throw new Error('No advisor photo found. Upload advisor photo first.');
+      }
 
-      const response = await fetch('https://api.heygen.com/v2/video/generate', {
+      const imageKey = await uploadAssetToHeygen(fallbackPhotoUrl, heygenKey);
+      const audioAssetId = await uploadAudioToHeygen(voiceoverUrl, heygenKey);
+
+      const av4Response = await fetch('https://api.heygen.com/v2/video/av4/generate', {
         method: 'POST',
         headers: {
           'X-Api-Key': heygenKey,
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          video_inputs: [{
-            character: { type: 'talking_photo', talking_photo_id: talkingPhotoId },
-            voice: { type: 'audio', audio_url: voiceoverUrl },
-          }],
+          image_key: imageKey,
+          audio_asset_id: audioAssetId,
           dimension: dimensions,
           aspect_ratio: selectedAspectRatio,
+          custom_motion_prompt: 'calm spiritual mentor, light hand movement, soft breathing, subtle head motion, natural eye contact, steady posture, gentle facial expressions, slow rhythm',
         }),
       });
 
-      if (!response.ok) {
-        const errorText = await response.text();
+      if (!av4Response.ok) {
+        const errorText = await av4Response.text();
+        console.error('HeyGen av4 API error (fallback):', errorText);
         await supabase.from('videos').update({ generation_status: 'error' }).eq('id', videoId);
-        throw new Error(`HeyGen API error: ${response.status} - ${errorText}`);
+        throw new Error(`HeyGen av4 API error: ${av4Response.status} - ${errorText}`);
       }
 
-      const result = await response.json();
-      heygenVideoId = result.data?.video_id;
-      if (!heygenVideoId) throw new Error('No video ID returned from HeyGen');
+      const av4Result = await av4Response.json();
+      heygenVideoId = av4Result.data?.video_id;
+      if (!heygenVideoId) throw new Error('No video ID from HeyGen av4 fallback: ' + JSON.stringify(av4Result));
     }
 
     console.log('HeyGen video created:', heygenVideoId);
