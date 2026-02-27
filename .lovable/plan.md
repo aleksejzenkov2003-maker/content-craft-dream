@@ -1,54 +1,40 @@
 
 
-## Add Voiceover Step to Video Workflow
+## Improve Video Generation Flow
 
-Currently voiceover generation is embedded inside the `generate-video-heygen` edge function. The user wants it as a separate, visible step in the pipeline — both in the table and side panel.
+The video generation via HeyGen is already implemented in `generate-video-heygen` edge function and matches the n8n workflow logic (upload scene photo + upload audio to HeyGen assets, then call `/v2/video/av4/generate`). However, the UI flow has issues:
+
+### Current Problems
+1. The "Generate" button in VideosTable calls `onGenerateVideo` which just opens the side panel — it doesn't actually trigger generation
+2. The side panel "Generate Video" button calls `onGenerateVideo(video)` which also opens a detail modal, not the actual generation
+3. Video generation should require `voiceover_url` to be present (voiceover must be done first)
+4. No status polling after generation starts from the table/side panel
 
 ### Changes
 
-#### 1. Add voiceover status column to `videos` table
-New migration adding `voiceover_status` column (values: `pending`, `generating`, `ready`, `error`).
+#### 1. Update `Index.tsx` — Fix `handleGenerateVideo` handler
+- Create a proper `handleGenerateVideo(video)` that:
+  - Checks if `voiceover_url` exists, shows error if not ("Сначала создайте озвучку")
+  - Calls `generate-video-heygen` edge function with `videoId`
+  - The edge function already handles finding scene photo and using existing voiceover_url
+  - Starts polling via `check-video-status`
+- Wire `onGenerateVideo` in VideosTable to actually call this handler (not open side panel)
 
-```sql
-ALTER TABLE videos ADD COLUMN IF NOT EXISTS voiceover_status text DEFAULT 'pending';
-```
+#### 2. Update `VideosTable.tsx` — Video button requires voiceover
+- Disable "Generate" button when `voiceover_url` is missing
+- Show tooltip "Сначала создайте озвучку"
 
-#### 2. Create `generate-voiceover-for-video` edge function
-A dedicated function that:
-- Takes `videoId`
-- Reads `advisor_answer` text and advisor's `elevenlabs_voice_id`
-- Calls ElevenLabs TTS API
-- Uploads audio to Supabase Storage (`media-files` bucket)
-- Updates `voiceover_url` and `voiceover_status` on the `videos` record
+#### 3. Update `VideoSidePanel.tsx` — Wire generation properly
+- "Generate Video" button should also check for `voiceover_url`
+- Pass proper handler from Index.tsx
 
-#### 3. Update `VideosTable.tsx`
-- Add a new column "Озвучка" between the Cover and Video columns in the table header and rows
-- Show voiceover status indicator (dot + label) 
-- Add a "Озвучка" button to trigger generation
-- When `voiceover_url` exists, show a small play button to preview audio
-- Add `voiceover_status` to status configs and labels
-
-#### 4. Update `VideoSidePanel.tsx`
-- Add a new "Озвучка" section between "Ответ духовника" and "Обложка"
-- Include: generate button, audio player (when URL exists), status selector
-- The audio player shows play/pause with the voiceover audio
-
-#### 5. Update `Index.tsx`
-- Add `handleGenerateVoiceover(video)` handler that calls the new edge function
-- Pass it as `onGenerateVoiceover` prop to both `VideosTable` and `VideoSidePanel`
-
-#### 6. Update `generate-video-heygen` edge function
-- Skip voiceover generation if `voiceover_url` already exists on the video
-- This is already partially done (it checks `audioUrl || video.voiceover_url`) — just ensure it works correctly with the new flow
-
-#### 7. Update `Video` interface in `useVideos.ts`
-- Add `voiceover_status: string | null` field
+#### 4. Add polling for video status
+- After calling `generate-video-heygen`, poll `check-video-status` every 10-15 seconds
+- Update UI when status changes to `ready` or `error`
+- The `useVideoGeneration` hook already has polling logic — reuse it or replicate in Index.tsx
 
 ### Files to modify
-- New migration (add `voiceover_status` column)
-- New edge function: `supabase/functions/generate-voiceover-for-video/index.ts`
-- `src/hooks/useVideos.ts` — add `voiceover_status` to interface
-- `src/pages/Index.tsx` — add handler
-- `src/components/videos/VideosTable.tsx` — add column
-- `src/components/videos/VideoSidePanel.tsx` — add section
+- `src/pages/Index.tsx` — fix handler, add polling
+- `src/components/videos/VideosTable.tsx` — disable button without voiceover
+- `src/components/videos/VideoSidePanel.tsx` — wire generation properly
 
