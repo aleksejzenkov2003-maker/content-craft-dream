@@ -75,19 +75,27 @@ interface VideoSidePanelProps {
 }
 
 const coverStatusOptions = [
-{ value: 'pending', label: 'Pending' },
-{ value: 'generating', label: 'In progress' },
-{ value: 'atmosphere_ready', label: 'Атмосфера готова' },
-{ value: 'ready', label: 'Completed' },
-{ value: 'error', label: 'Error' }];
-
+  { value: 'pending', label: 'Ожидает', color: 'text-muted-foreground' },
+  { value: 'generating', label: 'Генерация', color: 'text-yellow-600 dark:text-yellow-400' },
+  { value: 'atmosphere_ready', label: 'Атмосфера готова', color: 'text-blue-600 dark:text-blue-400' },
+  { value: 'ready', label: 'Готово', color: 'text-green-600 dark:text-green-400' },
+  { value: 'error', label: 'Ошибка', color: 'text-destructive' },
+];
 
 const videoStatusOptions = [
-{ value: 'pending', label: 'Pending' },
-{ value: 'generating', label: 'In progress' },
-{ value: 'ready', label: 'Completed' },
-{ value: 'published', label: 'Published' },
-{ value: 'error', label: 'Error' }];
+  { value: 'pending', label: 'Ожидает', color: 'text-muted-foreground' },
+  { value: 'generating', label: 'Генерация', color: 'text-yellow-600 dark:text-yellow-400' },
+  { value: 'ready', label: 'Готово', color: 'text-green-600 dark:text-green-400' },
+  { value: 'published', label: 'Опубликован', color: 'text-primary' },
+  { value: 'error', label: 'Ошибка', color: 'text-destructive' },
+];
+
+const voiceoverStatusOptions = [
+  { value: 'pending', label: 'Ожидает', color: 'text-muted-foreground' },
+  { value: 'generating', label: 'Генерация', color: 'text-yellow-600 dark:text-yellow-400' },
+  { value: 'ready', label: 'Готово', color: 'text-green-600 dark:text-green-400' },
+  { value: 'error', label: 'Ошибка', color: 'text-destructive' },
+];
 
 
 export function VideoSidePanel({
@@ -411,10 +419,11 @@ export function VideoSidePanel({
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="pending">Pending</SelectItem>
-                    <SelectItem value="generating">In progress</SelectItem>
-                    <SelectItem value="ready">Ready</SelectItem>
-                    <SelectItem value="error">Error</SelectItem>
+                    {voiceoverStatusOptions.map((option) => (
+                      <SelectItem key={option.value} value={option.value}>
+                        <span className={option.color}>{option.label}</span>
+                      </SelectItem>
+                    ))}
                   </SelectContent>
                 </Select>
               </div>
@@ -614,7 +623,7 @@ export function VideoSidePanel({
                   <SelectContent>
                     {coverStatusOptions.map((option) =>
                       <SelectItem key={option.value} value={option.value}>
-                        {option.label}
+                        <span className={option.color}>{option.label}</span>
                       </SelectItem>
                     )}
                   </SelectContent>
@@ -680,7 +689,7 @@ export function VideoSidePanel({
                   <SelectContent>
                     {videoStatusOptions.map((option) =>
                     <SelectItem key={option.value} value={option.value}>
-                        {option.label}
+                        <span className={option.color}>{option.label}</span>
                       </SelectItem>
                     )}
                   </SelectContent>
