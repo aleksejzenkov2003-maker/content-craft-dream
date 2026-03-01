@@ -1,3 +1,4 @@
+import { useEffect, useState } from 'react';
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
@@ -7,6 +8,7 @@ import { ImageInput } from '@/components/ui/image-input';
 import { PlaylistScene } from '@/hooks/usePlaylistScenes';
 import { Playlist } from '@/hooks/usePlaylists';
 import { Advisor } from '@/hooks/useAdvisors';
+import { supabase } from '@/integrations/supabase/client';
 
 interface SceneSidePanelProps {
   scene: PlaylistScene | null;
@@ -32,6 +34,37 @@ export function SceneSidePanel({
   onOpenChange,
   onUpdateScene,
 }: SceneSidePanelProps) {
+  const [prefilled, setPrefilled] = useState(false);
+
+  // Prefill scene_prompt from active DB prompt if empty
+  useEffect(() => {
+    const prefillPrompt = async () => {
+      if (!scene || !playlist || !advisor || scene.scene_prompt || prefilled) return;
+      
+      const { data: dbPrompt } = await supabase
+        .from('prompts')
+        .select('user_template')
+        .eq('type', 'scene')
+        .eq('is_active', true)
+        .limit(1)
+        .single();
+
+      if (dbPrompt) {
+        const filled = dbPrompt.user_template
+          .replace(/\{\{playlist\}\}/g, playlist.name || '')
+          .replace(/\{\{advisor\}\}/g, advisor.display_name || advisor.name || '');
+        await onUpdateScene(scene.id, { scene_prompt: filled });
+        setPrefilled(true);
+      }
+    };
+    prefillPrompt();
+  }, [scene?.id, scene?.scene_prompt, playlist, advisor, prefilled]);
+
+  // Reset prefilled flag when scene changes
+  useEffect(() => {
+    setPrefilled(false);
+  }, [scene?.id]);
+
   if (!scene || !playlist || !advisor) {
     return null;
   }
@@ -95,7 +128,7 @@ export function SceneSidePanel({
               className="resize-none"
             />
             <p className="text-xs text-muted-foreground">
-              Этот промт будет использован для генерации сцены
+              Промт предзаполняется из настроек. Отредактируйте перед генерацией.
             </p>
           </div>
 

@@ -28,15 +28,48 @@ const TYPES = [
   { value: 'rewrite', label: 'Рерайт' },
   { value: 'summary', label: 'Резюме' },
   { value: 'translate', label: 'Перевод' },
+  { value: 'atmosphere', label: 'Атмосфера обложки' },
+  { value: 'scene', label: 'Сцена' },
+  { value: 'post_text', label: 'Текст публикации' },
   { value: 'custom', label: 'Кастомный' },
 ];
 
-const VARIABLES = [
-  { name: '{{content}}', desc: 'Текст контента' },
-  { name: '{{title}}', desc: 'Заголовок' },
-  { name: '{{source}}', desc: 'Источник (youtube, telegram...)' },
-  { name: '{{channel}}', desc: 'Название канала' },
-];
+const VARIABLES_BY_TYPE: Record<string, { name: string; desc: string }[]> = {
+  rewrite: [
+    { name: '{{content}}', desc: 'Текст контента' },
+    { name: '{{title}}', desc: 'Заголовок' },
+    { name: '{{source}}', desc: 'Источник (youtube, telegram...)' },
+    { name: '{{channel}}', desc: 'Название канала' },
+  ],
+  summary: [
+    { name: '{{content}}', desc: 'Текст контента' },
+    { name: '{{title}}', desc: 'Заголовок' },
+  ],
+  translate: [
+    { name: '{{content}}', desc: 'Текст контента' },
+  ],
+  atmosphere: [
+    { name: '{{question}}', desc: 'Вопрос' },
+    { name: '{{hook}}', desc: 'Хук' },
+    { name: '{{answer}}', desc: 'Ответ духовника' },
+    { name: '{{advisor}}', desc: 'Духовник' },
+    { name: '{{playlist}}', desc: 'Плейлист/тема' },
+  ],
+  scene: [
+    { name: '{{playlist}}', desc: 'Плейлист/тема' },
+    { name: '{{advisor}}', desc: 'Духовник' },
+  ],
+  post_text: [
+    { name: '{{question}}', desc: 'Вопрос' },
+    { name: '{{hook}}', desc: 'Хук' },
+    { name: '{{answer}}', desc: 'Ответ духовника' },
+    { name: '{{advisor}}', desc: 'Духовник' },
+  ],
+  custom: [
+    { name: '{{content}}', desc: 'Текст контента' },
+    { name: '{{title}}', desc: 'Заголовок' },
+  ],
+};
 
 export function PromptForm({ prompt, onSave, onCancel, onTest }: PromptFormProps) {
   const [saving, setSaving] = useState(false);
@@ -185,7 +218,7 @@ export function PromptForm({ prompt, onSave, onCancel, onTest }: PromptFormProps
             <div className="flex items-center justify-between">
               <Label>User template</Label>
               <div className="flex gap-1">
-                {VARIABLES.map((v) => (
+                {(VARIABLES_BY_TYPE[form.type] || VARIABLES_BY_TYPE.custom).map((v) => (
                   <Badge 
                     key={v.name} 
                     variant="outline" 

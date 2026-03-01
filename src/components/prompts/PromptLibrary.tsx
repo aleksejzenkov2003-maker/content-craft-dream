@@ -28,6 +28,9 @@ const typeLabels: Record<string, string> = {
   rewrite: 'Рерайт',
   summary: 'Резюме',
   translate: 'Перевод',
+  atmosphere: 'Атмосфера обложки',
+  scene: 'Сцена',
+  post_text: 'Текст публикации',
   custom: 'Кастомный',
 };
 
