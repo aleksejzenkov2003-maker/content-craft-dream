@@ -16,6 +16,7 @@ export interface Publication {
   reach: number;
   profile_views: number;
   error_message: string | null;
+  final_video_url: string | null;
   created_at: string;
   updated_at: string;
   // Joined data

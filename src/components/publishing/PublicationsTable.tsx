@@ -35,9 +35,10 @@ import {
 } from '@/components/ui/select';
 import { 
   MoreVertical, Trash2, ExternalLink, Send, Sparkles, Loader2, 
-  FileSpreadsheet, ArrowUpDown, ArrowUp, ArrowDown, CalendarIcon, Edit2, Clock
+  FileSpreadsheet, ArrowUpDown, ArrowUp, ArrowDown, CalendarIcon, Edit2, Clock, Clapperboard
 } from 'lucide-react';
 import { Publication, usePublications } from '@/hooks/usePublications';
+import { toast } from 'sonner';
 import { usePublishingChannels } from '@/hooks/usePublishingChannels';
 import { useVideos } from '@/hooks/useVideos';
 import { format, setHours, setMinutes } from 'date-fns';
@@ -48,13 +49,17 @@ import { InlineEdit } from '@/components/ui/inline-edit';
 import { BulkActionsBar, BulkActionButton } from '@/components/ui/bulk-actions-bar';
 import { PublicationFilters, PublicationFilterState } from './PublicationFilters';
 import { PublicationEditDialog } from './PublicationEditDialog';
+import { useVideoConcat } from '@/hooks/useVideoConcat';
+import { Progress } from '@/components/ui/progress';
 import { cn } from '@/lib/utils';
 
 const statusLabels: Record<string, { label: string; variant: 'default' | 'secondary' | 'destructive' | 'outline' }> = {
   pending: { label: 'Ожидает', variant: 'secondary' },
   checked: { label: 'Проверено', variant: 'outline' },
+  concatenating: { label: 'Склейка...', variant: 'outline' },
   scheduled: { label: 'Запланирован', variant: 'outline' },
   published: { label: 'Опубликован', variant: 'default' },
+  error: { label: 'Ошибка', variant: 'destructive' },
   failed: { label: 'Ошибка', variant: 'destructive' },
 };
 
@@ -74,9 +79,11 @@ interface PublicationsTableProps {
 }
 
 export function PublicationsTable({ groupBy = 'channel' }: PublicationsTableProps) {
-  const { publications, loading, deletePublication, generateText, updatePublication, bulkImport } = usePublications();
+  const { publications, loading, deletePublication, generateText, updatePublication, bulkImport, refetch } = usePublications();
   const { channels } = usePublishingChannels();
   const { videos } = useVideos();
+  const { concatVideos, loading: concatLoading, progress: concatProgress } = useVideoConcat();
+  const [concatingId, setConcatingId] = useState<string | null>(null);
   
   const [showImporter, setShowImporter] = useState(false);
   const [generatingIds, setGeneratingIds] = useState<Set<string>>(new Set());
@@ -228,6 +235,28 @@ const minuteOptions = [0, 5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55];
         next.delete(pub.id);
         return next;
       });
+    }
+  };
+
+  const handleConcat = async (pub: Publication) => {
+    const channel = channels.find(c => c.id === pub.channel_id);
+    if (!channel?.back_cover_video_url) {
+      toast.error('У канала нет задней обложки');
+      return;
+    }
+    // Get video URL from the video's heygen_video_url or video_path via a direct query
+    const video = videos.find(v => v.id === pub.video_id);
+    const videoUrl = (video as any)?.heygen_video_url || (video as any)?.video_path;
+    if (!videoUrl) {
+      toast.error('У ролика нет видео URL');
+      return;
+    }
+    setConcatingId(pub.id);
+    try {
+      await concatVideos(pub.id, videoUrl, channel.back_cover_video_url);
+      await refetch();
+    } catch {} finally {
+      setConcatingId(null);
     }
   };
 
@@ -623,6 +652,41 @@ const minuteOptions = [0, 5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55];
                       </TableCell>
                       <TableCell onClick={(e) => e.stopPropagation()}>
                         <div className="flex items-center gap-1">
+                          {/* Concat button - show if channel has back_cover_video_url */}
+                          {(() => {
+                            const channel = channels.find(c => c.id === pub.channel_id);
+                            const hasBackCover = !!channel?.back_cover_video_url;
+                            const isConcating = concatingId === pub.id;
+                            const hasFinalVideo = !!pub.final_video_url;
+                            if (!hasBackCover) return null;
+                            if (hasFinalVideo) {
+                              return (
+                                <Button size="xs" variant="outline" asChild title="Открыть склеенное видео">
+                                  <a href={pub.final_video_url!} target="_blank" rel="noopener noreferrer">
+                                    <Clapperboard className="w-3 h-3" />
+                                  </a>
+                                </Button>
+                              );
+                            }
+                            return (
+                              <Button
+                                size="xs"
+                                variant="secondary"
+                                disabled={isConcating || pub.publication_status === 'concatenating'}
+                                onClick={() => handleConcat(pub)}
+                                title="Склеить видео + заднюю обложку"
+                              >
+                                {isConcating ? (
+                                  <Loader2 className="w-3 h-3 animate-spin" />
+                                ) : (
+                                  <Clapperboard className="w-3 h-3" />
+                                )}
+                              </Button>
+                            );
+                          })()}
+                          {concatingId === pub.id && concatProgress > 0 && (
+                            <Progress value={concatProgress} className="w-16 h-1.5" />
+                          )}
                           <Button
                             size="xs"
                             variant="default"
@@ -652,6 +716,14 @@ const minuteOptions = [0, 5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55];
                                   <a href={pub.post_url} target="_blank" rel="noopener noreferrer">
                                     <ExternalLink className="w-4 h-4 mr-2" />
                                     Открыть пост
+                                  </a>
+                                </DropdownMenuItem>
+                              )}
+                              {pub.final_video_url && (
+                                <DropdownMenuItem asChild>
+                                  <a href={pub.final_video_url} target="_blank" rel="noopener noreferrer">
+                                    <Clapperboard className="w-4 h-4 mr-2" />
+                                    Склеенное видео
                                   </a>
                                 </DropdownMenuItem>
                               )}

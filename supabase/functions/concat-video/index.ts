@@ -12,20 +12,12 @@ Deno.serve(async (req) => {
   }
 
   try {
-    const { publication_id, video_url, back_cover_video_url } = await req.json();
+    const { publication_id, final_video_url, status } = await req.json();
 
-    if (!publication_id || !video_url || !back_cover_video_url) {
+    if (!publication_id) {
       return new Response(
-        JSON.stringify({ error: "Missing required fields: publication_id, video_url, back_cover_video_url" }),
+        JSON.stringify({ error: "Missing required field: publication_id" }),
         { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
-    }
-
-    const n8nWebhookUrl = Deno.env.get("N8N_WEBHOOK_URL");
-    if (!n8nWebhookUrl) {
-      return new Response(
-        JSON.stringify({ error: "N8N_WEBHOOK_URL not configured" }),
-        { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
 
@@ -33,55 +25,32 @@ Deno.serve(async (req) => {
     const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const supabase = createClient(supabaseUrl, supabaseKey);
 
-    // Update publication status to concatenating
-    await supabase
-      .from("publications")
-      .update({ publication_status: "concatenating" })
-      .eq("id", publication_id);
+    const updates: Record<string, unknown> = {};
 
-    // Call n8n webhook for ffmpeg concatenation
-    const n8nResponse = await fetch(n8nWebhookUrl, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        action: "concat_video",
-        publication_id,
-        main_video_url: video_url,
-        back_cover_video_url,
-      }),
-    });
-
-    if (!n8nResponse.ok) {
-      const errorText = await n8nResponse.text();
-      await supabase
-        .from("publications")
-        .update({
-          publication_status: "error",
-          error_message: `n8n concat error: ${errorText}`,
-        })
-        .eq("id", publication_id);
-
-      return new Response(
-        JSON.stringify({ error: "n8n webhook failed", details: errorText }),
-        { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
+    if (final_video_url) {
+      updates.final_video_url = final_video_url;
     }
 
-    const result = await n8nResponse.json();
+    if (status) {
+      updates.publication_status = status;
+    }
 
-    // If n8n returns the final video URL directly
-    if (result.final_video_url) {
-      await supabase
+    if (Object.keys(updates).length > 0) {
+      const { error } = await supabase
         .from("publications")
-        .update({
-          final_video_url: result.final_video_url,
-          publication_status: "checked",
-        })
+        .update(updates)
         .eq("id", publication_id);
+
+      if (error) {
+        return new Response(
+          JSON.stringify({ error: error.message }),
+          { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
     }
 
     return new Response(
-      JSON.stringify({ success: true, result }),
+      JSON.stringify({ success: true }),
       { headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   } catch (error) {
