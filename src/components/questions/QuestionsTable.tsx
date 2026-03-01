@@ -609,7 +609,10 @@ export function QuestionsTable({
                     const opt = statusOptions.find(o => o.value === val);
                     return opt?.label || 'Не отобран';
                   }}
-                  displayClassName="text-xs"
+                  displayClassName={`text-xs ${
+                    q.question_status === 'in_progress' ? 'text-yellow-600 dark:text-yellow-400' :
+                    q.question_status === 'not_selected' ? 'text-muted-foreground' : ''
+                  }`}
                 />
               </div>
             </div>
