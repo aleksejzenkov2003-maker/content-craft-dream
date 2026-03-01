@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
@@ -26,6 +26,8 @@ import {
   Loader2,
   ChevronUp,
   ChevronDown,
+  ChevronLeft,
+  ChevronRight,
   Link as LinkIcon,
   X,
   Image as ImageIcon,
@@ -42,6 +44,18 @@ import {
 import { format } from 'date-fns';
 import { ru } from 'date-fns/locale';
 import { cn } from '@/lib/utils';
+import { supabase } from '@/integrations/supabase/client';
+import { toast } from 'sonner';
+
+interface CoverVariant {
+  id: string;
+  atmosphere_url: string | null;
+  front_cover_url: string | null;
+  prompt: string | null;
+  variant_type: string | null;
+  is_active: boolean | null;
+  created_at: string;
+}
 
 interface VideoSidePanelProps {
   video: Video | null;
@@ -91,9 +105,38 @@ export function VideoSidePanel({
   const [selectedChannels, setSelectedChannels] = useState<string[]>([]);
   const [advisorAnswer, setAdvisorAnswer] = useState('');
   const [pubDateOpen, setPubDateOpen] = useState(false);
+  const [atmosphereVariants, setAtmosphereVariants] = useState<CoverVariant[]>([]);
+  const [coverVariants, setCoverVariants] = useState<CoverVariant[]>([]);
+  const [atmosIndex, setAtmosIndex] = useState(0);
+  const [coverIndex, setCoverIndex] = useState(0);
 
   const advisor = advisors.find((a) => a.id === video?.advisor_id);
   const advisorName = advisor?.display_name || advisor?.name || 'Духовник';
+
+  const fetchVariants = useCallback(async () => {
+    if (!video?.id) return;
+    const { data } = await supabase
+      .from('cover_thumbnails')
+      .select('*')
+      .eq('video_id', video.id)
+      .order('created_at', { ascending: false });
+    
+    if (data) {
+      const atmos = data.filter((d: any) => d.variant_type === 'atmosphere');
+      const covers = data.filter((d: any) => d.variant_type === 'cover' || !d.variant_type);
+      setAtmosphereVariants(atmos as CoverVariant[]);
+      setCoverVariants(covers as CoverVariant[]);
+      // Set index to active variant
+      const activeAtmos = atmos.findIndex((a: any) => a.is_active);
+      const activeCover = covers.findIndex((c: any) => c.is_active);
+      setAtmosIndex(activeAtmos >= 0 ? activeAtmos : 0);
+      setCoverIndex(activeCover >= 0 ? activeCover : 0);
+    }
+  }, [video?.id]);
+
+  useEffect(() => {
+    fetchVariants();
+  }, [fetchVariants, (video as any)?.atmosphere_url, video?.front_cover_url]);
 
   useEffect(() => {
     const channels = video?.selected_channels;
@@ -144,6 +187,41 @@ export function VideoSidePanel({
       onUpdateVideo(video.id, { publication_date: date.toISOString() });
     }
     setPubDateOpen(false);
+  };
+
+  const handleSelectVariant = async (variant: CoverVariant, type: 'atmosphere' | 'cover') => {
+    try {
+      // Deactivate all variants of this type
+      await supabase.from('cover_thumbnails')
+        .update({ is_active: false })
+        .eq('video_id', video.id)
+        .eq('variant_type', type);
+      // Activate selected
+      await supabase.from('cover_thumbnails')
+        .update({ is_active: true })
+        .eq('id', variant.id);
+      
+      // Update video record
+      if (type === 'atmosphere') {
+        onUpdateVideo(video.id, { atmosphere_url: variant.atmosphere_url } as any);
+      } else {
+        onUpdateVideo(video.id, { front_cover_url: variant.front_cover_url } as any);
+      }
+      fetchVariants();
+      toast.success('Вариант выбран');
+    } catch (e) {
+      toast.error('Ошибка выбора варианта');
+    }
+  };
+
+  const handleDeleteVariant = async (variant: CoverVariant, type: 'atmosphere' | 'cover') => {
+    try {
+      await supabase.from('cover_thumbnails').delete().eq('id', variant.id);
+      fetchVariants();
+      toast.success('Вариант удалён');
+    } catch (e) {
+      toast.error('Ошибка удаления');
+    }
   };
 
   const pubDate = video.publication_date ? new Date(video.publication_date) : undefined;
@@ -348,61 +426,124 @@ export function VideoSidePanel({
                 </Button>
               </div>
 
-              {/* Side-by-side previews: Atmosphere + Final Cover */}
+              {/* Side-by-side carousels: Atmosphere + Final Cover */}
               <div className="grid grid-cols-2 gap-3">
-                {/* Atmosphere (Step 1) */}
+                {/* Atmosphere Carousel */}
                 <div className="space-y-1.5">
                   <Label className="text-[11px] text-muted-foreground flex items-center gap-1">
                     <Sun className="w-3 h-3" />
-                    Фон (атмосфера)
+                    Фон ({atmosphereVariants.length})
                   </Label>
-                  {atmosphereUrl ?
-                  <div className="relative aspect-[9/16] rounded-lg overflow-hidden border bg-muted group cursor-pointer"
-                  onClick={() => window.open(atmosphereUrl, '_blank')}>
-                      <img src={atmosphereUrl} alt="Atmosphere" className="w-full h-full object-cover" />
-                      <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
-                        <RefreshCw className="w-4 h-4 text-white" />
+                  {atmosphereVariants.length > 0 ? (
+                    <div className="relative">
+                      <div className="relative aspect-[9/16] rounded-lg overflow-hidden border bg-muted group cursor-pointer"
+                        onClick={() => window.open(atmosphereVariants[atmosIndex]?.atmosphere_url || '', '_blank')}>
+                        <img src={atmosphereVariants[atmosIndex]?.atmosphere_url || ''} alt="Atmosphere" className="w-full h-full object-cover" />
+                        <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-1">
+                          <Button size="icon" variant="ghost" className="h-6 w-6 text-white hover:text-white hover:bg-white/20"
+                            onClick={(e) => { e.stopPropagation(); handleSelectVariant(atmosphereVariants[atmosIndex], 'atmosphere'); }}>
+                            <Check className="w-3 h-3" />
+                          </Button>
+                          <Button size="icon" variant="ghost" className="h-6 w-6 text-white hover:text-white hover:bg-white/20"
+                            onClick={(e) => { e.stopPropagation(); handleDeleteVariant(atmosphereVariants[atmosIndex], 'atmosphere'); }}>
+                            <Trash2 className="w-3 h-3" />
+                          </Button>
+                        </div>
+                        {atmosphereVariants[atmosIndex]?.is_active && (
+                          <div className="absolute top-1 right-1">
+                            <Badge className="text-[8px] px-1 py-0 bg-primary">Active</Badge>
+                          </div>
+                        )}
                       </div>
-                    </div> :
-
-                  <div className="aspect-[9/16] rounded-lg border-2 border-dashed border-muted-foreground/20 bg-muted/30 flex flex-col items-center justify-center gap-1">
+                      {atmosphereVariants.length > 1 && (
+                        <div className="flex items-center justify-center gap-2 mt-1">
+                          <Button size="icon" variant="ghost" className="h-5 w-5"
+                            disabled={atmosIndex === 0}
+                            onClick={() => setAtmosIndex(i => i - 1)}>
+                            <ChevronLeft className="w-3 h-3" />
+                          </Button>
+                          <span className="text-[9px] text-muted-foreground">{atmosIndex + 1}/{atmosphereVariants.length}</span>
+                          <Button size="icon" variant="ghost" className="h-5 w-5"
+                            disabled={atmosIndex === atmosphereVariants.length - 1}
+                            onClick={() => setAtmosIndex(i => i + 1)}>
+                            <ChevronRight className="w-3 h-3" />
+                          </Button>
+                        </div>
+                      )}
+                      {atmosphereVariants[atmosIndex]?.prompt && (
+                        <p className="text-[9px] text-muted-foreground/60 italic line-clamp-2">{atmosphereVariants[atmosIndex].prompt}</p>
+                      )}
+                    </div>
+                  ) : atmosphereUrl ? (
+                    <div className="relative aspect-[9/16] rounded-lg overflow-hidden border bg-muted group cursor-pointer"
+                      onClick={() => window.open(atmosphereUrl, '_blank')}>
+                      <img src={atmosphereUrl} alt="Atmosphere" className="w-full h-full object-cover" />
+                    </div>
+                  ) : (
+                    <div className="aspect-[9/16] rounded-lg border-2 border-dashed border-muted-foreground/20 bg-muted/30 flex flex-col items-center justify-center gap-1">
                       <Sun className="w-5 h-5 text-muted-foreground/30" />
                       <span className="text-[9px] text-muted-foreground/40">Нет фона</span>
                     </div>
-                  }
-                  {atmospherePrompt &&
-                  <p className="text-[9px] text-muted-foreground/60 italic line-clamp-2">{atmospherePrompt}</p>
-                  }
+                  )}
                 </div>
 
-                {/* Final Cover (Step 2) */}
+                {/* Cover Carousel */}
                 <div className="space-y-1.5">
                   <Label className="text-[11px] text-muted-foreground flex items-center gap-1">
                     <Layers className="w-3 h-3" />
-                    Обложка (финал)
+                    Обложка ({coverVariants.length})
                   </Label>
-                  {video.front_cover_url ?
-                  <div className="relative aspect-[9/16] rounded-lg overflow-hidden border-2 border-primary bg-muted group cursor-pointer"
-                  onClick={() => window.open(video.front_cover_url!, '_blank')}>
-                      <img src={video.front_cover_url} alt="Cover" className="w-full h-full object-cover" />
-                      <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-1">
-                        <Button size="icon" variant="ghost" className="h-6 w-6 text-white hover:text-white hover:bg-white/20">
-                          <Check className="w-3 h-3" />
-                        </Button>
-                        <Button size="icon" variant="ghost" className="h-6 w-6 text-white hover:text-white hover:bg-white/20">
-                          <Trash2 className="w-3 h-3" />
-                        </Button>
+                  {coverVariants.length > 0 ? (
+                    <div className="relative">
+                      <div className="relative aspect-[9/16] rounded-lg overflow-hidden border-2 border-primary bg-muted group cursor-pointer"
+                        onClick={() => window.open(coverVariants[coverIndex]?.front_cover_url || '', '_blank')}>
+                        <img src={coverVariants[coverIndex]?.front_cover_url || ''} alt="Cover" className="w-full h-full object-cover" />
+                        <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-1">
+                          <Button size="icon" variant="ghost" className="h-6 w-6 text-white hover:text-white hover:bg-white/20"
+                            onClick={(e) => { e.stopPropagation(); handleSelectVariant(coverVariants[coverIndex], 'cover'); }}>
+                            <Check className="w-3 h-3" />
+                          </Button>
+                          <Button size="icon" variant="ghost" className="h-6 w-6 text-white hover:text-white hover:bg-white/20"
+                            onClick={(e) => { e.stopPropagation(); handleDeleteVariant(coverVariants[coverIndex], 'cover'); }}>
+                            <Trash2 className="w-3 h-3" />
+                          </Button>
+                        </div>
+                        {coverVariants[coverIndex]?.is_active && (
+                          <div className="absolute top-1 right-1">
+                            <Badge className="text-[8px] px-1 py-0 bg-primary">Active</Badge>
+                          </div>
+                        )}
                       </div>
+                      {coverVariants.length > 1 && (
+                        <div className="flex items-center justify-center gap-2 mt-1">
+                          <Button size="icon" variant="ghost" className="h-5 w-5"
+                            disabled={coverIndex === 0}
+                            onClick={() => setCoverIndex(i => i - 1)}>
+                            <ChevronLeft className="w-3 h-3" />
+                          </Button>
+                          <span className="text-[9px] text-muted-foreground">{coverIndex + 1}/{coverVariants.length}</span>
+                          <Button size="icon" variant="ghost" className="h-5 w-5"
+                            disabled={coverIndex === coverVariants.length - 1}
+                            onClick={() => setCoverIndex(i => i + 1)}>
+                            <ChevronRight className="w-3 h-3" />
+                          </Button>
+                        </div>
+                      )}
+                    </div>
+                  ) : video.front_cover_url ? (
+                    <div className="relative aspect-[9/16] rounded-lg overflow-hidden border-2 border-primary bg-muted group cursor-pointer"
+                      onClick={() => window.open(video.front_cover_url!, '_blank')}>
+                      <img src={video.front_cover_url} alt="Cover" className="w-full h-full object-cover" />
                       <div className="absolute top-1 right-1">
                         <Badge className="text-[8px] px-1 py-0 bg-primary">Active</Badge>
                       </div>
-                    </div> :
-
-                  <div className="aspect-[9/16] rounded-lg border-2 border-dashed border-muted-foreground/20 bg-muted/30 flex flex-col items-center justify-center gap-1">
+                    </div>
+                  ) : (
+                    <div className="aspect-[9/16] rounded-lg border-2 border-dashed border-muted-foreground/20 bg-muted/30 flex flex-col items-center justify-center gap-1">
                       <ImageIcon className="w-5 h-5 text-muted-foreground/30" />
                       <span className="text-[9px] text-muted-foreground/40">Нет обложки</span>
                     </div>
-                  }
+                  )}
                 </div>
               </div>
 
@@ -412,13 +553,12 @@ export function VideoSidePanel({
                 <Select
                   value={normalizedCoverStatus}
                   onValueChange={handleCoverStatusChange}>
-
                   <SelectTrigger className="h-7 text-xs">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
                     {coverStatusOptions.map((option) =>
-                    <SelectItem key={option.value} value={option.value}>
+                      <SelectItem key={option.value} value={option.value}>
                         {option.label}
                       </SelectItem>
                     )}
