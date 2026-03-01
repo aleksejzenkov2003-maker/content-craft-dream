@@ -126,6 +126,40 @@ serve(async (req) => {
         details: { video_url: videoUrl, duration },
       });
 
+      // Auto-mark publications for concat if channel has back_cover_video_url
+      try {
+        const { data: pubs } = await supabase
+          .from('publications')
+          .select('id, channel_id')
+          .eq('video_id', videoId)
+          .in('publication_status', ['pending', 'checked']);
+
+        if (pubs && pubs.length > 0) {
+          const channelIds = [...new Set(pubs.map(p => p.channel_id).filter(Boolean))];
+          const { data: channels } = await supabase
+            .from('publishing_channels')
+            .select('id, back_cover_video_url')
+            .in('id', channelIds)
+            .not('back_cover_video_url', 'is', null);
+
+          if (channels && channels.length > 0) {
+            const channelSet = new Set(channels.map(c => c.id));
+            const pubsToConcat = pubs.filter(p => p.channel_id && channelSet.has(p.channel_id));
+            
+            if (pubsToConcat.length > 0) {
+              await supabase
+                .from('publications')
+                .update({ publication_status: 'needs_concat' })
+                .in('id', pubsToConcat.map(p => p.id));
+              
+              console.log(`Marked ${pubsToConcat.length} publications for concat`);
+            }
+          }
+        }
+      } catch (concatErr) {
+        console.error('Error marking publications for concat:', concatErr);
+      }
+
     } else if (status === 'failed') {
       newStatus = 'error';
       await supabase

@@ -22,6 +22,7 @@ import { usePlaylists } from '@/hooks/usePlaylists';
 import { useVideos, Video, VideoFilters } from '@/hooks/useVideos';
 import { useVideoGeneration } from '@/hooks/useVideoGeneration';
 import { usePublications } from '@/hooks/usePublications';
+import { useVideoConcat } from '@/hooks/useVideoConcat';
 import { usePublishingChannels } from '@/hooks/usePublishingChannels';
 import { SettingsPage } from '@/components/settings/SettingsPage';
 import { Users, ListVideo, Video as VideoIcon, CheckCircle, Loader2, Send, HelpCircle } from 'lucide-react';
@@ -59,6 +60,7 @@ export default function Index() {
   const { videos, loading: videosLoading, addVideo, updateVideo, deleteVideo, refetch: refetchVideos, bulkImport, bulkUpdate } = useVideos(videoFilters);
   const { publications, loading: publicationsLoading, addPublication, refetch: refetchPublications } = usePublications();
   const { channels: publishingChannels } = usePublishingChannels();
+  const { concatVideos } = useVideoConcat();
   
   const { 
     isGenerating, 
@@ -93,6 +95,53 @@ export default function Index() {
     delete pollingErrorsRef.current[videoId];
   }, []);
 
+  const triggerAutoConcat = useCallback(async (videoId: string) => {
+    try {
+      // Find publications with needs_concat status for this video
+      const { data: pubs } = await supabase
+        .from('publications')
+        .select('id, channel_id')
+        .eq('video_id', videoId)
+        .eq('publication_status', 'needs_concat');
+
+      if (!pubs || pubs.length === 0) return;
+
+      // Get video URL
+      const { data: video } = await supabase
+        .from('videos')
+        .select('heygen_video_url, video_path')
+        .eq('id', videoId)
+        .single();
+
+      const videoUrl = video?.heygen_video_url || video?.video_path;
+      if (!videoUrl) return;
+
+      // Get channels with back cover video URLs
+      const channelIds = [...new Set(pubs.map(p => p.channel_id).filter(Boolean))];
+      const { data: channels } = await supabase
+        .from('publishing_channels')
+        .select('id, back_cover_video_url')
+        .in('id', channelIds as string[]);
+
+      const channelMap = new Map(channels?.map(c => [c.id, c.back_cover_video_url]) || []);
+
+      for (const pub of pubs) {
+        const backCoverUrl = channelMap.get(pub.channel_id);
+        if (backCoverUrl) {
+          toast.info(`Склейка видео для публикации...`);
+          try {
+            await concatVideos(pub.id, videoUrl, backCoverUrl);
+          } catch (e) {
+            console.error('Auto-concat failed for publication:', pub.id, e);
+          }
+        }
+      }
+      refetchPublications();
+    } catch (err) {
+      console.error('Auto-concat error:', err);
+    }
+  }, [concatVideos, refetchPublications]);
+
   const pollVideoStatus = useCallback(async (videoId: string) => {
     try {
       const { data, error } = await supabase.functions.invoke('check-video-status', {
@@ -114,6 +163,10 @@ export default function Index() {
         stopVideoPolling(videoId);
         toast.success('Видео готово!');
         refetchVideos();
+        refetchPublications();
+        
+        // Auto-concat: find publications marked needs_concat for this video
+        triggerAutoConcat(videoId);
       } else if (data?.status === 'error' || data?.status === 'failed') {
         stopVideoPolling(videoId);
         toast.error('Ошибка генерации видео');
@@ -122,7 +175,7 @@ export default function Index() {
     } catch (err) {
       console.error('Video polling error:', err);
     }
-  }, [refetchVideos, stopVideoPolling]);
+  }, [refetchVideos, refetchPublications, stopVideoPolling, triggerAutoConcat]);
 
   const startVideoPolling = useCallback((videoId: string) => {
     if (videoPollingRef.current[videoId]) return;

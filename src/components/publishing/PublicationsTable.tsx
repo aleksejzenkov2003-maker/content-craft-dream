@@ -56,6 +56,7 @@ import { cn } from '@/lib/utils';
 const statusLabels: Record<string, { label: string; variant: 'default' | 'secondary' | 'destructive' | 'outline' }> = {
   pending: { label: 'Ожидает', variant: 'secondary' },
   checked: { label: 'Проверено', variant: 'outline' },
+  needs_concat: { label: 'Ожидает склейки', variant: 'outline' },
   concatenating: { label: 'Склейка...', variant: 'outline' },
   scheduled: { label: 'Запланирован', variant: 'outline' },
   published: { label: 'Опубликован', variant: 'default' },
