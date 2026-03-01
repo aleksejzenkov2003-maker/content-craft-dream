@@ -1,5 +1,7 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import React from "https://esm.sh/react@18.2.0";
+import { ImageResponse } from "https://deno.land/x/og_edge@0.0.6/mod.ts";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -73,6 +75,142 @@ async function downloadAndUpload(
   return urlData.publicUrl;
 }
 
+async function uploadBuffer(
+  buffer: Uint8Array,
+  supabase: any,
+  path: string,
+  contentType = 'image/png'
+): Promise<string> {
+  const { error: uploadError } = await supabase.storage
+    .from('media-files')
+    .upload(path, buffer, { contentType, upsert: true });
+
+  if (uploadError) throw new Error(`Failed to upload image: ${uploadError.message}`);
+
+  const { data: urlData } = supabase.storage.from('media-files').getPublicUrl(path);
+  return urlData.publicUrl;
+}
+
+/**
+ * Step 2: Programmatic cover compositing using og_edge (Satori).
+ * Composites: atmosphere background + circular advisor photo + hook text.
+ */
+async function composeCover(
+  atmosphereUrl: string,
+  advisorPhotoUrl: string | null,
+  advisorName: string,
+  hookText: string,
+): Promise<ArrayBuffer> {
+  const WIDTH = 1080;
+  const HEIGHT = 1920;
+
+  const element = React.createElement(
+    'div',
+    {
+      style: {
+        width: '100%',
+        height: '100%',
+        display: 'flex',
+        flexDirection: 'column',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        position: 'relative',
+        fontFamily: 'sans-serif',
+      },
+    },
+    // Background atmosphere image
+    React.createElement('img', {
+      src: atmosphereUrl,
+      style: {
+        position: 'absolute',
+        top: 0,
+        left: 0,
+        width: '100%',
+        height: '100%',
+        objectFit: 'cover',
+      },
+    }),
+    // Hook text in the center area
+    React.createElement(
+      'div',
+      {
+        style: {
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center',
+          justifyContent: 'center',
+          flex: 1,
+          padding: '80px 60px',
+          zIndex: 10,
+        },
+      },
+      React.createElement(
+        'div',
+        {
+          style: {
+            color: 'white',
+            fontSize: hookText.length > 80 ? 48 : hookText.length > 40 ? 56 : 64,
+            fontWeight: 700,
+            textAlign: 'center',
+            lineHeight: 1.3,
+            textShadow: '0 4px 20px rgba(0,0,0,0.8), 0 2px 8px rgba(0,0,0,0.6)',
+            maxWidth: '90%',
+          },
+        },
+        hookText
+      )
+    ),
+    // Advisor miniature + name at bottom-left
+    advisorPhotoUrl
+      ? React.createElement(
+          'div',
+          {
+            style: {
+              display: 'flex',
+              alignItems: 'center',
+              padding: '40px 60px 80px 60px',
+              zIndex: 10,
+              width: '100%',
+            },
+          },
+          // Circular advisor photo
+          React.createElement('img', {
+            src: advisorPhotoUrl,
+            style: {
+              width: 200,
+              height: 200,
+              borderRadius: '50%',
+              objectFit: 'cover',
+              border: '4px solid rgba(255,255,255,0.8)',
+              boxShadow: '0 4px 20px rgba(0,0,0,0.5)',
+            },
+          }),
+          // Advisor name
+          React.createElement(
+            'div',
+            {
+              style: {
+                color: 'white',
+                fontSize: 36,
+                fontWeight: 600,
+                marginLeft: 30,
+                textShadow: '0 2px 10px rgba(0,0,0,0.8)',
+              },
+            },
+            advisorName
+          )
+        )
+      : null
+  );
+
+  const response = new ImageResponse(element, {
+    width: WIDTH,
+    height: HEIGHT,
+  });
+
+  return response.arrayBuffer();
+}
+
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
@@ -94,7 +232,7 @@ serve(async (req) => {
 
     const supabase = createClient(supabaseUrl, supabaseKey);
 
-    // Fetch video + advisor + playlist + primary photo
+    // Fetch video + advisor + playlist
     const { data: video, error: videoError } = await supabase
       .from('videos')
       .select(`
@@ -140,7 +278,7 @@ serve(async (req) => {
     let finalAtmospherePrompt = video.atmosphere_prompt || '';
 
     // =============================================
-    // STEP 1: Generate atmosphere background
+    // STEP 1: Generate atmosphere background (AI)
     // =============================================
     if (runAtmosphere) {
       let generatedAtmospherePrompt = atmospherePrompt;
@@ -233,13 +371,11 @@ The background should evoke the spiritual and emotional tone of this content.`
       }).eq('id', videoId);
 
       // Save atmosphere variant to cover_thumbnails
-      // First, deactivate all previous atmosphere variants for this video
       await supabase.from('cover_thumbnails')
         .update({ is_active: false })
         .eq('video_id', videoId)
         .eq('variant_type', 'atmosphere');
 
-      // Insert new atmosphere variant as active
       await supabase.from('cover_thumbnails').insert({
         video_id: videoId,
         atmosphere_url: atmosphereStorageUrl,
@@ -251,7 +387,6 @@ The background should evoke the spiritual and emotional tone of this content.`
 
       console.log('Atmosphere saved:', atmosphereStorageUrl);
 
-      // If only atmosphere step requested, return here
       if (step === 'atmosphere') {
         return new Response(
           JSON.stringify({ success: true, step: 'atmosphere', atmosphereUrl: atmosphereStorageUrl }),
@@ -261,86 +396,63 @@ The background should evoke the spiritual and emotional tone of this content.`
     }
 
     // =============================================
-    // STEP 2: Overlay advisor photo onto atmosphere
+    // STEP 2: Programmatic cover compositing
+    // (atmosphere + circular advisor photo + hook text)
     // =============================================
 
     if (!atmosphereStorageUrl) {
       throw new Error('No atmosphere image available. Generate atmosphere first (step 1).');
     }
 
-    if (!advisorPhotoUrl) {
-      console.log('No advisor photo found, skipping overlay step');
-      // Use atmosphere as final cover
-      await supabase.from('videos').update({
-        front_cover_url: atmosphereStorageUrl,
-        cover_status: 'ready',
-      }).eq('id', videoId);
-    } else {
-      console.log('Step 2: Overlaying advisor photo with nano-banana-pro...');
-      
-      const overlayPrompt = `Take this background atmosphere image and composite a circular portrait of the person from the second image into the bottom-left corner of the background. The portrait should be in a clean circle shape, about 30% of the image width. Add the name "${video.advisor?.display_name || video.advisor?.name || ''}" as elegant text near the portrait. Keep the background atmosphere intact. 9:16 portrait orientation.`;
+    const advisorName = video.advisor?.display_name || video.advisor?.name || '';
+    const hookText = video.hook_rus || video.hook || video.question || '';
 
-      const overlayRes = await fetch('https://api.kie.ai/api/v1/jobs/createTask', {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${kieApiKey}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          model: 'nano-banana-pro',
-          input: {
-            prompt: overlayPrompt,
-            image_input: [atmosphereStorageUrl, advisorPhotoUrl],
-            aspect_ratio: '9:16',
-          },
-        }),
-      });
+    console.log('Step 2: Compositing cover programmatically...');
+    console.log('  Atmosphere:', atmosphereStorageUrl);
+    console.log('  Advisor photo:', advisorPhotoUrl);
+    console.log('  Hook text:', hookText);
 
-      if (!overlayRes.ok) {
-        const errText = await overlayRes.text();
-        throw new Error(`Overlay generation failed: ${overlayRes.status} - ${errText}`);
-      }
+    const coverBuffer = await composeCover(
+      atmosphereStorageUrl,
+      advisorPhotoUrl,
+      advisorName,
+      hookText,
+    );
 
-      const overlayData = await overlayRes.json();
-      const overlayTaskId = overlayData.data?.taskId;
-      if (!overlayTaskId) throw new Error('No taskId for overlay: ' + JSON.stringify(overlayData));
+    const coverPath = `covers/${videoId}/front_cover_${Date.now()}.png`;
+    const frontCoverUrl = await uploadBuffer(
+      new Uint8Array(coverBuffer),
+      supabase,
+      coverPath,
+    );
 
-      console.log('Overlay task created:', overlayTaskId);
-      const overlayImageUrl = await pollTaskStatus(overlayTaskId, kieApiKey);
-      console.log('Overlay generated:', overlayImageUrl);
+    // Update video with final cover
+    await supabase.from('videos').update({
+      front_cover_url: frontCoverUrl,
+      cover_status: 'ready',
+      cover_prompt: finalAtmospherePrompt,
+    }).eq('id', videoId);
 
-      // Download and upload final cover
-      const coverPath = `covers/${videoId}/front_cover_${Date.now()}.png`;
-      const frontCoverUrl = await downloadAndUpload(overlayImageUrl, supabase, coverPath);
+    // Deactivate previous cover variants
+    await supabase.from('cover_thumbnails')
+      .update({ is_active: false })
+      .eq('video_id', videoId)
+      .eq('variant_type', 'cover');
 
-      // Update video with final cover
-      await supabase.from('videos').update({
-        front_cover_url: frontCoverUrl,
-        cover_status: 'ready',
-        cover_prompt: finalAtmospherePrompt,
-      }).eq('id', videoId);
+    // Save new cover variant
+    await supabase.from('cover_thumbnails').insert({
+      video_id: videoId,
+      prompt: finalAtmospherePrompt,
+      front_cover_url: frontCoverUrl,
+      variant_type: 'cover',
+      is_active: true,
+      status: 'ready',
+    });
 
-      // Deactivate previous cover variants
-      await supabase.from('cover_thumbnails')
-        .update({ is_active: false })
-        .eq('video_id', videoId)
-        .eq('variant_type', 'cover');
-
-      // Save new cover variant as active
-      await supabase.from('cover_thumbnails').insert({
-        video_id: videoId,
-        prompt: finalAtmospherePrompt,
-        front_cover_url: frontCoverUrl,
-        variant_type: 'cover',
-        is_active: true,
-        status: 'ready',
-      });
-
-      console.log('Final cover saved:', frontCoverUrl);
-    }
+    console.log('Final cover saved:', frontCoverUrl);
 
     return new Response(
-      JSON.stringify({ success: true, message: 'Cover generated (2-step process)' }),
+      JSON.stringify({ success: true, message: 'Cover composed programmatically (2-step process)', frontCoverUrl }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
 
