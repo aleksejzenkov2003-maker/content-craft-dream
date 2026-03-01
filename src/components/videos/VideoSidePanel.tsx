@@ -8,6 +8,7 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { Textarea } from '@/components/ui/textarea';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Calendar } from '@/components/ui/calendar';
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import {
   Sheet,
   SheetContent } from
@@ -39,7 +40,8 @@ import {
   CalendarIcon,
   Sun,
   Layers,
-  Volume2 } from
+  Volume2,
+  Settings2 } from
 'lucide-react';
 import { format } from 'date-fns';
 import { ru } from 'date-fns/locale';
@@ -63,7 +65,7 @@ interface VideoSidePanelProps {
   onOpenChange: (open: boolean) => void;
   advisors: Advisor[];
   publishingChannels: PublishingChannel[];
-  onGenerateAtmosphere: (video: Video) => void;
+  onGenerateAtmosphere: (video: Video, customPrompt?: string) => void;
   onGenerateCover: (video: Video) => void;
   onGenerateVideo: (video: Video) => void;
   onGenerateVoiceover?: (video: Video) => void;
@@ -109,6 +111,8 @@ export function VideoSidePanel({
   const [coverVariants, setCoverVariants] = useState<CoverVariant[]>([]);
   const [atmosIndex, setAtmosIndex] = useState(0);
   const [coverIndex, setCoverIndex] = useState(0);
+  const [atmospherePromptText, setAtmospherePromptText] = useState('');
+  const [promptSectionOpen, setPromptSectionOpen] = useState(false);
 
   const advisor = advisors.find((a) => a.id === video?.advisor_id);
   const advisorName = advisor?.display_name || advisor?.name || 'Духовник';
@@ -153,6 +157,32 @@ export function VideoSidePanel({
     }
     setAdvisorAnswer(video?.advisor_answer || '');
   }, [video?.id, video?.selected_channels, video?.advisor_answer, advisor]);
+
+  // Prefill atmosphere prompt from active DB prompt
+  useEffect(() => {
+    const fetchAtmospherePrompt = async () => {
+      if (!video?.id) return;
+      const { data: dbPrompt } = await supabase
+        .from('prompts')
+        .select('system_prompt, user_template')
+        .eq('type', 'atmosphere')
+        .eq('is_active', true)
+        .limit(1)
+        .single();
+
+      if (dbPrompt) {
+        const advisorNameVal = advisor?.display_name || advisor?.name || '';
+        const filled = dbPrompt.user_template
+          .replace(/\{\{question\}\}/g, video.question || '')
+          .replace(/\{\{hook\}\}/g, video.hook || '')
+          .replace(/\{\{answer\}\}/g, video.advisor_answer || '')
+          .replace(/\{\{advisor\}\}/g, advisorNameVal)
+          .replace(/\{\{playlist\}\}/g, '');
+        setAtmospherePromptText(filled);
+      }
+    };
+    fetchAtmospherePrompt();
+  }, [video?.id, video?.question, video?.hook, video?.advisor_answer, advisor]);
 
   if (!video) return null;
 
@@ -393,6 +423,31 @@ export function VideoSidePanel({
             <Separator className="my-4" />
             <div className="space-y-3">
               <h4 className="font-medium text-sm">Генерации обложки</h4>
+
+              {/* Collapsible prompt section */}
+              <Collapsible open={promptSectionOpen} onOpenChange={setPromptSectionOpen}>
+                <CollapsibleTrigger asChild>
+                  <Button variant="ghost" size="sm" className="w-full justify-between h-7 text-xs text-muted-foreground">
+                    <span className="flex items-center gap-1">
+                      <Settings2 className="w-3 h-3" />
+                      Промт атмосферы
+                    </span>
+                    {promptSectionOpen ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
+                  </Button>
+                </CollapsibleTrigger>
+                <CollapsibleContent className="pt-2">
+                  <Textarea
+                    value={atmospherePromptText}
+                    onChange={(e) => setAtmospherePromptText(e.target.value)}
+                    placeholder="Промт для генерации атмосферы..."
+                    className="min-h-[80px] text-xs font-mono"
+                    rows={4}
+                  />
+                  <p className="text-[10px] text-muted-foreground mt-1">
+                    Отредактируйте промт перед генерацией. Промт подтянут из настроек.
+                  </p>
+                </CollapsibleContent>
+              </Collapsible>
               
               {/* Two generation buttons */}
               <div className="grid grid-cols-2 gap-2">
@@ -400,7 +455,7 @@ export function VideoSidePanel({
                   size="sm"
                   variant="outline"
                   className="h-8 text-xs border-amber-500/50 text-amber-700 hover:bg-amber-50 dark:hover:bg-amber-950/20"
-                  onClick={() => onGenerateAtmosphere(video)}
+                  onClick={() => onGenerateAtmosphere(video, atmospherePromptText || undefined)}
                   disabled={isGeneratingCover}>
 
                   {isGeneratingCover ?

@@ -52,16 +52,26 @@ serve(async (req) => {
       );
     }
 
-    // Get channel's post text prompt or use default
-    const channelPrompt = publication.channel?.post_text_prompt || `
-Создай привлекательный текст для публикации в социальных сетях на основе следующей информации:
+    // Get channel's post text prompt, or fetch from DB, or use hardcoded fallback
+    let channelPrompt = publication.channel?.post_text_prompt;
+    
+    if (!channelPrompt) {
+      const { data: dbPrompt } = await supabase
+        .from('prompts')
+        .select('user_template')
+        .eq('type', 'post_text')
+        .eq('is_active', true)
+        .limit(1)
+        .single();
+
+      channelPrompt = dbPrompt?.user_template || `Создай привлекательный текст для публикации в социальных сетях на основе следующей информации:
 - Вопрос: {{question}}
 - Хук: {{hook}}
 - Ответ духовника: {{answer}}
 - Духовник: {{advisor}}
 
-Текст должен быть кратким (до 280 символов), содержать эмодзи и призыв к действию.
-`;
+Текст должен быть кратким (до 280 символов), содержать эмодзи и призыв к действию.`;
+    }
 
     // Prepare context for prompt
     const advisorName = publication.video?.advisor?.display_name || 

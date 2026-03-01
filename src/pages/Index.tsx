@@ -186,7 +186,7 @@ export default function Index() {
     return await uploadPhotoToHeygen(photo);
   };
 
-  const handleGenerateAtmosphere = async (video: Video) => {
+  const handleGenerateAtmosphere = async (video: Video, customPrompt?: string) => {
     try {
       toast.info('Генерация фона (атмосферы)...');
       
@@ -199,6 +199,7 @@ export default function Index() {
         body: JSON.stringify({
           videoId: video.id,
           step: 'atmosphere',
+          ...(customPrompt ? { atmospherePrompt: customPrompt } : {}),
         }),
       });
 

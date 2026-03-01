@@ -283,46 +283,77 @@ serve(async (req) => {
     if (runAtmosphere) {
       let generatedAtmospherePrompt = atmospherePrompt;
 
-      if (!generatedAtmospherePrompt && lovableApiKey) {
+      if (!generatedAtmospherePrompt) {
+        // Fetch active atmosphere prompt from DB
+        const { data: dbPrompt } = await supabase
+          .from('prompts')
+          .select('system_prompt, user_template')
+          .eq('type', 'atmosphere')
+          .eq('is_active', true)
+          .limit(1)
+          .single();
+
         const advisorName = video.advisor?.display_name || video.advisor?.name || '';
         const playlistName = video.playlist?.name || '';
-        
-        console.log('Generating atmosphere prompt via AI...');
-        const aiResponse = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
-          method: 'POST',
-          headers: {
-            'Authorization': `Bearer ${lovableApiKey}`,
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            model: 'google/gemini-2.5-flash',
-            messages: [
-              {
-                role: 'system',
-                content: `You are a visual concept designer. Generate a short, vivid prompt for an atmospheric background image for a spiritual video cover. 
-The image should NOT contain any people or faces - only atmosphere, scenery, and mood.
-Output ONLY the image generation prompt, nothing else. Keep it under 100 words.
-The prompt should be in English.`
-              },
-              {
-                role: 'user',
-                content: `Create an atmosphere background prompt for:
-Question: ${video.question || ''}
-Hook: ${video.hook || ''}
-Answer: ${video.advisor_answer || ''}
-Advisor: ${advisorName}
-Religion/Topic: ${playlistName}
 
-The background should evoke the spiritual and emotional tone of this content.`
-              }
-            ],
-          }),
-        });
+        if (dbPrompt && lovableApiKey) {
+          const systemPrompt = dbPrompt.system_prompt;
+          const userPrompt = dbPrompt.user_template
+            .replace(/\{\{question\}\}/g, video.question || '')
+            .replace(/\{\{hook\}\}/g, video.hook || '')
+            .replace(/\{\{answer\}\}/g, video.advisor_answer || '')
+            .replace(/\{\{advisor\}\}/g, advisorName)
+            .replace(/\{\{playlist\}\}/g, playlistName);
 
-        if (aiResponse.ok) {
-          const aiData = await aiResponse.json();
-          generatedAtmospherePrompt = aiData.choices?.[0]?.message?.content?.trim() || '';
-          console.log('AI generated atmosphere prompt:', generatedAtmospherePrompt);
+          console.log('Generating atmosphere prompt via AI from DB prompt...');
+          const aiResponse = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
+            method: 'POST',
+            headers: {
+              'Authorization': `Bearer ${lovableApiKey}`,
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              model: 'google/gemini-2.5-flash',
+              messages: [
+                { role: 'system', content: systemPrompt },
+                { role: 'user', content: userPrompt },
+              ],
+            }),
+          });
+
+          if (aiResponse.ok) {
+            const aiData = await aiResponse.json();
+            generatedAtmospherePrompt = aiData.choices?.[0]?.message?.content?.trim() || '';
+            console.log('AI generated atmosphere prompt:', generatedAtmospherePrompt);
+          }
+        } else if (lovableApiKey) {
+          // Fallback hardcoded if no DB prompt
+          console.log('No DB prompt found, using hardcoded fallback...');
+          const aiResponse = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
+            method: 'POST',
+            headers: {
+              'Authorization': `Bearer ${lovableApiKey}`,
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              model: 'google/gemini-2.5-flash',
+              messages: [
+                {
+                  role: 'system',
+                  content: `You are a visual concept designer. Generate a short, vivid prompt for an atmospheric background image for a spiritual video cover. The image should NOT contain any people or faces - only atmosphere, scenery, and mood. Output ONLY the image generation prompt, nothing else. Keep it under 100 words. The prompt should be in English.`
+                },
+                {
+                  role: 'user',
+                  content: `Create an atmosphere background prompt for:\nQuestion: ${video.question || ''}\nHook: ${video.hook || ''}\nAnswer: ${video.advisor_answer || ''}\nAdvisor: ${advisorName}\nReligion/Topic: ${playlistName}\n\nThe background should evoke the spiritual and emotional tone of this content.`
+                }
+              ],
+            }),
+          });
+
+          if (aiResponse.ok) {
+            const aiData = await aiResponse.json();
+            generatedAtmospherePrompt = aiData.choices?.[0]?.message?.content?.trim() || '';
+          }
         }
       }
 

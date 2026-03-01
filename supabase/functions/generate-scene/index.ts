@@ -76,14 +76,31 @@ serve(async (req) => {
       advisorName = advisor?.display_name || advisor?.name || '';
     }
 
-    // Build the prompt for scene generation
-    const scenePrompt = prompt || `Create a beautiful background scene for a spiritual guidance video.
+    // Build the prompt for scene generation - fetch from DB if no custom prompt
+    let scenePrompt = prompt;
+    if (!scenePrompt) {
+      const { data: dbPrompt } = await supabase
+        .from('prompts')
+        .select('user_template')
+        .eq('type', 'scene')
+        .eq('is_active', true)
+        .limit(1)
+        .single();
+
+      if (dbPrompt) {
+        scenePrompt = dbPrompt.user_template
+          .replace(/\{\{playlist\}\}/g, playlistName || 'Spiritual guidance')
+          .replace(/\{\{advisor\}\}/g, advisorName || '');
+      } else {
+        scenePrompt = `Create a beautiful background scene for a spiritual guidance video.
 The scene should be serene, peaceful, and contemplative.
 Theme: ${playlistName || 'Spiritual guidance'}
 Style: Photorealistic, cinematic lighting, soft bokeh background.
 The image should work as a video backdrop with the advisor appearing in front.
 Colors: Warm, inviting tones with subtle golden light.
 Ultra high resolution, 16:9 aspect ratio.`;
+      }
+    }
 
     console.log('Generating scene with prompt:', scenePrompt);
 
