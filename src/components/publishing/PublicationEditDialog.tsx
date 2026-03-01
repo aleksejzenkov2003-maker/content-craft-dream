@@ -18,11 +18,14 @@ import {
 } from '@/components/ui/select';
 import { Calendar } from '@/components/ui/calendar';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
-import { CalendarIcon, Clock, Loader2 } from 'lucide-react';
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
+import { CalendarIcon, Clock, Loader2, Settings2, ChevronUp, ChevronDown, Sparkles } from 'lucide-react';
 import { format, setHours, setMinutes } from 'date-fns';
 import { ru } from 'date-fns/locale';
 import { cn } from '@/lib/utils';
 import { Publication } from '@/hooks/usePublications';
+import { supabase } from '@/integrations/supabase/client';
+import { toast } from 'sonner';
 
 interface PublicationEditDialogProps {
   publication: Publication | null;
@@ -54,6 +57,9 @@ export function PublicationEditDialog({
   const [hour, setHour] = useState(12);
   const [minute, setMinute] = useState(0);
   const [saving, setSaving] = useState(false);
+  const [promptText, setPromptText] = useState('');
+  const [promptOpen, setPromptOpen] = useState(false);
+  const [generating, setGenerating] = useState(false);
 
   useEffect(() => {
     if (publication) {
@@ -71,6 +77,66 @@ export function PublicationEditDialog({
       }
     }
   }, [publication]);
+
+  // Prefill prompt from channel or DB
+  useEffect(() => {
+    const fetchPrompt = async () => {
+      if (!publication) return;
+      
+      // First try channel's own prompt
+      const channelPrompt = (publication.channel as any)?.post_text_prompt;
+      if (channelPrompt) {
+        setPromptText(fillPromptVars(channelPrompt, publication));
+        return;
+      }
+
+      // Then try active DB prompt
+      const { data: dbPrompt } = await supabase
+        .from('prompts')
+        .select('user_template')
+        .eq('type', 'post_text')
+        .eq('is_active', true)
+        .limit(1)
+        .single();
+
+      if (dbPrompt) {
+        setPromptText(fillPromptVars(dbPrompt.user_template, publication));
+      }
+    };
+    fetchPrompt();
+  }, [publication?.id]);
+
+  const fillPromptVars = (template: string, pub: Publication) => {
+    const question = pub.video?.question || '';
+    const hook = (pub.video as any)?.hook || '';
+    const answer = (pub.video as any)?.advisor_answer || '';
+    const advisor = pub.video?.advisor?.display_name || pub.video?.advisor?.name || '';
+    return template
+      .replace(/\{\{question\}\}/g, question)
+      .replace(/\{\{hook\}\}/g, hook)
+      .replace(/\{\{answer\}\}/g, answer)
+      .replace(/\{\{advisor\}\}/g, advisor);
+  };
+
+  const handleGenerateText = async () => {
+    if (!publication) return;
+    setGenerating(true);
+    try {
+      const { data, error } = await supabase.functions.invoke('generate-post-text', {
+        body: { publicationId: publication.id },
+      });
+      if (error) throw error;
+      if (data?.generated_text) {
+        setGeneratedText(data.generated_text);
+        toast.success('Текст сгенерирован');
+      }
+    } catch (e) {
+      console.error('Error generating text:', e);
+      toast.error('Ошибка генерации текста');
+    } finally {
+      setGenerating(false);
+    }
+  };
 
   const handleSave = async () => {
     if (!publication) return;
@@ -200,9 +266,50 @@ export function PublicationEditDialog({
             </div>
           </div>
 
+          {/* Промт для генерации текста */}
+          <Collapsible open={promptOpen} onOpenChange={setPromptOpen}>
+            <CollapsibleTrigger asChild>
+              <Button variant="ghost" size="sm" className="w-full justify-between h-8 text-xs text-muted-foreground">
+                <span className="flex items-center gap-1">
+                  <Settings2 className="w-3 h-3" />
+                  Промт генерации текста
+                </span>
+                {promptOpen ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
+              </Button>
+            </CollapsibleTrigger>
+            <CollapsibleContent className="pt-2 space-y-2">
+              <Textarea
+                value={promptText}
+                onChange={(e) => setPromptText(e.target.value)}
+                placeholder="Промт для генерации текста публикации..."
+                className="min-h-[80px] text-xs font-mono"
+                rows={4}
+              />
+              <p className="text-[10px] text-muted-foreground">
+                Промт подтянут из настроек канала или общих настроек. Можно отредактировать перед генерацией.
+              </p>
+            </CollapsibleContent>
+          </Collapsible>
+
           {/* Текст публикации */}
           <div className="space-y-2">
-            <Label>Текст публикации</Label>
+            <div className="flex items-center justify-between">
+              <Label>Текст публикации</Label>
+              <Button
+                size="sm"
+                variant="secondary"
+                className="h-7 text-xs"
+                onClick={handleGenerateText}
+                disabled={generating}
+              >
+                {generating ? (
+                  <Loader2 className="w-3 h-3 mr-1 animate-spin" />
+                ) : (
+                  <Sparkles className="w-3 h-3 mr-1" />
+                )}
+                {generatedText ? 'Перегенерировать' : 'Сгенерировать'}
+              </Button>
+            </div>
             <Textarea
               value={generatedText}
               onChange={(e) => setGeneratedText(e.target.value)}
