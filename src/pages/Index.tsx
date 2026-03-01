@@ -457,6 +457,11 @@ export default function Index() {
                 }}
                 onBulkPublish={async (videoIds) => {
                   const videosToPublish = videos.filter(v => videoIds.includes(v.id));
+                  const withoutDate = videosToPublish.filter(v => !v.publication_date);
+                  if (withoutDate.length > 0) {
+                    toast.error(`${withoutDate.length} ролик(ов) без плановой даты. Сначала укажите дату.`);
+                    return;
+                  }
                   let totalCreated = 0;
                   for (const video of videosToPublish) {
                     const channelIds = video.selected_channels?.length ? video.selected_channels : publishingChannels.filter(c => c.is_active).map(c => c.id);
