@@ -1,55 +1,49 @@
 
 
-## Cover Composition: Replace AI Generation with Programmatic Image Compositing
+## Вынос промтов в настройки с точечным редактированием перед генерацией
 
-### Current Problem
-Step 2 of cover generation uses `nano-banana-pro` (another AI image generation call) to overlay the advisor photo + hook text onto the atmosphere background. This is slow, expensive, unpredictable, and doesn't match the n8n workflow approach.
+### Текущая ситуация
+Сейчас промты захардкожены в 3 местах:
+1. **Атмосфера обложки** (`generate-cover`) — system/user prompt для генерации атмосферного промта через AI, плюс дефолтный fallback
+2. **Сцены** (`generate-scene`) — захардкоженный промт для генерации фоновой сцены
+3. **Текст публикации** (`generate-post-text`) — дефолтный промт, если у канала нет `post_text_prompt`
 
-### Key Insight from User
-- **Video** is generated from **Scene photo** (playlist_scenes table — scene per playlist+advisor)
-- **Cover** = atmosphere background + hook text + advisor miniature — composed programmatically (canvas compositing), NOT via AI generation
+### План
 
-### Plan
+#### 1. Добавить новые типы промтов в систему
+Расширить список типов в `PromptForm.tsx` и переменных:
+- `atmosphere` — Промт атмосферы обложки (переменные: `{{question}}`, `{{hook}}`, `{{answer}}`, `{{advisor}}`, `{{playlist}}`)
+- `scene` — Промт сцены (переменные: `{{playlist}}`, `{{advisor}}`)
+- `post_text` — Промт текста публикации (переменные: `{{question}}`, `{{hook}}`, `{{answer}}`, `{{advisor}}`)
 
-#### 1. Rewrite Step 2 in `generate-cover` Edge Function
-Replace the `nano-banana-pro` AI call with programmatic image compositing using Deno Canvas API (`jsr:@gfx/canvas` or similar):
+#### 2. Создать дефолтные промты через seed
+Вставить 3 дефолтных промта в таблицу `prompts` через insert-запрос, содержащих текущие захардкоженные тексты.
 
-- Download the atmosphere image (already generated in Step 1)
-- Download the advisor's primary photo from `advisor_photos`
-- Draw atmosphere as full background (1080x1920, 9:16)
-- Draw advisor photo as a circular miniature in bottom-left area (~30% width)
-- Render hook text (`video.hook` or `video.hook_rus`) as styled text overlay
-- Export as PNG, upload to storage
+#### 3. Обновить Edge Functions — читать промты из БД
+- **`generate-cover`**: Вместо захардкоженного system/user prompt для AI — читать активный промт типа `atmosphere` из `prompts`, подставлять переменные
+- **`generate-scene`**: Читать активный промт типа `scene`, подставлять переменные
+- **`generate-post-text`**: Читать активный промт типа `post_text` как fallback (вместо захардкоженного)
 
-This is deterministic, instant, and matches the n8n compositing approach.
+#### 4. UI: Точечное редактирование промта перед генерацией
 
-#### 2. Technical Implementation Details
+**VideoSidePanel** (обложки):
+- Добавить сворачиваемую секцию с textarea для промта атмосферы перед кнопкой "Шаг 1: Фон"
+- Промт предзаполняется из активного промта типа `atmosphere` с подставленными переменными видео
+- Пользователь может отредактировать перед нажатием "Сгенерировать"
+- Передавать отредактированный промт в `generate-cover`
 
-```text
-┌─────────────────────┐
-│                     │
-│   ATMOSPHERE BG     │
-│   (full 1080x1920)  │
-│                     │
-│                     │
-│  ┌─────────────┐    │
-│  │  HOOK TEXT   │    │
-│  │  (centered)  │    │
-│  └─────────────┘    │
-│                     │
-│  ┌───┐              │
-│  │ 📷│ Advisor Name │
-│  └───┘              │
-└─────────────────────┘
-```
+**SceneSidePanel** (сцены):
+- Textarea уже есть (`scene_prompt`), но нужно предзаполнять из активного промта типа `scene` если поле пустое
 
-- Use `jsr:@nicolo-ribaudo/canvas` or `npm:canvas` (Deno-compatible) for server-side image compositing
-- Circular clip for advisor photo
-- White/light text with shadow for hook readability
-- Advisor display name near the miniature
+**PublicationEditDialog** (тексты публикаций):
+- Нет необходимости — у каналов уже есть поле `post_text_prompt`, просто нужно fallback на промт из настроек
 
-#### 3. Files to Modify
-- **`supabase/functions/generate-cover/index.ts`** — Replace Step 2 (lines 263-339) with canvas compositing logic instead of Kie.ai API call. Keep Step 1 (atmosphere generation) unchanged.
-
-No database or UI changes needed — the output (front_cover_url) stays the same, just produced differently.
+#### 5. Файлы для изменения
+- `src/components/prompts/PromptForm.tsx` — добавить типы и переменные
+- `supabase/functions/generate-cover/index.ts` — читать промт из БД
+- `supabase/functions/generate-scene/index.ts` — читать промт из БД
+- `supabase/functions/generate-post-text/index.ts` — читать fallback промт из БД
+- `src/components/videos/VideoSidePanel.tsx` — textarea для промта атмосферы
+- `src/components/scenes/SceneSidePanel.tsx` — предзаполнение из промта
+- `src/pages/Index.tsx` — передача промта в handleGenerateAtmosphere
 
