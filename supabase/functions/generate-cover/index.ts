@@ -232,6 +232,23 @@ The background should evoke the spiritual and emotional tone of this content.`
         cover_status: 'atmosphere_ready',
       }).eq('id', videoId);
 
+      // Save atmosphere variant to cover_thumbnails
+      // First, deactivate all previous atmosphere variants for this video
+      await supabase.from('cover_thumbnails')
+        .update({ is_active: false })
+        .eq('video_id', videoId)
+        .eq('variant_type', 'atmosphere');
+
+      // Insert new atmosphere variant as active
+      await supabase.from('cover_thumbnails').insert({
+        video_id: videoId,
+        atmosphere_url: atmosphereStorageUrl,
+        prompt: finalAtmospherePrompt,
+        variant_type: 'atmosphere',
+        is_active: true,
+        status: 'ready',
+      });
+
       console.log('Atmosphere saved:', atmosphereStorageUrl);
 
       // If only atmosphere step requested, return here
@@ -303,11 +320,19 @@ The background should evoke the spiritual and emotional tone of this content.`
         cover_prompt: finalAtmospherePrompt,
       }).eq('id', videoId);
 
-      // Save to cover_thumbnails history
+      // Deactivate previous cover variants
+      await supabase.from('cover_thumbnails')
+        .update({ is_active: false })
+        .eq('video_id', videoId)
+        .eq('variant_type', 'cover');
+
+      // Save new cover variant as active
       await supabase.from('cover_thumbnails').insert({
         video_id: videoId,
         prompt: finalAtmospherePrompt,
         front_cover_url: frontCoverUrl,
+        variant_type: 'cover',
+        is_active: true,
         status: 'ready',
       });
 

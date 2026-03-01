@@ -174,33 +174,42 @@ export type Database = {
       }
       cover_thumbnails: {
         Row: {
+          atmosphere_url: string | null
           back_cover_url: string | null
           created_at: string
           front_cover_url: string | null
           id: string
+          is_active: boolean | null
           prompt: string | null
           status: string | null
           updated_at: string
+          variant_type: string | null
           video_id: string | null
         }
         Insert: {
+          atmosphere_url?: string | null
           back_cover_url?: string | null
           created_at?: string
           front_cover_url?: string | null
           id?: string
+          is_active?: boolean | null
           prompt?: string | null
           status?: string | null
           updated_at?: string
+          variant_type?: string | null
           video_id?: string | null
         }
         Update: {
+          atmosphere_url?: string | null
           back_cover_url?: string | null
           created_at?: string
           front_cover_url?: string | null
           id?: string
+          is_active?: boolean | null
           prompt?: string | null
           status?: string | null
           updated_at?: string
+          variant_type?: string | null
           video_id?: string | null
         }
         Relationships: [
