@@ -10,10 +10,10 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { Label } from '@/components/ui/label';
-import { Loader2, Plus, Search, Image, Trash2, Monitor, Upload } from 'lucide-react';
+import { Loader2, Plus, Search, Video, Trash2, Monitor, Upload } from 'lucide-react';
 import { usePublishingChannels, PublishingChannel } from '@/hooks/usePublishingChannels';
 import { toast } from 'sonner';
-import { ImageInput } from '@/components/ui/image-input';
+import { FileUploader } from '@/components/upload/FileUploader';
 import { CsvImporter } from '@/components/import/CsvImporter';
 import { BACK_COVER_VIDEO_COLUMN_MAPPING, BACK_COVER_VIDEO_PREVIEW_COLUMNS, BACK_COVER_VIDEO_FIELD_DEFINITIONS } from '@/components/import/importConfigs';
 
@@ -23,11 +23,11 @@ export function BackCoversGrid() {
   const [showAddDialog, setShowAddDialog] = useState(false);
   const [showImportDialog, setShowImportDialog] = useState(false);
   const [editingChannel, setEditingChannel] = useState<PublishingChannel | null>(null);
-  const [backCoverUrl, setBackCoverUrl] = useState('');
+  const [backCoverVideoUrl, setBackCoverVideoUrl] = useState('');
 
   const channelsWithBackCovers = channels.filter(
     (c) =>
-      c.back_cover_url &&
+      c.back_cover_video_url &&
       (search === '' ||
         c.name.toLowerCase().includes(search.toLowerCase()) ||
         c.network_type?.toLowerCase().includes(search.toLowerCase()))
@@ -35,23 +35,23 @@ export function BackCoversGrid() {
 
   const channelsWithoutBackCovers = channels.filter(
     (c) =>
-      !c.back_cover_url &&
+      !c.back_cover_video_url &&
       (search === '' ||
         c.name.toLowerCase().includes(search.toLowerCase()) ||
         c.network_type?.toLowerCase().includes(search.toLowerCase()))
   );
 
   const handleSaveBackCover = async () => {
-    if (!editingChannel || !backCoverUrl) return;
+    if (!editingChannel || !backCoverVideoUrl) return;
 
     try {
       await updateChannel(editingChannel.id, {
-        back_cover_url: backCoverUrl,
-      });
-      toast.success('Задняя обложка сохранена');
+        back_cover_video_url: backCoverVideoUrl,
+      } as any);
+      toast.success('Задняя обложка (видео) сохранена');
       setShowAddDialog(false);
       setEditingChannel(null);
-      setBackCoverUrl('');
+      setBackCoverVideoUrl('');
     } catch (error) {
       toast.error('Ошибка сохранения');
     }
@@ -60,8 +60,8 @@ export function BackCoversGrid() {
   const handleRemoveBackCover = async (channel: PublishingChannel) => {
     try {
       await updateChannel(channel.id, {
-        back_cover_url: null,
-      });
+        back_cover_video_url: null,
+      } as any);
       toast.success('Задняя обложка удалена');
     } catch (error) {
       toast.error('Ошибка удаления');
@@ -74,7 +74,6 @@ export function BackCoversGrid() {
       const videoUrl = row.back_cover_video_url;
       if (!videoUrl) continue;
 
-      // Find channels by name from comma/space separated channel_names, or by row name
       const channelNames = row.channel_names
         ? String(row.channel_names).split(/[,\n]/).map((s: string) => s.trim()).filter(Boolean)
         : row.name ? [row.name.trim()] : [];
@@ -128,11 +127,11 @@ export function BackCoversGrid() {
 
       {/* Channels with back covers */}
       <div className="space-y-4">
-        <h3 className="text-lg font-semibold">Задние обложки по каналам</h3>
+        <h3 className="text-lg font-semibold">Задние обложки (видео) по каналам</h3>
         {channelsWithBackCovers.length === 0 ? (
           <Card className="glass-card">
             <CardContent className="flex flex-col items-center justify-center py-12">
-              <Image className="w-12 h-12 text-muted-foreground mb-4" />
+              <Video className="w-12 h-12 text-muted-foreground mb-4" />
               <p className="text-muted-foreground">Нет добавленных задних обложек</p>
             </CardContent>
           </Card>
@@ -141,10 +140,18 @@ export function BackCoversGrid() {
             {channelsWithBackCovers.map((channel) => (
               <Card key={channel.id} className="glass-card group overflow-hidden">
                 <div className="aspect-[9/16] relative bg-muted">
-                  <img
-                    src={channel.back_cover_url!}
-                    alt={`Back cover for ${channel.name}`}
+                  <video
+                    src={channel.back_cover_video_url!}
                     className="w-full h-full object-cover"
+                    muted
+                    loop
+                    playsInline
+                    onMouseEnter={(e) => (e.target as HTMLVideoElement).play()}
+                    onMouseLeave={(e) => {
+                      const v = e.target as HTMLVideoElement;
+                      v.pause();
+                      v.currentTime = 0;
+                    }}
                   />
                   <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
                   <Button
@@ -184,7 +191,7 @@ export function BackCoversGrid() {
                 className="glass-card cursor-pointer hover:border-primary/30 transition-colors"
                 onClick={() => {
                   setEditingChannel(channel);
-                  setBackCoverUrl('');
+                  setBackCoverVideoUrl('');
                   setShowAddDialog(true);
                 }}
               >
@@ -194,7 +201,7 @@ export function BackCoversGrid() {
                   </div>
                   <span className="font-medium">{channel.name}</span>
                   <Badge variant="secondary">{channel.network_type}</Badge>
-                  <Badge variant="outline" className="text-xs">Добавить обложку</Badge>
+                  <Badge variant="outline" className="text-xs">Добавить видео-обложку</Badge>
                 </CardContent>
               </Card>
             ))}
@@ -207,24 +214,38 @@ export function BackCoversGrid() {
         <DialogContent>
           <DialogHeader>
             <DialogTitle>
-              Задняя обложка для канала «{editingChannel?.name}»
+              Задняя обложка (видео) для канала «{editingChannel?.name}»
             </DialogTitle>
           </DialogHeader>
           <div className="space-y-4">
-            <Label>Задняя обложка</Label>
-            <ImageInput
-              value={backCoverUrl}
-              onChange={setBackCoverUrl}
-              folder="back-covers"
-              aspectRatio="9:16"
-              generatePromptPrefix={`Back cover template for publishing channel "${editingChannel?.name}" (${editingChannel?.network_type}). Elegant, vertical format with space for branding.`}
-            />
+            <Label>Загрузить видео (mp4, mov, webm)</Label>
+            {backCoverVideoUrl ? (
+              <div className="space-y-3">
+                <video
+                  src={backCoverVideoUrl}
+                  className="w-full aspect-[9/16] object-cover rounded-lg"
+                  controls
+                  muted
+                />
+                <Button variant="outline" size="sm" onClick={() => setBackCoverVideoUrl('')}>
+                  Выбрать другое видео
+                </Button>
+              </div>
+            ) : (
+              <FileUploader
+                accept="video/mp4,video/quicktime,video/webm,video/x-msvideo,video/*"
+                maxSize={200}
+                folder="back-covers"
+                onUpload={(url) => setBackCoverVideoUrl(url)}
+                placeholder="Перетащите видео сюда или нажмите для выбора (mp4, mov, webm)"
+              />
+            )}
 
             <div className="flex justify-end gap-2">
               <Button variant="outline" onClick={() => setShowAddDialog(false)}>
                 Отмена
               </Button>
-              <Button onClick={handleSaveBackCover} disabled={!backCoverUrl}>
+              <Button onClick={handleSaveBackCover} disabled={!backCoverVideoUrl}>
                 Сохранить
               </Button>
             </div>

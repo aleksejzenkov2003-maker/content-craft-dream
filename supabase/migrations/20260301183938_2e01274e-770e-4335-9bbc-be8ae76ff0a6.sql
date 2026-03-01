@@ -1,0 +1,1 @@
+ALTER TABLE public.publications ADD COLUMN IF NOT EXISTS final_video_url text;
