@@ -39,6 +39,7 @@ import {
 } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import { format } from 'date-fns';
+import { toast } from 'sonner';
 import { ru } from 'date-fns/locale';
 
 interface VideosTableProps {
@@ -419,7 +420,15 @@ export function VideosTable({
         <BulkActionButton
           variant="default"
           icon={<Send className="w-3 h-3 mr-1" />}
-          onClick={() => onBulkPublish?.(Array.from(selectedVideoIds))}
+          onClick={() => {
+            const selected = videos.filter(v => selectedVideoIds.has(v.id));
+            const withoutDate = selected.filter(v => !v.publication_date);
+            if (withoutDate.length > 0) {
+              toast.error(`${withoutDate.length} ролик(ов) без плановой даты. Сначала укажите дату.`);
+              return;
+            }
+            onBulkPublish?.(Array.from(selectedVideoIds));
+          }}
         >
           На публикацию
         </BulkActionButton>

@@ -292,6 +292,14 @@ export function QuestionsTable({
   };
 
   const handleSaveQuestion = (uniqueKey: string, updates: { question?: string; question_eng?: string; safety_score?: string; publication_date?: string; question_status?: string; playlist_id?: string }) => {
+    // Validate: can't set "in_progress" without a planned date
+    if (updates.question_status === 'in_progress') {
+      const question = questions.find(q => q.unique_key === uniqueKey);
+      if (!question?.planned_date && !updates.publication_date) {
+        toast.error('Сначала укажите плановую дату публикации');
+        return;
+      }
+    }
     onUpdateQuestion?.(uniqueKey, updates);
   };
 
@@ -322,6 +330,19 @@ export function QuestionsTable({
 
   const handleBulkStatusUpdate = async () => {
     if (!onBulkUpdateStatus || !bulkActionValue) return;
+    
+    // Validate: can't bulk set "in_progress" if any selected question has no date
+    if (bulkActionValue === 'in_progress') {
+      const withoutDate = bulkDeleteIds.filter(key => {
+        const q = questions.find(q => q.unique_key === key);
+        return !q?.planned_date;
+      });
+      if (withoutDate.length > 0) {
+        toast.error(`${withoutDate.length} вопрос(ов) без плановой даты. Сначала укажите дату.`);
+        return;
+      }
+    }
+    
     setIsBulkUpdating(true);
     try {
       await onBulkUpdateStatus(bulkDeleteIds, bulkActionValue);
