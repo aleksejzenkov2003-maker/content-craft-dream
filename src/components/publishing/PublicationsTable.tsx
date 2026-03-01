@@ -52,6 +52,7 @@ import { cn } from '@/lib/utils';
 
 const statusLabels: Record<string, { label: string; variant: 'default' | 'secondary' | 'destructive' | 'outline' }> = {
   pending: { label: 'Ожидает', variant: 'secondary' },
+  checked: { label: 'Проверено', variant: 'outline' },
   scheduled: { label: 'Запланирован', variant: 'outline' },
   published: { label: 'Опубликован', variant: 'default' },
   failed: { label: 'Ошибка', variant: 'destructive' },
@@ -59,6 +60,7 @@ const statusLabels: Record<string, { label: string; variant: 'default' | 'second
 
 const statusOptions = [
   { value: 'pending', label: 'Ожидает' },
+  { value: 'checked', label: 'Проверено' },
   { value: 'scheduled', label: 'Запланирован' },
   { value: 'published', label: 'Опубликован' },
   { value: 'failed', label: 'Ошибка' },
@@ -279,7 +281,7 @@ const minuteOptions = [0, 5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55];
     const ids = Array.from(selectedIds);
     for (const id of ids) {
       const pub = publications.find(p => p.id === id);
-      if (pub && pub.publication_status !== 'published') {
+      if (pub && pub.publication_status !== 'published' && pub.publication_status !== 'pending') {
         await handlePublish(pub);
       }
     }
@@ -624,7 +626,8 @@ const minuteOptions = [0, 5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55];
                           <Button
                             size="xs"
                             variant="default"
-                            disabled={pub.publication_status === 'published' || publishingIds.has(pub.id)}
+                            disabled={pub.publication_status === 'published' || pub.publication_status === 'pending' || publishingIds.has(pub.id)}
+                            title={pub.publication_status === 'pending' ? 'Сначала проверьте публикацию' : ''}
                             onClick={() => handlePublish(pub)}
                           >
                             {publishingIds.has(pub.id) ? (

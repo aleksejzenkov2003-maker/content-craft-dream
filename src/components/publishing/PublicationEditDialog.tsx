@@ -36,6 +36,7 @@ interface PublicationEditDialogProps {
 
 const statusOptions = [
   { value: 'pending', label: 'Ожидает' },
+  { value: 'checked', label: 'Проверено' },
   { value: 'scheduled', label: 'Запланирован' },
   { value: 'publishing', label: 'Публикуется' },
   { value: 'published', label: 'Опубликован' },

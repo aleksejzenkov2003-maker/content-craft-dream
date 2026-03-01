@@ -29,6 +29,7 @@ interface PublicationFiltersProps {
 
 const statusOptions = [
   { value: 'pending', label: 'Ожидает' },
+  { value: 'checked', label: 'Проверено' },
   { value: 'scheduled', label: 'Запланирован' },
   { value: 'published', label: 'Опубликован' },
   { value: 'failed', label: 'Ошибка' },
