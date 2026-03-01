@@ -34,6 +34,7 @@ import { toast } from 'sonner';
 // Status columns configuration
 const STATUS_COLUMNS = [
   { id: 'pending', label: 'Ожидает', color: 'bg-muted' },
+  { id: 'checked', label: 'Проверено', color: 'bg-emerald-500/20' },
   { id: 'scheduled', label: 'К публикации', color: 'bg-info/20' },
   { id: 'publishing', label: 'В процессе', color: 'bg-warning/20' },
   { id: 'published', label: 'Опубликовано', color: 'bg-success/20' },
