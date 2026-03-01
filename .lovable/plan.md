@@ -1,40 +1,55 @@
 
 
-## Improve Video Generation Flow
+## Cover Composition: Replace AI Generation with Programmatic Image Compositing
 
-The video generation via HeyGen is already implemented in `generate-video-heygen` edge function and matches the n8n workflow logic (upload scene photo + upload audio to HeyGen assets, then call `/v2/video/av4/generate`). However, the UI flow has issues:
+### Current Problem
+Step 2 of cover generation uses `nano-banana-pro` (another AI image generation call) to overlay the advisor photo + hook text onto the atmosphere background. This is slow, expensive, unpredictable, and doesn't match the n8n workflow approach.
 
-### Current Problems
-1. The "Generate" button in VideosTable calls `onGenerateVideo` which just opens the side panel — it doesn't actually trigger generation
-2. The side panel "Generate Video" button calls `onGenerateVideo(video)` which also opens a detail modal, not the actual generation
-3. Video generation should require `voiceover_url` to be present (voiceover must be done first)
-4. No status polling after generation starts from the table/side panel
+### Key Insight from User
+- **Video** is generated from **Scene photo** (playlist_scenes table — scene per playlist+advisor)
+- **Cover** = atmosphere background + hook text + advisor miniature — composed programmatically (canvas compositing), NOT via AI generation
 
-### Changes
+### Plan
 
-#### 1. Update `Index.tsx` — Fix `handleGenerateVideo` handler
-- Create a proper `handleGenerateVideo(video)` that:
-  - Checks if `voiceover_url` exists, shows error if not ("Сначала создайте озвучку")
-  - Calls `generate-video-heygen` edge function with `videoId`
-  - The edge function already handles finding scene photo and using existing voiceover_url
-  - Starts polling via `check-video-status`
-- Wire `onGenerateVideo` in VideosTable to actually call this handler (not open side panel)
+#### 1. Rewrite Step 2 in `generate-cover` Edge Function
+Replace the `nano-banana-pro` AI call with programmatic image compositing using Deno Canvas API (`jsr:@gfx/canvas` or similar):
 
-#### 2. Update `VideosTable.tsx` — Video button requires voiceover
-- Disable "Generate" button when `voiceover_url` is missing
-- Show tooltip "Сначала создайте озвучку"
+- Download the atmosphere image (already generated in Step 1)
+- Download the advisor's primary photo from `advisor_photos`
+- Draw atmosphere as full background (1080x1920, 9:16)
+- Draw advisor photo as a circular miniature in bottom-left area (~30% width)
+- Render hook text (`video.hook` or `video.hook_rus`) as styled text overlay
+- Export as PNG, upload to storage
 
-#### 3. Update `VideoSidePanel.tsx` — Wire generation properly
-- "Generate Video" button should also check for `voiceover_url`
-- Pass proper handler from Index.tsx
+This is deterministic, instant, and matches the n8n compositing approach.
 
-#### 4. Add polling for video status
-- After calling `generate-video-heygen`, poll `check-video-status` every 10-15 seconds
-- Update UI when status changes to `ready` or `error`
-- The `useVideoGeneration` hook already has polling logic — reuse it or replicate in Index.tsx
+#### 2. Technical Implementation Details
 
-### Files to modify
-- `src/pages/Index.tsx` — fix handler, add polling
-- `src/components/videos/VideosTable.tsx` — disable button without voiceover
-- `src/components/videos/VideoSidePanel.tsx` — wire generation properly
+```text
+┌─────────────────────┐
+│                     │
+│   ATMOSPHERE BG     │
+│   (full 1080x1920)  │
+│                     │
+│                     │
+│  ┌─────────────┐    │
+│  │  HOOK TEXT   │    │
+│  │  (centered)  │    │
+│  └─────────────┘    │
+│                     │
+│  ┌───┐              │
+│  │ 📷│ Advisor Name │
+│  └───┘              │
+└─────────────────────┘
+```
+
+- Use `jsr:@nicolo-ribaudo/canvas` or `npm:canvas` (Deno-compatible) for server-side image compositing
+- Circular clip for advisor photo
+- White/light text with shadow for hook readability
+- Advisor display name near the miniature
+
+#### 3. Files to Modify
+- **`supabase/functions/generate-cover/index.ts`** — Replace Step 2 (lines 263-339) with canvas compositing logic instead of Kie.ai API call. Keep Step 1 (atmosphere generation) unchanged.
+
+No database or UI changes needed — the output (front_cover_url) stays the same, just produced differently.
 
