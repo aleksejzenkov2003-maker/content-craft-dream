@@ -501,6 +501,7 @@ export type Database = {
           channel_id: string | null
           created_at: string
           error_message: string | null
+          final_video_url: string | null
           followers: number | null
           generated_text: string | null
           id: string
@@ -518,6 +519,7 @@ export type Database = {
           channel_id?: string | null
           created_at?: string
           error_message?: string | null
+          final_video_url?: string | null
           followers?: number | null
           generated_text?: string | null
           id?: string
@@ -535,6 +537,7 @@ export type Database = {
           channel_id?: string | null
           created_at?: string
           error_message?: string | null
+          final_video_url?: string | null
           followers?: number | null
           generated_text?: string | null
           id?: string
