@@ -2,7 +2,6 @@ import { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Label } from '@/components/ui/label';
 import { Loader2, CheckCircle, XCircle, Play, Volume2 } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
@@ -164,7 +163,6 @@ export function SettingsPage() {
   const handleSetActive = async (id: string) => {
     const prompt = prompts.find(p => p.id === id);
     if (!prompt) return;
-    // Deactivate others of same type
     for (const p of prompts.filter(p => p.type === prompt.type && p.is_active)) {
       await updatePrompt(p.id, { is_active: false });
     }
@@ -266,20 +264,31 @@ export function SettingsPage() {
                 </div>
               </div>
 
-              <PromptLibrary
-                prompts={prompts}
-                onEdit={handleEditPrompt}
-                onDuplicate={handleDuplicatePrompt}
-                onDelete={deletePrompt}
-                onSetActive={handleSetActive}
-                onCreateNew={handleCreateNew}
-              />
+              {showPromptForm ? (
+                <PromptForm
+                  prompt={editingPrompt}
+                  onSave={handleSavePromptForm}
+                  onCancel={() => { setShowPromptForm(false); setEditingPrompt(null); }}
+                  onTest={testPrompt}
+                />
+              ) : (
+                <>
+                  <PromptLibrary
+                    prompts={prompts}
+                    onEdit={handleEditPrompt}
+                    onDuplicate={handleDuplicatePrompt}
+                    onDelete={deletePrompt}
+                    onSetActive={handleSetActive}
+                    onCreateNew={handleCreateNew}
+                  />
 
-              <PromptEditor
-                prompts={prompts}
-                onUpdatePrompt={updatePrompt}
-                onTestPrompt={testPrompt}
-              />
+                  <PromptEditor
+                    prompts={prompts}
+                    onUpdatePrompt={updatePrompt}
+                    onTestPrompt={testPrompt}
+                  />
+                </>
+              )}
             </>
           )}
         </CardContent>
@@ -353,19 +362,6 @@ export function SettingsPage() {
           <p>При генерации видео будет использован голос, привязанный к духовнику.</p>
         </CardContent>
       </Card>
-
-      {/* Prompt Form */}
-      {showPromptForm && (
-        <Card>
-          <CardContent className="pt-6">
-            <PromptForm
-              prompt={editingPrompt}
-              onCancel={() => { setShowPromptForm(false); setEditingPrompt(null); }}
-              onSave={handleSavePromptForm}
-            />
-          </CardContent>
-        </Card>
-      )}
     </div>
   );
 }
