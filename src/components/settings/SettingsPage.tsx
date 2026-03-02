@@ -233,37 +233,6 @@ export function SettingsPage() {
             </div>
           ) : (
             <>
-              {/* Prompt variables reference */}
-              <div className="p-3 bg-muted/30 rounded-lg text-sm space-y-2">
-                <p className="font-medium text-muted-foreground">Доступные переменные для промптов:</p>
-                <div className="grid grid-cols-2 md:grid-cols-3 gap-2 text-xs">
-                  <div className="flex items-center gap-1.5">
-                    <Badge variant="outline" className="font-mono text-xs">{'{{content}}'}</Badge>
-                    <span className="text-muted-foreground">— исходный текст</span>
-                  </div>
-                  <div className="flex items-center gap-1.5">
-                    <Badge variant="outline" className="font-mono text-xs">{'{{title}}'}</Badge>
-                    <span className="text-muted-foreground">— заголовок</span>
-                  </div>
-                  <div className="flex items-center gap-1.5">
-                    <Badge variant="outline" className="font-mono text-xs">{'{{question}}'}</Badge>
-                    <span className="text-muted-foreground">— вопрос</span>
-                  </div>
-                  <div className="flex items-center gap-1.5">
-                    <Badge variant="outline" className="font-mono text-xs">{'{{hook}}'}</Badge>
-                    <span className="text-muted-foreground">— хук</span>
-                  </div>
-                  <div className="flex items-center gap-1.5">
-                    <Badge variant="outline" className="font-mono text-xs">{'{{answer}}'}</Badge>
-                    <span className="text-muted-foreground">— ответ духовника</span>
-                  </div>
-                  <div className="flex items-center gap-1.5">
-                    <Badge variant="outline" className="font-mono text-xs">{'{{advisor}}'}</Badge>
-                    <span className="text-muted-foreground">— имя духовника</span>
-                  </div>
-                </div>
-              </div>
-
               <PromptLibrary
                 prompts={prompts}
                 onEdit={handleEditPrompt}
