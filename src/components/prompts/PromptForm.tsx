@@ -10,11 +10,19 @@ import { Badge } from '@/components/ui/badge';
 import { Save, X, Play, Loader2 } from 'lucide-react';
 import { DbPrompt } from '@/hooks/usePrompts';
 
+interface AdvisorWithPhotos {
+  id: string;
+  name: string;
+  display_name?: string | null;
+  photos?: { id: string; photo_url: string; is_primary?: boolean | null }[];
+}
+
 interface PromptFormProps {
   prompt?: DbPrompt | null;
   onSave: (data: Omit<DbPrompt, 'id' | 'created_at' | 'is_active'>) => Promise<any>;
   onCancel: () => void;
-  onTest?: (prompt: DbPrompt, testContent: string) => Promise<string>;
+  onTest?: (prompt: DbPrompt, testContent: string, advisorPhotoUrl?: string) => Promise<string>;
+  advisors?: AdvisorWithPhotos[];
 }
 
 const TEXT_MODELS = [
@@ -79,11 +87,12 @@ const VARIABLES_BY_TYPE: Record<string, { name: string; desc: string }[]> = {
   ],
 };
 
-export function PromptForm({ prompt, onSave, onCancel, onTest }: PromptFormProps) {
+export function PromptForm({ prompt, onSave, onCancel, onTest, advisors = [] }: PromptFormProps) {
   const [saving, setSaving] = useState(false);
   const [testing, setTesting] = useState(false);
   const [testContent, setTestContent] = useState('');
   const [testResult, setTestResult] = useState('');
+  const [selectedAdvisorId, setSelectedAdvisorId] = useState<string>('');
   
   const [form, setForm] = useState({
     name: '',
@@ -134,6 +143,10 @@ export function PromptForm({ prompt, onSave, onCancel, onTest }: PromptFormProps
     }
   };
 
+  const selectedAdvisor = advisors.find(a => a.id === selectedAdvisorId);
+  const advisorPhotoUrl = selectedAdvisor?.photos?.find(p => p.is_primary)?.photo_url 
+    || selectedAdvisor?.photos?.[0]?.photo_url;
+
   const handleTest = async () => {
     if (!onTest || !testContent.trim()) return;
     
@@ -144,7 +157,7 @@ export function PromptForm({ prompt, onSave, onCancel, onTest }: PromptFormProps
         id: prompt?.id || 'test',
         created_at: new Date().toISOString(),
         is_active: false,
-      }, testContent);
+      }, testContent, isImageType ? advisorPhotoUrl : undefined);
       setTestResult(result);
     } catch (error) {
       setTestResult('Ошибка: ' + (error instanceof Error ? error.message : 'Unknown'));
@@ -310,6 +323,28 @@ export function PromptForm({ prompt, onSave, onCancel, onTest }: PromptFormProps
               className="min-h-[120px]"
             />
           </div>
+
+          {isImageType && advisors.length > 0 && (
+            <div className="space-y-2">
+              <Label>Духовник (для композитинга фото)</Label>
+              <Select value={selectedAdvisorId} onValueChange={setSelectedAdvisorId}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Без духовника (только фон)" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">Без духовника</SelectItem>
+                  {advisors.filter(a => a.photos && a.photos.length > 0).map((a) => (
+                    <SelectItem key={a.id} value={a.id}>
+                      {a.display_name || a.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              {advisorPhotoUrl && (
+                <img src={advisorPhotoUrl} alt="Фото духовника" className="w-16 h-16 rounded object-cover" />
+              )}
+            </div>
+          )}
 
           <Button 
             onClick={handleTest} 

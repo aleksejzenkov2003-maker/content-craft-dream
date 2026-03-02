@@ -9,6 +9,7 @@ import { usePrompts, DbPrompt } from '@/hooks/usePrompts';
 import { PromptLibrary } from '@/components/prompts/PromptLibrary';
 import { PromptEditor } from '@/components/prompts/PromptEditor';
 import { PromptForm } from '@/components/prompts/PromptForm';
+import { useAdvisors } from '@/hooks/useAdvisors';
 
 interface Voice {
   voice_id: string;
@@ -32,6 +33,7 @@ export function SettingsPage() {
 
   // Prompts
   const { prompts, loading: promptsLoading, updatePrompt, testPrompt, addPrompt, deletePrompt } = usePrompts();
+  const { advisors, loading: advisorsLoading } = useAdvisors();
   const [editingPrompt, setEditingPrompt] = useState<DbPrompt | null>(null);
   const [showPromptForm, setShowPromptForm] = useState(false);
 
@@ -248,6 +250,7 @@ export function SettingsPage() {
                   onSave={handleSavePromptForm}
                   onCancel={() => { setShowPromptForm(false); setEditingPrompt(null); }}
                   onTest={testPrompt}
+                  advisors={advisors}
                 />
               )}
 
