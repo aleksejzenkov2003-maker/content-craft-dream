@@ -17,12 +17,20 @@ interface PromptFormProps {
   onTest?: (prompt: DbPrompt, testContent: string) => Promise<string>;
 }
 
-const MODELS = [
+const TEXT_MODELS = [
   { value: 'claude-sonnet-4-5', label: 'Claude Sonnet 4.5 (рекомендуется)' },
   { value: 'claude-opus-4-5-20251101', label: 'Claude Opus 4.5 (премиум)' },
   { value: 'claude-sonnet-4-20250514', label: 'Claude Sonnet 4' },
   { value: 'claude-3-5-haiku-20241022', label: 'Claude 3.5 Haiku (быстрый)' },
 ];
+
+const IMAGE_MODELS = [
+  { value: 'google/gemini-2.5-flash-image', label: 'Nano Banana (быстрый)' },
+  { value: 'google/gemini-3-pro-image-preview', label: 'Nano Banana Pro (качество)' },
+  { value: 'nano-banana-pro', label: 'Kie.ai Nano Banana Pro' },
+];
+
+const IMAGE_TYPES = ['atmosphere', 'scene'];
 
 const TYPES = [
   { value: 'rewrite', label: 'Рерайт' },
@@ -101,6 +109,22 @@ export function PromptForm({ prompt, onSave, onCancel, onTest }: PromptFormProps
     }
   }, [prompt]);
 
+  const isImageType = IMAGE_TYPES.includes(form.type);
+  const currentModels = isImageType ? IMAGE_MODELS : TEXT_MODELS;
+
+  // Auto-switch model when type changes
+  useEffect(() => {
+    const isImage = IMAGE_TYPES.includes(form.type);
+    const imageModelValues = IMAGE_MODELS.map(m => m.value);
+    const textModelValues = TEXT_MODELS.map(m => m.value);
+    
+    if (isImage && !imageModelValues.includes(form.model)) {
+      setForm(prev => ({ ...prev, model: IMAGE_MODELS[0].value }));
+    } else if (!isImage && !textModelValues.includes(form.model)) {
+      setForm(prev => ({ ...prev, model: TEXT_MODELS[0].value }));
+    }
+  }, [form.type]);
+
   const handleSave = async () => {
     setSaving(true);
     try {
@@ -165,13 +189,13 @@ export function PromptForm({ prompt, onSave, onCancel, onTest }: PromptFormProps
           </div>
 
           <div className="space-y-2">
-            <Label>Модель AI</Label>
+            <Label>Модель AI {isImageType && <Badge variant="secondary" className="ml-2 text-xs">Изображение</Badge>}</Label>
             <Select value={form.model} onValueChange={(v) => setForm({ ...form, model: v })}>
               <SelectTrigger>
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                {MODELS.map((m) => (
+                {currentModels.map((m) => (
                   <SelectItem key={m.value} value={m.value}>{m.label}</SelectItem>
                 ))}
               </SelectContent>
@@ -303,8 +327,12 @@ export function PromptForm({ prompt, onSave, onCancel, onTest }: PromptFormProps
           {testResult && (
             <div className="space-y-2">
               <Label>Результат</Label>
-              <div className="p-3 bg-muted rounded-lg max-h-[300px] overflow-auto">
-                <p className="text-sm whitespace-pre-wrap">{testResult}</p>
+              <div className="p-3 bg-muted rounded-lg max-h-[400px] overflow-auto">
+                {isImageType && testResult.startsWith('data:image') ? (
+                  <img src={testResult} alt="Сгенерированное изображение" className="max-w-full rounded" />
+                ) : (
+                  <p className="text-sm whitespace-pre-wrap">{testResult}</p>
+                )}
               </div>
             </div>
           )}
