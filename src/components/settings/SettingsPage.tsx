@@ -264,31 +264,29 @@ export function SettingsPage() {
                 </div>
               </div>
 
-              {showPromptForm ? (
+              <PromptLibrary
+                prompts={prompts}
+                onEdit={handleEditPrompt}
+                onDuplicate={handleDuplicatePrompt}
+                onDelete={deletePrompt}
+                onSetActive={handleSetActive}
+                onCreateNew={handleCreateNew}
+              />
+
+              {showPromptForm && (
                 <PromptForm
                   prompt={editingPrompt}
                   onSave={handleSavePromptForm}
                   onCancel={() => { setShowPromptForm(false); setEditingPrompt(null); }}
                   onTest={testPrompt}
                 />
-              ) : (
-                <>
-                  <PromptLibrary
-                    prompts={prompts}
-                    onEdit={handleEditPrompt}
-                    onDuplicate={handleDuplicatePrompt}
-                    onDelete={deletePrompt}
-                    onSetActive={handleSetActive}
-                    onCreateNew={handleCreateNew}
-                  />
-
-                  <PromptEditor
-                    prompts={prompts}
-                    onUpdatePrompt={updatePrompt}
-                    onTestPrompt={testPrompt}
-                  />
-                </>
               )}
+
+              <PromptEditor
+                prompts={prompts}
+                onUpdatePrompt={updatePrompt}
+                onTestPrompt={testPrompt}
+              />
             </>
           )}
         </CardContent>
