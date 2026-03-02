@@ -251,11 +251,7 @@ export function SettingsPage() {
                 />
               )}
 
-              <PromptEditor
-                prompts={prompts}
-                onUpdatePrompt={updatePrompt}
-                onTestPrompt={testPrompt}
-              />
+
             </>
           )}
         </CardContent>
