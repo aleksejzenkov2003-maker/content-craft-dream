@@ -269,13 +269,20 @@ export function VideosTable({
     });
   }, [filteredVideos, sortColumn, sortDirection]);
 
-  // Group videos by composite key (question_id + question text)
+  // Group videos by question_id only (not by text, to avoid duplicates)
   const groupedVideos = useMemo(() => {
     return sortedVideos.reduce((acc, video) => {
-      const questionText = video.question_rus || video.question_eng || video.question || 'Без вопроса';
-      const uniqueKey = `${video.question_id}_${questionText}`;
+      const uniqueKey = `${video.question_id ?? 'none'}`;
       if (!acc[uniqueKey]) {
+        // Pick best available question text from first video
+        const questionText = video.question_rus || video.question_eng || video.question || 'Без вопроса';
         acc[uniqueKey] = { questionId: video.question_id, questionText, videos: [], plannedDate: video.publication_date };
+      } else {
+        // Merge: prefer Russian text if not yet set
+        const group = acc[uniqueKey];
+        if (video.question_rus && (!group.questionText || group.questionText === (video.question_eng || video.question))) {
+          group.questionText = video.question_rus;
+        }
       }
       acc[uniqueKey].videos.push(video);
       // Use earliest date
