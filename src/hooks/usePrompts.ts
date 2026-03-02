@@ -67,7 +67,7 @@ export function usePrompts() {
     }
   };
 
-  const testPrompt = async (prompt: DbPrompt, testContent: string) => {
+  const testPrompt = async (prompt: DbPrompt, testContent: string, advisorPhotoUrl?: string) => {
     try {
       const { data, error } = await supabase.functions.invoke('test-prompt', {
         body: {
@@ -77,7 +77,8 @@ export function usePrompts() {
           type: prompt.type,
           model: prompt.model,
           temperature: prompt.temperature,
-          maxTokens: prompt.max_tokens
+          maxTokens: prompt.max_tokens,
+          advisorPhotoUrl
         }
       });
 

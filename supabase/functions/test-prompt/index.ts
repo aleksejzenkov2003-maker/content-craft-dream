@@ -15,6 +15,7 @@ interface TestPromptRequest {
   model?: string;
   temperature?: number;
   maxTokens?: number;
+  advisorPhotoUrl?: string;
 }
 
 async function handleTextPrompt(
@@ -55,10 +56,22 @@ async function handleTextPrompt(
 
 async function handleImagePromptLovable(
   userMessage: string,
-  model: string
+  model: string,
+  advisorPhotoUrl?: string
 ) {
   const lovableApiKey = Deno.env.get('LOVABLE_API_KEY');
   if (!lovableApiKey) throw new Error('LOVABLE_API_KEY is not configured');
+
+  // Build content: if advisor photo provided, use multimodal (text + image)
+  let content: any;
+  if (advisorPhotoUrl) {
+    content = [
+      { type: 'text', text: userMessage },
+      { type: 'image_url', image_url: { url: advisorPhotoUrl } }
+    ];
+  } else {
+    content = userMessage;
+  }
 
   const response = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
     method: 'POST',
@@ -68,7 +81,7 @@ async function handleImagePromptLovable(
     },
     body: JSON.stringify({
       model,
-      messages: [{ role: 'user', content: userMessage }],
+      messages: [{ role: 'user', content }],
       modalities: ['image', 'text'],
     })
   });
@@ -149,7 +162,8 @@ serve(async (req) => {
       type = 'rewrite',
       model = 'claude-sonnet-4-5',
       temperature = 0.7,
-      maxTokens = 4000
+      maxTokens = 4000,
+      advisorPhotoUrl
     } = await req.json() as TestPromptRequest;
 
     const userMessage = userTemplate
@@ -164,16 +178,20 @@ serve(async (req) => {
       .replace(/\{\{playlist\}\}/g, 'Test Playlist');
 
     const isImage = IMAGE_TYPES.includes(type);
-    console.log(`Testing prompt: type=${type}, model=${model}, isImage=${isImage}`);
+    console.log(`Testing prompt: type=${type}, model=${model}, isImage=${isImage}, hasAdvisorPhoto=${!!advisorPhotoUrl}`);
 
     let data;
     if (isImage) {
-      const fullPrompt = systemPrompt ? `${systemPrompt}\n\n${userMessage}` : userMessage;
+      let fullPrompt = systemPrompt ? `${systemPrompt}\n\n${userMessage}` : userMessage;
+      
+      if (advisorPhotoUrl) {
+        fullPrompt += '\n\nИспользуй предоставленное фото человека и органично встрой его в сгенерированную сцену. Человек должен выглядеть естественно в контексте сцены.';
+      }
       
       if (model === 'nano-banana-pro') {
         data = await handleImagePromptKie(fullPrompt);
       } else {
-        data = await handleImagePromptLovable(fullPrompt, model);
+        data = await handleImagePromptLovable(fullPrompt, model, advisorPhotoUrl);
       }
     } else {
       data = await handleTextPrompt(systemPrompt, userMessage, model, temperature, maxTokens);
