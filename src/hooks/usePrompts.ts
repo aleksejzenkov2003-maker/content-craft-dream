@@ -74,6 +74,7 @@ export function usePrompts() {
           systemPrompt: prompt.system_prompt,
           userTemplate: prompt.user_template,
           testContent,
+          type: prompt.type,
           model: prompt.model,
           temperature: prompt.temperature,
           maxTokens: prompt.max_tokens

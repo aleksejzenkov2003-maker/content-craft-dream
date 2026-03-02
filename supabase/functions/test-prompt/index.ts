@@ -5,13 +5,135 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
+const IMAGE_TYPES = ['atmosphere', 'scene'];
+
 interface TestPromptRequest {
   systemPrompt: string;
   userTemplate: string;
   testContent: string;
+  type?: string;
   model?: string;
   temperature?: number;
   maxTokens?: number;
+}
+
+async function handleTextPrompt(
+  systemPrompt: string,
+  userMessage: string,
+  model: string,
+  temperature: number,
+  maxTokens: number
+) {
+  const anthropicApiKey = Deno.env.get('ANTHROPIC_API_KEY');
+  if (!anthropicApiKey) throw new Error('ANTHROPIC_API_KEY is not configured');
+
+  const response = await fetch('https://api.anthropic.com/v1/messages', {
+    method: 'POST',
+    headers: {
+      'x-api-key': anthropicApiKey,
+      'anthropic-version': '2023-06-01',
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      model,
+      max_tokens: maxTokens,
+      system: systemPrompt,
+      messages: [{ role: 'user', content: userMessage }]
+    })
+  });
+
+  if (!response.ok) {
+    const errorText = await response.text();
+    if (response.status === 429) throw new Error('Rate limit exceeded. Please try again later.');
+    if (response.status === 401) throw new Error('Invalid API key. Please check ANTHROPIC_API_KEY.');
+    throw new Error(`Anthropic API error: ${response.status} - ${errorText}`);
+  }
+
+  const result = await response.json();
+  return { result: result.content[0].text, usage: result.usage };
+}
+
+async function handleImagePromptLovable(
+  userMessage: string,
+  model: string
+) {
+  const lovableApiKey = Deno.env.get('LOVABLE_API_KEY');
+  if (!lovableApiKey) throw new Error('LOVABLE_API_KEY is not configured');
+
+  const response = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${lovableApiKey}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      model,
+      messages: [{ role: 'user', content: userMessage }],
+      modalities: ['image', 'text'],
+    })
+  });
+
+  if (!response.ok) {
+    const errorText = await response.text();
+    if (response.status === 429) throw new Error('Rate limit exceeded. Please try again later.');
+    if (response.status === 402) throw new Error('Payment required. Please add credits.');
+    throw new Error(`AI gateway error: ${response.status} - ${errorText}`);
+  }
+
+  const result = await response.json();
+  const imageUrl = result.choices?.[0]?.message?.images?.[0]?.image_url?.url;
+  const textContent = result.choices?.[0]?.message?.content || '';
+
+  if (imageUrl) {
+    return { result: imageUrl, text: textContent };
+  }
+  return { result: textContent };
+}
+
+async function handleImagePromptKie(userMessage: string) {
+  const kieApiKey = Deno.env.get('KIE_API_KEY');
+  if (!kieApiKey) throw new Error('KIE_API_KEY is not configured');
+
+  // Create task
+  const createRes = await fetch('https://api.kie.ai/api/v1/task/create/image', {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${kieApiKey}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      prompt: userMessage,
+      model: 'google/nano-banana',
+      aspectRatio: '9:16',
+    })
+  });
+
+  if (!createRes.ok) {
+    const err = await createRes.text();
+    throw new Error(`Kie.ai error: ${createRes.status} - ${err}`);
+  }
+
+  const createData = await createRes.json();
+  const taskId = createData.data?.id;
+  if (!taskId) throw new Error('No task ID from Kie.ai');
+
+  // Poll for result
+  for (let i = 0; i < 30; i++) {
+    await new Promise(r => setTimeout(r, 3000));
+    const statusRes = await fetch(`https://api.kie.ai/api/v1/task/${taskId}`, {
+      headers: { 'Authorization': `Bearer ${kieApiKey}` }
+    });
+    const statusData = await statusRes.json();
+    const status = statusData.data?.status;
+    
+    if (status === 'completed') {
+      const imageUrl = statusData.data?.output?.image_url;
+      if (imageUrl) return { result: imageUrl };
+      throw new Error('No image URL in Kie.ai result');
+    }
+    if (status === 'failed') throw new Error('Kie.ai task failed');
+  }
+  throw new Error('Kie.ai task timed out');
 }
 
 serve(async (req) => {
@@ -24,68 +146,41 @@ serve(async (req) => {
       systemPrompt, 
       userTemplate, 
       testContent,
+      type = 'rewrite',
       model = 'claude-sonnet-4-5',
       temperature = 0.7,
       maxTokens = 4000
     } = await req.json() as TestPromptRequest;
-    
-    const anthropicApiKey = Deno.env.get('ANTHROPIC_API_KEY');
 
-    if (!anthropicApiKey) {
-      throw new Error('ANTHROPIC_API_KEY is not configured');
-    }
-
-    console.log('Testing prompt with model:', model);
-
-    // Prepare user message
     const userMessage = userTemplate
       .replace(/\{\{content\}\}/g, testContent)
       .replace(/\{\{title\}\}/g, testContent.substring(0, 100))
       .replace(/\{\{source\}\}/g, 'test')
-      .replace(/\{\{channel\}\}/g, 'test');
+      .replace(/\{\{channel\}\}/g, 'test')
+      .replace(/\{\{question\}\}/g, testContent)
+      .replace(/\{\{hook\}\}/g, testContent.substring(0, 50))
+      .replace(/\{\{answer\}\}/g, testContent)
+      .replace(/\{\{advisor\}\}/g, 'Test Advisor')
+      .replace(/\{\{playlist\}\}/g, 'Test Playlist');
 
-    // Call Anthropic API
-    const response = await fetch('https://api.anthropic.com/v1/messages', {
-      method: 'POST',
-      headers: {
-        'x-api-key': anthropicApiKey,
-        'anthropic-version': '2023-06-01',
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        model,
-        max_tokens: maxTokens,
-        system: systemPrompt,
-        messages: [
-          { role: 'user', content: userMessage }
-        ]
-      })
-    });
+    const isImage = IMAGE_TYPES.includes(type);
+    console.log(`Testing prompt: type=${type}, model=${model}, isImage=${isImage}`);
 
-    if (!response.ok) {
-      const errorText = await response.text();
-      console.error('Anthropic API error:', response.status, errorText);
+    let data;
+    if (isImage) {
+      const fullPrompt = systemPrompt ? `${systemPrompt}\n\n${userMessage}` : userMessage;
       
-      if (response.status === 429) {
-        throw new Error('Rate limit exceeded. Please try again later.');
+      if (model === 'nano-banana-pro') {
+        data = await handleImagePromptKie(fullPrompt);
+      } else {
+        data = await handleImagePromptLovable(fullPrompt, model);
       }
-      if (response.status === 401) {
-        throw new Error('Invalid API key. Please check ANTHROPIC_API_KEY.');
-      }
-      throw new Error(`Anthropic API error: ${response.status} - ${errorText}`);
+    } else {
+      data = await handleTextPrompt(systemPrompt, userMessage, model, temperature, maxTokens);
     }
 
-    const result = await response.json();
-    const generatedText = result.content[0].text;
-
-    console.log('Prompt test complete');
-
     return new Response(
-      JSON.stringify({ 
-        success: true, 
-        result: generatedText,
-        usage: result.usage
-      }),
+      JSON.stringify({ success: true, ...data }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
 
