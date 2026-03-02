@@ -214,6 +214,19 @@ export function PromptForm({ prompt, onSave, onCancel, onTest }: PromptFormProps
             />
           </div>
 
+          {/* Доступные переменные */}
+          <div className="p-3 bg-muted/30 rounded-lg text-sm space-y-2">
+            <p className="font-medium text-muted-foreground">Доступные переменные:</p>
+            <div className="flex flex-wrap gap-2 text-xs">
+              {(VARIABLES_BY_TYPE[form.type] || VARIABLES_BY_TYPE.custom).map((v) => (
+                <div key={v.name} className="flex items-center gap-1.5">
+                  <Badge variant="outline" className="font-mono text-xs">{v.name}</Badge>
+                  <span className="text-muted-foreground">— {v.desc}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+
           <div className="space-y-2">
             <div className="flex items-center justify-between">
               <Label>User template</Label>
