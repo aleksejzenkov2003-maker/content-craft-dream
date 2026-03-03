@@ -127,7 +127,17 @@ async function composeCover(
         left: 0,
         width: '100%',
         height: '100%',
-        objectFit: 'cover',
+      },
+    }),
+    // Dark gradient overlay for text readability
+    React.createElement('div', {
+      style: {
+        position: 'absolute',
+        top: 0,
+        left: 0,
+        width: '100%',
+        height: '100%',
+        background: 'linear-gradient(to bottom, rgba(0,0,0,0.3) 0%, rgba(0,0,0,0.1) 40%, rgba(0,0,0,0.1) 60%, rgba(0,0,0,0.5) 100%)',
       },
     }),
     // Hook text in the center area
@@ -153,7 +163,7 @@ async function composeCover(
             fontWeight: 700,
             textAlign: 'center',
             lineHeight: 1.3,
-            textShadow: '0 4px 20px rgba(0,0,0,0.8), 0 2px 8px rgba(0,0,0,0.6)',
+            
             maxWidth: '90%',
           },
         },
@@ -181,8 +191,7 @@ async function composeCover(
               height: 200,
               borderRadius: '50%',
               objectFit: 'cover',
-              border: '4px solid rgba(255,255,255,0.8)',
-              boxShadow: '0 4px 20px rgba(0,0,0,0.5)',
+              border: '6px solid white',
             },
           }),
           // Advisor name
@@ -194,7 +203,7 @@ async function composeCover(
                 fontSize: 36,
                 fontWeight: 600,
                 marginLeft: 30,
-                textShadow: '0 2px 10px rgba(0,0,0,0.8)',
+                
               },
             },
             advisorName
