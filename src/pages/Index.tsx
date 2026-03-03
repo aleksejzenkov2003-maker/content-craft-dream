@@ -372,7 +372,14 @@ export default function Index() {
       }
 
       // Auto-concat for channels with back covers if video is ready
-      const videoUrl = (video as any).heygen_video_url || (video as any).video_path;
+      // Fetch fresh video data to check for video URL
+      const { data: freshVideo } = await supabase
+        .from('videos')
+        .select('heygen_video_url, video_path')
+        .eq('id', video.id)
+        .single();
+      
+      const videoUrl = freshVideo?.heygen_video_url || freshVideo?.video_path;
       if (videoUrl) {
         for (const pub of (inserted || [])) {
           if (channelsWithBackCover.has(pub.channel_id)) {
