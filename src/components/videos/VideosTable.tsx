@@ -794,7 +794,7 @@ export function VideosTable({
                         {/* Channels count + hover */}
                         <div className="flex items-center gap-1">
                           {(() => {
-                            const selectedCount = video.selected_channels?.length || 0;
+                            const selectedCount = publishingChannels.filter(c => c.is_active && video.selected_channels?.includes(c.id)).length;
                             const selectedNames = publishingChannels
                               .filter(c => video.selected_channels?.includes(c.id))
                               .map(c => c.name);
