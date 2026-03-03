@@ -1,23 +1,50 @@
 
 
-## Problem
+## Plan: Widen Video Side Panel with Tabbed Layout
 
-The channel count number next to the airplane icon doesn't match the actual number of visible/active selected channels. Currently it counts all IDs in `selected_channels` array (line 797), but some of those IDs may refer to inactive or deleted channels. The count should only include channels that exist in the active `publishingChannels` list.
+### Problem
+The side panel is too narrow (450-550px) to display the full generation pipeline (Background → Cover → Video) side by side as shown in the reference image. The atmosphere prompt is hidden in a collapsible section instead of being a proper tab.
 
-## Fix
+### Changes
 
-### `src/components/videos/VideosTable.tsx`
-- Line 797: Change from counting raw array length to counting only channels that match active publishing channels:
+#### `src/components/videos/VideoSidePanel.tsx`
 
-```typescript
-// Before:
-const selectedCount = video.selected_channels?.length || 0;
+1. **Widen the panel**: Change `w-[450px] sm:w-[550px]` to `w-[700px] sm:w-[800px]` on line 273.
 
-// After:
-const selectedCount = publishingChannels
-  .filter(c => c.is_active && video.selected_channels?.includes(c.id))
-  .length;
+2. **Add tabs "Генерация изображения" / "Промт"** inside the cover generation section (replacing the current collapsible prompt):
+   - **Tab "Генерация изображения"** (default): Contains the generation buttons (Step 1: Background, Step 2: Cover) and the 3-column carousel layout showing Background, Cover, and Video side by side (as in the reference image).
+   - **Tab "Промт"**: Contains the atmosphere prompt textarea (currently in the collapsible).
+
+3. **3-column pipeline layout**: Change the current `grid-cols-2` carousel (lines 494-612) to `grid-cols-3`, adding a third column for the Video preview/player. Move the video player from the separate "Видео" section below into this third column, so all three steps (Background → Cover → Video) are visible together horizontally.
+
+4. **Add Step 3 button**: Add a third generation button "Шаг 3: Видео" alongside the existing two, making the grid `grid-cols-3` for the buttons (lines 462-491).
+
+5. **Import Tabs**: Add `Tabs, TabsList, TabsTrigger, TabsContent` import from `@/components/ui/tabs`.
+
+### Structure After Change
+
+```text
+┌──────────────────────────────────────────────────┐
+│ Header                                           │
+├──────────────────────────────────────────────────┤
+│ Channels / Answer / Date / Voiceover (unchanged) │
+├──────────────────────────────────────────────────┤
+│ [Генерация изображения] [Промт]  ← tabs          │
+│                                                  │
+│ Tab 1: [Шаг 1: Фон] [Шаг 2: Обложка] [Шаг 3:]  │
+│  ┌─────────┐  ┌─────────┐  ┌─────────┐          │
+│  │ 9:16    │  │ 9:16    │  │ 9:16    │          │
+│  │ Фон     │  │ Обложка │  │ Видео   │          │
+│  │ carousel│  │ carousel│  │ player  │          │
+│  └─────────┘  └─────────┘  └─────────┘          │
+│  Status selectors                                │
+│                                                  │
+│ Tab 2: Textarea with atmosphere prompt           │
+├──────────────────────────────────────────────────┤
+│ Meta fields (URLs, duration)                     │
+└──────────────────────────────────────────────────┘
 ```
 
-This ensures the displayed number matches exactly the channels visible in the tooltip/popover (which already filters by `is_active` on line 815).
+### Files
+- `src/components/videos/VideoSidePanel.tsx` — all changes in this single file
 
