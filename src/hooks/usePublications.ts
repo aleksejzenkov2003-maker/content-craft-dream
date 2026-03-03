@@ -83,6 +83,23 @@ export function usePublications(filters?: PublicationFilters) {
       const { data, error } = await query;
 
       if (error) throw error;
+      
+      // Auto-recover stuck concatenating publications (>5 min without result)
+      const stuckPubs = (data || []).filter(p => 
+        p.publication_status === 'concatenating' && 
+        !p.final_video_url &&
+        new Date(p.updated_at).getTime() < Date.now() - 5 * 60 * 1000
+      );
+      if (stuckPubs.length > 0) {
+        for (const pub of stuckPubs) {
+          await supabase
+            .from('publications')
+            .update({ publication_status: 'needs_concat' })
+            .eq('id', pub.id);
+          pub.publication_status = 'needs_concat';
+        }
+      }
+      
       setPublications(data || []);
     } catch (error: any) {
       console.error('Error fetching publications:', error);
