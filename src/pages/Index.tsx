@@ -338,15 +338,25 @@ export default function Index() {
         return;
       }
 
-      // Batch insert all at once
+      // Determine which channels need concat (have back_cover_video_url)
+      const { data: channelDetails } = await supabase
+        .from('publishing_channels')
+        .select('id, back_cover_video_url')
+        .in('id', newChannelIds);
+
+      const channelsWithBackCover = new Set(
+        (channelDetails || []).filter(c => c.back_cover_video_url).map(c => c.id)
+      );
+
+      // Batch insert all at once, setting needs_concat for channels with back covers
       const { data: inserted, error } = await supabase
         .from('publications')
         .insert(newChannelIds.map(channelId => ({
           video_id: video.id,
           channel_id: channelId,
-          publication_status: 'pending',
+          publication_status: channelsWithBackCover.has(channelId) ? 'needs_concat' : 'pending',
         })))
-        .select('id');
+        .select('id, channel_id');
 
       if (error) throw error;
 
@@ -359,6 +369,21 @@ export default function Index() {
         supabase.functions.invoke('generate-post-text', {
           body: { publicationId: pub.id },
         }).catch(console.error);
+      }
+
+      // Auto-concat for channels with back covers if video is ready
+      const videoUrl = (video as any).heygen_video_url || (video as any).video_path;
+      if (videoUrl) {
+        for (const pub of (inserted || [])) {
+          if (channelsWithBackCover.has(pub.channel_id)) {
+            const backCoverUrl = channelDetails?.find(c => c.id === pub.channel_id)?.back_cover_video_url;
+            if (backCoverUrl) {
+              concatVideos(pub.id, videoUrl, backCoverUrl).then(() => {
+                refetchPublications();
+              }).catch(console.error);
+            }
+          }
+        }
       }
     } catch (error) {
       console.error('Error publishing video:', error);
