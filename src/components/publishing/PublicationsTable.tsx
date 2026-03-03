@@ -1,4 +1,5 @@
 import { useState, useMemo } from 'react';
+import { supabase } from '@/integrations/supabase/client';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -245,11 +246,20 @@ const minuteOptions = [0, 5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55];
       toast.error('У канала нет задней обложки');
       return;
     }
-    // Get video URL from the video's heygen_video_url or video_path via a direct query
-    const video = videos.find(v => v.id === pub.video_id);
-    const videoUrl = (video as any)?.heygen_video_url || (video as any)?.video_path;
+    // Get video URL - need to fetch fresh data since joined video may not have all fields
+    const { data: video } = await supabase
+      .from('videos')
+      .select('heygen_video_url, video_path')
+      .eq('id', pub.video_id)
+      .single();
+      
+    const videoUrl = video?.heygen_video_url || video?.video_path;
     if (!videoUrl) {
-      toast.error('У ролика нет видео URL');
+      toast.error('Видео ещё не сгенерировано. Сначала создайте видео.');
+      // Reset stuck status
+      if (pub.publication_status === 'concatenating') {
+        await updatePublication(pub.id, { publication_status: 'needs_concat' });
+      }
       return;
     }
     setConcatingId(pub.id);
