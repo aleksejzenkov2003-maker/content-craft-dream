@@ -116,6 +116,24 @@ export function PublicationsTable({ groupBy = 'channel' }: PublicationsTableProp
 const hours = Array.from({ length: 24 }, (_, i) => i);
 const minuteOptions = [0, 5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55];
 
+  const channelsById = useMemo(() => new Map(channels.map((c) => [c.id, c])), [channels]);
+
+  const hasReadyText = (pub: Publication) => Boolean(pub.generated_text?.trim());
+
+  const requiresConcat = (pub: Publication) => {
+    const channel = pub.channel_id ? channelsById.get(pub.channel_id) : undefined;
+    return !!channel?.back_cover_video_url;
+  };
+
+  const isConcatReady = (pub: Publication) => !requiresConcat(pub) || !!pub.final_video_url;
+
+  const isStaleConcatenating = (pub: Publication) => {
+    if (pub.publication_status !== 'concatenating' || pub.final_video_url) return false;
+    const updatedAt = new Date(pub.updated_at).getTime();
+    if (!Number.isFinite(updatedAt)) return false;
+    return Date.now() - updatedAt > 2 * 60 * 1000;
+  };
+
   // Apply filters
   const filteredPublications = useMemo(() => {
     return publications.filter((pub) => {
@@ -241,7 +259,7 @@ const minuteOptions = [0, 5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55];
   };
 
   const handleConcat = async (pub: Publication) => {
-    const channel = channels.find(c => c.id === pub.channel_id);
+    const channel = pub.channel_id ? channelsById.get(pub.channel_id) : undefined;
     if (!channel?.back_cover_video_url) {
       toast.error('У канала нет задней обложки');
       return;
@@ -321,7 +339,7 @@ const minuteOptions = [0, 5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55];
     const ids = Array.from(selectedIds);
     const eligible = ids.filter(id => {
       const pub = publications.find(p => p.id === id);
-      return pub && pub.publication_status !== 'published' && pub.publication_status !== 'pending' && pub.generated_text;
+      return pub && pub.publication_status !== 'published' && pub.publication_status !== 'pending' && hasReadyText(pub) && isConcatReady(pub);
     });
     if (eligible.length === 0) {
       toast.warning('Нет публикаций с готовым текстом для отправки');
@@ -614,17 +632,18 @@ const minuteOptions = [0, 5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55];
                       {/* Concat status */}
                       <TableCell>
                         {(() => {
-                          const channel = channels.find(c => c.id === pub.channel_id);
-                          const hasBackCover = !!channel?.back_cover_video_url;
-                          if (!hasBackCover) return <span className="text-muted-foreground">—</span>;
+                          const concatRequired = requiresConcat(pub);
+                          if (!concatRequired) return <span className="text-muted-foreground">—</span>;
                           if (pub.final_video_url) return <span className="text-xs font-medium text-green-600">Готово</span>;
-                          if (pub.publication_status === 'concatenating') return <span className="text-xs text-muted-foreground">Склейка...</span>;
-                          return <span className="text-muted-foreground">—</span>;
+                          if (pub.publication_status === 'concatenating' && !isStaleConcatenating(pub)) {
+                            return <span className="text-xs text-muted-foreground">Склейка...</span>;
+                          }
+                          return <span className="text-xs text-muted-foreground">Ожидает</span>;
                         })()}
                       </TableCell>
                       {/* Text status */}
                       <TableCell>
-                        {pub.generated_text ? (
+                        {hasReadyText(pub) ? (
                           <span className="text-xs font-medium text-green-600">Готово</span>
                         ) : (
                           <span className="text-muted-foreground">—</span>
@@ -637,11 +656,11 @@ const minuteOptions = [0, 5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55];
                       {/* Concat action button */}
                       <TableCell onClick={(e) => e.stopPropagation()}>
                         {(() => {
-                          const channel = channels.find(c => c.id === pub.channel_id);
-                          const hasBackCover = !!channel?.back_cover_video_url;
+                          const concatRequired = requiresConcat(pub);
                           const isConcating = concatingId === pub.id;
                           const hasFinalVideo = !!pub.final_video_url;
-                          if (!hasBackCover) return <span className="text-muted-foreground text-xs">—</span>;
+                          const isBusyConcat = isConcating || (pub.publication_status === 'concatenating' && !isStaleConcatenating(pub));
+                          if (!concatRequired) return <span className="text-muted-foreground text-xs">—</span>;
                           if (hasFinalVideo) {
                             return (
                               <Button size="xs" variant="outline" className="bg-green-500 text-white hover:bg-green-600 border-green-500" asChild>
@@ -656,10 +675,10 @@ const minuteOptions = [0, 5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55];
                               <Button
                                 size="xs"
                                 className="bg-orange-500 text-white hover:bg-orange-600"
-                                disabled={isConcating || pub.publication_status === 'concatenating'}
+                                disabled={isBusyConcat}
                                 onClick={() => handleConcat(pub)}
                               >
-                                {isConcating ? (
+                                {isBusyConcat ? (
                                   <Loader2 className="w-3 h-3 animate-spin mr-1" />
                                 ) : null}
                                 Склейка
@@ -675,8 +694,8 @@ const minuteOptions = [0, 5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55];
                       <TableCell onClick={(e) => e.stopPropagation()}>
                         <Button
                           size="xs"
-                          className={pub.generated_text 
-                            ? "bg-green-500 text-white hover:bg-green-600" 
+                          className={hasReadyText(pub)
+                            ? "bg-green-500 text-white hover:bg-green-600"
                             : "bg-orange-500 text-white hover:bg-orange-600"
                           }
                           disabled={generatingIds.has(pub.id)}
@@ -700,15 +719,18 @@ const minuteOptions = [0, 5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55];
                             disabled={
                               pub.publication_status === 'published' || 
                               pub.publication_status === 'pending' || 
-                              !pub.generated_text ||
+                              !hasReadyText(pub) ||
+                              !isConcatReady(pub) ||
                               publishingIds.has(pub.id)
                             }
                             title={
-                              !pub.generated_text 
-                                ? 'Сначала сгенерируйте текст' 
-                                : pub.publication_status === 'pending' 
-                                  ? 'Сначала проверьте публикацию' 
-                                  : ''
+                              !hasReadyText(pub)
+                                ? 'Сначала сгенерируйте текст'
+                                : !isConcatReady(pub)
+                                  ? 'Сначала выполните склейку'
+                                  : pub.publication_status === 'pending'
+                                    ? 'Сначала проверьте публикацию'
+                                    : ''
                             }
                             onClick={() => handlePublish(pub)}
                           >
