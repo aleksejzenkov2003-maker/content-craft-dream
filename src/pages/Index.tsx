@@ -800,7 +800,6 @@ export default function Index() {
                     .in('id', videosToDelete.map(v => v.id));
                   if (error) throw error;
                   await Promise.all([refetchAllVideos(), refetchVideos()]);
-                  toast.success(`Удалено ${videosToDelete.length} роликов`);
                 }
               }}
               onBulkUpdateStatus={async (uniqueKeys, status) => {

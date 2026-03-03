@@ -272,14 +272,32 @@ export function QuestionsTable({
     return result;
   }, [questions, searchInput, filters, sortColumn, sortDirection]);
 
-  const allBulkSelected = filteredQuestions.length > 0 && 
-    filteredQuestions.every(q => bulkDeleteIds.includes(q.unique_key));
+  // Status counts for filter tabs
+  const statusCounts = useMemo(() => {
+    const counts = { all: questions.length, in_progress: 0, published: 0, not_selected: 0 };
+    questions.forEach(q => {
+      if (q.question_status === 'in_progress') counts.in_progress++;
+      else if (q.question_status === 'published') counts.published++;
+      else counts.not_selected++;
+    });
+    return counts;
+  }, [questions]);
+
+  const [activeTab, setActiveTab] = useState<string | null>(null);
+
+  const tabFilteredQuestions = useMemo(() => {
+    if (!activeTab) return filteredQuestions;
+    return filteredQuestions.filter(q => q.question_status === activeTab);
+  }, [filteredQuestions, activeTab]);
+
+  const allBulkSelected = tabFilteredQuestions.length > 0 && 
+    tabFilteredQuestions.every(q => bulkDeleteIds.includes(q.unique_key));
 
   const toggleBulkSelectAll = () => {
     if (allBulkSelected) {
       setBulkDeleteIds([]);
     } else {
-      setBulkDeleteIds(filteredQuestions.map(q => q.unique_key));
+      setBulkDeleteIds(tabFilteredQuestions.map(q => q.unique_key));
     }
   };
 
@@ -317,12 +335,16 @@ export function QuestionsTable({
   const handleBulkDelete = async () => {
     if (bulkDeleteIds.length === 0 || !onDeleteQuestion) return;
     setIsDeleting(true);
+    const count = bulkDeleteIds.length;
     try {
       for (const uniqueKey of bulkDeleteIds) {
         await onDeleteQuestion(uniqueKey);
       }
       setBulkDeleteIds([]);
       setShowBulkDeleteDialog(false);
+      toast.success(`Удалено ${count} вопрос(ов)`);
+    } catch (e) {
+      toast.error('Ошибка при удалении');
     } finally {
       setIsDeleting(false);
     }
@@ -391,6 +413,7 @@ export function QuestionsTable({
       : <ArrowDown className="w-3 h-3 ml-1" />;
   };
 
+
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
@@ -401,6 +424,50 @@ export function QuestionsTable({
 
   return (
     <div className="flex flex-col h-full">
+      {/* Status filter tabs */}
+      <div className="flex items-center gap-3 px-4 py-3 border-b">
+        <button
+          onClick={() => setActiveTab(null)}
+          className={cn(
+            "flex flex-col items-center px-4 py-1.5 rounded-lg border text-xs transition-colors",
+            !activeTab ? "border-primary bg-primary/5 text-primary font-medium" : "border-border text-muted-foreground hover:border-primary/50"
+          )}
+        >
+          <span>Все вопросы</span>
+          <span className="text-lg font-semibold">{statusCounts.all}</span>
+        </button>
+        <button
+          onClick={() => setActiveTab('in_progress')}
+          className={cn(
+            "flex flex-col items-center px-4 py-1.5 rounded-lg border text-xs transition-colors",
+            activeTab === 'in_progress' ? "border-yellow-500 bg-yellow-500/5 text-yellow-700 font-medium" : "border-border text-muted-foreground hover:border-yellow-500/50"
+          )}
+        >
+          <span>В работе</span>
+          <span className="text-lg font-semibold">{statusCounts.in_progress}</span>
+        </button>
+        <button
+          onClick={() => setActiveTab('published')}
+          className={cn(
+            "flex flex-col items-center px-4 py-1.5 rounded-lg border text-xs transition-colors",
+            activeTab === 'published' ? "border-green-500 bg-green-500/5 text-green-700 font-medium" : "border-border text-muted-foreground hover:border-green-500/50"
+          )}
+        >
+          <span>Опубликованы</span>
+          <span className="text-lg font-semibold">{statusCounts.published}</span>
+        </button>
+        <button
+          onClick={() => setActiveTab('not_selected')}
+          className={cn(
+            "flex flex-col items-center px-4 py-1.5 rounded-lg border text-xs transition-colors",
+            activeTab === 'not_selected' ? "border-muted-foreground bg-muted/20 text-foreground font-medium" : "border-border text-muted-foreground hover:border-muted-foreground/50"
+          )}
+        >
+          <span>Не отобраны</span>
+          <span className="text-lg font-semibold">{statusCounts.not_selected}</span>
+        </button>
+      </div>
+
       {/* Top bar with search and import */}
       <div className="flex items-center justify-between px-4 py-2 border-b bg-background">
         <div className="flex items-center gap-2">
@@ -420,7 +487,7 @@ export function QuestionsTable({
           <QuestionFilters filters={filters} onFiltersChange={setFilters} />
         </div>
         <span className="text-xs text-muted-foreground">
-          {filteredQuestions.length} из {questions.length}
+          {tabFilteredQuestions.length} из {questions.length}
         </span>
       </div>
 
@@ -429,7 +496,7 @@ export function QuestionsTable({
         <div className="px-4 py-2 border-b">
           <BulkActionsBar
             selectedCount={bulkDeleteIds.length}
-            totalCount={filteredQuestions.length}
+            totalCount={tabFilteredQuestions.length}
             onClearSelection={() => setBulkDeleteIds([])}
           >
             {onBulkUpdateDate && (
@@ -495,12 +562,12 @@ export function QuestionsTable({
 
       {/* Table body */}
       <div className="flex-1 overflow-auto">
-        {filteredQuestions.length === 0 ? (
+        {tabFilteredQuestions.length === 0 ? (
           <div className="flex items-center justify-center h-32 text-muted-foreground text-sm">
             {questions.length === 0 ? 'Нет вопросов' : 'Ничего не найдено'}
           </div>
         ) : (
-          filteredQuestions.map((q) => (
+          tabFilteredQuestions.map((q) => (
             <div
               key={q.unique_key}
               className={`group grid grid-cols-[40px_60px_120px_80px_1fr_140px_130px_100px] gap-0 px-4 py-2 border-b hover:bg-muted/30 transition-colors text-sm ${
