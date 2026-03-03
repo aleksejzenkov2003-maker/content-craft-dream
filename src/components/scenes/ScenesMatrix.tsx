@@ -271,153 +271,109 @@ export function ScenesMatrix() {
       </div>
 
       {/* Advisors list with nested playlists */}
-      <div className="space-y-2">
+      <div className="space-y-6">
         {advisors.map(advisor => {
           const isExpanded = expandedAdvisors.has(advisor.id);
           const approvedScenes = approvedCountByAdvisor(advisor.id);
 
           return (
-            <Card key={advisor.id} className="glass-card overflow-hidden">
+            <div key={advisor.id}>
               <Collapsible open={isExpanded} onOpenChange={() => toggleAdvisor(advisor.id)}>
                 <CollapsibleTrigger asChild>
-                  <CardHeader className="py-3 px-4 cursor-pointer hover:bg-muted/50 transition-colors">
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-3">
-                        {isExpanded ? (
-                          <ChevronDown className="w-5 h-5 text-muted-foreground" />
-                        ) : (
-                          <ChevronRight className="w-5 h-5 text-muted-foreground" />
-                        )}
-                        {advisor.photos?.[0]?.photo_url ? (
-                          <img
-                            src={advisor.photos[0].photo_url}
-                            alt={advisor.name}
-                            className="w-10 h-10 rounded-full object-cover"
-                          />
-                        ) : (
-                          <div className="w-10 h-10 rounded-full bg-muted flex items-center justify-center">
-                            <Image className="w-5 h-5 text-muted-foreground" />
-                          </div>
-                        )}
-                        <div>
-                          <CardTitle className="text-base">
-                            {advisor.display_name || advisor.name}
-                          </CardTitle>
-                          <p className="text-xs text-muted-foreground">
-                            {approvedScenes}/{playlists.length} сцен готово
-                          </p>
-                        </div>
+                  <div className="flex items-center gap-3 cursor-pointer py-2 group">
+                    {isExpanded ? (
+                      <ChevronDown className="w-4 h-4 text-muted-foreground" />
+                    ) : (
+                      <ChevronRight className="w-4 h-4 text-muted-foreground" />
+                    )}
+                    {advisor.photos?.[0]?.photo_url ? (
+                      <img
+                        src={advisor.photos[0].photo_url}
+                        alt={advisor.name}
+                        className="w-12 h-12 rounded-full object-cover"
+                      />
+                    ) : (
+                      <div className="w-12 h-12 rounded-full bg-muted flex items-center justify-center">
+                        <Image className="w-5 h-5 text-muted-foreground" />
                       </div>
-                      <Badge variant={approvedScenes === playlists.length ? 'default' : 'outline'}>
-                        {approvedScenes === playlists.length ? 'Все готово' : `${approvedScenes}/${playlists.length}`}
-                      </Badge>
+                    )}
+                    <div>
+                      <div className="text-lg font-semibold">
+                        {advisor.display_name || advisor.name}
+                      </div>
+                      <p className="text-sm text-muted-foreground">
+                        {approvedScenes}/{playlists.length} сцен готово
+                      </p>
                     </div>
-                  </CardHeader>
+                  </div>
                 </CollapsibleTrigger>
                 <CollapsibleContent>
-                  <CardContent className="pt-0 px-4 pb-4">
-                    <Table>
-                      <TableHeader>
-                        <TableRow className="bg-muted/30">
-                          <TableHead>Плейлист</TableHead>
-                          <TableHead className="w-32">Статус</TableHead>
-                          <TableHead className="w-32">Проверка</TableHead>
-                          <TableHead className="w-24">Сцена</TableHead>
-                          <TableHead className="w-40">Действия</TableHead>
-                        </TableRow>
-                      </TableHeader>
-                      <TableBody>
-                        {playlists.map(playlist => {
-                          const scene = getScene(playlist.id, advisor.id);
-                          const isGenerating = generatingScenes.has(`${playlist.id}-${advisor.id}`);
-                          const status = statusLabels[scene?.status || 'waiting'] || statusLabels.waiting;
-                          const reviewStatus = reviewStatusLabels[scene?.review_status || 'Waiting'] || reviewStatusLabels.Waiting;
+                  <div className="ml-8 mt-1">
+                    {/* Column headers */}
+                    <div className="flex items-center py-2 text-sm font-medium text-muted-foreground border-b">
+                      <div className="flex-1" />
+                      <div className="w-28 text-center">Статус</div>
+                      <div className="w-20 text-center">Сцена</div>
+                      <div className="w-36 text-right">Действия</div>
+                    </div>
+                    {playlists.map(playlist => {
+                      const scene = getScene(playlist.id, advisor.id);
+                      const isGenerating = generatingScenes.has(`${playlist.id}-${advisor.id}`);
+                      const sceneStatus = scene?.status || 'waiting';
 
-                          return (
-                            <TableRow 
-                              key={playlist.id}
-                              className="cursor-pointer hover:bg-muted/50"
-                              onClick={() => scene 
-                                ? handleOpenScene(scene, playlist, advisor) 
-                                : handleCreateAndOpenScene(playlist, advisor)
-                              }
+                      const statusText = sceneStatus === 'approved' ? 'ГОТОВО' : sceneStatus === 'generating' ? 'генерация' : 'ожидает';
+                      const statusColor = sceneStatus === 'approved' 
+                        ? 'text-orange-600 font-bold uppercase' 
+                        : sceneStatus === 'generating' 
+                          ? 'text-yellow-600' 
+                          : 'text-muted-foreground';
+
+                      return (
+                        <div
+                          key={playlist.id}
+                          className="flex items-center py-2 border-b border-border/40 hover:bg-muted/30 cursor-pointer transition-colors"
+                          onClick={() => scene 
+                            ? handleOpenScene(scene, playlist, advisor) 
+                            : handleCreateAndOpenScene(playlist, advisor)
+                          }
+                        >
+                          <div className="flex-1 pl-4 text-sm">
+                            {playlist.name}
+                          </div>
+                          <div className={`w-28 text-center text-sm ${statusColor}`}>
+                            {statusText}
+                          </div>
+                          <div className="w-20 flex justify-center">
+                            {scene?.scene_url ? (
+                              <img
+                                src={scene.scene_url}
+                                alt="Scene"
+                                className="w-8 h-8 rounded-full object-cover border"
+                              />
+                            ) : (
+                              <span className="text-muted-foreground">-</span>
+                            )}
+                          </div>
+                          <div className="w-36 flex justify-end" onClick={(e) => e.stopPropagation()}>
+                            <Button
+                              size="sm"
+                              disabled={isGenerating}
+                              onClick={() => handleGenerateScene(playlist, advisor)}
+                              className="bg-emerald-500 hover:bg-emerald-600 text-white text-xs rounded-full px-4 h-7"
                             >
-                              <TableCell>
-                                <div className="font-medium">{playlist.name}</div>
-                                {playlist.description && (
-                                  <p className="text-xs text-muted-foreground truncate max-w-xs">
-                                    {playlist.description}
-                                  </p>
-                                )}
-                              </TableCell>
-                              <TableCell>
-                                <Badge variant={status.variant}>
-                                  {status.label}
-                                </Badge>
-                              </TableCell>
-                              <TableCell>
-                                <Badge variant={reviewStatus.variant}>
-                                  {reviewStatus.label}
-                                </Badge>
-                              </TableCell>
-                              <TableCell>
-                                {scene?.scene_url ? (
-                                  <img
-                                    src={scene.scene_url}
-                                    alt="Scene"
-                                    className="w-12 h-16 object-cover rounded border"
-                                  />
-                                ) : (
-                                  <div className="w-12 h-16 bg-muted rounded border flex items-center justify-center">
-                                    <Image className="w-4 h-4 text-muted-foreground" />
-                                  </div>
-                                )}
-                              </TableCell>
-                              <TableCell onClick={(e) => e.stopPropagation()}>
-                                <div className="flex items-center gap-1">
-                                  <Button
-                                    size="sm"
-                                    variant="outline"
-                                    disabled={isGenerating}
-                                    onClick={() => handleGenerateScene(playlist, advisor)}
-                                  >
-                                    {isGenerating ? (
-                                      <Loader2 className="w-4 h-4 animate-spin" />
-                                    ) : (
-                                      <Wand2 className="w-4 h-4" />
-                                    )}
-                                  </Button>
-                                  {scene && scene.status !== 'approved' && (
-                                    <Button
-                                      size="sm"
-                                      variant="ghost"
-                                      className="text-green-600"
-                                      onClick={() => handleUpdateScene(scene.id, { status: 'approved' })}
-                                    >
-                                      <Check className="w-4 h-4" />
-                                    </Button>
-                                  )}
-                                  {scene && scene.status !== 'cancelled' && (
-                                    <Button
-                                      size="sm"
-                                      variant="ghost"
-                                      className="text-red-600"
-                                      onClick={() => handleUpdateScene(scene.id, { status: 'cancelled' })}
-                                    >
-                                      <X className="w-4 h-4" />
-                                    </Button>
-                                  )}
-                                </div>
-                              </TableCell>
-                            </TableRow>
-                          );
-                        })}
-                      </TableBody>
-                    </Table>
-                  </CardContent>
+                              {isGenerating ? (
+                                <Loader2 className="w-3 h-3 animate-spin mr-1" />
+                              ) : null}
+                              Сгенерировать
+                            </Button>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
                 </CollapsibleContent>
               </Collapsible>
-            </Card>
+            </div>
           );
         })}
       </div>
