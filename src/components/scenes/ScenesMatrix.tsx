@@ -97,8 +97,17 @@ export function ScenesMatrix() {
       });
 
       if (response.error) throw response.error;
+      
+      const result = response.data;
+      if (result?.error) {
+        throw new Error(result.error);
+      }
 
-      toast.success('Сцена сгенерирована!');
+      if (result?.sceneUrl) {
+        toast.success('Сцена сгенерирована!');
+      } else {
+        toast.warning('Функция завершилась, но изображение не получено');
+      }
       await refetch();
     } catch (error) {
       console.error('Error generating scene:', error);

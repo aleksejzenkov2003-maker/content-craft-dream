@@ -116,7 +116,7 @@ Ultra high resolution, 16:9 aspect ratio.`;
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          model: "google/gemini-2.5-flash-image-preview",
+          model: "google/gemini-3-pro-image-preview",
           messages: [
             {
               role: "user",
@@ -142,10 +142,18 @@ Make it look natural and professional.`
       });
 
       if (!response.ok) {
-        throw new Error(`AI API error: ${response.status}`);
+        const errText = await response.text();
+        console.error('AI API error response:', errText);
+        throw new Error(`AI API error: ${response.status} - ${errText}`);
       }
 
       const data = await response.json();
+      console.log('AI response keys:', JSON.stringify(Object.keys(data)));
+      console.log('First choice:', JSON.stringify(data.choices?.[0]?.message ? { 
+        hasImages: !!data.choices[0].message.images,
+        imagesCount: data.choices[0].message.images?.length,
+        contentLength: data.choices[0].message.content?.length 
+      } : 'no choice'));
       finalImageUrl = data.choices?.[0]?.message?.images?.[0]?.image_url?.url;
     } else {
       // Generate just the background scene
@@ -156,7 +164,7 @@ Make it look natural and professional.`
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          model: "google/gemini-2.5-flash-image-preview",
+          model: "google/gemini-3-pro-image-preview",
           messages: [
             {
               role: "user",
@@ -168,10 +176,13 @@ Make it look natural and professional.`
       });
 
       if (!response.ok) {
-        throw new Error(`AI API error: ${response.status}`);
+        const errText = await response.text();
+        console.error('AI API error response:', errText);
+        throw new Error(`AI API error: ${response.status} - ${errText}`);
       }
 
       const data = await response.json();
+      console.log('AI response keys:', JSON.stringify(Object.keys(data)));
       finalImageUrl = data.choices?.[0]?.message?.images?.[0]?.image_url?.url;
     }
 
