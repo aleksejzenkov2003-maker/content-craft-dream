@@ -807,8 +807,8 @@ export function QuestionsTable({
               }
             }
 
-            toast.info(`Создание ${expanded.length} роликов (${transformed.length} вопросов × ${activeAdvisorIds.length} духовников)`);
             await onBulkImport(expanded);
+            toast.success(`Импортировано ${transformed.length} вопросов`);
           } catch (error: any) {
             console.error('Question import error:', error);
             toast.error(`Ошибка импорта: ${error.message || 'Unknown error'}`);
