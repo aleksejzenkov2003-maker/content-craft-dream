@@ -8,7 +8,7 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { Textarea } from '@/components/ui/textarea';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Calendar } from '@/components/ui/calendar';
-import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
+import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import {
   Sheet,
   SheetContent } from
@@ -120,7 +120,7 @@ export function VideoSidePanel({
   const [atmosIndex, setAtmosIndex] = useState(0);
   const [coverIndex, setCoverIndex] = useState(0);
   const [atmospherePromptText, setAtmospherePromptText] = useState('');
-  const [promptSectionOpen, setPromptSectionOpen] = useState(false);
+  // promptSectionOpen removed - now using tabs
 
   const advisor = advisors.find((a) => a.id === video?.advisor_id);
   const advisorName = advisor?.display_name || advisor?.name || 'Духовник';
@@ -270,7 +270,7 @@ export function VideoSidePanel({
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent className="w-[450px] sm:w-[550px] p-0 flex flex-col [&>button.absolute]:hidden">
+      <SheetContent className="w-[700px] sm:w-[800px] p-0 flex flex-col [&>button.absolute]:hidden">
         {/* Header */}
         <div className="flex items-center justify-between px-4 py-3 border-b">
           <div className="flex items-center gap-2">
@@ -431,270 +431,249 @@ export function VideoSidePanel({
 
             <Separator className="my-4" />
             <div className="space-y-3">
-              <h4 className="font-medium text-sm">Генерации обложки</h4>
+              <h4 className="font-medium text-sm">Генерации обложки и видео</h4>
 
-              {/* Collapsible prompt section */}
-              <Collapsible open={promptSectionOpen} onOpenChange={setPromptSectionOpen}>
-                <CollapsibleTrigger asChild>
-                  <Button variant="ghost" size="sm" className="w-full justify-between h-7 text-xs text-muted-foreground">
-                    <span className="flex items-center gap-1">
-                      <Settings2 className="w-3 h-3" />
-                      Промт атмосферы
-                    </span>
-                    {promptSectionOpen ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
-                  </Button>
-                </CollapsibleTrigger>
-                <CollapsibleContent className="pt-2">
+              <Tabs defaultValue="generation">
+                <TabsList className="grid w-full grid-cols-2 h-8">
+                  <TabsTrigger value="generation" className="text-xs">Генерация изображения</TabsTrigger>
+                  <TabsTrigger value="prompt" className="text-xs">Промт</TabsTrigger>
+                </TabsList>
+
+                <TabsContent value="generation" className="space-y-3 mt-3">
+                  {/* Three generation buttons */}
+                  <div className="grid grid-cols-3 gap-2">
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="h-8 text-xs border-amber-500/50 text-amber-700 hover:bg-amber-50 dark:hover:bg-amber-950/20"
+                      onClick={() => onGenerateAtmosphere(video, atmospherePromptText || undefined)}
+                      disabled={isGeneratingCover}>
+                      {isGeneratingCover ?
+                        <Loader2 className="w-3 h-3 mr-1 animate-spin" /> :
+                        <Sun className="w-3 h-3 mr-1" />
+                      }
+                      Шаг 1: Фон
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="h-8 text-xs border-orange-500/50 text-orange-700 hover:bg-orange-50 dark:hover:bg-orange-950/20"
+                      onClick={() => onGenerateCover(video)}
+                      disabled={isGeneratingCover || !atmosphereUrl}>
+                      {isGeneratingCover ?
+                        <Loader2 className="w-3 h-3 mr-1 animate-spin" /> :
+                        <Layers className="w-3 h-3 mr-1" />
+                      }
+                      Шаг 2: Обложка
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="h-8 text-xs border-green-500/50 text-green-700 hover:bg-green-50 dark:hover:bg-green-950/20"
+                      onClick={() => onGenerateVideo(video)}
+                      disabled={video.generation_status === 'generating' || isGenerating || !video.voiceover_url}
+                      title={!video.voiceover_url ? 'Сначала создайте озвучку' : undefined}>
+                      {video.generation_status === 'generating' || isGenerating ?
+                        <Loader2 className="w-3 h-3 mr-1 animate-spin" /> :
+                        <Play className="w-3 h-3 mr-1" />
+                      }
+                      Шаг 3: Видео
+                    </Button>
+                  </div>
+
+                  {/* 3-column pipeline: Atmosphere + Cover + Video */}
+                  <div className="grid grid-cols-3 gap-3">
+                    {/* Atmosphere Carousel */}
+                    <div className="space-y-1.5">
+                      <Label className="text-[11px] text-muted-foreground flex items-center gap-1">
+                        <Sun className="w-3 h-3" />
+                        Фон ({atmosphereVariants.length})
+                      </Label>
+                      {atmosphereVariants.length > 0 ? (
+                        <div className="relative">
+                          <div className="relative aspect-[9/16] rounded-lg overflow-hidden border bg-muted group cursor-pointer"
+                            onClick={() => window.open(atmosphereVariants[atmosIndex]?.atmosphere_url || '', '_blank')}>
+                            <img src={atmosphereVariants[atmosIndex]?.atmosphere_url || ''} alt="Atmosphere" className="w-full h-full object-cover" />
+                            <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-1">
+                              <Button size="icon" variant="ghost" className="h-6 w-6 text-white hover:text-white hover:bg-white/20"
+                                onClick={(e) => { e.stopPropagation(); handleSelectVariant(atmosphereVariants[atmosIndex], 'atmosphere'); }}>
+                                <Check className="w-3 h-3" />
+                              </Button>
+                              <Button size="icon" variant="ghost" className="h-6 w-6 text-white hover:text-white hover:bg-white/20"
+                                onClick={(e) => { e.stopPropagation(); handleDeleteVariant(atmosphereVariants[atmosIndex], 'atmosphere'); }}>
+                                <Trash2 className="w-3 h-3" />
+                              </Button>
+                            </div>
+                            {atmosphereVariants[atmosIndex]?.is_active && (
+                              <div className="absolute top-1 right-1">
+                                <Badge className="text-[8px] px-1 py-0 bg-primary">Active</Badge>
+                              </div>
+                            )}
+                          </div>
+                          {atmosphereVariants.length > 1 && (
+                            <div className="flex items-center justify-center gap-2 mt-1">
+                              <Button size="icon" variant="ghost" className="h-5 w-5"
+                                disabled={atmosIndex === 0}
+                                onClick={() => setAtmosIndex(i => i - 1)}>
+                                <ChevronLeft className="w-3 h-3" />
+                              </Button>
+                              <span className="text-[9px] text-muted-foreground">{atmosIndex + 1}/{atmosphereVariants.length}</span>
+                              <Button size="icon" variant="ghost" className="h-5 w-5"
+                                disabled={atmosIndex === atmosphereVariants.length - 1}
+                                onClick={() => setAtmosIndex(i => i + 1)}>
+                                <ChevronRight className="w-3 h-3" />
+                              </Button>
+                            </div>
+                          )}
+                          {atmosphereVariants[atmosIndex]?.prompt && (
+                            <p className="text-[9px] text-muted-foreground/60 italic line-clamp-2">{atmosphereVariants[atmosIndex].prompt}</p>
+                          )}
+                        </div>
+                      ) : atmosphereUrl ? (
+                        <div className="relative aspect-[9/16] rounded-lg overflow-hidden border bg-muted group cursor-pointer"
+                          onClick={() => window.open(atmosphereUrl, '_blank')}>
+                          <img src={atmosphereUrl} alt="Atmosphere" className="w-full h-full object-cover" />
+                        </div>
+                      ) : (
+                        <div className="aspect-[9/16] rounded-lg border-2 border-dashed border-muted-foreground/20 bg-muted/30 flex flex-col items-center justify-center gap-1">
+                          <Sun className="w-5 h-5 text-muted-foreground/30" />
+                          <span className="text-[9px] text-muted-foreground/40">Нет фона</span>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Cover Carousel */}
+                    <div className="space-y-1.5">
+                      <Label className="text-[11px] text-muted-foreground flex items-center gap-1">
+                        <Layers className="w-3 h-3" />
+                        Обложка ({coverVariants.length})
+                      </Label>
+                      {coverVariants.length > 0 ? (
+                        <div className="relative">
+                          <div className="relative aspect-[9/16] rounded-lg overflow-hidden border-2 border-primary bg-muted group cursor-pointer"
+                            onClick={() => window.open(coverVariants[coverIndex]?.front_cover_url || '', '_blank')}>
+                            <img src={coverVariants[coverIndex]?.front_cover_url || ''} alt="Cover" className="w-full h-full object-cover" />
+                            <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-1">
+                              <Button size="icon" variant="ghost" className="h-6 w-6 text-white hover:text-white hover:bg-white/20"
+                                onClick={(e) => { e.stopPropagation(); handleSelectVariant(coverVariants[coverIndex], 'cover'); }}>
+                                <Check className="w-3 h-3" />
+                              </Button>
+                              <Button size="icon" variant="ghost" className="h-6 w-6 text-white hover:text-white hover:bg-white/20"
+                                onClick={(e) => { e.stopPropagation(); handleDeleteVariant(coverVariants[coverIndex], 'cover'); }}>
+                                <Trash2 className="w-3 h-3" />
+                              </Button>
+                            </div>
+                            {coverVariants[coverIndex]?.is_active && (
+                              <div className="absolute top-1 right-1">
+                                <Badge className="text-[8px] px-1 py-0 bg-primary">Active</Badge>
+                              </div>
+                            )}
+                          </div>
+                          {coverVariants.length > 1 && (
+                            <div className="flex items-center justify-center gap-2 mt-1">
+                              <Button size="icon" variant="ghost" className="h-5 w-5"
+                                disabled={coverIndex === 0}
+                                onClick={() => setCoverIndex(i => i - 1)}>
+                                <ChevronLeft className="w-3 h-3" />
+                              </Button>
+                              <span className="text-[9px] text-muted-foreground">{coverIndex + 1}/{coverVariants.length}</span>
+                              <Button size="icon" variant="ghost" className="h-5 w-5"
+                                disabled={coverIndex === coverVariants.length - 1}
+                                onClick={() => setCoverIndex(i => i + 1)}>
+                                <ChevronRight className="w-3 h-3" />
+                              </Button>
+                            </div>
+                          )}
+                        </div>
+                      ) : video.front_cover_url ? (
+                        <div className="relative aspect-[9/16] rounded-lg overflow-hidden border-2 border-primary bg-muted group cursor-pointer"
+                          onClick={() => window.open(video.front_cover_url!, '_blank')}>
+                          <img src={video.front_cover_url} alt="Cover" className="w-full h-full object-cover" />
+                          <div className="absolute top-1 right-1">
+                            <Badge className="text-[8px] px-1 py-0 bg-primary">Active</Badge>
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="aspect-[9/16] rounded-lg border-2 border-dashed border-muted-foreground/20 bg-muted/30 flex flex-col items-center justify-center gap-1">
+                          <ImageIcon className="w-5 h-5 text-muted-foreground/30" />
+                          <span className="text-[9px] text-muted-foreground/40">Нет обложки</span>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Video Column */}
+                    <div className="space-y-1.5">
+                      <Label className="text-[11px] text-muted-foreground flex items-center gap-1">
+                        <Play className="w-3 h-3" />
+                        Видео
+                      </Label>
+                      {video.heygen_video_url ? (
+                        <div className="relative aspect-[9/16] rounded-lg overflow-hidden bg-black">
+                          <video
+                            src={video.heygen_video_url}
+                            controls
+                            className="w-full h-full object-contain"
+                            poster={video.front_cover_url || undefined} />
+                        </div>
+                      ) : (
+                        <div className="aspect-[9/16] rounded-lg border-2 border-dashed border-muted-foreground/20 bg-muted/30 flex flex-col items-center justify-center gap-2">
+                          <div className="w-10 h-10 rounded-full bg-muted flex items-center justify-center">
+                            <Play className="w-5 h-5 text-muted-foreground/40" />
+                          </div>
+                          <span className="text-[9px] text-muted-foreground/40">Видео не сгенерировано</span>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Status selectors row */}
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="grid grid-cols-[60px_1fr] gap-2 items-center">
+                      <Label className="text-xs text-muted-foreground">Обложка</Label>
+                      <Select value={normalizedCoverStatus} onValueChange={handleCoverStatusChange}>
+                        <SelectTrigger className="h-7 text-xs">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {coverStatusOptions.map((option) =>
+                            <SelectItem key={option.value} value={option.value}>
+                              <span className={option.color}>{option.label}</span>
+                            </SelectItem>
+                          )}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="grid grid-cols-[60px_1fr] gap-2 items-center">
+                      <Label className="text-xs text-muted-foreground">Видео</Label>
+                      <Select value={video.generation_status || 'pending'} onValueChange={handleVideoStatusChange}>
+                        <SelectTrigger className="h-7 text-xs">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {videoStatusOptions.map((option) =>
+                            <SelectItem key={option.value} value={option.value}>
+                              <span className={option.color}>{option.label}</span>
+                            </SelectItem>
+                          )}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
+                </TabsContent>
+
+                <TabsContent value="prompt" className="space-y-2 mt-3">
                   <Textarea
                     value={atmospherePromptText}
                     onChange={(e) => setAtmospherePromptText(e.target.value)}
                     placeholder="Промт для генерации атмосферы..."
-                    className="min-h-[80px] text-xs font-mono"
-                    rows={4}
+                    className="min-h-[200px] text-xs font-mono"
+                    rows={10}
                   />
-                  <p className="text-[10px] text-muted-foreground mt-1">
+                  <p className="text-[10px] text-muted-foreground">
                     Отредактируйте промт перед генерацией. Промт подтянут из настроек.
                   </p>
-                </CollapsibleContent>
-              </Collapsible>
-              
-              {/* Two generation buttons */}
-              <div className="grid grid-cols-2 gap-2">
-                <Button
-                  size="sm"
-                  variant="outline"
-                  className="h-8 text-xs border-amber-500/50 text-amber-700 hover:bg-amber-50 dark:hover:bg-amber-950/20"
-                  onClick={() => onGenerateAtmosphere(video, atmospherePromptText || undefined)}
-                  disabled={isGeneratingCover}>
-
-                  {isGeneratingCover ?
-                  <Loader2 className="w-3 h-3 mr-1 animate-spin" /> :
-
-                  <Sun className="w-3 h-3 mr-1" />
-                  }
-                  Шаг 1: Фон
-                </Button>
-                <Button
-                  size="sm"
-                  variant="outline"
-                  className="h-8 text-xs border-orange-500/50 text-orange-700 hover:bg-orange-50 dark:hover:bg-orange-950/20"
-                  onClick={() => onGenerateCover(video)}
-                  disabled={isGeneratingCover || !atmosphereUrl}>
-
-                  {isGeneratingCover ?
-                  <Loader2 className="w-3 h-3 mr-1 animate-spin" /> :
-
-                  <Layers className="w-3 h-3 mr-1" />
-                  }
-                  Шаг 2: Обложка
-                </Button>
-              </div>
-
-              {/* Side-by-side carousels: Atmosphere + Final Cover */}
-              <div className="grid grid-cols-2 gap-3">
-                {/* Atmosphere Carousel */}
-                <div className="space-y-1.5">
-                  <Label className="text-[11px] text-muted-foreground flex items-center gap-1">
-                    <Sun className="w-3 h-3" />
-                    Фон ({atmosphereVariants.length})
-                  </Label>
-                  {atmosphereVariants.length > 0 ? (
-                    <div className="relative">
-                      <div className="relative aspect-[9/16] rounded-lg overflow-hidden border bg-muted group cursor-pointer"
-                        onClick={() => window.open(atmosphereVariants[atmosIndex]?.atmosphere_url || '', '_blank')}>
-                        <img src={atmosphereVariants[atmosIndex]?.atmosphere_url || ''} alt="Atmosphere" className="w-full h-full object-cover" />
-                        <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-1">
-                          <Button size="icon" variant="ghost" className="h-6 w-6 text-white hover:text-white hover:bg-white/20"
-                            onClick={(e) => { e.stopPropagation(); handleSelectVariant(atmosphereVariants[atmosIndex], 'atmosphere'); }}>
-                            <Check className="w-3 h-3" />
-                          </Button>
-                          <Button size="icon" variant="ghost" className="h-6 w-6 text-white hover:text-white hover:bg-white/20"
-                            onClick={(e) => { e.stopPropagation(); handleDeleteVariant(atmosphereVariants[atmosIndex], 'atmosphere'); }}>
-                            <Trash2 className="w-3 h-3" />
-                          </Button>
-                        </div>
-                        {atmosphereVariants[atmosIndex]?.is_active && (
-                          <div className="absolute top-1 right-1">
-                            <Badge className="text-[8px] px-1 py-0 bg-primary">Active</Badge>
-                          </div>
-                        )}
-                      </div>
-                      {atmosphereVariants.length > 1 && (
-                        <div className="flex items-center justify-center gap-2 mt-1">
-                          <Button size="icon" variant="ghost" className="h-5 w-5"
-                            disabled={atmosIndex === 0}
-                            onClick={() => setAtmosIndex(i => i - 1)}>
-                            <ChevronLeft className="w-3 h-3" />
-                          </Button>
-                          <span className="text-[9px] text-muted-foreground">{atmosIndex + 1}/{atmosphereVariants.length}</span>
-                          <Button size="icon" variant="ghost" className="h-5 w-5"
-                            disabled={atmosIndex === atmosphereVariants.length - 1}
-                            onClick={() => setAtmosIndex(i => i + 1)}>
-                            <ChevronRight className="w-3 h-3" />
-                          </Button>
-                        </div>
-                      )}
-                      {atmosphereVariants[atmosIndex]?.prompt && (
-                        <p className="text-[9px] text-muted-foreground/60 italic line-clamp-2">{atmosphereVariants[atmosIndex].prompt}</p>
-                      )}
-                    </div>
-                  ) : atmosphereUrl ? (
-                    <div className="relative aspect-[9/16] rounded-lg overflow-hidden border bg-muted group cursor-pointer"
-                      onClick={() => window.open(atmosphereUrl, '_blank')}>
-                      <img src={atmosphereUrl} alt="Atmosphere" className="w-full h-full object-cover" />
-                    </div>
-                  ) : (
-                    <div className="aspect-[9/16] rounded-lg border-2 border-dashed border-muted-foreground/20 bg-muted/30 flex flex-col items-center justify-center gap-1">
-                      <Sun className="w-5 h-5 text-muted-foreground/30" />
-                      <span className="text-[9px] text-muted-foreground/40">Нет фона</span>
-                    </div>
-                  )}
-                </div>
-
-                {/* Cover Carousel */}
-                <div className="space-y-1.5">
-                  <Label className="text-[11px] text-muted-foreground flex items-center gap-1">
-                    <Layers className="w-3 h-3" />
-                    Обложка ({coverVariants.length})
-                  </Label>
-                  {coverVariants.length > 0 ? (
-                    <div className="relative">
-                      <div className="relative aspect-[9/16] rounded-lg overflow-hidden border-2 border-primary bg-muted group cursor-pointer"
-                        onClick={() => window.open(coverVariants[coverIndex]?.front_cover_url || '', '_blank')}>
-                        <img src={coverVariants[coverIndex]?.front_cover_url || ''} alt="Cover" className="w-full h-full object-cover" />
-                        <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-1">
-                          <Button size="icon" variant="ghost" className="h-6 w-6 text-white hover:text-white hover:bg-white/20"
-                            onClick={(e) => { e.stopPropagation(); handleSelectVariant(coverVariants[coverIndex], 'cover'); }}>
-                            <Check className="w-3 h-3" />
-                          </Button>
-                          <Button size="icon" variant="ghost" className="h-6 w-6 text-white hover:text-white hover:bg-white/20"
-                            onClick={(e) => { e.stopPropagation(); handleDeleteVariant(coverVariants[coverIndex], 'cover'); }}>
-                            <Trash2 className="w-3 h-3" />
-                          </Button>
-                        </div>
-                        {coverVariants[coverIndex]?.is_active && (
-                          <div className="absolute top-1 right-1">
-                            <Badge className="text-[8px] px-1 py-0 bg-primary">Active</Badge>
-                          </div>
-                        )}
-                      </div>
-                      {coverVariants.length > 1 && (
-                        <div className="flex items-center justify-center gap-2 mt-1">
-                          <Button size="icon" variant="ghost" className="h-5 w-5"
-                            disabled={coverIndex === 0}
-                            onClick={() => setCoverIndex(i => i - 1)}>
-                            <ChevronLeft className="w-3 h-3" />
-                          </Button>
-                          <span className="text-[9px] text-muted-foreground">{coverIndex + 1}/{coverVariants.length}</span>
-                          <Button size="icon" variant="ghost" className="h-5 w-5"
-                            disabled={coverIndex === coverVariants.length - 1}
-                            onClick={() => setCoverIndex(i => i + 1)}>
-                            <ChevronRight className="w-3 h-3" />
-                          </Button>
-                        </div>
-                      )}
-                    </div>
-                  ) : video.front_cover_url ? (
-                    <div className="relative aspect-[9/16] rounded-lg overflow-hidden border-2 border-primary bg-muted group cursor-pointer"
-                      onClick={() => window.open(video.front_cover_url!, '_blank')}>
-                      <img src={video.front_cover_url} alt="Cover" className="w-full h-full object-cover" />
-                      <div className="absolute top-1 right-1">
-                        <Badge className="text-[8px] px-1 py-0 bg-primary">Active</Badge>
-                      </div>
-                    </div>
-                  ) : (
-                    <div className="aspect-[9/16] rounded-lg border-2 border-dashed border-muted-foreground/20 bg-muted/30 flex flex-col items-center justify-center gap-1">
-                      <ImageIcon className="w-5 h-5 text-muted-foreground/30" />
-                      <span className="text-[9px] text-muted-foreground/40">Нет обложки</span>
-                    </div>
-                  )}
-                </div>
-              </div>
-
-              {/* Cover status */}
-              <div className="grid grid-cols-[100px_1fr] gap-2 items-center">
-                <Label className="text-xs text-muted-foreground">Статус</Label>
-                <Select
-                  value={normalizedCoverStatus}
-                  onValueChange={handleCoverStatusChange}>
-                  <SelectTrigger className="h-7 text-xs">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {coverStatusOptions.map((option) =>
-                      <SelectItem key={option.value} value={option.value}>
-                        <span className={option.color}>{option.label}</span>
-                      </SelectItem>
-                    )}
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
-
-            <Separator className="my-4" />
-
-            {/* === VIDEO SECTION === */}
-            <div className="space-y-3">
-              <div className="flex items-center justify-between">
-                <h4 className="font-medium text-sm">Видео</h4>
-                <Button
-                  size="sm"
-                  className="h-7 text-xs bg-green-600 hover:bg-green-700 text-white"
-                  onClick={() => onGenerateVideo(video)}
-                  disabled={video.generation_status === 'generating' || isGenerating || !video.voiceover_url}
-                  title={!video.voiceover_url ? 'Сначала создайте озвучку' : undefined}>
-
-                  {video.generation_status === 'generating' || isGenerating ?
-                  <>
-                      <Loader2 className="w-3 h-3 mr-1 animate-spin" />
-                      Generating...
-                    </> :
-                  !video.voiceover_url ?
-                  'Нужна озвучка' :
-
-                  'Generate Video'
-                  }
-                </Button>
-              </div>
-
-              {/* Video Player */}
-              {video.heygen_video_url ?
-              <div className="relative aspect-[9/16] rounded-lg overflow-hidden bg-black">
-                  <video
-                  src={video.heygen_video_url}
-                  controls
-                  className="w-full h-full object-contain"
-                  poster={video.front_cover_url || undefined} />
-
-                </div> :
-
-              <div className="aspect-[9/16] rounded-lg border-2 border-dashed border-muted-foreground/20 bg-muted/30 flex flex-col items-center justify-center gap-2">
-                  <div className="w-10 h-10 rounded-full bg-muted flex items-center justify-center">
-                    <Play className="w-5 h-5 text-muted-foreground/40" />
-                  </div>
-                  <span className="text-xs text-muted-foreground/40">Видео не сгенерировано</span>
-                </div>
-              }
-
-              {/* Video status */}
-              <div className="grid grid-cols-[100px_1fr] gap-2 items-center">
-                <Label className="text-xs text-muted-foreground">Статус</Label>
-                <Select
-                  value={video.generation_status || 'pending'}
-                  onValueChange={handleVideoStatusChange}>
-
-                  <SelectTrigger className="h-7 text-xs">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {videoStatusOptions.map((option) =>
-                    <SelectItem key={option.value} value={option.value}>
-                        <span className={option.color}>{option.label}</span>
-                      </SelectItem>
-                    )}
-                  </SelectContent>
-                </Select>
-              </div>
+                </TabsContent>
+              </Tabs>
             </div>
 
             <Separator className="my-4" />
