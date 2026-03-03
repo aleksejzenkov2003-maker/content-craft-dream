@@ -1,50 +1,48 @@
 
 
-## Plan: Widen Video Side Panel with Tabbed Layout
+## Analysis of Current State vs Requirements
 
-### Problem
-The side panel is too narrow (450-550px) to display the full generation pipeline (Background → Cover → Video) side by side as shown in the reference image. The atmosphere prompt is hidden in a collapsible section instead of being a proper tab.
+After reviewing the code and the reference screenshot, here's the status of each requirement:
 
-### Changes
+### 1. Deduplication — Already Implemented ✅
+- Database has a unique constraint on `(video_id, channel_id)` in the `publications` table
+- `handlePublishVideo` in `Index.tsx` (lines 324-399) checks for existing pairs before inserting
+- `bulkImport` in `usePublications.ts` filters duplicates client-side
+- `addPublication` checks for existing pairs before inserting
 
-#### `src/components/videos/VideoSidePanel.tsx`
+No changes needed.
 
-1. **Widen the panel**: Change `w-[450px] sm:w-[550px]` to `w-[700px] sm:w-[800px]` on line 273.
+### 2. Fix Edit Form — Needs Investigation
+The `PublicationEditDialog` appears functional but the user reports issues. Based on the reference screenshot and code review, the likely problems are:
+- **Calendar/Select dropdowns closing the dialog**: The `onPointerDownOutside` fix is already applied. However, the `Select` components inside `Popover` may still cause issues with click propagation
+- **The form works but may need UX improvements** — need clarification from the user on what exactly is broken
 
-2. **Add tabs "Генерация изображения" / "Промт"** inside the cover generation section (replacing the current collapsible prompt):
-   - **Tab "Генерация изображения"** (default): Contains the generation buttons (Step 1: Background, Step 2: Cover) and the 3-column carousel layout showing Background, Cover, and Video side by side (as in the reference image).
-   - **Tab "Промт"**: Contains the atmosphere prompt textarea (currently in the collapsible).
+### 3. Auto Concat + Text Generation on Publish — Already Implemented ✅
+- `handlePublishVideo` (lines 351-394) sets `needs_concat` status for channels with back covers
+- Text generation is fire-and-forget for all new publications (lines 368-372)
+- Auto-concat triggers when video URL is available (lines 376-394)
+- `triggerAutoConcat` (lines 98-143) also runs after polling detects video is ready
 
-3. **3-column pipeline layout**: Change the current `grid-cols-2` carousel (lines 494-612) to `grid-cols-3`, adding a third column for the Video preview/player. Move the video player from the separate "Видео" section below into this third column, so all three steps (Background → Cover → Video) are visible together horizontally.
+No changes needed.
 
-4. **Add Step 3 button**: Add a third generation button "Шаг 3: Видео" alongside the existing two, making the grid `grid-cols-3` for the buttons (lines 462-491).
+### 4. Publish Button Requires Text — Already Implemented ✅
+- Button is disabled when `!pub.generated_text` (line 703)
+- Tooltip shows "Сначала сгенерируйте текст" when text is missing (line 708)
+- Bulk publish filters by `pub.generated_text` (line 324)
 
-5. **Import Tabs**: Add `Tabs, TabsList, TabsTrigger, TabsContent` import from `@/components/ui/tabs`.
+No changes needed.
 
-### Structure After Change
+---
 
-```text
-┌──────────────────────────────────────────────────┐
-│ Header                                           │
-├──────────────────────────────────────────────────┤
-│ Channels / Answer / Date / Voiceover (unchanged) │
-├──────────────────────────────────────────────────┤
-│ [Генерация изображения] [Промт]  ← tabs          │
-│                                                  │
-│ Tab 1: [Шаг 1: Фон] [Шаг 2: Обложка] [Шаг 3:]  │
-│  ┌─────────┐  ┌─────────┐  ┌─────────┐          │
-│  │ 9:16    │  │ 9:16    │  │ 9:16    │          │
-│  │ Фон     │  │ Обложка │  │ Видео   │          │
-│  │ carousel│  │ carousel│  │ player  │          │
-│  └─────────┘  └─────────┘  └─────────┘          │
-│  Status selectors                                │
-│                                                  │
-│ Tab 2: Textarea with atmosphere prompt           │
-├──────────────────────────────────────────────────┤
-│ Meta fields (URLs, duration)                     │
-└──────────────────────────────────────────────────┘
-```
+## Remaining Issue: Table Layout (from Reference Screenshot)
 
-### Files
-- `src/components/videos/VideoSidePanel.tsx` — all changes in this single file
+The reference image shows the status columns should display **icons** (video camera for concat, text document for text, and status text for publication) rather than plain text. The current code shows "Готово" / "—" which matches partially but lacks the visual icons shown in the reference.
+
+## Plan
+
+Since items 1, 3, and 4 are already implemented, the main question is about item 2 — the edit form. I need to clarify what specifically is broken with the form.
+
+### Changes to implement:
+1. **Clarify edit form issue** — ask the user what specifically needs fixing
+2. **Minor table UX** — Add visual status icons (camera icon for concat status, document icon for text status) to match the reference screenshot more closely
 
