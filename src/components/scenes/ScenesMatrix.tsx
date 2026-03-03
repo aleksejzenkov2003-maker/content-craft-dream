@@ -14,14 +14,21 @@ import { toast } from 'sonner';
 import { CsvImporter, Lookups } from '@/components/import/CsvImporter';
 import { SCENE_COLUMN_MAPPING, SCENE_PREVIEW_COLUMNS, SCENE_FIELD_DEFINITIONS } from '@/components/import/importConfigs';
 
+// Normalize various status values to canonical ones
+const normalizeStatus = (status: string | null | undefined): string => {
+  if (!status) return 'waiting';
+  const lower = status.toLowerCase().trim();
+  if (['approved', 'одобрено', 'сцена готова', 'готово', 'ready', 'done'].includes(lower)) return 'approved';
+  if (['generating', 'генерация', 'in_progress'].includes(lower)) return 'generating';
+  if (['cancelled', 'отменено', 'rejected', 'отклонено'].includes(lower)) return 'cancelled';
+  return 'waiting';
+};
+
 const statusLabels: Record<string, { label: string; variant: 'default' | 'secondary' | 'outline' | 'destructive' }> = {
   waiting: { label: 'Ожидает', variant: 'outline' },
-  Waiting: { label: 'Ожидает', variant: 'outline' },
   generating: { label: 'Генерация', variant: 'secondary' },
   approved: { label: 'Одобрено', variant: 'default' },
-  Approved: { label: 'Одобрено', variant: 'default' },
   cancelled: { label: 'Отменено', variant: 'destructive' },
-  Cancelled: { label: 'Отменено', variant: 'destructive' },
 };
 
 const reviewStatusLabels: Record<string, { label: string; variant: 'default' | 'secondary' | 'outline' | 'destructive' }> = {
@@ -250,7 +257,7 @@ export function ScenesMatrix() {
   };
 
   const approvedCountByAdvisor = (advisorId: string): number => {
-    return scenes.filter(s => s.advisor_id === advisorId && s.status === 'approved').length;
+    return scenes.filter(s => s.advisor_id === advisorId && normalizeStatus(s.status) === 'approved').length;
   };
 
   return (
@@ -325,7 +332,7 @@ export function ScenesMatrix() {
                     {playlists.map(playlist => {
                       const scene = getScene(playlist.id, advisor.id);
                       const isGenerating = generatingScenes.has(`${playlist.id}-${advisor.id}`);
-                      const sceneStatus = scene?.status || 'waiting';
+                      const sceneStatus = normalizeStatus(scene?.status);
 
                       const statusText = sceneStatus === 'approved' ? 'ГОТОВО' : sceneStatus === 'generating' ? 'генерация' : 'ожидает';
                       const statusColor = sceneStatus === 'approved' 
