@@ -39,6 +39,16 @@ export function useVideoConcat() {
     return ffmpeg;
   }, []);
 
+  const withTimeout = <T,>(promise: Promise<T>, ms: number, label: string): Promise<T> => {
+    return new Promise((resolve, reject) => {
+      const timer = setTimeout(() => reject(new Error(`Таймаут: ${label} (>${Math.round(ms/1000)}с)`)), ms);
+      promise.then(
+        (v) => { clearTimeout(timer); resolve(v); },
+        (e) => { clearTimeout(timer); reject(e); },
+      );
+    });
+  };
+
   const concatVideos = useCallback(async (
     publicationId: string,
     mainVideoUrl: string,
@@ -55,15 +65,15 @@ export function useVideoConcat() {
 
       setState(prev => ({ ...prev, progress: 5 }));
 
-      // Load ffmpeg
-      const ffmpeg = await loadFFmpeg();
+      // Load ffmpeg with 30s timeout
+      const ffmpeg = await withTimeout(loadFFmpeg(), 30_000, 'загрузка ffmpeg');
       setState(prev => ({ ...prev, progress: 15 }));
 
-      // Download videos
-      const mainData = await fetchFile(mainVideoUrl);
+      // Download videos with 60s timeout each
+      const mainData = await withTimeout(fetchFile(mainVideoUrl), 60_000, 'загрузка основного видео');
       setState(prev => ({ ...prev, progress: 35 }));
 
-      const backCoverData = await fetchFile(backCoverVideoUrl);
+      const backCoverData = await withTimeout(fetchFile(backCoverVideoUrl), 60_000, 'загрузка обложки');
       setState(prev => ({ ...prev, progress: 55 }));
 
       // Write files to ffmpeg FS
@@ -74,17 +84,19 @@ export function useVideoConcat() {
       const concatList = "file 'main.mp4'\nfile 'backcover.mp4'\n";
       await ffmpeg.writeFile('concat.txt', concatList);
 
-      // Run ffmpeg concat (fast path: stream copy, fallback: re-encode for incompatible codecs)
+      // Run ffmpeg concat with 90s timeout (fast path: stream copy, fallback: re-encode)
       try {
-        await ffmpeg.exec([
+        await withTimeout(ffmpeg.exec([
           '-f', 'concat',
           '-safe', '0',
           '-i', 'concat.txt',
           '-c', 'copy',
           'output.mp4',
-        ]);
-      } catch {
-        await ffmpeg.exec([
+        ]), 90_000, 'склейка видео');
+      } catch (firstErr: any) {
+        // If it was a timeout on stream copy, try re-encode but also with timeout
+        if (firstErr?.message?.includes('Таймаут')) throw firstErr;
+        await withTimeout(ffmpeg.exec([
           '-f', 'concat',
           '-safe', '0',
           '-i', 'concat.txt',
@@ -95,7 +107,7 @@ export function useVideoConcat() {
           '-b:a', '128k',
           '-movflags', '+faststart',
           'output.mp4',
-        ]);
+        ]), 180_000, 'перекодирование видео');
       }
 
       setState(prev => ({ ...prev, progress: 80 }));
@@ -151,7 +163,7 @@ export function useVideoConcat() {
       await supabase
         .from('publications')
         .update({
-          publication_status: 'error',
+          publication_status: 'needs_concat',
           error_message: errorMsg,
         })
         .eq('id', publicationId);
