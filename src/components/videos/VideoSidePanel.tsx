@@ -270,7 +270,7 @@ export function VideoSidePanel({
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent className="w-[50vw] p-0 flex flex-col [&>button.absolute]:hidden">
+      <SheetContent className="w-[50vw] !max-w-[50vw] p-0 flex flex-col [&>button.absolute]:hidden">
         {/* Header */}
         <div className="flex items-center justify-between px-4 py-3 border-b">
           <div className="flex items-center gap-2">
