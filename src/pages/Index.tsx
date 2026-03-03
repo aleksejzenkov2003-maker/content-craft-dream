@@ -665,6 +665,7 @@ export default function Index() {
 
                       // Remove virtual fields
                       delete result.playlist_name;
+                      delete result.playlist_rus;
                       delete result.advisor_name;
                       delete result._ignore;
 
