@@ -74,14 +74,29 @@ export function useVideoConcat() {
       const concatList = "file 'main.mp4'\nfile 'backcover.mp4'\n";
       await ffmpeg.writeFile('concat.txt', concatList);
 
-      // Run ffmpeg concat
-      await ffmpeg.exec([
-        '-f', 'concat',
-        '-safe', '0',
-        '-i', 'concat.txt',
-        '-c', 'copy',
-        'output.mp4',
-      ]);
+      // Run ffmpeg concat (fast path: stream copy, fallback: re-encode for incompatible codecs)
+      try {
+        await ffmpeg.exec([
+          '-f', 'concat',
+          '-safe', '0',
+          '-i', 'concat.txt',
+          '-c', 'copy',
+          'output.mp4',
+        ]);
+      } catch {
+        await ffmpeg.exec([
+          '-f', 'concat',
+          '-safe', '0',
+          '-i', 'concat.txt',
+          '-c:v', 'libx264',
+          '-preset', 'ultrafast',
+          '-crf', '23',
+          '-c:a', 'aac',
+          '-b:a', '128k',
+          '-movflags', '+faststart',
+          'output.mp4',
+        ]);
+      }
 
       setState(prev => ({ ...prev, progress: 80 }));
 
