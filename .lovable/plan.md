@@ -1,39 +1,47 @@
 
 
-## Проблема
+## Problem
 
-При тестировании промптов типа `scene` реальная генерация (`generate-scene`) работает с фото духовника — композитит его в сцену через image editing API. Но в тесте промпта (`test-prompt`) фото духовника не передается — генерируется просто картинка по тексту, без учета фото.
+The `composeCover` function in `generate-cover/index.ts` uses CSS properties not supported by Satori:
+- `textShadow` (lines 156, 197) — causes the crash
+- `boxShadow` (line 185) — may also fail
+- `objectFit: 'cover'` on `<img>` — not fully supported
 
-## Решение
+## Fix
 
-Добавить в форму тестирования для типов `scene` и `atmosphere` возможность выбрать духовника (и его фото), чтобы при тесте передавать фото в edge function для композитинга.
+Replace unsupported CSS properties with Satori-compatible alternatives:
 
-### 1. PromptForm.tsx — добавить выбор духовника для image-типов
+### File: `supabase/functions/generate-cover/index.ts`
 
-- Принимать новый проп `advisors` (список духовников с фото)
-- Для типов `atmosphere` / `scene` показать в панели тестирования выпадающий список духовников
-- При выборе духовника — автоматически подставить URL его primary-фото
-- Передавать `advisorPhotoUrl` в `onTest`
+1. **Remove all `textShadow`** (lines 156, 197) — replace with a semi-transparent dark overlay behind the text area to ensure readability against the background.
 
-### 2. test-prompt edge function — поддержка image editing
+2. **Remove `boxShadow`** from advisor photo (line 185) — use a thicker white border instead.
 
-- Принимать новый параметр `advisorPhotoUrl`
-- Для image-типов, если передан `advisorPhotoUrl`:
-  - Использовать multimodal API (text + image_url) для композитинга духовника в сцену (как делает `generate-scene`)
-- Если `advisorPhotoUrl` не передан — генерировать просто фон как сейчас
+3. **Replace `objectFit: 'cover'`** on background image — Satori supports `objectFit` on `img` in recent versions, but if it fails, fall back to using the image as a background via absolute positioning with `width: 100%` and `height: 100%`.
 
-### 3. usePrompts.ts — передавать advisorPhotoUrl
+4. **Add a dark gradient overlay** element between the background image and the text content. This replaces the text shadow effect for readability:
+   - A `div` with `position: absolute`, `background: linear-gradient(...)` from transparent to dark at top and bottom.
 
-- Расширить `testPrompt` для передачи `advisorPhotoUrl` в body запроса
+### Specific changes
 
-### 4. SettingsPage.tsx — передать advisors в PromptForm
+**Hook text block** (line 150-159): Remove `textShadow`, keep other styles.
 
-- Загрузить список духовников через `useAdvisors` (уже есть хук)
-- Передать `advisors` в `PromptForm`
+**Advisor name** (line 192-198): Remove `textShadow`.
 
-### Файлы для изменения
-- `src/components/prompts/PromptForm.tsx` — UI выбора духовника, передача фото
-- `supabase/functions/test-prompt/index.ts` — обработка `advisorPhotoUrl`, image editing
-- `src/hooks/usePrompts.ts` — расширить сигнатуру testPrompt
-- `src/components/settings/SettingsPage.tsx` — передать advisors в форму
+**Advisor photo** (line 179-186): Remove `boxShadow`, increase border width to `6px solid white`.
+
+**New overlay element**: Add between the background `<img>` and the content elements:
+```jsx
+React.createElement('div', {
+  style: {
+    position: 'absolute',
+    top: 0, left: 0,
+    width: '100%', height: '100%',
+    background: 'linear-gradient(to bottom, rgba(0,0,0,0.3) 0%, rgba(0,0,0,0.1) 40%, rgba(0,0,0,0.1) 60%, rgba(0,0,0,0.5) 100%)',
+  }
+})
+```
+
+### Files to change
+- `supabase/functions/generate-cover/index.ts` — remove unsupported CSS, add gradient overlay
 
