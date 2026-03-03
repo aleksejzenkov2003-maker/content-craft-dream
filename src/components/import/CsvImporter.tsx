@@ -255,7 +255,7 @@ export function CsvImporter({
           </DialogTitle>
         </DialogHeader>
 
-        <div className="flex-1 overflow-hidden">
+        <div className="flex-1 overflow-auto">
           {showSheetPicker ? (
             /* Sheet selection for multi-sheet Excel */
             <div className="space-y-4 py-4">
