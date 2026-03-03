@@ -1,0 +1,1 @@
+CREATE UNIQUE INDEX IF NOT EXISTS unique_video_channel_publication ON public.publications (video_id, channel_id) WHERE video_id IS NOT NULL AND channel_id IS NOT NULL;

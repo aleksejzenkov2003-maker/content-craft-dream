@@ -309,11 +309,17 @@ const minuteOptions = [0, 5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55];
 
   const handleBulkPublish = async () => {
     const ids = Array.from(selectedIds);
-    for (const id of ids) {
+    const eligible = ids.filter(id => {
       const pub = publications.find(p => p.id === id);
-      if (pub && pub.publication_status !== 'published' && pub.publication_status !== 'pending') {
-        await handlePublish(pub);
-      }
+      return pub && pub.publication_status !== 'published' && pub.publication_status !== 'pending' && pub.generated_text;
+    });
+    if (eligible.length === 0) {
+      toast.warning('Нет публикаций с готовым текстом для отправки');
+      return;
+    }
+    for (const id of eligible) {
+      const pub = publications.find(p => p.id === id)!;
+      await handlePublish(pub);
     }
   };
 
@@ -538,25 +544,12 @@ const minuteOptions = [0, 5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55];
                       </div>
                     </TableHead>
                     <TableHead className="w-[80px]">Длина</TableHead>
-                    <TableHead className="w-[120px]">Статус</TableHead>
-                    <TableHead className="w-[180px]">Текст</TableHead>
-                    <TableHead 
-                      className="w-[80px] text-right cursor-pointer hover:bg-accent/50"
-                      onClick={() => handleSort('views')}
-                    >
-                      <div className="flex items-center justify-end">
-                        Просмотры {getSortIcon('views')}
-                      </div>
-                    </TableHead>
-                    <TableHead 
-                      className="w-[80px] text-right cursor-pointer hover:bg-accent/50"
-                      onClick={() => handleSort('likes')}
-                    >
-                      <div className="flex items-center justify-end">
-                        Лайки {getSortIcon('likes')}
-                      </div>
-                    </TableHead>
-                    <TableHead className="w-[180px]">Действия</TableHead>
+                    <TableHead className="w-[80px]">Склейка</TableHead>
+                    <TableHead className="w-[120px]">Текст</TableHead>
+                    <TableHead className="w-[120px]">Публикация</TableHead>
+                    <TableHead className="w-[100px]">Склейка</TableHead>
+                    <TableHead className="w-[100px]">Текст</TableHead>
+                    <TableHead className="w-[100px]">Публикация</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -608,98 +601,111 @@ const minuteOptions = [0, 5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55];
                           <span className="text-muted-foreground">—</span>
                         )}
                       </TableCell>
-                      <TableCell onClick={(e) => e.stopPropagation()}>
-                        <InlineEdit
-                          type="select"
-                          value={pub.publication_status}
-                          options={statusOptions}
-                          onSave={async (value) => {
-                            await updatePublication(pub.id, { publication_status: value });
-                          }}
-                          formatDisplay={(val) => {
-                            const config = statusLabels[val || 'pending'];
-                            return config?.label || val || 'Ожидает';
-                          }}
-                        />
+                      {/* Concat status */}
+                      <TableCell>
+                        {(() => {
+                          const channel = channels.find(c => c.id === pub.channel_id);
+                          const hasBackCover = !!channel?.back_cover_video_url;
+                          if (!hasBackCover) return <span className="text-muted-foreground">—</span>;
+                          if (pub.final_video_url) return <span className="text-xs font-medium text-green-600">Готово</span>;
+                          if (pub.publication_status === 'concatenating') return <span className="text-xs text-muted-foreground">Склейка...</span>;
+                          return <span className="text-muted-foreground">—</span>;
+                        })()}
                       </TableCell>
-                      <TableCell onClick={(e) => e.stopPropagation()}>
+                      {/* Text status */}
+                      <TableCell>
                         {pub.generated_text ? (
-                          <p className="text-xs text-muted-foreground line-clamp-2 max-w-[160px]">
-                            {pub.generated_text}
-                          </p>
+                          <span className="text-xs font-medium text-green-600">Готово</span>
                         ) : (
-                          <Button
-                            size="xs"
-                            variant="outline"
-                            disabled={generatingIds.has(pub.id)}
-                            onClick={() => handleGenerateText(pub)}
-                          >
-                            {generatingIds.has(pub.id) ? (
-                              <Loader2 className="w-3 h-3 animate-spin" />
-                            ) : (
-                              <>
-                                <Sparkles className="w-3 h-3 mr-1" />
-                                Генерировать
-                              </>
-                            )}
-                          </Button>
+                          <span className="text-muted-foreground">—</span>
                         )}
                       </TableCell>
-                      <TableCell className="text-right">
-                        {pub.views > 0 ? pub.views.toLocaleString() : '—'}
+                      {/* Publication status */}
+                      <TableCell>
+                        {getStatusBadge(pub.publication_status)}
                       </TableCell>
-                      <TableCell className="text-right">
-                        {pub.likes > 0 ? pub.likes.toLocaleString() : '—'}
-                      </TableCell>
+                      {/* Concat action button */}
                       <TableCell onClick={(e) => e.stopPropagation()}>
-                        <div className="flex items-center gap-1">
-                          {/* Concat button - show if channel has back_cover_video_url */}
-                          {(() => {
-                            const channel = channels.find(c => c.id === pub.channel_id);
-                            const hasBackCover = !!channel?.back_cover_video_url;
-                            const isConcating = concatingId === pub.id;
-                            const hasFinalVideo = !!pub.final_video_url;
-                            if (!hasBackCover) return null;
-                            if (hasFinalVideo) {
-                              return (
-                                <Button size="xs" variant="outline" asChild title="Открыть склеенное видео">
-                                  <a href={pub.final_video_url!} target="_blank" rel="noopener noreferrer">
-                                    <Clapperboard className="w-3 h-3" />
-                                  </a>
-                                </Button>
-                              );
-                            }
+                        {(() => {
+                          const channel = channels.find(c => c.id === pub.channel_id);
+                          const hasBackCover = !!channel?.back_cover_video_url;
+                          const isConcating = concatingId === pub.id;
+                          const hasFinalVideo = !!pub.final_video_url;
+                          if (!hasBackCover) return <span className="text-muted-foreground text-xs">—</span>;
+                          if (hasFinalVideo) {
                             return (
-                              <Button
-                                size="xs"
-                                variant="secondary"
-                                disabled={isConcating || pub.publication_status === 'concatenating'}
-                                onClick={() => handleConcat(pub)}
-                                title="Склеить видео + заднюю обложку"
-                              >
-                                {isConcating ? (
-                                  <Loader2 className="w-3 h-3 animate-spin" />
-                                ) : (
-                                  <Clapperboard className="w-3 h-3" />
-                                )}
+                              <Button size="xs" variant="outline" className="bg-green-500 text-white hover:bg-green-600 border-green-500" asChild>
+                                <a href={pub.final_video_url!} target="_blank" rel="noopener noreferrer">
+                                  Склейка
+                                </a>
                               </Button>
                             );
-                          })()}
-                          {concatingId === pub.id && concatProgress > 0 && (
-                            <Progress value={concatProgress} className="w-16 h-1.5" />
-                          )}
+                          }
+                          return (
+                            <div className="flex items-center gap-1">
+                              <Button
+                                size="xs"
+                                className="bg-orange-500 text-white hover:bg-orange-600"
+                                disabled={isConcating || pub.publication_status === 'concatenating'}
+                                onClick={() => handleConcat(pub)}
+                              >
+                                {isConcating ? (
+                                  <Loader2 className="w-3 h-3 animate-spin mr-1" />
+                                ) : null}
+                                Склейка
+                              </Button>
+                              {isConcating && concatProgress > 0 && (
+                                <Progress value={concatProgress} className="w-12 h-1.5" />
+                              )}
+                            </div>
+                          );
+                        })()}
+                      </TableCell>
+                      {/* Text action button */}
+                      <TableCell onClick={(e) => e.stopPropagation()}>
+                        <Button
+                          size="xs"
+                          className={pub.generated_text 
+                            ? "bg-green-500 text-white hover:bg-green-600" 
+                            : "bg-orange-500 text-white hover:bg-orange-600"
+                          }
+                          disabled={generatingIds.has(pub.id)}
+                          onClick={() => handleGenerateText(pub)}
+                        >
+                          {generatingIds.has(pub.id) ? (
+                            <Loader2 className="w-3 h-3 animate-spin mr-1" />
+                          ) : null}
+                          Текст
+                        </Button>
+                      </TableCell>
+                      {/* Publish action button */}
+                      <TableCell onClick={(e) => e.stopPropagation()}>
+                        <div className="flex items-center gap-1">
                           <Button
                             size="xs"
-                            variant="default"
-                            disabled={pub.publication_status === 'published' || pub.publication_status === 'pending' || publishingIds.has(pub.id)}
-                            title={pub.publication_status === 'pending' ? 'Сначала проверьте публикацию' : ''}
+                            className={pub.publication_status === 'published'
+                              ? "bg-green-500 text-white hover:bg-green-600"
+                              : "bg-orange-500 text-white hover:bg-orange-600"
+                            }
+                            disabled={
+                              pub.publication_status === 'published' || 
+                              pub.publication_status === 'pending' || 
+                              !pub.generated_text ||
+                              publishingIds.has(pub.id)
+                            }
+                            title={
+                              !pub.generated_text 
+                                ? 'Сначала сгенерируйте текст' 
+                                : pub.publication_status === 'pending' 
+                                  ? 'Сначала проверьте публикацию' 
+                                  : ''
+                            }
                             onClick={() => handlePublish(pub)}
                           >
                             {publishingIds.has(pub.id) ? (
-                              <Loader2 className="w-3 h-3 animate-spin" />
-                            ) : (
-                              <Send className="w-3 h-3" />
-                            )}
+                              <Loader2 className="w-3 h-3 animate-spin mr-1" />
+                            ) : null}
+                            Публикация
                           </Button>
                           <DropdownMenu>
                             <DropdownMenuTrigger asChild>
@@ -717,14 +723,6 @@ const minuteOptions = [0, 5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55];
                                   <a href={pub.post_url} target="_blank" rel="noopener noreferrer">
                                     <ExternalLink className="w-4 h-4 mr-2" />
                                     Открыть пост
-                                  </a>
-                                </DropdownMenuItem>
-                              )}
-                              {pub.final_video_url && (
-                                <DropdownMenuItem asChild>
-                                  <a href={pub.final_video_url} target="_blank" rel="noopener noreferrer">
-                                    <Clapperboard className="w-4 h-4 mr-2" />
-                                    Склеенное видео
                                   </a>
                                 </DropdownMenuItem>
                               )}
