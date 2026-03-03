@@ -1,47 +1,33 @@
 
 
-## Problem
+## Issues Found
 
-The `composeCover` function in `generate-cover/index.ts` uses CSS properties not supported by Satori:
-- `textShadow` (lines 156, 197) — causes the crash
-- `boxShadow` (line 185) — may also fail
-- `objectFit: 'cover'` on `<img>` — not fully supported
+### 1. "Ожидаемые поля" shows only 3 fields (no scroll)
+The `FieldStructureInfo` component renders inside the import dialog's `<div className="flex-1 overflow-hidden">` container (line 258, CsvImporter.tsx). The `overflow-hidden` cuts off the field list. The parent `<div>` wrapping the drop zone and FieldStructureInfo (lines 290-312) has no scroll capability.
 
-## Fix
+**Fix**: Wrap the drop zone + FieldStructureInfo block in a `ScrollArea` or add `overflow-auto` so all 15 field definitions are visible.
 
-Replace unsupported CSS properties with Satori-compatible alternatives:
-
-### File: `supabase/functions/generate-cover/index.ts`
-
-1. **Remove all `textShadow`** (lines 156, 197) — replace with a semi-transparent dark overlay behind the text area to ensure readability against the background.
-
-2. **Remove `boxShadow`** from advisor photo (line 185) — use a thicker white border instead.
-
-3. **Replace `objectFit: 'cover'`** on background image — Satori supports `objectFit` on `img` in recent versions, but if it fails, fall back to using the image as a background via absolute positioning with `width: 100%` and `height: 100%`.
-
-4. **Add a dark gradient overlay** element between the background image and the text content. This replaces the text shadow effect for readability:
-   - A `div` with `position: absolute`, `background: linear-gradient(...)` from transparent to dark at top and bottom.
-
-### Specific changes
-
-**Hook text block** (line 150-159): Remove `textShadow`, keep other styles.
-
-**Advisor name** (line 192-198): Remove `textShadow`.
-
-**Advisor photo** (line 179-186): Remove `boxShadow`, increase border width to `6px solid white`.
-
-**New overlay element**: Add between the background `<img>` and the content elements:
-```jsx
-React.createElement('div', {
-  style: {
-    position: 'absolute',
-    top: 0, left: 0,
-    width: '100%', height: '100%',
-    background: 'linear-gradient(to bottom, rgba(0,0,0,0.3) 0%, rgba(0,0,0,0.1) 40%, rgba(0,0,0,0.1) 60%, rgba(0,0,0,0.5) 100%)',
-  }
-})
+### 2. Toast says "роликов" instead of "вопросов"
+In `QuestionsTable.tsx` line 810:
 ```
+toast.info(`Создание ${expanded.length} роликов (${transformed.length} вопросов × ${activeAdvisorIds.length} духовников)`);
+```
+The message is technically correct (it creates video records), but confusing in the Questions import context. Should say "Импортировано X вопросов" after success, not announce internal video creation.
 
-### Files to change
-- `supabase/functions/generate-cover/index.ts` — remove unsupported CSS, add gradient overlay
+**Fix**: Change the toast message on line 810 to say "вопросов" and also check the `onBulkImport` callback in Index.tsx (line 839-842) — it calls `bulkImport` silently but doesn't show a success toast. Add a proper success toast saying "Импортировано N вопросов".
+
+### 3. Page doesn't scroll
+The `CsvImporter` dialog content has `className="max-w-4xl max-h-[90vh] flex flex-col"` and the inner content area has `className="flex-1 overflow-hidden"` (line 258). Before a file is loaded, the content (drop zone + FieldStructureInfo) exceeds the dialog height but `overflow-hidden` prevents scrolling.
+
+**Fix**: Change `overflow-hidden` to `overflow-auto` on line 258 of CsvImporter.tsx.
+
+---
+
+## Files to Change
+
+### `src/components/import/CsvImporter.tsx`
+- Line 258: Change `overflow-hidden` → `overflow-auto` to allow scrolling of the dialog content (fixes issues 1 and 3)
+
+### `src/components/questions/QuestionsTable.tsx`
+- Line 810: Change toast message from "Создание N роликов..." to "Импортировано N вопросов"
 
