@@ -237,6 +237,15 @@ export const VIDEO_COLUMN_MAPPING: Record<string, string> = {
   'промт для ответа': 'answer_prompt',
   'answer prompt': 'answer_prompt',
   'answer_prompt': 'answer_prompt',
+
+  'плейлист рус': 'playlist_rus',
+  'плейлист_рус': 'playlist_rus',
+  'playlist rus': 'playlist_rus',
+  'playlist_rus': 'playlist_rus',
+
+  'плейлист_eng': 'playlist_name',
+  'playlist_eng': 'playlist_name',
+
   'сцены для плейлистов': '_ignore',
   'scenes': '_ignore',
 };
@@ -249,7 +258,8 @@ export const VIDEO_FIELD_DEFINITIONS: FieldDefinition[] = [
   { field: 'advisor_answer', label: 'Ответ духовника', aliases: ['ответ духовника', '≡ ответ духовника', 'answer'] },
   { field: 'answer_prompt', label: 'Промт для ответа', aliases: ['промт для ответа', 'answer prompt', 'answer_prompt'] },
   { field: 'hook', label: 'Хук англ', aliases: ['хук', 'хук англ', 'hook eng', 'hook'] },
-  { field: 'playlist_name', label: 'Плейлист англ', aliases: ['плейлист', 'плейлист англ', 'playlist'], description: 'Связь с таблицей Плейлисты' },
+  { field: 'playlist_name', label: 'Плейлист eng', aliases: ['плейлист', 'плейлист англ', 'плейлист eng', 'плейлист_eng', 'playlist', 'playlist eng'], description: 'Связь с таблицей Плейлисты' },
+  { field: 'playlist_rus', label: 'Плейлист рус', aliases: ['плейлист рус', 'плейлист_рус', 'playlist rus'], description: 'Русское название плейлиста (справочно)' },
   { field: 'safety_score', label: 'Безопасность вопроса', aliases: ['безопасность', 'безопасность вопроса', 'safety'] },
   { field: 'video_title', label: 'Заголовок видео', aliases: ['заголовок видео', 'video title', 'title'] },
   { field: 'heygen_video_url', label: 'Video (URL)', aliases: ['video', 'video (url)', '⚙ video (url)'], description: 'Ссылка на сгенерированное видео' },
