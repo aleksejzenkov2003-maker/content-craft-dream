@@ -85,14 +85,11 @@ export function ScenesMatrix() {
     setGeneratingScenes(prev => new Set(prev).add(key));
 
     try {
-      const primaryPhoto = advisor.photos?.find(p => p.is_primary) || advisor.photos?.[0];
-
       const response = await supabase.functions.invoke('generate-scene', {
         body: {
           playlistId: playlist.id,
           advisorId: advisor.id,
           prompt: playlist.scene_prompt || `Professional scene for ${playlist.name}`,
-          advisorPhotoUrl: primaryPhoto?.photo_url,
         },
       });
 

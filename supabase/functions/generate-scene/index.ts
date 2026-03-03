@@ -6,13 +6,63 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
+async function pollTaskStatus(taskId: string, apiKey: string, maxAttempts = 60, intervalMs = 3000): Promise<string> {
+  for (let i = 0; i < maxAttempts; i++) {
+    const res = await fetch(`https://api.kie.ai/api/v1/jobs/recordInfo?taskId=${taskId}`, {
+      headers: { 'Authorization': `Bearer ${apiKey}` },
+    });
+
+    if (!res.ok) {
+      const errText = await res.text();
+      throw new Error(`Query task failed: ${res.status} - ${errText}`);
+    }
+
+    const result = await res.json();
+    console.log(`Poll attempt ${i + 1}, state:`, result.data?.state, 'status:', result.data?.status);
+
+    if (result.data?.state === 'success' || result.data?.status === 'SUCCESS' || result.data?.status === 'completed') {
+      if (result.data?.resultJson) {
+        try {
+          const parsed = typeof result.data.resultJson === 'string'
+            ? JSON.parse(result.data.resultJson)
+            : result.data.resultJson;
+          if (parsed.resultUrls && parsed.resultUrls.length > 0) {
+            return parsed.resultUrls[0];
+          }
+        } catch (e) {
+          console.log('Failed to parse resultJson:', e);
+        }
+      }
+
+      const imageUrl = result.data?.output?.imageUrl || result.data?.output?.image_url || result.data?.response?.imageUrl;
+      if (imageUrl) return imageUrl;
+
+      const output = result.data?.output || result.data?.response;
+      if (output) {
+        const urls = Object.values(output).filter((v): v is string => typeof v === 'string' && v.startsWith('http'));
+        if (urls.length > 0) return urls[0];
+      }
+      throw new Error('Task completed but no image URL found: ' + JSON.stringify(result.data));
+    }
+
+    if (result.data?.state === 'fail' || result.data?.status === 'FAILED' || result.data?.status === 'failed') {
+      throw new Error('Task failed: ' + (result.data?.failMsg || JSON.stringify(result.data)));
+    }
+
+    await new Promise(resolve => setTimeout(resolve, intervalMs));
+  }
+  throw new Error('Task polling timeout');
+}
+
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
   }
 
+  let targetSceneId: string | null = null;
+
   try {
-    const { sceneId, playlistId, advisorId, prompt, advisorPhotoUrl } = await req.json();
+    const { sceneId, playlistId, advisorId, prompt } = await req.json();
 
     if (!sceneId && (!playlistId || !advisorId)) {
       throw new Error('Scene ID or Playlist ID + Advisor ID required');
@@ -20,11 +70,13 @@ serve(async (req) => {
 
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
     const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
-    const lovableApiKey = Deno.env.get('LOVABLE_API_KEY')!;
+    const kieApiKey = Deno.env.get('KIE_API_KEY');
+
+    if (!kieApiKey) throw new Error('KIE_API_KEY is not configured');
 
     const supabase = createClient(supabaseUrl, supabaseKey);
 
-    let targetSceneId = sceneId;
+    targetSceneId = sceneId || null;
 
     // If no sceneId, create a new scene
     if (!sceneId) {
@@ -39,44 +91,37 @@ serve(async (req) => {
         .select()
         .single();
 
-      if (createError) {
-        throw new Error(`Failed to create scene: ${createError.message}`);
-      }
-
+      if (createError) throw new Error(`Failed to create scene: ${createError.message}`);
       targetSceneId = newScene.id;
     } else {
-      // Update existing scene status
       await supabase
         .from('playlist_scenes')
         .update({ status: 'generating' })
         .eq('id', sceneId);
     }
 
-    // Get playlist and advisor info for context
+    // Get playlist and advisor info for prompt building
     let playlistName = '';
-    let advisorName = '';
-
     if (playlistId) {
       const { data: playlist } = await supabase
         .from('playlists')
         .select('name, scene_prompt')
         .eq('id', playlistId)
         .single();
-      
       playlistName = playlist?.name || '';
     }
 
+    let advisorName = '';
     if (advisorId) {
       const { data: advisor } = await supabase
         .from('advisors')
         .select('name, display_name')
         .eq('id', advisorId)
         .single();
-      
       advisorName = advisor?.display_name || advisor?.name || '';
     }
 
-    // Build the prompt for scene generation - fetch from DB if no custom prompt
+    // Build prompt
     let scenePrompt = prompt;
     if (!scenePrompt) {
       const { data: dbPrompt } = await supabase
@@ -93,109 +138,61 @@ serve(async (req) => {
           .replace(/\{\{advisor\}\}/g, advisorName || '');
       } else {
         scenePrompt = `Create a beautiful background scene for a spiritual guidance video.
-The scene should be serene, peaceful, and contemplative.
 Theme: ${playlistName || 'Spiritual guidance'}
 Style: Photorealistic, cinematic lighting, soft bokeh background.
-The image should work as a video backdrop with the advisor appearing in front.
 Colors: Warm, inviting tones with subtle golden light.
-Ultra high resolution, 16:9 aspect ratio.`;
+Ultra high resolution, 9:16 aspect ratio.`;
       }
     }
 
-    console.log('Generating scene with prompt:', scenePrompt);
+    console.log('Generating scene via Kie.ai, prompt:', scenePrompt);
 
-    // If we have an advisor photo, we can use edit_image to composite them
-    let finalImageUrl: string;
-
-    if (advisorPhotoUrl) {
-      // Edit image to place advisor in scene
-      const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${lovableApiKey}`,
-          "Content-Type": "application/json",
+    // Create task via Kie.ai API
+    const createRes = await fetch('https://api.kie.ai/api/v1/jobs/createTask', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${kieApiKey}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        model: 'nano-banana-pro',
+        input: {
+          prompt: `${scenePrompt}\nUltra high resolution, professional quality.`,
+          aspect_ratio: '9:16',
+          output_format: 'PNG',
         },
-        body: JSON.stringify({
-          model: "google/gemini-3-pro-image-preview",
-          messages: [
-            {
-              role: "user",
-              content: [
-                {
-                  type: "text",
-                  text: `Place this person in a beautiful serene background scene suitable for a spiritual guidance video. 
-The background should be ${scenePrompt}. 
-Keep the person clearly visible and well-lit.
-Make it look natural and professional.`
-                },
-                {
-                  type: "image_url",
-                  image_url: {
-                    url: advisorPhotoUrl
-                  }
-                }
-              ]
-            }
-          ],
-          modalities: ["image", "text"]
-        })
-      });
+      }),
+    });
 
-      if (!response.ok) {
-        const errText = await response.text();
-        console.error('AI API error response:', errText);
-        throw new Error(`AI API error: ${response.status} - ${errText}`);
-      }
-
-      const data = await response.json();
-      console.log('AI response keys:', JSON.stringify(Object.keys(data)));
-      console.log('First choice:', JSON.stringify(data.choices?.[0]?.message ? { 
-        hasImages: !!data.choices[0].message.images,
-        imagesCount: data.choices[0].message.images?.length,
-        contentLength: data.choices[0].message.content?.length 
-      } : 'no choice'));
-      finalImageUrl = data.choices?.[0]?.message?.images?.[0]?.image_url?.url;
-    } else {
-      // Generate just the background scene
-      const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${lovableApiKey}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          model: "google/gemini-3-pro-image-preview",
-          messages: [
-            {
-              role: "user",
-              content: scenePrompt
-            }
-          ],
-          modalities: ["image", "text"]
-        })
-      });
-
-      if (!response.ok) {
-        const errText = await response.text();
-        console.error('AI API error response:', errText);
-        throw new Error(`AI API error: ${response.status} - ${errText}`);
-      }
-
-      const data = await response.json();
-      console.log('AI response keys:', JSON.stringify(Object.keys(data)));
-      finalImageUrl = data.choices?.[0]?.message?.images?.[0]?.image_url?.url;
+    if (!createRes.ok) {
+      const errText = await createRes.text();
+      console.error('Kie.ai createTask error:', errText);
+      throw new Error(`Kie.ai createTask error: ${createRes.status} - ${errText}`);
     }
 
-    if (!finalImageUrl) {
-      throw new Error('No image generated');
+    const createData = await createRes.json();
+    const taskId = createData.data?.taskId;
+
+    if (!taskId) {
+      throw new Error('No taskId returned from Kie.ai: ' + JSON.stringify(createData));
     }
+
+    console.log('Kie.ai task created:', taskId);
+
+    // Poll for completion
+    const generatedImageUrl = await pollTaskStatus(taskId, kieApiKey);
+    console.log('Scene image generated, URL:', generatedImageUrl);
+
+    // Download the image
+    const imageRes = await fetch(generatedImageUrl);
+    if (!imageRes.ok) {
+      throw new Error(`Failed to download image: ${imageRes.status}`);
+    }
+    const imageBuffer = new Uint8Array(await imageRes.arrayBuffer());
 
     // Upload to storage
-    const base64Data = finalImageUrl.replace(/^data:image\/\w+;base64,/, '');
-    const imageBuffer = Uint8Array.from(atob(base64Data), c => c.charCodeAt(0));
-    
     const fileName = `scenes/${targetSceneId}/scene_${Date.now()}.png`;
-    
+
     const { error: uploadError } = await supabase.storage
       .from('media-files')
       .upload(fileName, imageBuffer, {
@@ -203,11 +200,8 @@ Make it look natural and professional.`
         upsert: true
       });
 
-    if (uploadError) {
-      throw new Error(`Failed to upload image: ${uploadError.message}`);
-    }
+    if (uploadError) throw new Error(`Failed to upload image: ${uploadError.message}`);
 
-    // Get public URL
     const { data: urlData } = supabase.storage
       .from('media-files')
       .getPublicUrl(fileName);
@@ -217,20 +211,20 @@ Make it look natural and professional.`
     // Update scene with the new URL
     const { error: updateError } = await supabase
       .from('playlist_scenes')
-      .update({ 
+      .update({
         status: 'approved',
         scene_url: sceneUrl,
         scene_prompt: prompt || scenePrompt
       })
       .eq('id', targetSceneId);
 
-    if (updateError) {
-      throw new Error(`Failed to update scene: ${updateError.message}`);
-    }
+    if (updateError) throw new Error(`Failed to update scene: ${updateError.message}`);
+
+    console.log('Scene generated and saved:', sceneUrl);
 
     return new Response(
-      JSON.stringify({ 
-        success: true, 
+      JSON.stringify({
+        success: true,
         sceneId: targetSceneId,
         sceneUrl,
         message: 'Scene generated successfully'
@@ -242,21 +236,20 @@ Make it look natural and professional.`
     const errorMessage = error instanceof Error ? error.message : 'Unknown error';
     console.error('Error generating scene:', errorMessage);
 
-    // Try to update status to error
-    try {
-      const body = await req.clone().json();
-      if (body.sceneId) {
+    // Try to reset scene status
+    if (targetSceneId) {
+      try {
         const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
         const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
         const supabase = createClient(supabaseUrl, supabaseKey);
-        
+
         await supabase
           .from('playlist_scenes')
           .update({ status: 'cancelled' })
-          .eq('id', body.sceneId);
+          .eq('id', targetSceneId);
+      } catch (e) {
+        console.error('Failed to update error status:', e);
       }
-    } catch (e) {
-      console.error('Failed to update error status:', e);
     }
 
     return new Response(
