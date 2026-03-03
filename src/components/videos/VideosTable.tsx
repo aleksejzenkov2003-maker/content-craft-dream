@@ -21,6 +21,11 @@ import { Playlist } from '@/hooks/usePlaylists';
 import { Publication } from '@/hooks/usePublications';
 import { PublishingChannel } from '@/hooks/usePublishingChannels';
 import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from '@/components/ui/tooltip';
+import {
   Loader2,
   ChevronDown,
   ChevronRight,
@@ -138,6 +143,7 @@ export function VideosTable({
   const [sortColumn, setSortColumn] = useState<SortColumn>('advisor');
   const [sortDirection, setSortDirection] = useState<SortDirection>('asc');
   const [selectedVideoIds, setSelectedVideoIds] = useState<Set<string>>(new Set());
+  const [activeTab, setActiveTab] = useState<'in_progress' | 'published' | 'all'>('in_progress');
   const [advancedFilters, setAdvancedFilters] = useState<VideoFilterState>({
     coverStatusFilter: [],
     videoStatusFilter: [],
@@ -194,9 +200,31 @@ export function VideosTable({
       : <ArrowDown className="w-3 h-3" />;
   };
 
-  // Filter: only show videos with question_status === 'in_progress'
+  // Tab counts
+  const tabCounts = useMemo(() => {
+    const uniqueQuestionsForStatus = (status: string) => {
+      const qids = new Set(videos.filter(v => v.question_status === status).map(v => v.question_id));
+      return qids.size;
+    };
+    const inProgressVideos = videos.filter(v => v.question_status === 'in_progress');
+    const publishedVideos = videos.filter(v => v.question_status === 'published' || v.question_status === 'not_selected');
+    return {
+      in_progress: { questions: uniqueQuestionsForStatus('in_progress'), videos: inProgressVideos.length },
+      published: { questions: uniqueQuestionsForStatus('published') + uniqueQuestionsForStatus('not_selected'), videos: publishedVideos.length },
+      all: { questions: new Set(videos.map(v => v.question_id)).size, videos: videos.length },
+    };
+  }, [videos]);
+
+  // Filter by tab + advanced filters
   const filteredVideos = useMemo(() => {
-    let result = videos.filter(v => v.question_status === 'in_progress');
+    let result = videos;
+
+    // Tab filter
+    if (activeTab === 'in_progress') {
+      result = result.filter(v => v.question_status === 'in_progress');
+    } else if (activeTab === 'published') {
+      result = result.filter(v => v.question_status === 'published' || v.question_status === 'not_selected');
+    }
 
     // Question filter
     if (filters.questionId !== undefined) {
@@ -236,7 +264,7 @@ export function VideosTable({
     }
 
     return result;
-  }, [videos, filters.questionId, advancedFilters]);
+  }, [videos, activeTab, filters.questionId, advancedFilters]);
 
   // Sort videos
   const sortedVideos = useMemo(() => {
@@ -397,6 +425,30 @@ export function VideosTable({
 
   return (
     <div className="space-y-4">
+      {/* Status Tabs */}
+      <div className="flex gap-2">
+        {[
+          { key: 'in_progress' as const, label: 'Ролики в работе', counts: tabCounts.in_progress },
+          { key: 'published' as const, label: 'Ролики отработанные', counts: tabCounts.published },
+          { key: 'all' as const, label: 'Все ролики', counts: tabCounts.all },
+        ].map(tab => (
+          <button
+            key={tab.key}
+            onClick={() => setActiveTab(tab.key)}
+            className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors border ${
+              activeTab === tab.key
+                ? 'bg-primary text-primary-foreground border-primary'
+                : 'bg-background text-foreground border-border hover:bg-muted'
+            }`}
+          >
+            {tab.label}
+            <span className="block text-xs font-normal opacity-80">
+              {tab.counts.questions} вопросов / {tab.counts.videos} ролики
+            </span>
+          </button>
+        ))}
+      </div>
+
       {/* Bulk Actions Bar */}
       <BulkActionsBar
         selectedCount={selectedVideoIds.size}
@@ -739,43 +791,67 @@ export function VideosTable({
                           )}
                         </div>
 
-                        {/* Channels popover */}
-                        <div>
-                          <Popover>
-                            <PopoverTrigger asChild>
-                              <Button size="xs" variant="ghost" className="h-6 w-6 p-0" title="Каналы публикации">
-                                <Send className="w-3 h-3" />
-                              </Button>
-                            </PopoverTrigger>
-                            <PopoverContent className="w-48 p-2" side="left">
-                              <div className="flex flex-wrap gap-1">
-                                {publishingChannels.filter(c => c.is_active).map((channel) => {
-                                  const isSelected = video.selected_channels?.includes(channel.id) || false;
-                                  return (
-                                    <Badge
-                                      key={channel.id}
-                                      variant={isSelected ? "default" : "outline"}
-                                      className={`text-[10px] font-normal cursor-pointer transition-colors ${
-                                        isSelected 
-                                          ? 'bg-primary text-primary-foreground hover:bg-primary/80' 
-                                          : 'hover:bg-muted'
-                                      }`}
-                                      onClick={(e) => {
-                                        e.stopPropagation();
-                                        const currentChannels = video.selected_channels || [];
-                                        const newChannels = isSelected
-                                          ? currentChannels.filter(id => id !== channel.id)
-                                          : [...currentChannels, channel.id];
-                                        onUpdateVideo?.(video.id, { selected_channels: newChannels });
-                                      }}
-                                    >
-                                      {channel.name}
-                                    </Badge>
-                                  );
-                                })}
-                              </div>
-                            </PopoverContent>
-                          </Popover>
+                        {/* Channels count + hover */}
+                        <div className="flex items-center gap-1">
+                          {(() => {
+                            const selectedCount = video.selected_channels?.length || 0;
+                            const selectedNames = publishingChannels
+                              .filter(c => video.selected_channels?.includes(c.id))
+                              .map(c => c.name);
+                            return (
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <Popover>
+                                    <PopoverTrigger asChild>
+                                      <Button size="xs" variant="ghost" className="h-6 px-1 gap-1" title="Каналы публикации">
+                                        <Send className="w-3 h-3" />
+                                        {selectedCount > 0 && (
+                                          <span className="text-xs font-medium">{selectedCount}</span>
+                                        )}
+                                      </Button>
+                                    </PopoverTrigger>
+                                    <PopoverContent className="w-48 p-2" side="left">
+                                      <div className="flex flex-wrap gap-1">
+                                        {publishingChannels.filter(c => c.is_active).map((channel) => {
+                                          const isSelected = video.selected_channels?.includes(channel.id) || false;
+                                          return (
+                                            <Badge
+                                              key={channel.id}
+                                              variant={isSelected ? "default" : "outline"}
+                                              className={`text-[10px] font-normal cursor-pointer transition-colors ${
+                                                isSelected 
+                                                  ? 'bg-primary text-primary-foreground hover:bg-primary/80' 
+                                                  : 'hover:bg-muted'
+                                              }`}
+                                              onClick={(e) => {
+                                                e.stopPropagation();
+                                                const currentChannels = video.selected_channels || [];
+                                                const newChannels = isSelected
+                                                  ? currentChannels.filter(id => id !== channel.id)
+                                                  : [...currentChannels, channel.id];
+                                                onUpdateVideo?.(video.id, { selected_channels: newChannels });
+                                              }}
+                                            >
+                                              {channel.name}
+                                            </Badge>
+                                          );
+                                        })}
+                                      </div>
+                                    </PopoverContent>
+                                  </Popover>
+                                </TooltipTrigger>
+                                {selectedCount > 0 && (
+                                  <TooltipContent side="left">
+                                    <div className="text-xs space-y-0.5">
+                                      {selectedNames.map(name => (
+                                        <div key={name}>{name}</div>
+                                      ))}
+                                    </div>
+                                  </TooltipContent>
+                                )}
+                              </Tooltip>
+                            );
+                          })()}
                         </div>
                       </div>
                     );
