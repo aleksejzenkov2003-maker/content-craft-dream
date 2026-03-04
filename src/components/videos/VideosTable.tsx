@@ -41,7 +41,14 @@ import {
   Send,
   Download,
   Upload,
+  Settings2,
 } from 'lucide-react';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 import * as XLSX from 'xlsx';
 import { format } from 'date-fns';
 import { toast } from 'sonner';
@@ -449,52 +456,8 @@ export function VideosTable({
         ))}
       </div>
 
-      {/* Bulk Actions Bar */}
-      <BulkActionsBar
-        selectedCount={selectedVideoIds.size}
-        totalCount={videos.length}
-        onClearSelection={clearSelection}
-      >
-        <BulkActionButton
-          variant="destructive"
-          icon={<Trash2 className="w-3 h-3 mr-1" />}
-          onClick={handleBulkDelete}
-        >
-          Удалить
-        </BulkActionButton>
-        <BulkActionButton
-          variant="generate-cover"
-          icon={<ImageIcon className="w-3 h-3 mr-1" />}
-          onClick={handleBulkGenerateCovers}
-        >
-          Генерация обложек
-        </BulkActionButton>
-        <BulkActionButton
-          variant="generate-video"
-          icon={<VideoIcon className="w-3 h-3 mr-1" />}
-          onClick={handleBulkGenerateVideos}
-        >
-          Генерация видео
-        </BulkActionButton>
-        <BulkActionButton
-          variant="default"
-          icon={<Send className="w-3 h-3 mr-1" />}
-          onClick={() => {
-            const selected = videos.filter(v => selectedVideoIds.has(v.id));
-            const withoutDate = selected.filter(v => !v.publication_date);
-            if (withoutDate.length > 0) {
-              toast.error(`${withoutDate.length} ролик(ов) без плановой даты. Сначала укажите дату.`);
-              return;
-            }
-            onBulkPublish?.(Array.from(selectedVideoIds));
-          }}
-        >
-          На публикацию
-        </BulkActionButton>
-      </BulkActionsBar>
-
-      {/* Filters - only VideoFilters and question filter reset */}
-      <div className="flex flex-wrap gap-4 items-center">
+      {/* Filters toolbar */}
+      <div className="flex flex-wrap gap-2 items-center">
         <VideoFilters filters={advancedFilters} onFiltersChange={setAdvancedFilters} />
 
         {filters.questionId !== undefined && (
@@ -506,6 +469,65 @@ export function VideosTable({
             ✕ Сбросить фильтр вопроса
           </Button>
         )}
+
+        {/* Gear dropdown for bulk actions */}
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button variant="outline" size="sm" className="h-7 w-7 p-0 relative">
+              <Settings2 className="w-3.5 h-3.5" />
+              {selectedVideoIds.size > 0 && (
+                <span className="absolute -top-1 -right-1 bg-primary text-primary-foreground text-[9px] rounded-full w-4 h-4 flex items-center justify-center font-medium">
+                  {selectedVideoIds.size}
+                </span>
+              )}
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end">
+            {selectedVideoIds.size > 0 && (
+              <div className="px-2 py-1.5 text-xs text-muted-foreground border-b mb-1">
+                Выбрано: {selectedVideoIds.size} из {videos.length}
+                <button className="ml-2 text-primary hover:underline" onClick={clearSelection}>Сбросить</button>
+              </div>
+            )}
+            <DropdownMenuItem
+              disabled={selectedVideoIds.size === 0}
+              onClick={handleBulkGenerateCovers}
+            >
+              <ImageIcon className="w-3.5 h-3.5 mr-2" />
+              Генерация обложек
+            </DropdownMenuItem>
+            <DropdownMenuItem
+              disabled={selectedVideoIds.size === 0}
+              onClick={handleBulkGenerateVideos}
+            >
+              <VideoIcon className="w-3.5 h-3.5 mr-2" />
+              Генерация видео
+            </DropdownMenuItem>
+            <DropdownMenuItem
+              disabled={selectedVideoIds.size === 0}
+              onClick={() => {
+                const selected = videos.filter(v => selectedVideoIds.has(v.id));
+                const withoutDate = selected.filter(v => !v.publication_date);
+                if (withoutDate.length > 0) {
+                  toast.error(`${withoutDate.length} ролик(ов) без плановой даты. Сначала укажите дату.`);
+                  return;
+                }
+                onBulkPublish?.(Array.from(selectedVideoIds));
+              }}
+            >
+              <Send className="w-3.5 h-3.5 mr-2" />
+              На публикацию
+            </DropdownMenuItem>
+            <DropdownMenuItem
+              disabled={selectedVideoIds.size === 0}
+              className="text-destructive focus:text-destructive"
+              onClick={handleBulkDelete}
+            >
+              <Trash2 className="w-3.5 h-3.5 mr-2" />
+              Удалить
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
 
         <div className="ml-auto flex gap-2">
           <Button variant="outline" size="sm" onClick={onImportVideos}>

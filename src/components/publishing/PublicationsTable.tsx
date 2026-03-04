@@ -36,7 +36,7 @@ import {
 } from '@/components/ui/select';
 import { 
   MoreVertical, Trash2, ExternalLink, Send, Sparkles, Loader2, 
-  FileSpreadsheet, ArrowUpDown, ArrowUp, ArrowDown, CalendarIcon, Edit2, Clock, Clapperboard
+  FileSpreadsheet, ArrowUpDown, ArrowUp, ArrowDown, CalendarIcon, Edit2, Clock, Clapperboard, Settings2
 } from 'lucide-react';
 import { Publication, usePublications } from '@/hooks/usePublications';
 import { toast } from 'sonner';
@@ -454,73 +454,80 @@ const minuteOptions = [0, 5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55];
   return (
     <div className="space-y-4">
       {/* Toolbar */}
-      <div className="flex items-center gap-4 flex-wrap">
+      <div className="flex items-center gap-2 flex-wrap">
         <PublicationFilters
           channels={channels}
           filters={filters}
           onFiltersChange={setFilters}
         />
 
+        {/* Gear dropdown for bulk actions */}
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button variant="outline" size="sm" className="h-7 w-7 p-0 relative">
+              <Settings2 className="w-3.5 h-3.5" />
+              {selectedIds.size > 0 && (
+                <span className="absolute -top-1 -right-1 bg-primary text-primary-foreground text-[9px] rounded-full w-4 h-4 flex items-center justify-center font-medium">
+                  {selectedIds.size}
+                </span>
+              )}
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end">
+            {selectedIds.size > 0 && (
+              <div className="px-2 py-1.5 text-xs text-muted-foreground border-b mb-1">
+                Выбрано: {selectedIds.size} из {sortedPublications.length}
+                <button className="ml-2 text-primary hover:underline" onClick={() => setSelectedIds(new Set())}>Сбросить</button>
+              </div>
+            )}
+            {statusOptions.map((s) => (
+              <DropdownMenuItem
+                key={s.value}
+                disabled={selectedIds.size === 0}
+                onClick={() => handleBulkUpdateStatus(s.value)}
+              >
+                Статус → {s.label}
+              </DropdownMenuItem>
+            ))}
+            <DropdownMenuItem
+              disabled={selectedIds.size === 0}
+              onClick={() => setShowBulkDateDialog(true)}
+            >
+              <CalendarIcon className="w-3.5 h-3.5 mr-2" />
+              Установить дату
+            </DropdownMenuItem>
+            <DropdownMenuItem
+              disabled={selectedIds.size === 0}
+              onClick={handleBulkGenerateText}
+            >
+              <Sparkles className="w-3.5 h-3.5 mr-2" />
+              Генерация текста
+            </DropdownMenuItem>
+            <DropdownMenuItem
+              disabled={selectedIds.size === 0}
+              onClick={handleBulkPublish}
+            >
+              <Send className="w-3.5 h-3.5 mr-2" />
+              Опубликовать
+            </DropdownMenuItem>
+            <DropdownMenuItem
+              disabled={selectedIds.size === 0}
+              className="text-destructive focus:text-destructive"
+              onClick={handleBulkDelete}
+            >
+              <Trash2 className="w-3.5 h-3.5 mr-2" />
+              Удалить
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
+
         <div className="flex-1" />
 
-        <Button variant="outline" onClick={() => setShowImporter(true)}>
-          <FileSpreadsheet className="w-4 h-4 mr-2" />
+        <Button variant="outline" size="sm" onClick={() => setShowImporter(true)}>
+          <FileSpreadsheet className="w-3.5 h-3.5 mr-1.5" />
           Импорт CSV
         </Button>
       </div>
-
-      {/* Bulk Actions */}
-      <BulkActionsBar
-        selectedCount={selectedIds.size}
-        totalCount={sortedPublications.length}
-        onClearSelection={() => setSelectedIds(new Set())}
-      >
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button size="xs" variant="outline">
-              Сменить статус
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent>
-            {statusOptions.map((status) => (
-              <DropdownMenuItem
-                key={status.value}
-                onClick={() => handleBulkUpdateStatus(status.value)}
-              >
-                {status.label}
-              </DropdownMenuItem>
-            ))}
-          </DropdownMenuContent>
-        </DropdownMenu>
-        <BulkActionButton
-          onClick={() => setShowBulkDateDialog(true)}
-          icon={<CalendarIcon className="h-3 w-3 mr-1" />}
-          variant="secondary"
-        >
-          Установить дату
-        </BulkActionButton>
-        <BulkActionButton
-          onClick={handleBulkGenerateText}
-          icon={<Sparkles className="h-3 w-3 mr-1" />}
-          variant="generate-cover"
-        >
-          Генерация текста
-        </BulkActionButton>
-        <BulkActionButton
-          onClick={handleBulkPublish}
-          icon={<Send className="h-3 w-3 mr-1" />}
-          variant="publish"
-        >
-          Опубликовать
-        </BulkActionButton>
-        <BulkActionButton
-          onClick={handleBulkDelete}
-          icon={<Trash2 className="h-3 w-3 mr-1" />}
-          variant="destructive"
-        >
-          Удалить
-        </BulkActionButton>
-      </BulkActionsBar>
 
       {Object.keys(groupedPublications).length === 0 ? (
         <Card className="glass-card">
