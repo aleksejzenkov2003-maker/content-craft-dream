@@ -91,6 +91,7 @@ export function PublicationsTable({ groupBy = 'channel' }: PublicationsTableProp
   const [generatingIds, setGeneratingIds] = useState<Set<string>>(new Set());
   const [publishingIds, setPublishingIds] = useState<Set<string>>(new Set());
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [activeStatusTab, setActiveStatusTab] = useState<string | null>(null);
   
   // Edit dialog
   const [editingPublication, setEditingPublication] = useState<Publication | null>(null);
@@ -198,6 +199,27 @@ const minuteOptions = [0, 5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55];
     });
   }, [filteredPublications, sortColumn, sortDirection]);
 
+  // Status counts for tabs
+  const statusCounts = useMemo(() => {
+    const counts = { all: publications.length, pending: 0, checked: 0, published: 0, failed: 0 };
+    publications.forEach(p => {
+      if (p.publication_status === 'pending' || p.publication_status === 'needs_concat' || p.publication_status === 'concatenating') counts.pending++;
+      else if (p.publication_status === 'checked' || p.publication_status === 'scheduled') counts.checked++;
+      else if (p.publication_status === 'published') counts.published++;
+      else if (p.publication_status === 'failed' || p.publication_status === 'error') counts.failed++;
+    });
+    return counts;
+  }, [publications]);
+
+  const tabFilteredPublications = useMemo(() => {
+    if (!activeStatusTab) return sortedPublications;
+    if (activeStatusTab === 'pending') return sortedPublications.filter(p => ['pending', 'needs_concat', 'concatenating'].includes(p.publication_status));
+    if (activeStatusTab === 'checked') return sortedPublications.filter(p => ['checked', 'scheduled'].includes(p.publication_status));
+    if (activeStatusTab === 'published') return sortedPublications.filter(p => p.publication_status === 'published');
+    if (activeStatusTab === 'failed') return sortedPublications.filter(p => ['failed', 'error'].includes(p.publication_status));
+    return sortedPublications;
+  }, [sortedPublications, activeStatusTab]);
+
   const handleSort = (column: SortColumn) => {
     if (sortColumn === column) {
       if (sortDirection === 'desc') {
@@ -291,7 +313,7 @@ const minuteOptions = [0, 5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55];
 
   const handleSelectAll = (checked: boolean) => {
     if (checked) {
-      setSelectedIds(new Set(sortedPublications.map(p => p.id)));
+      setSelectedIds(new Set(tabFilteredPublications.map(p => p.id)));
     } else {
       setSelectedIds(new Set());
     }
@@ -381,7 +403,7 @@ const minuteOptions = [0, 5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55];
     return `${question} — ${advisor}`;
   };
 
-  const groupedPublications = sortedPublications.reduce((acc, pub) => {
+  const groupedPublications = tabFilteredPublications.reduce((acc, pub) => {
     let key: string;
     if (groupBy === 'channel') {
       // Group by social network type
@@ -448,85 +470,111 @@ const minuteOptions = [0, 5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55];
     );
   }
 
-  const allSelected = sortedPublications.length > 0 && selectedIds.size === sortedPublications.length;
-  const someSelected = selectedIds.size > 0 && selectedIds.size < sortedPublications.length;
+  const allSelected = tabFilteredPublications.length > 0 && selectedIds.size === tabFilteredPublications.length;
+  const someSelected = selectedIds.size > 0 && selectedIds.size < tabFilteredPublications.length;
 
   return (
-    <div className="space-y-4">
-      {/* Toolbar */}
-      <div className="flex items-center gap-2 flex-wrap">
-        <PublicationFilters
-          channels={channels}
-          filters={filters}
-          onFiltersChange={setFilters}
-        />
-
-        {/* Gear dropdown for bulk actions */}
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button variant="outline" size="sm" className="h-7 w-7 p-0 relative">
-              <Settings2 className="w-3.5 h-3.5" />
-              {selectedIds.size > 0 && (
-                <span className="absolute -top-1 -right-1 bg-primary text-primary-foreground text-[9px] rounded-full w-4 h-4 flex items-center justify-center font-medium">
-                  {selectedIds.size}
-                </span>
-              )}
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end">
-            {selectedIds.size > 0 && (
-              <div className="px-2 py-1.5 text-xs text-muted-foreground border-b mb-1">
-                Выбрано: {selectedIds.size} из {sortedPublications.length}
-                <button className="ml-2 text-primary hover:underline" onClick={() => setSelectedIds(new Set())}>Сбросить</button>
-              </div>
-            )}
-            {statusOptions.map((s) => (
-              <DropdownMenuItem
-                key={s.value}
-                disabled={selectedIds.size === 0}
-                onClick={() => handleBulkUpdateStatus(s.value)}
+    <div className="flex flex-col h-full">
+      {/* Unified toolbar - matching Questions style */}
+      <div className="flex items-center justify-between px-4 py-2 border-b bg-background">
+        <div className="flex items-center gap-2">
+          {/* Compact status tabs */}
+          <div className="flex items-center gap-1">
+            {[
+              { key: null, label: 'Все', count: statusCounts.all, activeClass: 'bg-primary/10 text-primary border-primary' },
+              { key: 'pending', label: 'Ожидают', count: statusCounts.pending, activeClass: 'bg-yellow-500/10 text-yellow-700 border-yellow-500' },
+              { key: 'checked', label: 'Проверены', count: statusCounts.checked, activeClass: 'bg-blue-500/10 text-blue-700 border-blue-500' },
+              { key: 'published', label: 'Опубликованы', count: statusCounts.published, activeClass: 'bg-green-500/10 text-green-700 border-green-500' },
+              { key: 'failed', label: 'Ошибки', count: statusCounts.failed, activeClass: 'bg-destructive/10 text-destructive border-destructive' },
+            ].map(tab => (
+              <button
+                key={tab.key ?? 'all'}
+                onClick={() => setActiveStatusTab(tab.key)}
+                className={cn(
+                  "px-3 py-1 rounded-full border text-xs font-medium transition-colors whitespace-nowrap",
+                  activeStatusTab === tab.key ? tab.activeClass : "border-border text-muted-foreground hover:bg-muted"
+                )}
               >
-                Статус → {s.label}
-              </DropdownMenuItem>
+                {tab.label} <span className="font-semibold">{tab.count}</span>
+              </button>
             ))}
-            <DropdownMenuItem
-              disabled={selectedIds.size === 0}
-              onClick={() => setShowBulkDateDialog(true)}
-            >
-              <CalendarIcon className="w-3.5 h-3.5 mr-2" />
-              Установить дату
-            </DropdownMenuItem>
-            <DropdownMenuItem
-              disabled={selectedIds.size === 0}
-              onClick={handleBulkGenerateText}
-            >
-              <Sparkles className="w-3.5 h-3.5 mr-2" />
-              Генерация текста
-            </DropdownMenuItem>
-            <DropdownMenuItem
-              disabled={selectedIds.size === 0}
-              onClick={handleBulkPublish}
-            >
-              <Send className="w-3.5 h-3.5 mr-2" />
-              Опубликовать
-            </DropdownMenuItem>
-            <DropdownMenuItem
-              disabled={selectedIds.size === 0}
-              className="text-destructive focus:text-destructive"
-              onClick={handleBulkDelete}
-            >
-              <Trash2 className="w-3.5 h-3.5 mr-2" />
-              Удалить
-            </DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
+          </div>
 
-        <div className="flex-1" />
+          <div className="w-px h-5 bg-border mx-1" />
 
-        <Button variant="outline" size="sm" onClick={() => setShowImporter(true)}>
-          <FileSpreadsheet className="w-3.5 h-3.5 mr-1.5" />
-          Импорт CSV
-        </Button>
+          <PublicationFilters
+            channels={channels}
+            filters={filters}
+            onFiltersChange={setFilters}
+          />
+
+          {/* Gear dropdown for bulk actions */}
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="outline" size="sm" className="h-7 w-7 p-0 relative">
+                <Settings2 className="w-3.5 h-3.5" />
+                {selectedIds.size > 0 && (
+                  <span className="absolute -top-1 -right-1 bg-primary text-primary-foreground text-[9px] rounded-full w-4 h-4 flex items-center justify-center font-medium">
+                    {selectedIds.size}
+                  </span>
+                )}
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              {selectedIds.size > 0 && (
+                <div className="px-2 py-1.5 text-xs text-muted-foreground border-b mb-1">
+                  Выбрано: {selectedIds.size} из {tabFilteredPublications.length}
+                  <button className="ml-2 text-primary hover:underline" onClick={() => setSelectedIds(new Set())}>Сбросить</button>
+                </div>
+              )}
+              {statusOptions.map((s) => (
+                <DropdownMenuItem
+                  key={s.value}
+                  disabled={selectedIds.size === 0}
+                  onClick={() => handleBulkUpdateStatus(s.value)}
+                >
+                  Статус → {s.label}
+                </DropdownMenuItem>
+              ))}
+              <DropdownMenuItem
+                disabled={selectedIds.size === 0}
+                onClick={() => setShowBulkDateDialog(true)}
+              >
+                <CalendarIcon className="w-3.5 h-3.5 mr-2" />
+                Установить дату
+              </DropdownMenuItem>
+              <DropdownMenuItem
+                disabled={selectedIds.size === 0}
+                onClick={handleBulkGenerateText}
+              >
+                <Sparkles className="w-3.5 h-3.5 mr-2" />
+                Генерация текста
+              </DropdownMenuItem>
+              <DropdownMenuItem
+                disabled={selectedIds.size === 0}
+                onClick={handleBulkPublish}
+              >
+                <Send className="w-3.5 h-3.5 mr-2" />
+                Опубликовать
+              </DropdownMenuItem>
+              <DropdownMenuItem
+                disabled={selectedIds.size === 0}
+                className="text-destructive focus:text-destructive"
+                onClick={handleBulkDelete}
+              >
+                <Trash2 className="w-3.5 h-3.5 mr-2" />
+                Удалить
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </div>
+
+        <div className="flex items-center gap-2">
+          <Button variant="outline" size="sm" className="h-7 text-xs" onClick={() => setShowImporter(true)}>
+            <FileSpreadsheet className="w-3.5 h-3.5 mr-1" />
+            Импорт
+          </Button>
+        </div>
       </div>
 
       {Object.keys(groupedPublications).length === 0 ? (
@@ -820,12 +868,12 @@ const minuteOptions = [0, 5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55];
         onClose={() => setEditingPublication(null)}
         onSave={handleEditPublication}
         onPrev={editingPublication ? (() => {
-          const idx = sortedPublications.findIndex(p => p.id === editingPublication.id);
-          if (idx > 0) setEditingPublication(sortedPublications[idx - 1]);
+          const idx = tabFilteredPublications.findIndex(p => p.id === editingPublication.id);
+          if (idx > 0) setEditingPublication(tabFilteredPublications[idx - 1]);
         }) : undefined}
         onNext={editingPublication ? (() => {
-          const idx = sortedPublications.findIndex(p => p.id === editingPublication.id);
-          if (idx < sortedPublications.length - 1) setEditingPublication(sortedPublications[idx + 1]);
+          const idx = tabFilteredPublications.findIndex(p => p.id === editingPublication.id);
+          if (idx < tabFilteredPublications.length - 1) setEditingPublication(tabFilteredPublications[idx + 1]);
         }) : undefined}
       />
 

@@ -53,6 +53,7 @@ import * as XLSX from 'xlsx';
 import { format } from 'date-fns';
 import { toast } from 'sonner';
 import { ru } from 'date-fns/locale';
+import { cn } from '@/lib/utils';
 
 interface VideosTableProps {
   videos: Video[];
@@ -431,117 +432,119 @@ export function VideosTable({
   }
 
   return (
-    <div className="space-y-4">
-      {/* Status Tabs */}
-      <div className="flex gap-2">
-        {[
-          { key: 'in_progress' as const, label: 'Ролики в работе', counts: tabCounts.in_progress },
-          { key: 'published' as const, label: 'Ролики отработанные', counts: tabCounts.published },
-          { key: 'all' as const, label: 'Все ролики', counts: tabCounts.all },
-        ].map(tab => (
-          <button
-            key={tab.key}
-            onClick={() => setActiveTab(tab.key)}
-            className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors border ${
-              activeTab === tab.key
-                ? 'bg-primary text-primary-foreground border-primary'
-                : 'bg-background text-foreground border-border hover:bg-muted'
-            }`}
-          >
-            {tab.label}
-            <span className="block text-xs font-normal opacity-80">
-              {tab.counts.questions} вопросов / {tab.counts.videos} ролики
-            </span>
-          </button>
-        ))}
-      </div>
+    <div className="flex flex-col h-full">
+      {/* Unified toolbar - matching Questions style */}
+      <div className="flex items-center justify-between px-4 py-2 border-b bg-background">
+        <div className="flex items-center gap-2">
+          {/* Compact status tabs */}
+          <div className="flex items-center gap-1">
+            {[
+              { key: 'in_progress' as const, label: 'Ролики в работе', count: `${tabCounts.in_progress.questions} / ${tabCounts.in_progress.videos}`, activeClass: 'bg-primary/10 text-primary border-primary' },
+              { key: 'published' as const, label: 'Ролики отработанные', count: `${tabCounts.published.questions} / ${tabCounts.published.videos}`, activeClass: 'bg-muted text-foreground border-muted-foreground/40' },
+              { key: 'all' as const, label: 'Все ролики', count: `${tabCounts.all.questions} / ${tabCounts.all.videos}`, activeClass: 'bg-primary/10 text-primary border-primary' },
+            ].map(tab => (
+              <button
+                key={tab.key}
+                onClick={() => setActiveTab(tab.key)}
+                className={cn(
+                  "px-3 py-1 rounded-full border text-xs font-medium transition-colors whitespace-nowrap",
+                  activeTab === tab.key ? tab.activeClass : "border-border text-muted-foreground hover:bg-muted"
+                )}
+              >
+                {tab.label} <span className="font-semibold">{tab.count}</span>
+              </button>
+            ))}
+          </div>
 
-      {/* Filters toolbar */}
-      <div className="flex flex-wrap gap-2 items-center">
-        <VideoFilters filters={advancedFilters} onFiltersChange={setAdvancedFilters} />
+          <div className="w-px h-5 bg-border mx-1" />
 
-        {filters.questionId !== undefined && (
-          <Button 
-            variant="ghost" 
-            size="sm"
-            onClick={() => onFilterChange({ ...filters, questionId: undefined })}
-          >
-            ✕ Сбросить фильтр вопроса
-          </Button>
-        )}
+          <VideoFilters filters={advancedFilters} onFiltersChange={setAdvancedFilters} />
 
-        {/* Gear dropdown for bulk actions */}
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button variant="outline" size="sm" className="h-7 w-7 p-0 relative">
-              <Settings2 className="w-3.5 h-3.5" />
-              {selectedVideoIds.size > 0 && (
-                <span className="absolute -top-1 -right-1 bg-primary text-primary-foreground text-[9px] rounded-full w-4 h-4 flex items-center justify-center font-medium">
-                  {selectedVideoIds.size}
-                </span>
-              )}
+          {filters.questionId !== undefined && (
+            <Button 
+              variant="ghost" 
+              size="sm"
+              className="h-7 text-xs"
+              onClick={() => onFilterChange({ ...filters, questionId: undefined })}
+            >
+              ✕ Фильтр вопроса
             </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end">
-            {selectedVideoIds.size > 0 && (
-              <div className="px-2 py-1.5 text-xs text-muted-foreground border-b mb-1">
-                Выбрано: {selectedVideoIds.size} из {videos.length}
-                <button className="ml-2 text-primary hover:underline" onClick={clearSelection}>Сбросить</button>
-              </div>
-            )}
-            <DropdownMenuItem
-              disabled={selectedVideoIds.size === 0}
-              onClick={handleBulkGenerateCovers}
-            >
-              <ImageIcon className="w-3.5 h-3.5 mr-2" />
-              Генерация обложек
-            </DropdownMenuItem>
-            <DropdownMenuItem
-              disabled={selectedVideoIds.size === 0}
-              onClick={handleBulkGenerateVideos}
-            >
-              <VideoIcon className="w-3.5 h-3.5 mr-2" />
-              Генерация видео
-            </DropdownMenuItem>
-            <DropdownMenuItem
-              disabled={selectedVideoIds.size === 0}
-              onClick={() => {
-                const selected = videos.filter(v => selectedVideoIds.has(v.id));
-                const withoutDate = selected.filter(v => !v.publication_date);
-                if (withoutDate.length > 0) {
-                  toast.error(`${withoutDate.length} ролик(ов) без плановой даты. Сначала укажите дату.`);
-                  return;
-                }
-                onBulkPublish?.(Array.from(selectedVideoIds));
-              }}
-            >
-              <Send className="w-3.5 h-3.5 mr-2" />
-              На публикацию
-            </DropdownMenuItem>
-            <DropdownMenuItem
-              disabled={selectedVideoIds.size === 0}
-              className="text-destructive focus:text-destructive"
-              onClick={handleBulkDelete}
-            >
-              <Trash2 className="w-3.5 h-3.5 mr-2" />
-              Удалить
-            </DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
+          )}
 
-        <div className="ml-auto flex gap-2">
-          <Button variant="outline" size="sm" onClick={onImportVideos}>
-            <Upload className="w-3.5 h-3.5 mr-1.5" />
+          {/* Gear dropdown for bulk actions */}
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="outline" size="sm" className="h-7 w-7 p-0 relative">
+                <Settings2 className="w-3.5 h-3.5" />
+                {selectedVideoIds.size > 0 && (
+                  <span className="absolute -top-1 -right-1 bg-primary text-primary-foreground text-[9px] rounded-full w-4 h-4 flex items-center justify-center font-medium">
+                    {selectedVideoIds.size}
+                  </span>
+                )}
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              {selectedVideoIds.size > 0 && (
+                <div className="px-2 py-1.5 text-xs text-muted-foreground border-b mb-1">
+                  Выбрано: {selectedVideoIds.size} из {videos.length}
+                  <button className="ml-2 text-primary hover:underline" onClick={clearSelection}>Сбросить</button>
+                </div>
+              )}
+              <DropdownMenuItem
+                disabled={selectedVideoIds.size === 0}
+                onClick={handleBulkGenerateCovers}
+              >
+                <ImageIcon className="w-3.5 h-3.5 mr-2" />
+                Генерация обложек
+              </DropdownMenuItem>
+              <DropdownMenuItem
+                disabled={selectedVideoIds.size === 0}
+                onClick={handleBulkGenerateVideos}
+              >
+                <VideoIcon className="w-3.5 h-3.5 mr-2" />
+                Генерация видео
+              </DropdownMenuItem>
+              <DropdownMenuItem
+                disabled={selectedVideoIds.size === 0}
+                onClick={() => {
+                  const selected = videos.filter(v => selectedVideoIds.has(v.id));
+                  const withoutDate = selected.filter(v => !v.publication_date);
+                  if (withoutDate.length > 0) {
+                    toast.error(`${withoutDate.length} ролик(ов) без плановой даты. Сначала укажите дату.`);
+                    return;
+                  }
+                  onBulkPublish?.(Array.from(selectedVideoIds));
+                }}
+              >
+                <Send className="w-3.5 h-3.5 mr-2" />
+                На публикацию
+              </DropdownMenuItem>
+              <DropdownMenuItem
+                disabled={selectedVideoIds.size === 0}
+                className="text-destructive focus:text-destructive"
+                onClick={handleBulkDelete}
+              >
+                <Trash2 className="w-3.5 h-3.5 mr-2" />
+                Удалить
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </div>
+
+        <div className="flex items-center gap-2">
+          <Button variant="outline" size="sm" className="h-7 text-xs" onClick={onImportVideos}>
+            <Upload className="w-3.5 h-3.5 mr-1" />
             Импорт
           </Button>
-          <Button variant="outline" size="sm" onClick={handleExportXlsx}>
-            <Download className="w-3.5 h-3.5 mr-1.5" />
+          <Button variant="outline" size="sm" className="h-7 text-xs" onClick={handleExportXlsx}>
+            <Download className="w-3.5 h-3.5 mr-1" />
             Выгрузка
           </Button>
         </div>
       </div>
 
       {/* Grouped Table */}
+      <div className="flex-1 overflow-auto">
       {Object.keys(groupedVideos).length === 0 ? (
         <div className="flex flex-col items-center justify-center py-12 text-muted-foreground">
           <Play className="w-12 h-12 mb-4" />
@@ -886,8 +889,9 @@ export function VideosTable({
       )}
 
       {/* Record count */}
-      <div className="text-sm text-muted-foreground">
+      <div className="text-sm text-muted-foreground px-4 py-2">
         {filteredVideos.length} из {videos.length} записей
+      </div>
       </div>
     </div>
   );
