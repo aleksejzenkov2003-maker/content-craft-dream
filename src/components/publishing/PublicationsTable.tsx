@@ -563,6 +563,7 @@ const minuteOptions = [0, 5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55];
                       </div>
                     </TableHead>
                     <TableHead className="w-[120px]">Учетная запись</TableHead>
+                    <TableHead className="w-[40px]">Ссылка</TableHead>
                     <TableHead 
                       className="w-[150px] cursor-pointer hover:bg-accent/50"
                       onClick={() => handleSort('post_date')}
@@ -611,6 +612,21 @@ const minuteOptions = [0, 5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55];
                       <TableCell>
                           <Badge variant="outline" className="text-xs">{pub.channel?.name || '—'}</Badge>
                         </TableCell>
+                      <TableCell onClick={(e) => e.stopPropagation()}>
+                        {pub.post_url ? (
+                          <a
+                            href={pub.post_url}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="p-1 hover:bg-muted rounded inline-flex"
+                            title="Открыть пост"
+                          >
+                            <ExternalLink className="w-3.5 h-3.5 text-primary" />
+                          </a>
+                        ) : (
+                          <span className="text-muted-foreground">—</span>
+                        )}
+                      </TableCell>
                       <TableCell onClick={(e) => e.stopPropagation()}>
                         <InlineEdit
                           type="datetime"
