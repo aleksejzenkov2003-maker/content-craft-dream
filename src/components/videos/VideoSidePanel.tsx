@@ -10,9 +10,10 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 import { Calendar } from '@/components/ui/calendar';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import {
-  Sheet,
-  SheetContent } from
-'@/components/ui/sheet';
+  Dialog,
+  DialogContent,
+  DialogTitle,
+} from '@/components/ui/dialog';
 import {
   Select,
   SelectContent,
@@ -41,7 +42,8 @@ import {
   Sun,
   Layers,
   Volume2,
-  Settings2 } from
+  Settings2,
+  MessageSquare } from
 'lucide-react';
 import { format } from 'date-fns';
 import { ru } from 'date-fns/locale';
@@ -120,7 +122,6 @@ export function VideoSidePanel({
   const [atmosIndex, setAtmosIndex] = useState(0);
   const [coverIndex, setCoverIndex] = useState(0);
   const [atmospherePromptText, setAtmospherePromptText] = useState('');
-  // promptSectionOpen removed - now using tabs
 
   const advisor = advisors.find((a) => a.id === video?.advisor_id);
   const advisorName = advisor?.display_name || advisor?.name || 'Духовник';
@@ -138,7 +139,6 @@ export function VideoSidePanel({
       const covers = data.filter((d: any) => d.variant_type === 'cover' || !d.variant_type);
       setAtmosphereVariants(atmos as CoverVariant[]);
       setCoverVariants(covers as CoverVariant[]);
-      // Set index to active variant
       const activeAtmos = atmos.findIndex((a: any) => a.is_active);
       const activeCover = covers.findIndex((c: any) => c.is_active);
       setAtmosIndex(activeAtmos >= 0 ? activeAtmos : 0);
@@ -229,17 +229,14 @@ export function VideoSidePanel({
 
   const handleSelectVariant = async (variant: CoverVariant, type: 'atmosphere' | 'cover') => {
     try {
-      // Deactivate all variants of this type
       await supabase.from('cover_thumbnails')
         .update({ is_active: false })
         .eq('video_id', video.id)
         .eq('variant_type', type);
-      // Activate selected
       await supabase.from('cover_thumbnails')
         .update({ is_active: true })
         .eq('id', variant.id);
       
-      // Update video record
       if (type === 'atmosphere') {
         onUpdateVideo(video.id, { atmosphere_url: variant.atmosphere_url } as any);
       } else {
@@ -264,15 +261,14 @@ export function VideoSidePanel({
 
   const pubDate = video.publication_date ? new Date(video.publication_date) : undefined;
   const atmosphereUrl = (video as any).atmosphere_url;
-  const atmospherePrompt = (video as any).atmosphere_prompt;
   const normalizedCoverStatus = video.cover_status === 'generating' && !!video.front_cover_url ? 'ready' : video.cover_status || 'pending';
   const isGeneratingCover = normalizedCoverStatus === 'generating';
 
   return (
-    <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent className="w-[50vw] !max-w-[50vw] p-0 flex flex-col [&>button.absolute]:hidden">
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-w-4xl w-[90vw] max-h-[90vh] p-0 flex flex-col gap-0 overflow-hidden">
         {/* Header */}
-        <div className="flex items-center justify-between px-4 py-3 border-b">
+        <div className="flex items-center justify-between px-4 py-3 border-b shrink-0">
           <div className="flex items-center gap-2">
             <button className="p-1 hover:bg-muted rounded">
               <ChevronUp className="w-4 h-4" />
@@ -281,9 +277,9 @@ export function VideoSidePanel({
               <ChevronDown className="w-4 h-4" />
             </button>
           </div>
-          <h3 className="font-medium text-sm flex-1 text-center truncate px-2">
+          <DialogTitle className="font-medium text-sm flex-1 text-center truncate px-2">
             {video.question} — {advisorName}
-          </h3>
+          </DialogTitle>
           <div className="flex items-center gap-2">
             <button className="p-1 hover:bg-muted rounded">
               <LinkIcon className="w-4 h-4" />
@@ -291,13 +287,12 @@ export function VideoSidePanel({
             <button
               className="p-1 hover:bg-muted rounded"
               onClick={() => onOpenChange(false)}>
-
               <X className="w-4 h-4" />
             </button>
           </div>
         </div>
 
-        <ScrollArea className="flex-1">
+        <ScrollArea className="flex-1 overflow-auto">
           <div className="p-4 space-y-4">
             {/* Publication channels */}
             <div>
@@ -316,10 +311,8 @@ export function VideoSidePanel({
                         "hover:bg-muted"
                       )}
                       onClick={() => handleChannelToggle(channel.id)}>
-
                       {channel.name}
                     </Badge>);
-
                 })}
               </div>
               {selectedChannels.length > 0 &&
@@ -330,18 +323,6 @@ export function VideoSidePanel({
             </div>
 
             <Separator className="my-4" />
-
-            {/* Advisor answer */}
-            <div className="space-y-2">
-              <Label className="text-sm">Ответ духовника</Label>
-              <Textarea
-                value={advisorAnswer}
-                onChange={(e) => setAdvisorAnswer(e.target.value)}
-                onBlur={handleAdvisorAnswerSave}
-                placeholder="Введите ответ духовника..."
-                className="min-h-[100px] text-sm" />
-
-            </div>
 
             {/* Publication date */}
             <div className="grid grid-cols-[140px_1fr] gap-2 items-center">
@@ -360,7 +341,6 @@ export function VideoSidePanel({
                     onSelect={handleDateChange}
                     locale={ru}
                     className="p-3 pointer-events-auto" />
-
                 </PopoverContent>
               </Popover>
             </div>
@@ -380,7 +360,6 @@ export function VideoSidePanel({
                   className="h-7 text-xs"
                   onClick={() => onGenerateVoiceover?.(video)}
                   disabled={video.voiceover_status === 'generating' || !video.advisor_answer}>
-
                   {video.voiceover_status === 'generating' ?
                   <>
                       <Loader2 className="w-3 h-3 mr-1 animate-spin" />
@@ -388,13 +367,11 @@ export function VideoSidePanel({
                     </> :
                   video.voiceover_url ?
                   'Перегенерировать' :
-
                   'Сгенерировать'
                   }
                 </Button>
               </div>
 
-              {/* Audio player */}
               {video.voiceover_url &&
               <audio controls className="w-full h-8" src={video.voiceover_url}>
                   Your browser does not support the audio element.
@@ -408,13 +385,11 @@ export function VideoSidePanel({
                 </div>
               }
 
-              {/* Voiceover status */}
               <div className="grid grid-cols-[100px_1fr] gap-2 items-center">
                 <Label className="text-xs text-muted-foreground">Статус</Label>
                 <Select
                   value={video.voiceover_status || 'pending'}
                   onValueChange={(value) => onUpdateVideo(video.id, { voiceover_status: value } as any)}>
-
                   <SelectTrigger className="h-7 text-xs">
                     <SelectValue />
                   </SelectTrigger>
@@ -434,9 +409,13 @@ export function VideoSidePanel({
               <h4 className="font-medium text-sm">Генерации обложки и видео</h4>
 
               <Tabs defaultValue="generation">
-                <TabsList className="grid w-full grid-cols-2 h-8">
+                <TabsList className="grid w-full grid-cols-3 h-8">
                   <TabsTrigger value="generation" className="text-xs">Генерация изображения</TabsTrigger>
                   <TabsTrigger value="prompt" className="text-xs">Промт</TabsTrigger>
+                  <TabsTrigger value="answer" className="text-xs flex items-center gap-1">
+                    <MessageSquare className="w-3 h-3" />
+                    Ответ духовника
+                  </TabsTrigger>
                 </TabsList>
 
                 <TabsContent value="generation" className="space-y-3 mt-3">
@@ -673,6 +652,19 @@ export function VideoSidePanel({
                     Отредактируйте промт перед генерацией. Промт подтянут из настроек.
                   </p>
                 </TabsContent>
+
+                <TabsContent value="answer" className="space-y-3 mt-3">
+                  <Label className="text-sm font-medium">Ответ духовника</Label>
+                  <Textarea
+                    value={advisorAnswer}
+                    onChange={(e) => setAdvisorAnswer(e.target.value)}
+                    onBlur={handleAdvisorAnswerSave}
+                    placeholder="Введите ответ духовника..."
+                    className="min-h-[200px] text-sm" />
+                  <p className="text-[10px] text-muted-foreground">
+                    Текст сохраняется автоматически при потере фокуса.
+                  </p>
+                </TabsContent>
               </Tabs>
             </div>
 
@@ -686,7 +678,6 @@ export function VideoSidePanel({
                   value={video.front_cover_url || ''}
                   onChange={(e) => onUpdateVideo(video.id, { front_cover_url: e.target.value })}
                   className="h-7 text-xs" />
-
               </div>
               <div className="grid grid-cols-[100px_1fr] gap-2 items-center">
                 <Label className="text-xs text-muted-foreground">Video URL</Label>
@@ -703,7 +694,6 @@ export function VideoSidePanel({
             </div>
           </div>
         </ScrollArea>
-      </SheetContent>
-    </Sheet>);
-
+      </DialogContent>
+    </Dialog>);
 }
