@@ -35,7 +35,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { 
-  MoreVertical, Trash2, ExternalLink, Send, Sparkles, Loader2, 
+  MoreVertical, Trash2, ExternalLink, Send, Sparkles, Loader2, RefreshCw,
   FileSpreadsheet, ArrowUpDown, ArrowUp, ArrowDown, CalendarIcon, Edit2, Clock, Clapperboard, Settings2
 } from 'lucide-react';
 import { Publication, usePublications } from '@/hooks/usePublications';
