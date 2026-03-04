@@ -1,6 +1,4 @@
-import { useState, useRef, useCallback } from 'react';
-import { FFmpeg } from '@ffmpeg/ffmpeg';
-import { toBlobURL } from '@ffmpeg/util';
+import { useState, useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 
@@ -16,154 +14,35 @@ export function useVideoConcat() {
     progress: 0,
     error: null,
   });
-  const ffmpegRef = useRef<FFmpeg | null>(null);
-  const loadedRef = useRef(false);
-
-  const loadFFmpeg = useCallback(async () => {
-    if (loadedRef.current && ffmpegRef.current) return ffmpegRef.current;
-
-    const ffmpeg = new FFmpeg();
-    ffmpegRef.current = ffmpeg;
-
-    ffmpeg.on('progress', ({ progress }) => {
-      setState(prev => ({ ...prev, progress: Math.round(progress * 100) }));
-    });
-
-    const baseURL = 'https://unpkg.com/@ffmpeg/core@0.12.6/dist/umd';
-    await ffmpeg.load({
-      coreURL: await toBlobURL(`${baseURL}/ffmpeg-core.js`, 'text/javascript'),
-      wasmURL: await toBlobURL(`${baseURL}/ffmpeg-core.wasm`, 'application/wasm'),
-    });
-
-    loadedRef.current = true;
-    return ffmpeg;
-  }, []);
-
-  const withTimeout = <T,>(promise: Promise<T>, ms: number, label: string): Promise<T> => {
-    return new Promise((resolve, reject) => {
-      const timer = setTimeout(() => reject(new Error(`Таймаут: ${label} (>${Math.round(ms/1000)}с)`)), ms);
-      promise.then(
-        (v) => { clearTimeout(timer); resolve(v); },
-        (e) => { clearTimeout(timer); reject(e); },
-      );
-    });
-  };
-
-  const fetchVideoViaProxy = useCallback(async (videoUrl: string): Promise<Uint8Array> => {
-    const { data, error } = await supabase.functions.invoke('proxy-video', {
-      body: { videoUrl },
-    });
-    if (error) throw new Error(`Proxy error: ${error.message}`);
-    if (!data) throw new Error('Empty response from proxy');
-    const arrayBuffer = await (data as Blob).arrayBuffer();
-    return new Uint8Array(arrayBuffer);
-  }, []);
 
   const concatVideos = useCallback(async (
     publicationId: string,
     mainVideoUrl: string,
     backCoverVideoUrl: string,
   ) => {
-    setState({ loading: true, progress: 0, error: null });
+    setState({ loading: true, progress: 10, error: null });
 
     try {
-      // Update status to concatenating
-      await supabase
-        .from('publications')
-        .update({ publication_status: 'concatenating' })
-        .eq('id', publicationId);
+      // Call the server-side Edge Function
+      setState(prev => ({ ...prev, progress: 20 }));
 
-      setState(prev => ({ ...prev, progress: 5 }));
+      const { data, error } = await supabase.functions.invoke('concat-video', {
+        body: {
+          publication_id: publicationId,
+          main_video_url: mainVideoUrl,
+          back_cover_video_url: backCoverVideoUrl,
+        },
+      });
 
-      // Load ffmpeg with 30s timeout
-      const ffmpeg = await withTimeout(loadFFmpeg(), 30_000, 'загрузка ffmpeg');
-      setState(prev => ({ ...prev, progress: 15 }));
+      if (error) throw new Error(error.message || 'Edge Function error');
+      if (data?.error) throw new Error(data.error);
 
-      // Download videos via proxy to bypass CORS
-      const mainData = await withTimeout(fetchVideoViaProxy(mainVideoUrl), 60_000, 'загрузка основного видео');
-      setState(prev => ({ ...prev, progress: 35 }));
+      setState(prev => ({ ...prev, progress: 50 }));
 
-      const backCoverData = await withTimeout(fetchVideoViaProxy(backCoverVideoUrl), 60_000, 'загрузка обложки');
-      setState(prev => ({ ...prev, progress: 55 }));
-
-      // Write files to ffmpeg FS
-      await ffmpeg.writeFile('main.mp4', mainData);
-      await ffmpeg.writeFile('backcover.mp4', backCoverData);
-
-      // Create concat file
-      const concatList = "file 'main.mp4'\nfile 'backcover.mp4'\n";
-      await ffmpeg.writeFile('concat.txt', concatList);
-
-      // Run ffmpeg concat with 90s timeout (fast path: stream copy, fallback: re-encode)
-      try {
-        await withTimeout(ffmpeg.exec([
-          '-f', 'concat',
-          '-safe', '0',
-          '-i', 'concat.txt',
-          '-c', 'copy',
-          'output.mp4',
-        ]), 90_000, 'склейка видео');
-      } catch (firstErr: any) {
-        // If it was a timeout on stream copy, try re-encode but also with timeout
-        if (firstErr?.message?.includes('Таймаут')) throw firstErr;
-        await withTimeout(ffmpeg.exec([
-          '-f', 'concat',
-          '-safe', '0',
-          '-i', 'concat.txt',
-          '-c:v', 'libx264',
-          '-preset', 'ultrafast',
-          '-crf', '23',
-          '-c:a', 'aac',
-          '-b:a', '128k',
-          '-movflags', '+faststart',
-          'output.mp4',
-        ]), 180_000, 'перекодирование видео');
-      }
-
-      setState(prev => ({ ...prev, progress: 80 }));
-
-      // Read output
-      const outputData = await ffmpeg.readFile('output.mp4');
-      const uint8 = outputData instanceof Uint8Array ? outputData : new TextEncoder().encode(outputData as string);
-      const outputBlob = new Blob([new Uint8Array(uint8)], { type: 'video/mp4' });
-
-      // Upload to storage
-      const fileName = `concat/${publicationId}_${Date.now()}.mp4`;
-      const { error: uploadError } = await supabase.storage
-        .from('media-files')
-        .upload(fileName, outputBlob, {
-          contentType: 'video/mp4',
-          upsert: true,
-        });
-
-      if (uploadError) throw uploadError;
-
-      // Get public URL
-      const { data: urlData } = supabase.storage
-        .from('media-files')
-        .getPublicUrl(fileName);
-
-      const finalUrl = urlData.publicUrl;
-
-      // Update publication
-      await supabase
-        .from('publications')
-        .update({
-          final_video_url: finalUrl,
-          publication_status: 'checked',
-        })
-        .eq('id', publicationId);
+      // Poll for completion
+      const finalUrl = await pollForCompletion(publicationId);
 
       setState({ loading: false, progress: 100, error: null });
-
-      // Cleanup ffmpeg FS
-      try {
-        await ffmpeg.deleteFile('main.mp4');
-        await ffmpeg.deleteFile('backcover.mp4');
-        await ffmpeg.deleteFile('concat.txt');
-        await ffmpeg.deleteFile('output.mp4');
-      } catch {}
-
       toast.success('Видео склеено успешно');
       return finalUrl;
     } catch (error: any) {
@@ -182,10 +61,34 @@ export function useVideoConcat() {
       toast.error(`Ошибка склейки: ${errorMsg}`);
       throw error;
     }
-  }, [loadFFmpeg, fetchVideoViaProxy]);
+  }, []);
 
   return {
     concatVideos,
     ...state,
   };
+}
+
+async function pollForCompletion(publicationId: string, maxAttempts = 30): Promise<string> {
+  for (let i = 0; i < maxAttempts; i++) {
+    await new Promise(r => setTimeout(r, 2000));
+
+    const { data } = await supabase
+      .from('publications')
+      .select('publication_status, final_video_url, error_message')
+      .eq('id', publicationId)
+      .single();
+
+    if (!data) continue;
+
+    if (data.publication_status === 'checked' && data.final_video_url) {
+      return data.final_video_url;
+    }
+
+    if (data.publication_status === 'needs_concat' || data.error_message) {
+      throw new Error(data.error_message || 'Concatenation failed');
+    }
+  }
+
+  throw new Error('Таймаут ожидания склейки');
 }
