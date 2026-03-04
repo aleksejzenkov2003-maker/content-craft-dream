@@ -2,13 +2,16 @@ import { useState, useEffect } from 'react';
 import {
   Dialog,
   DialogContent,
-  DialogHeader,
   DialogTitle,
-  DialogFooter,
 } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
+import { Input } from '@/components/ui/input';
+import { Separator } from '@/components/ui/separator';
+import { ScrollArea } from '@/components/ui/scroll-area';
+import { Badge } from '@/components/ui/badge';
+import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import {
   Select,
   SelectContent,
@@ -18,8 +21,11 @@ import {
 } from '@/components/ui/select';
 import { Calendar } from '@/components/ui/calendar';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
-import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
-import { CalendarIcon, Clock, Loader2, Settings2, ChevronUp, ChevronDown, Sparkles } from 'lucide-react';
+import {
+  CalendarIcon, Clock, Loader2, Sparkles, X,
+  ChevronUp, ChevronDown, Link as LinkIcon, ExternalLink,
+  FileText, Settings2, Volume2
+} from 'lucide-react';
 import { format, setHours, setMinutes } from 'date-fns';
 import { ru } from 'date-fns/locale';
 import { cn } from '@/lib/utils';
@@ -35,12 +41,13 @@ interface PublicationEditDialogProps {
 }
 
 const statusOptions = [
-  { value: 'pending', label: 'Ожидает' },
-  { value: 'checked', label: 'Проверено' },
-  { value: 'scheduled', label: 'Запланирован' },
-  { value: 'publishing', label: 'Публикуется' },
-  { value: 'published', label: 'Опубликован' },
-  { value: 'failed', label: 'Ошибка' },
+  { value: 'pending', label: 'Ожидает', color: 'text-muted-foreground' },
+  { value: 'checked', label: 'Проверено', color: 'text-emerald-600' },
+  { value: 'needs_concat', label: 'Ожидает склейки', color: 'text-orange-600' },
+  { value: 'scheduled', label: 'Запланирован', color: 'text-blue-600' },
+  { value: 'publishing', label: 'Публикуется', color: 'text-yellow-600' },
+  { value: 'published', label: 'Опубликован', color: 'text-green-600' },
+  { value: 'failed', label: 'Ошибка', color: 'text-destructive' },
 ];
 
 const hours = Array.from({ length: 24 }, (_, i) => i);
@@ -57,15 +64,16 @@ export function PublicationEditDialog({
   const [postDate, setPostDate] = useState<Date | undefined>();
   const [hour, setHour] = useState(12);
   const [minute, setMinute] = useState(0);
+  const [postUrl, setPostUrl] = useState('');
   const [saving, setSaving] = useState(false);
   const [promptText, setPromptText] = useState('');
-  const [promptOpen, setPromptOpen] = useState(false);
   const [generating, setGenerating] = useState(false);
 
   useEffect(() => {
     if (publication) {
       setGeneratedText(publication.generated_text || '');
       setStatus(publication.publication_status || 'pending');
+      setPostUrl(publication.post_url || '');
       if (publication.post_date) {
         const date = new Date(publication.post_date);
         setPostDate(date);
@@ -79,19 +87,14 @@ export function PublicationEditDialog({
     }
   }, [publication]);
 
-  // Prefill prompt from channel or DB
   useEffect(() => {
     const fetchPrompt = async () => {
       if (!publication) return;
-      
-      // First try channel's own prompt
       const channelPrompt = (publication.channel as any)?.post_text_prompt;
       if (channelPrompt) {
         setPromptText(fillPromptVars(channelPrompt, publication));
         return;
       }
-
-      // Then try active DB prompt
       const { data: dbPrompt } = await supabase
         .from('prompts')
         .select('user_template')
@@ -99,7 +102,6 @@ export function PublicationEditDialog({
         .eq('is_active', true)
         .limit(1)
         .single();
-
       if (dbPrompt) {
         setPromptText(fillPromptVars(dbPrompt.user_template, publication));
       }
@@ -141,7 +143,6 @@ export function PublicationEditDialog({
 
   const handleSave = async () => {
     if (!publication) return;
-
     setSaving(true);
     try {
       let finalDate: string | null = null;
@@ -150,11 +151,11 @@ export function PublicationEditDialog({
         dateWithTime = setMinutes(dateWithTime, minute);
         finalDate = dateWithTime.toISOString();
       }
-
       await onSave(publication.id, {
         generated_text: generatedText || null,
         publication_status: status,
         post_date: finalDate,
+        post_url: postUrl || null,
       });
       onClose();
     } finally {
@@ -169,178 +170,284 @@ export function PublicationEditDialog({
     return advisor ? `${question} — ${advisor}` : question;
   };
 
+  if (!publication) return null;
+
   return (
     <Dialog open={open} onOpenChange={(o) => !o && onClose()}>
-      <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto" onPointerDownOutside={(e) => e.preventDefault()}>
-        <DialogHeader>
-          <DialogTitle>Редактирование публикации</DialogTitle>
-          {publication && (
-            <p className="text-sm text-muted-foreground truncate">
-              {getPublicationTitle()}
-            </p>
-          )}
-        </DialogHeader>
-
-        <div className="space-y-4 py-4">
-          {/* Канал */}
-          {publication?.channel && (
-            <div className="flex items-center gap-2 text-sm">
-              <span className="text-muted-foreground">Канал:</span>
-              <span className="font-medium">{publication.channel.name}</span>
-              <span className="text-muted-foreground">({publication.channel.network_type})</span>
-            </div>
-          )}
-
-          {/* Статус */}
-          <div className="space-y-2">
-            <Label>Статус</Label>
-            <Select value={status} onValueChange={setStatus}>
-              <SelectTrigger>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {statusOptions.map((opt) => (
-                  <SelectItem key={opt.value} value={opt.value}>
-                    {opt.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+      <DialogContent className="max-w-4xl w-[90vw] max-h-[90vh] p-0 flex flex-col gap-0 overflow-hidden" onPointerDownOutside={(e) => e.preventDefault()}>
+        {/* Header - consistent with VideoSidePanel */}
+        <div className="flex items-center justify-between px-4 py-3 border-b shrink-0">
+          <div className="flex items-center gap-2">
+            <button className="p-1 hover:bg-muted rounded">
+              <ChevronUp className="w-4 h-4" />
+            </button>
+            <button className="p-1 hover:bg-muted rounded">
+              <ChevronDown className="w-4 h-4" />
+            </button>
           </div>
-
-          {/* Дата и время */}
-          <div className="space-y-2">
-            <Label>Дата и время публикации</Label>
-            <div className="flex gap-2">
-              <Popover>
-                <PopoverTrigger asChild>
-                  <Button
-                    variant="outline"
-                    className={cn(
-                      'flex-1 justify-start text-left font-normal',
-                      !postDate && 'text-muted-foreground'
-                    )}
-                  >
-                    <CalendarIcon className="mr-2 h-4 w-4" />
-                    {postDate ? format(postDate, 'dd MMM yyyy', { locale: ru }) : 'Выбрать дату'}
-                  </Button>
-                </PopoverTrigger>
-                <PopoverContent className="w-auto p-0" align="start">
-                  <Calendar
-                    mode="single"
-                    selected={postDate}
-                    onSelect={setPostDate}
-                    locale={ru}
-                    initialFocus
-                  />
-                </PopoverContent>
-              </Popover>
-
-              <div className="flex items-center gap-1">
-                <Clock className="h-4 w-4 text-muted-foreground" />
-                <Select value={hour.toString()} onValueChange={(v) => setHour(parseInt(v))}>
-                  <SelectTrigger className="w-[70px]">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent className="max-h-[200px]">
-                    {hours.map((h) => (
-                      <SelectItem key={h} value={h.toString()}>
-                        {h.toString().padStart(2, '0')}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                <span>:</span>
-                <Select value={minute.toString()} onValueChange={(v) => setMinute(parseInt(v))}>
-                  <SelectTrigger className="w-[70px]">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent className="max-h-[200px]">
-                    {minutes.map((m) => (
-                      <SelectItem key={m} value={m.toString()}>
-                        {m.toString().padStart(2, '0')}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
-          </div>
-
-          {/* Промт для генерации текста */}
-          <Collapsible open={promptOpen} onOpenChange={setPromptOpen}>
-            <CollapsibleTrigger asChild>
-              <Button variant="ghost" size="sm" className="w-full justify-between h-8 text-xs text-muted-foreground">
-                <span className="flex items-center gap-1">
-                  <Settings2 className="w-3 h-3" />
-                  Промт генерации текста
-                </span>
-                {promptOpen ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
-              </Button>
-            </CollapsibleTrigger>
-            <CollapsibleContent className="pt-2 space-y-2">
-              <Textarea
-                value={promptText}
-                onChange={(e) => setPromptText(e.target.value)}
-                placeholder="Промт для генерации текста публикации..."
-                className="min-h-[80px] text-xs font-mono"
-                rows={4}
-              />
-              <p className="text-[10px] text-muted-foreground">
-                Промт подтянут из настроек канала или общих настроек. Можно отредактировать перед генерацией.
-              </p>
-            </CollapsibleContent>
-          </Collapsible>
-
-          {/* Текст публикации */}
-          <div className="space-y-2">
-            <div className="flex items-center justify-between">
-              <Label>Текст публикации</Label>
-              <Button
-                size="sm"
-                variant="secondary"
-                className="h-7 text-xs"
-                onClick={handleGenerateText}
-                disabled={generating}
+          <DialogTitle className="font-medium text-sm flex-1 text-center truncate px-2">
+            {getPublicationTitle()}
+          </DialogTitle>
+          <div className="flex items-center gap-2">
+            {publication.post_url && (
+              <a
+                href={publication.post_url}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="p-1 hover:bg-muted rounded"
+                title="Открыть публикацию"
               >
-                {generating ? (
-                  <Loader2 className="w-3 h-3 mr-1 animate-spin" />
-                ) : (
-                  <Sparkles className="w-3 h-3 mr-1" />
-                )}
-                {generatedText ? 'Перегенерировать' : 'Сгенерировать'}
-              </Button>
-            </div>
-            <Textarea
-              value={generatedText}
-              onChange={(e) => setGeneratedText(e.target.value)}
-              placeholder="Введите или сгенерируйте текст публикации..."
-              rows={8}
-              className="resize-y"
-            />
-            <p className="text-xs text-muted-foreground">
-              {generatedText.length} символов
-            </p>
+                <ExternalLink className="w-4 h-4" />
+              </a>
+            )}
+            <button
+              className="p-1 hover:bg-muted rounded"
+              onClick={onClose}
+            >
+              <X className="w-4 h-4" />
+            </button>
           </div>
-
-          {/* Ошибка (если есть) */}
-          {publication?.error_message && (
-            <div className="p-3 rounded-md bg-destructive/10 border border-destructive/20">
-              <p className="text-sm text-destructive font-medium">Ошибка публикации:</p>
-              <p className="text-sm text-destructive/80 mt-1">{publication.error_message}</p>
-            </div>
-          )}
         </div>
 
-        <DialogFooter>
-          <Button variant="outline" onClick={onClose} disabled={saving}>
+        <ScrollArea className="flex-1 overflow-auto">
+          <div className="p-4 space-y-4">
+            {/* Channel + Video info */}
+            <div className="flex items-center gap-3 flex-wrap">
+              {publication.channel && (
+                <Badge variant="outline" className="text-xs">
+                  {publication.channel.name} ({publication.channel.network_type})
+                </Badge>
+              )}
+              {publication.video?.video_number && (
+                <Badge variant="secondary" className="font-mono text-xs">
+                  Ролик #{publication.video.video_number}
+                </Badge>
+              )}
+              {publication.video?.video_duration && (
+                <span className="text-xs text-muted-foreground">
+                  {publication.video.video_duration}s
+                </span>
+              )}
+            </div>
+
+            {/* Status */}
+            <div className="grid grid-cols-[140px_1fr] gap-2 items-center">
+              <Label className="text-sm">Статус</Label>
+              <Select value={status} onValueChange={setStatus}>
+                <SelectTrigger className="h-8 text-sm">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {statusOptions.map((opt) => (
+                    <SelectItem key={opt.value} value={opt.value}>
+                      <span className={opt.color}>{opt.label}</span>
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            {/* Date and time */}
+            <div className="grid grid-cols-[140px_1fr] gap-2 items-center">
+              <Label className="text-sm">Плановая публикация</Label>
+              <div className="flex gap-2 items-center">
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className={cn(
+                        'justify-start text-left text-sm',
+                        !postDate && 'text-muted-foreground'
+                      )}
+                    >
+                      <CalendarIcon className="w-3 h-3 mr-2" />
+                      {postDate ? format(postDate, 'dd.MM.yyyy', { locale: ru }) : 'Выбрать дату'}
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-auto p-0" align="start">
+                    <Calendar
+                      mode="single"
+                      selected={postDate}
+                      onSelect={setPostDate}
+                      locale={ru}
+                      className="p-3 pointer-events-auto"
+                    />
+                  </PopoverContent>
+                </Popover>
+                <div className="flex items-center gap-1">
+                  <Clock className="h-3 w-3 text-muted-foreground" />
+                  <Select value={hour.toString()} onValueChange={(v) => setHour(parseInt(v))}>
+                    <SelectTrigger className="w-[60px] h-8 text-xs">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent className="max-h-[200px]">
+                      {hours.map((h) => (
+                        <SelectItem key={h} value={h.toString()}>
+                          {h.toString().padStart(2, '0')}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <span className="text-sm">:</span>
+                  <Select value={minute.toString()} onValueChange={(v) => setMinute(parseInt(v))}>
+                    <SelectTrigger className="w-[60px] h-8 text-xs">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent className="max-h-[200px]">
+                      {minutes.map((m) => (
+                        <SelectItem key={m} value={m.toString()}>
+                          {m.toString().padStart(2, '0')}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+            </div>
+
+            {/* Post URL */}
+            <div className="grid grid-cols-[140px_1fr] gap-2 items-center">
+              <Label className="text-sm">Ссылка на пост</Label>
+              <div className="flex gap-2 items-center">
+                <Input
+                  value={postUrl}
+                  onChange={(e) => setPostUrl(e.target.value)}
+                  placeholder="https://..."
+                  className="h-8 text-sm flex-1"
+                />
+                {postUrl && (
+                  <a
+                    href={postUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="p-1.5 hover:bg-muted rounded border shrink-0"
+                  >
+                    <ExternalLink className="w-3.5 h-3.5" />
+                  </a>
+                )}
+              </div>
+            </div>
+
+            {/* Voiceover player (if video has voiceover) */}
+            {(publication.video as any)?.voiceover_url && (
+              <>
+                <Separator />
+                <div className="space-y-2">
+                  <h4 className="font-medium text-sm flex items-center gap-1.5">
+                    <Volume2 className="w-4 h-4" />
+                    Озвучка
+                  </h4>
+                  <audio controls className="w-full h-8" src={(publication.video as any).voiceover_url}>
+                    Your browser does not support the audio element.
+                  </audio>
+                </div>
+              </>
+            )}
+
+            <Separator />
+
+            {/* Tabs: Text + Prompt */}
+            <div className="space-y-3">
+              <h4 className="font-medium text-sm">Текст публикации</h4>
+
+              <Tabs defaultValue="text">
+                <TabsList className="grid w-full grid-cols-2 h-8">
+                  <TabsTrigger value="text" className="text-xs flex items-center gap-1">
+                    <FileText className="w-3 h-3" />
+                    Текст
+                  </TabsTrigger>
+                  <TabsTrigger value="prompt" className="text-xs flex items-center gap-1">
+                    <Settings2 className="w-3 h-3" />
+                    Промт
+                  </TabsTrigger>
+                </TabsList>
+
+                <TabsContent value="text" className="space-y-3 mt-3">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs text-muted-foreground">
+                      {generatedText.length} символов
+                    </span>
+                    <Button
+                      size="sm"
+                      variant="secondary"
+                      className="h-7 text-xs"
+                      onClick={handleGenerateText}
+                      disabled={generating}
+                    >
+                      {generating ? (
+                        <Loader2 className="w-3 h-3 mr-1 animate-spin" />
+                      ) : (
+                        <Sparkles className="w-3 h-3 mr-1" />
+                      )}
+                      {generatedText ? 'Перегенерировать' : 'Сгенерировать'}
+                    </Button>
+                  </div>
+                  <Textarea
+                    value={generatedText}
+                    onChange={(e) => setGeneratedText(e.target.value)}
+                    placeholder="Введите или сгенерируйте текст публикации..."
+                    rows={10}
+                    className="resize-y text-sm"
+                  />
+                </TabsContent>
+
+                <TabsContent value="prompt" className="space-y-2 mt-3">
+                  <Textarea
+                    value={promptText}
+                    onChange={(e) => setPromptText(e.target.value)}
+                    placeholder="Промт для генерации текста публикации..."
+                    className="min-h-[200px] text-xs font-mono"
+                    rows={10}
+                  />
+                  <p className="text-[10px] text-muted-foreground">
+                    Промт подтянут из настроек канала или общих настроек. Можно отредактировать перед генерацией.
+                  </p>
+                </TabsContent>
+              </Tabs>
+            </div>
+
+            {/* Error message */}
+            {publication.error_message && (
+              <>
+                <Separator />
+                <div className="p-3 rounded-md bg-destructive/10 border border-destructive/20">
+                  <p className="text-sm text-destructive font-medium">Ошибка публикации:</p>
+                  <p className="text-sm text-destructive/80 mt-1">{publication.error_message}</p>
+                </div>
+              </>
+            )}
+
+            {/* Final video */}
+            {publication.final_video_url && (
+              <>
+                <Separator />
+                <div className="grid grid-cols-[140px_1fr] gap-2 items-center">
+                  <Label className="text-xs text-muted-foreground">Финальное видео</Label>
+                  <a
+                    href={publication.final_video_url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-xs text-primary hover:underline truncate"
+                  >
+                    {publication.final_video_url}
+                  </a>
+                </div>
+              </>
+            )}
+          </div>
+        </ScrollArea>
+
+        {/* Footer */}
+        <div className="flex items-center justify-end gap-2 px-4 py-3 border-t shrink-0">
+          <Button variant="outline" size="sm" onClick={onClose} disabled={saving}>
             Отмена
           </Button>
-          <Button onClick={handleSave} disabled={saving}>
-            {saving && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
+          <Button size="sm" onClick={handleSave} disabled={saving}>
+            {saving && <Loader2 className="w-3 h-3 mr-1 animate-spin" />}
             Сохранить
           </Button>
-        </DialogFooter>
+        </div>
       </DialogContent>
     </Dialog>
   );
