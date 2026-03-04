@@ -1,48 +1,69 @@
 
 
-## Analysis of Current State vs Requirements
+## Проблемы и план исправлений
 
-After reviewing the code and the reference screenshot, here's the status of each requirement:
+### Проблема 1: Данные не передаются в промты публикаций
 
-### 1. Deduplication — Already Implemented ✅
-- Database has a unique constraint on `(video_id, channel_id)` in the `publications` table
-- `handlePublishVideo` in `Index.tsx` (lines 324-399) checks for existing pairs before inserting
-- `bulkImport` in `usePublications.ts` filters duplicates client-side
-- `addPublication` checks for existing pairs before inserting
+**Причина**: В `usePublications.ts` запрос к базе не включает ключевые поля из таблицы `videos`, которые нужны для заполнения переменных промта:
 
-No changes needed.
+```
+// Текущий запрос (строки 60-68):
+video:videos (
+  id, video_title, question, advisor_id, 
+  video_number, video_duration,
+  advisor:advisors (id, name, display_name)
+)
+channel:publishing_channels (id, name, network_type)
+```
 
-### 2. Fix Edit Form — Needs Investigation
-The `PublicationEditDialog` appears functional but the user reports issues. Based on the reference screenshot and code review, the likely problems are:
-- **Calendar/Select dropdowns closing the dialog**: The `onPointerDownOutside` fix is already applied. However, the `Select` components inside `Popover` may still cause issues with click propagation
-- **The form works but may need UX improvements** — need clarification from the user on what exactly is broken
+**Отсутствуют**:
+- `hook` — для `{{hook}}`
+- `advisor_answer` — для `{{answer}}`
+- `voiceover_url` — для аудиоплеера в диалоге
+- `post_text_prompt` — в `publishing_channels` для подтягивания промпта канала
 
-### 3. Auto Concat + Text Generation on Publish — Already Implemented ✅
-- `handlePublishVideo` (lines 351-394) sets `needs_concat` status for channels with back covers
-- Text generation is fire-and-forget for all new publications (lines 368-372)
-- Auto-concat triggers when video URL is available (lines 376-394)
-- `triggerAutoConcat` (lines 98-143) also runs after polling detects video is ready
+Из-за этого шаблон промта выглядит как на скриншоте: `Хук:` (пусто), `Ответ духовника:` (пусто).
 
-No changes needed.
+Также в `Publication` интерфейсе (строки 22-33) у `video` нет полей `hook`, `advisor_answer`, `voiceover_url`.
 
-### 4. Publish Button Requires Text — Already Implemented ✅
-- Button is disabled when `!pub.generated_text` (line 703)
-- Tooltip shows "Сначала сгенерируйте текст" when text is missing (line 708)
-- Bulk publish filters by `pub.generated_text` (line 324)
+### Проблема 2: Склейка видео не работает
 
-No changes needed.
+**Причина**: Склейка использует `ffmpeg.wasm` в браузере (`useVideoConcat.ts`). Вероятная проблема — CORS при загрузке видео через `fetchFile()`. Файлы с HeyGen (`heygen_video_url`) и с back_cover_video_url — внешние URL, которые блокируются CORS в браузере.
+
+Также в `publishing_channels` запрос не включает `back_cover_video_url`, поэтому `requiresConcat()` и `handleConcat()` всегда считают что у канала нет обложки.
 
 ---
 
-## Remaining Issue: Table Layout (from Reference Screenshot)
+### План изменений
 
-The reference image shows the status columns should display **icons** (video camera for concat, text document for text, and status text for publication) rather than plain text. The current code shows "Готово" / "—" which matches partially but lacks the visual icons shown in the reference.
+#### 1. Исправить запрос в `usePublications.ts`
 
-## Plan
+Добавить недостающие поля в select:
+```
+video:videos (
+  id, video_title, question, advisor_id, 
+  video_number, video_duration,
+  hook, advisor_answer, voiceover_url,
+  advisor:advisors (id, name, display_name)
+),
+channel:publishing_channels (id, name, network_type, post_text_prompt, back_cover_video_url)
+```
 
-Since items 1, 3, and 4 are already implemented, the main question is about item 2 — the edit form. I need to clarify what specifically is broken with the form.
+#### 2. Обновить интерфейс `Publication` в `usePublications.ts`
 
-### Changes to implement:
-1. **Clarify edit form issue** — ask the user what specifically needs fixing
-2. **Minor table UX** — Add visual status icons (camera icon for concat status, document icon for text status) to match the reference screenshot more closely
+Добавить `hook`, `advisor_answer`, `voiceover_url` в тип `video`, и `post_text_prompt`, `back_cover_video_url` в тип `channel`.
+
+#### 3. Убрать `as any` кастинг в `PublicationEditDialog.tsx`
+
+Заменить `(pub.video as any)?.hook` и аналогичные на прямое обращение к полям, теперь что они есть в типе.
+
+#### 4. Исправить `requiresConcat` в `PublicationsTable.tsx`
+
+Сейчас `channelsById` строится из `usePublishingChannels`, но `requiresConcat` проверяет `channel.back_cover_video_url` на объекте из этого Map. Нужно убедиться что данные канала в publications тоже содержат `back_cover_video_url` — после п.1 это будет доступно через `pub.channel?.back_cover_video_url`.
+
+#### 5. Проксировать загрузку видео для склейки
+
+`fetchFile()` из ffmpeg.wasm не может загрузить видео с внешних доменов (HeyGen, storage) из-за CORS. Решение: загружать видео через `supabase.storage` (если файл в storage) или через fetch с blob, обходя CORS через edge function-прокси. Более простой вариант — скачивать файл через `fetch` с серверной стороны, создав небольшой edge function `proxy-video`.
+
+Альтернатива (проще): если видео хранятся в storage bucket `media-files` (public), то URL вида `supabase.storage.from('media-files').getPublicUrl(...)` доступен без CORS проблем. Проверить откуда берутся URL.
 
