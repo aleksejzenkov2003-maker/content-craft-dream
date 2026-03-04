@@ -38,6 +38,8 @@ interface PublicationEditDialogProps {
   open: boolean;
   onClose: () => void;
   onSave: (id: string, updates: Partial<Publication>) => Promise<void>;
+  onPrev?: () => void;
+  onNext?: () => void;
 }
 
 const statusOptions = [
@@ -58,6 +60,8 @@ export function PublicationEditDialog({
   open,
   onClose,
   onSave,
+  onPrev,
+  onNext,
 }: PublicationEditDialogProps) {
   const [generatedText, setGeneratedText] = useState('');
   const [status, setStatus] = useState('pending');
@@ -174,14 +178,14 @@ export function PublicationEditDialog({
 
   return (
     <Dialog open={open} onOpenChange={(o) => !o && onClose()}>
-      <DialogContent className="max-w-4xl w-[90vw] max-h-[90vh] p-0 flex flex-col gap-0 overflow-hidden" onPointerDownOutside={(e) => e.preventDefault()}>
-        {/* Header - consistent with VideoSidePanel */}
+      <DialogContent className="max-w-4xl w-[90vw] max-h-[90vh] p-0 flex flex-col gap-0 overflow-hidden [&>button:last-child]:hidden" onPointerDownOutside={(e) => e.preventDefault()}>
+        {/* Header */}
         <div className="flex items-center justify-between px-4 py-3 border-b shrink-0">
           <div className="flex items-center gap-2">
-            <button className="p-1 hover:bg-muted rounded">
+            <button className="p-1 hover:bg-muted rounded disabled:opacity-30" onClick={onPrev} disabled={!onPrev}>
               <ChevronUp className="w-4 h-4" />
             </button>
-            <button className="p-1 hover:bg-muted rounded">
+            <button className="p-1 hover:bg-muted rounded disabled:opacity-30" onClick={onNext} disabled={!onNext}>
               <ChevronDown className="w-4 h-4" />
             </button>
           </div>

@@ -761,6 +761,14 @@ export default function Index() {
                 onUpdateVideo={updateVideo}
                 onPublish={handlePublishVideo}
                 isGenerating={isGenerating}
+                onPrev={viewingVideo ? (() => {
+                  const idx = videos.findIndex(v => v.id === viewingVideo.id);
+                  if (idx > 0) setViewingVideo(videos[idx - 1]);
+                }) : undefined}
+                onNext={viewingVideo ? (() => {
+                  const idx = videos.findIndex(v => v.id === viewingVideo.id);
+                  if (idx < videos.length - 1) setViewingVideo(videos[idx + 1]);
+                }) : undefined}
               />
             </>
           )}

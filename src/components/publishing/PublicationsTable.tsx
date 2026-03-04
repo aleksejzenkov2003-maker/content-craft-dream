@@ -819,6 +819,14 @@ const minuteOptions = [0, 5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55];
         open={!!editingPublication}
         onClose={() => setEditingPublication(null)}
         onSave={handleEditPublication}
+        onPrev={editingPublication ? (() => {
+          const idx = sortedPublications.findIndex(p => p.id === editingPublication.id);
+          if (idx > 0) setEditingPublication(sortedPublications[idx - 1]);
+        }) : undefined}
+        onNext={editingPublication ? (() => {
+          const idx = sortedPublications.findIndex(p => p.id === editingPublication.id);
+          if (idx < sortedPublications.length - 1) setEditingPublication(sortedPublications[idx + 1]);
+        }) : undefined}
       />
 
       {/* Bulk Date Dialog */}
