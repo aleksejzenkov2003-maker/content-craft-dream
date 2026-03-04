@@ -122,8 +122,9 @@ const minuteOptions = [0, 5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55];
   const hasReadyText = (pub: Publication) => Boolean(pub.generated_text?.trim());
 
   const requiresConcat = (pub: Publication) => {
-    const channel = pub.channel_id ? channelsById.get(pub.channel_id) : undefined;
-    return !!channel?.back_cover_video_url;
+    // Use joined channel data first, fallback to channelsById
+    const backCoverUrl = pub.channel?.back_cover_video_url || (pub.channel_id ? channelsById.get(pub.channel_id)?.back_cover_video_url : undefined);
+    return !!backCoverUrl;
   };
 
   const isConcatReady = (pub: Publication) => !requiresConcat(pub) || !!pub.final_video_url;
@@ -281,30 +282,34 @@ const minuteOptions = [0, 5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55];
   };
 
   const handleConcat = async (pub: Publication) => {
-    const channel = pub.channel_id ? channelsById.get(pub.channel_id) : undefined;
-    if (!channel?.back_cover_video_url) {
+    const backCoverUrl = pub.channel?.back_cover_video_url || (pub.channel_id ? channelsById.get(pub.channel_id)?.back_cover_video_url : undefined);
+    if (!backCoverUrl) {
       toast.error('У канала нет задней обложки');
       return;
     }
-    // Get video URL - need to fetch fresh data since joined video may not have all fields
-    const { data: video } = await supabase
-      .from('videos')
-      .select('heygen_video_url, video_path')
-      .eq('id', pub.video_id)
-      .single();
-      
-    const videoUrl = video?.heygen_video_url || video?.video_path;
-    if (!videoUrl) {
+    
+    // Try joined data first, then fetch from DB
+    let mainVideoUrl = pub.video?.heygen_video_url;
+    if (!mainVideoUrl && pub.video_id) {
+      const { data: video } = await supabase
+        .from('videos')
+        .select('heygen_video_url, video_path')
+        .eq('id', pub.video_id)
+        .single();
+      mainVideoUrl = video?.heygen_video_url || video?.video_path || null;
+    }
+    
+    if (!mainVideoUrl) {
       toast.error('Видео ещё не сгенерировано. Сначала создайте видео.');
-      // Reset stuck status
       if (pub.publication_status === 'concatenating') {
         await updatePublication(pub.id, { publication_status: 'needs_concat' });
       }
       return;
     }
+    
     setConcatingId(pub.id);
     try {
-      await concatVideos(pub.id, videoUrl, channel.back_cover_video_url);
+      await concatVideos(pub.id, mainVideoUrl, backCoverUrl);
       await refetch();
     } catch {} finally {
       setConcatingId(null);

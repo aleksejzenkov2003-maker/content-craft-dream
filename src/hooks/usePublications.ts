@@ -27,6 +27,10 @@ export interface Publication {
     advisor_id: string | null;
     video_number: number | null;
     video_duration: number | null;
+    hook: string | null;
+    advisor_answer: string | null;
+    voiceover_url: string | null;
+    heygen_video_url: string | null;
     advisor?: {
       id: string;
       name: string;
@@ -37,6 +41,8 @@ export interface Publication {
     id: string;
     name: string;
     network_type: string;
+    post_text_prompt: string | null;
+    back_cover_video_url: string | null;
   };
 }
 
@@ -64,9 +70,13 @@ export function usePublications(filters?: PublicationFilters) {
             advisor_id, 
             video_number, 
             video_duration,
+            hook,
+            advisor_answer,
+            voiceover_url,
+            heygen_video_url,
             advisor:advisors (id, name, display_name)
           ),
-          channel:publishing_channels (id, name, network_type)
+          channel:publishing_channels (id, name, network_type, post_text_prompt, back_cover_video_url)
         `)
         .order('post_date', { ascending: false, nullsFirst: false });
 

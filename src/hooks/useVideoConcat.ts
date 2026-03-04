@@ -1,6 +1,6 @@
 import { useState, useRef, useCallback } from 'react';
 import { FFmpeg } from '@ffmpeg/ffmpeg';
-import { fetchFile, toBlobURL } from '@ffmpeg/util';
+import { toBlobURL } from '@ffmpeg/util';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 
@@ -49,6 +49,16 @@ export function useVideoConcat() {
     });
   };
 
+  const fetchVideoViaProxy = useCallback(async (videoUrl: string): Promise<Uint8Array> => {
+    const { data, error } = await supabase.functions.invoke('proxy-video', {
+      body: { videoUrl },
+    });
+    if (error) throw new Error(`Proxy error: ${error.message}`);
+    if (!data) throw new Error('Empty response from proxy');
+    const arrayBuffer = await (data as Blob).arrayBuffer();
+    return new Uint8Array(arrayBuffer);
+  }, []);
+
   const concatVideos = useCallback(async (
     publicationId: string,
     mainVideoUrl: string,
@@ -69,11 +79,11 @@ export function useVideoConcat() {
       const ffmpeg = await withTimeout(loadFFmpeg(), 30_000, 'загрузка ffmpeg');
       setState(prev => ({ ...prev, progress: 15 }));
 
-      // Download videos with 60s timeout each
-      const mainData = await withTimeout(fetchFile(mainVideoUrl), 60_000, 'загрузка основного видео');
+      // Download videos via proxy to bypass CORS
+      const mainData = await withTimeout(fetchVideoViaProxy(mainVideoUrl), 60_000, 'загрузка основного видео');
       setState(prev => ({ ...prev, progress: 35 }));
 
-      const backCoverData = await withTimeout(fetchFile(backCoverVideoUrl), 60_000, 'загрузка обложки');
+      const backCoverData = await withTimeout(fetchVideoViaProxy(backCoverVideoUrl), 60_000, 'загрузка обложки');
       setState(prev => ({ ...prev, progress: 55 }));
 
       // Write files to ffmpeg FS
@@ -172,7 +182,7 @@ export function useVideoConcat() {
       toast.error(`Ошибка склейки: ${errorMsg}`);
       throw error;
     }
-  }, [loadFFmpeg]);
+  }, [loadFFmpeg, fetchVideoViaProxy]);
 
   return {
     concatVideos,

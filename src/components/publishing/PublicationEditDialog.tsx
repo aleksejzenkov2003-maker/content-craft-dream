@@ -94,7 +94,7 @@ export function PublicationEditDialog({
   useEffect(() => {
     const fetchPrompt = async () => {
       if (!publication) return;
-      const channelPrompt = (publication.channel as any)?.post_text_prompt;
+      const channelPrompt = publication.channel?.post_text_prompt;
       if (channelPrompt) {
         setPromptText(fillPromptVars(channelPrompt, publication));
         return;
@@ -115,8 +115,8 @@ export function PublicationEditDialog({
 
   const fillPromptVars = (template: string, pub: Publication) => {
     const question = pub.video?.question || '';
-    const hook = (pub.video as any)?.hook || '';
-    const answer = (pub.video as any)?.advisor_answer || '';
+    const hook = pub.video?.hook || '';
+    const answer = pub.video?.advisor_answer || '';
     const advisor = pub.video?.advisor?.display_name || pub.video?.advisor?.name || '';
     return template
       .replace(/\{\{question\}\}/g, question)
@@ -334,7 +334,7 @@ export function PublicationEditDialog({
             </div>
 
             {/* Voiceover player (if video has voiceover) */}
-            {(publication.video as any)?.voiceover_url && (
+            {publication.video?.voiceover_url && (
               <>
                 <Separator />
                 <div className="space-y-2">
@@ -342,7 +342,7 @@ export function PublicationEditDialog({
                     <Volume2 className="w-4 h-4" />
                     Озвучка
                   </h4>
-                  <audio controls className="w-full h-8" src={(publication.video as any).voiceover_url}>
+                  <audio controls className="w-full h-8" src={publication.video.voiceover_url}>
                     Your browser does not support the audio element.
                   </audio>
                 </div>
