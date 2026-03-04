@@ -1,30 +1,20 @@
 import { useState, useEffect } from 'react';
-import {
-  Dialog,
-  DialogContent,
-  DialogTitle,
-} from '@/components/ui/dialog';
+import { UnifiedPanel, PanelField, PanelSection } from '@/components/ui/unified-panel';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Input } from '@/components/ui/input';
 import { Separator } from '@/components/ui/separator';
-import { ScrollArea } from '@/components/ui/scroll-area';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
+  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from '@/components/ui/select';
 import { Calendar } from '@/components/ui/calendar';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import {
-  CalendarIcon, Clock, Loader2, Sparkles, X,
-  ChevronUp, ChevronDown, Link as LinkIcon, ExternalLink,
-  FileText, Settings2, Volume2
+  CalendarIcon, Clock, Loader2, Sparkles,
+  ExternalLink, FileText, Settings2, Volume2,
 } from 'lucide-react';
 import { format, setHours, setMinutes } from 'date-fns';
 import { ru } from 'date-fns/locale';
@@ -56,12 +46,7 @@ const hours = Array.from({ length: 24 }, (_, i) => i);
 const minutes = [0, 5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55];
 
 export function PublicationEditDialog({
-  publication,
-  open,
-  onClose,
-  onSave,
-  onPrev,
-  onNext,
+  publication, open, onClose, onSave, onPrev, onNext,
 }: PublicationEditDialogProps) {
   const [generatedText, setGeneratedText] = useState('');
   const [status, setStatus] = useState('pending');
@@ -83,11 +68,7 @@ export function PublicationEditDialog({
         setPostDate(date);
         setHour(date.getHours());
         setMinute(date.getMinutes());
-      } else {
-        setPostDate(undefined);
-        setHour(12);
-        setMinute(0);
-      }
+      } else { setPostDate(undefined); setHour(12); setMinute(0); }
     }
   }, [publication]);
 
@@ -95,54 +76,30 @@ export function PublicationEditDialog({
     const fetchPrompt = async () => {
       if (!publication) return;
       const channelPrompt = publication.channel?.post_text_prompt;
-      if (channelPrompt) {
-        setPromptText(fillPromptVars(channelPrompt, publication));
-        return;
-      }
-      const { data: dbPrompt } = await supabase
-        .from('prompts')
-        .select('user_template')
-        .eq('type', 'post_text')
-        .eq('is_active', true)
-        .limit(1)
-        .single();
-      if (dbPrompt) {
-        setPromptText(fillPromptVars(dbPrompt.user_template, publication));
-      }
+      if (channelPrompt) { setPromptText(fillPromptVars(channelPrompt, publication)); return; }
+      const { data: dbPrompt } = await supabase.from('prompts').select('user_template').eq('type', 'post_text').eq('is_active', true).limit(1).single();
+      if (dbPrompt) setPromptText(fillPromptVars(dbPrompt.user_template, publication));
     };
     fetchPrompt();
   }, [publication?.id]);
 
   const fillPromptVars = (template: string, pub: Publication) => {
-    const question = pub.video?.question || '';
-    const hook = pub.video?.hook || '';
-    const answer = pub.video?.advisor_answer || '';
-    const advisor = pub.video?.advisor?.display_name || pub.video?.advisor?.name || '';
     return template
-      .replace(/\{\{question\}\}/g, question)
-      .replace(/\{\{hook\}\}/g, hook)
-      .replace(/\{\{answer\}\}/g, answer)
-      .replace(/\{\{advisor\}\}/g, advisor);
+      .replace(/\{\{question\}\}/g, pub.video?.question || '')
+      .replace(/\{\{hook\}\}/g, pub.video?.hook || '')
+      .replace(/\{\{answer\}\}/g, pub.video?.advisor_answer || '')
+      .replace(/\{\{advisor\}\}/g, pub.video?.advisor?.display_name || pub.video?.advisor?.name || '');
   };
 
   const handleGenerateText = async () => {
     if (!publication) return;
     setGenerating(true);
     try {
-      const { data, error } = await supabase.functions.invoke('generate-post-text', {
-        body: { publicationId: publication.id },
-      });
+      const { data, error } = await supabase.functions.invoke('generate-post-text', { body: { publicationId: publication.id } });
       if (error) throw error;
-      if (data?.generated_text) {
-        setGeneratedText(data.generated_text);
-        toast.success('Текст сгенерирован');
-      }
-    } catch (e) {
-      console.error('Error generating text:', e);
-      toast.error('Ошибка генерации текста');
-    } finally {
-      setGenerating(false);
-    }
+      if (data?.generated_text) { setGeneratedText(data.generated_text); toast.success('Текст сгенерирован'); }
+    } catch (e) { console.error('Error generating text:', e); toast.error('Ошибка генерации текста'); }
+    finally { setGenerating(false); }
   };
 
   const handleSave = async () => {
@@ -150,21 +107,10 @@ export function PublicationEditDialog({
     setSaving(true);
     try {
       let finalDate: string | null = null;
-      if (postDate) {
-        let dateWithTime = setHours(postDate, hour);
-        dateWithTime = setMinutes(dateWithTime, minute);
-        finalDate = dateWithTime.toISOString();
-      }
-      await onSave(publication.id, {
-        generated_text: generatedText || null,
-        publication_status: status,
-        post_date: finalDate,
-        post_url: postUrl || null,
-      });
+      if (postDate) { let d = setHours(postDate, hour); d = setMinutes(d, minute); finalDate = d.toISOString(); }
+      await onSave(publication.id, { generated_text: generatedText || null, publication_status: status, post_date: finalDate, post_url: postUrl || null });
       onClose();
-    } finally {
-      setSaving(false);
-    }
+    } finally { setSaving(false); }
   };
 
   const getPublicationTitle = () => {
@@ -177,282 +123,139 @@ export function PublicationEditDialog({
   if (!publication) return null;
 
   return (
-    <Dialog open={open} onOpenChange={(o) => !o && onClose()}>
-      <DialogContent className="max-w-4xl w-[90vw] max-h-[90vh] p-0 flex flex-col gap-0 overflow-hidden [&>button:last-child]:hidden" onPointerDownOutside={(e) => e.preventDefault()}>
-        {/* Header */}
-        <div className="flex items-center justify-between px-4 py-3 border-b shrink-0">
-          <div className="flex items-center gap-2">
-            <button className="p-1 hover:bg-muted rounded disabled:opacity-30" onClick={onPrev} disabled={!onPrev}>
-              <ChevronUp className="w-4 h-4" />
-            </button>
-            <button className="p-1 hover:bg-muted rounded disabled:opacity-30" onClick={onNext} disabled={!onNext}>
-              <ChevronDown className="w-4 h-4" />
-            </button>
-          </div>
-          <DialogTitle className="font-medium text-sm flex-1 text-center truncate px-2">
-            {getPublicationTitle()}
-          </DialogTitle>
-          <div className="flex items-center gap-2">
-            {publication.post_url && (
-              <a
-                href={publication.post_url}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="p-1 hover:bg-muted rounded"
-                title="Открыть публикацию"
-              >
-                <ExternalLink className="w-4 h-4" />
-              </a>
-            )}
-            <button
-              className="p-1 hover:bg-muted rounded"
-              onClick={onClose}
-            >
-              <X className="w-4 h-4" />
-            </button>
-          </div>
-        </div>
-
-        <ScrollArea className="flex-1 overflow-auto">
-          <div className="p-4 space-y-4">
-            {/* Channel + Video info */}
-            <div className="flex items-center gap-3 flex-wrap">
-              {publication.channel && (
-                <Badge variant="outline" className="text-xs">
-                  {publication.channel.name} ({publication.channel.network_type})
-                </Badge>
-              )}
-              {publication.video?.video_number && (
-                <Badge variant="secondary" className="font-mono text-xs">
-                  Ролик #{publication.video.video_number}
-                </Badge>
-              )}
-              {publication.video?.video_duration && (
-                <span className="text-xs text-muted-foreground">
-                  {publication.video.video_duration}s
-                </span>
-              )}
-            </div>
-
-            {/* Status */}
-            <div className="grid grid-cols-[140px_1fr] gap-2 items-center">
-              <Label className="text-sm">Статус</Label>
-              <Select value={status} onValueChange={setStatus}>
-                <SelectTrigger className="h-8 text-sm">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {statusOptions.map((opt) => (
-                    <SelectItem key={opt.value} value={opt.value}>
-                      <span className={opt.color}>{opt.label}</span>
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-
-            {/* Date and time */}
-            <div className="grid grid-cols-[140px_1fr] gap-2 items-center">
-              <Label className="text-sm">Плановая публикация</Label>
-              <div className="flex gap-2 items-center">
-                <Popover>
-                  <PopoverTrigger asChild>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      className={cn(
-                        'justify-start text-left text-sm',
-                        !postDate && 'text-muted-foreground'
-                      )}
-                    >
-                      <CalendarIcon className="w-3 h-3 mr-2" />
-                      {postDate ? format(postDate, 'dd.MM.yyyy', { locale: ru }) : 'Выбрать дату'}
-                    </Button>
-                  </PopoverTrigger>
-                  <PopoverContent className="w-auto p-0" align="start">
-                    <Calendar
-                      mode="single"
-                      selected={postDate}
-                      onSelect={setPostDate}
-                      locale={ru}
-                      className="p-3 pointer-events-auto"
-                    />
-                  </PopoverContent>
-                </Popover>
-                <div className="flex items-center gap-1">
-                  <Clock className="h-3 w-3 text-muted-foreground" />
-                  <Select value={hour.toString()} onValueChange={(v) => setHour(parseInt(v))}>
-                    <SelectTrigger className="w-[60px] h-8 text-xs">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent className="max-h-[200px]">
-                      {hours.map((h) => (
-                        <SelectItem key={h} value={h.toString()}>
-                          {h.toString().padStart(2, '0')}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                  <span className="text-sm">:</span>
-                  <Select value={minute.toString()} onValueChange={(v) => setMinute(parseInt(v))}>
-                    <SelectTrigger className="w-[60px] h-8 text-xs">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent className="max-h-[200px]">
-                      {minutes.map((m) => (
-                        <SelectItem key={m} value={m.toString()}>
-                          {m.toString().padStart(2, '0')}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-              </div>
-            </div>
-
-            {/* Post URL */}
-            <div className="grid grid-cols-[140px_1fr] gap-2 items-center">
-              <Label className="text-sm">Ссылка на пост</Label>
-              <div className="flex gap-2 items-center">
-                <Input
-                  value={postUrl}
-                  onChange={(e) => setPostUrl(e.target.value)}
-                  placeholder="https://..."
-                  className="h-8 text-sm flex-1"
-                />
-                {postUrl && (
-                  <a
-                    href={postUrl}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="p-1.5 hover:bg-muted rounded border shrink-0"
-                  >
-                    <ExternalLink className="w-3.5 h-3.5" />
-                  </a>
-                )}
-              </div>
-            </div>
-
-            {/* Voiceover player (if video has voiceover) */}
-            {publication.video?.voiceover_url && (
-              <>
-                <Separator />
-                <div className="space-y-2">
-                  <h4 className="font-medium text-sm flex items-center gap-1.5">
-                    <Volume2 className="w-4 h-4" />
-                    Озвучка
-                  </h4>
-                  <audio controls className="w-full h-8" src={publication.video.voiceover_url}>
-                    Your browser does not support the audio element.
-                  </audio>
-                </div>
-              </>
-            )}
-
-            <Separator />
-
-            {/* Tabs: Text + Prompt */}
-            <div className="space-y-3">
-              <h4 className="font-medium text-sm">Текст публикации</h4>
-
-              <Tabs defaultValue="text">
-                <TabsList className="grid w-full grid-cols-2 h-8">
-                  <TabsTrigger value="text" className="text-xs flex items-center gap-1">
-                    <FileText className="w-3 h-3" />
-                    Текст
-                  </TabsTrigger>
-                  <TabsTrigger value="prompt" className="text-xs flex items-center gap-1">
-                    <Settings2 className="w-3 h-3" />
-                    Промт
-                  </TabsTrigger>
-                </TabsList>
-
-                <TabsContent value="text" className="space-y-3 mt-3">
-                  <div className="flex items-center justify-between">
-                    <span className="text-xs text-muted-foreground">
-                      {generatedText.length} символов
-                    </span>
-                    <Button
-                      size="sm"
-                      variant="secondary"
-                      className="h-7 text-xs"
-                      onClick={handleGenerateText}
-                      disabled={generating}
-                    >
-                      {generating ? (
-                        <Loader2 className="w-3 h-3 mr-1 animate-spin" />
-                      ) : (
-                        <Sparkles className="w-3 h-3 mr-1" />
-                      )}
-                      {generatedText ? 'Перегенерировать' : 'Сгенерировать'}
-                    </Button>
-                  </div>
-                  <Textarea
-                    value={generatedText}
-                    onChange={(e) => setGeneratedText(e.target.value)}
-                    placeholder="Введите или сгенерируйте текст публикации..."
-                    rows={10}
-                    className="resize-y text-sm"
-                  />
-                </TabsContent>
-
-                <TabsContent value="prompt" className="space-y-2 mt-3">
-                  <Textarea
-                    value={promptText}
-                    onChange={(e) => setPromptText(e.target.value)}
-                    placeholder="Промт для генерации текста публикации..."
-                    className="min-h-[200px] text-xs font-mono"
-                    rows={10}
-                  />
-                  <p className="text-[10px] text-muted-foreground">
-                    Промт подтянут из настроек канала или общих настроек. Можно отредактировать перед генерацией.
-                  </p>
-                </TabsContent>
-              </Tabs>
-            </div>
-
-            {/* Error message */}
-            {publication.error_message && (
-              <>
-                <Separator />
-                <div className="p-3 rounded-md bg-destructive/10 border border-destructive/20">
-                  <p className="text-sm text-destructive font-medium">Ошибка публикации:</p>
-                  <p className="text-sm text-destructive/80 mt-1">{publication.error_message}</p>
-                </div>
-              </>
-            )}
-
-            {/* Final video */}
-            {publication.final_video_url && (
-              <>
-                <Separator />
-                <div className="grid grid-cols-[140px_1fr] gap-2 items-center">
-                  <Label className="text-xs text-muted-foreground">Финальное видео</Label>
-                  <a
-                    href={publication.final_video_url}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="text-xs text-primary hover:underline truncate"
-                  >
-                    {publication.final_video_url}
-                  </a>
-                </div>
-              </>
-            )}
-          </div>
-        </ScrollArea>
-
-        {/* Footer */}
-        <div className="flex items-center justify-end gap-2 px-4 py-3 border-t shrink-0">
-          <Button variant="outline" size="sm" onClick={onClose} disabled={saving}>
-            Отмена
-          </Button>
+    <UnifiedPanel
+      open={open}
+      onOpenChange={(o) => !o && onClose()}
+      title={getPublicationTitle()}
+      width="lg"
+      onPrev={onPrev}
+      onNext={onNext}
+      preventOutsideClose
+      headerActions={
+        publication.post_url ? (
+          <a href={publication.post_url} target="_blank" rel="noopener noreferrer" className="p-1 hover:bg-muted rounded" title="Открыть публикацию">
+            <ExternalLink className="w-4 h-4" />
+          </a>
+        ) : undefined
+      }
+      footer={
+        <>
+          <Button variant="outline" size="sm" onClick={onClose} disabled={saving}>Отмена</Button>
           <Button size="sm" onClick={handleSave} disabled={saving}>
             {saving && <Loader2 className="w-3 h-3 mr-1 animate-spin" />}
             Сохранить
           </Button>
+        </>
+      }
+    >
+      {/* Channel + Video info */}
+      <div className="flex items-center gap-3 flex-wrap">
+        {publication.channel && <Badge variant="outline" className="text-xs">{publication.channel.name} ({publication.channel.network_type})</Badge>}
+        {publication.video?.video_number && <Badge variant="secondary" className="font-mono text-xs">Ролик #{publication.video.video_number}</Badge>}
+        {publication.video?.video_duration && <span className="text-xs text-muted-foreground">{publication.video.video_duration}s</span>}
+      </div>
+
+      {/* Status */}
+      <PanelField label="Статус">
+        <Select value={status} onValueChange={setStatus}>
+          <SelectTrigger className="h-8 text-sm"><SelectValue /></SelectTrigger>
+          <SelectContent>{statusOptions.map((opt) => <SelectItem key={opt.value} value={opt.value}><span className={opt.color}>{opt.label}</span></SelectItem>)}</SelectContent>
+        </Select>
+      </PanelField>
+
+      {/* Date and time */}
+      <PanelField label="Плановая публикация">
+        <div className="flex gap-2 items-center">
+          <Popover>
+            <PopoverTrigger asChild>
+              <Button variant="outline" size="sm" className={cn('justify-start text-left text-sm', !postDate && 'text-muted-foreground')}>
+                <CalendarIcon className="w-3 h-3 mr-2" />
+                {postDate ? format(postDate, 'dd.MM.yyyy', { locale: ru }) : 'Выбрать дату'}
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent className="w-auto p-0" align="start">
+              <Calendar mode="single" selected={postDate} onSelect={setPostDate} locale={ru} className="p-3 pointer-events-auto" />
+            </PopoverContent>
+          </Popover>
+          <div className="flex items-center gap-1">
+            <Clock className="h-3 w-3 text-muted-foreground" />
+            <Select value={hour.toString()} onValueChange={(v) => setHour(parseInt(v))}>
+              <SelectTrigger className="w-[60px] h-8 text-xs"><SelectValue /></SelectTrigger>
+              <SelectContent className="max-h-[200px]">{hours.map((h) => <SelectItem key={h} value={h.toString()}>{h.toString().padStart(2, '0')}</SelectItem>)}</SelectContent>
+            </Select>
+            <span className="text-sm">:</span>
+            <Select value={minute.toString()} onValueChange={(v) => setMinute(parseInt(v))}>
+              <SelectTrigger className="w-[60px] h-8 text-xs"><SelectValue /></SelectTrigger>
+              <SelectContent className="max-h-[200px]">{minutes.map((m) => <SelectItem key={m} value={m.toString()}>{m.toString().padStart(2, '0')}</SelectItem>)}</SelectContent>
+            </Select>
+          </div>
         </div>
-      </DialogContent>
-    </Dialog>
+      </PanelField>
+
+      {/* Post URL */}
+      <PanelField label="Ссылка на пост">
+        <div className="flex gap-2 items-center">
+          <Input value={postUrl} onChange={(e) => setPostUrl(e.target.value)} placeholder="https://..." className="h-8 text-sm flex-1" />
+          {postUrl && <a href={postUrl} target="_blank" rel="noopener noreferrer" className="p-1.5 hover:bg-muted rounded border shrink-0"><ExternalLink className="w-3.5 h-3.5" /></a>}
+        </div>
+      </PanelField>
+
+      {/* Voiceover */}
+      {publication.video?.voiceover_url && (
+        <>
+          <Separator />
+          <PanelSection title="Озвучка" icon={<Volume2 className="w-4 h-4" />}>
+            <audio controls className="w-full h-8" src={publication.video.voiceover_url}>Your browser does not support the audio element.</audio>
+          </PanelSection>
+        </>
+      )}
+
+      <Separator />
+
+      {/* Text tabs */}
+      <PanelSection title="Текст публикации">
+        <Tabs defaultValue="text">
+          <TabsList className="grid w-full grid-cols-2 h-8">
+            <TabsTrigger value="text" className="text-xs flex items-center gap-1"><FileText className="w-3 h-3" />Текст</TabsTrigger>
+            <TabsTrigger value="prompt" className="text-xs flex items-center gap-1"><Settings2 className="w-3 h-3" />Промт</TabsTrigger>
+          </TabsList>
+          <TabsContent value="text" className="space-y-3 mt-3">
+            <div className="flex items-center justify-between">
+              <span className="text-xs text-muted-foreground">{generatedText.length} символов</span>
+              <Button size="sm" variant="secondary" className="h-7 text-xs" onClick={handleGenerateText} disabled={generating}>
+                {generating ? <Loader2 className="w-3 h-3 mr-1 animate-spin" /> : <Sparkles className="w-3 h-3 mr-1" />}
+                {generatedText ? 'Перегенерировать' : 'Сгенерировать'}
+              </Button>
+            </div>
+            <Textarea value={generatedText} onChange={(e) => setGeneratedText(e.target.value)} placeholder="Введите или сгенерируйте текст публикации..." rows={10} className="resize-y text-sm" />
+          </TabsContent>
+          <TabsContent value="prompt" className="space-y-2 mt-3">
+            <Textarea value={promptText} onChange={(e) => setPromptText(e.target.value)} placeholder="Промт для генерации текста публикации..." className="min-h-[200px] text-xs font-mono" rows={10} />
+            <p className="text-[10px] text-muted-foreground">Промт подтянут из настроек канала или общих настроек. Можно отредактировать перед генерацией.</p>
+          </TabsContent>
+        </Tabs>
+      </PanelSection>
+
+      {/* Error */}
+      {publication.error_message && (
+        <>
+          <Separator />
+          <div className="p-3 rounded-md bg-destructive/10 border border-destructive/20">
+            <p className="text-sm text-destructive font-medium">Ошибка публикации:</p>
+            <p className="text-sm text-destructive/80 mt-1">{publication.error_message}</p>
+          </div>
+        </>
+      )}
+
+      {/* Final video */}
+      {publication.final_video_url && (
+        <>
+          <Separator />
+          <PanelField label="Финальное видео" labelWidth="140px">
+            <a href={publication.final_video_url} target="_blank" rel="noopener noreferrer" className="text-xs text-primary hover:underline truncate">{publication.final_video_url}</a>
+          </PanelField>
+        </>
+      )}
+    </UnifiedPanel>
   );
 }
