@@ -7,7 +7,8 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Calendar } from '@/components/ui/calendar';
-import { Search, Loader2, FileSpreadsheet, Trash2, Check, ArrowUpDown, ArrowUp, ArrowDown, CalendarIcon, Clock } from 'lucide-react';
+import { Search, Loader2, FileSpreadsheet, Trash2, Check, ArrowUpDown, ArrowUp, ArrowDown, CalendarIcon, Clock, Settings2 } from 'lucide-react';
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { Video as VideoType } from '@/hooks/useVideos';
 import { Publication } from '@/hooks/usePublications';
 import { format, setHours, setMinutes } from 'date-fns';
@@ -424,53 +425,32 @@ export function QuestionsTable({
 
   return (
     <div className="flex flex-col h-full">
-      {/* Status filter tabs */}
-      <div className="flex items-center gap-3 px-4 py-3 border-b">
-        <button
-          onClick={() => setActiveTab(null)}
-          className={cn(
-            "flex flex-col items-center px-4 py-1.5 rounded-lg border text-xs transition-colors",
-            !activeTab ? "border-primary bg-primary/5 text-primary font-medium" : "border-border text-muted-foreground hover:border-primary/50"
-          )}
-        >
-          <span>Все вопросы</span>
-          <span className="text-lg font-semibold">{statusCounts.all}</span>
-        </button>
-        <button
-          onClick={() => setActiveTab('in_progress')}
-          className={cn(
-            "flex flex-col items-center px-4 py-1.5 rounded-lg border text-xs transition-colors",
-            activeTab === 'in_progress' ? "border-yellow-500 bg-yellow-500/5 text-yellow-700 font-medium" : "border-border text-muted-foreground hover:border-yellow-500/50"
-          )}
-        >
-          <span>В работе</span>
-          <span className="text-lg font-semibold">{statusCounts.in_progress}</span>
-        </button>
-        <button
-          onClick={() => setActiveTab('published')}
-          className={cn(
-            "flex flex-col items-center px-4 py-1.5 rounded-lg border text-xs transition-colors",
-            activeTab === 'published' ? "border-green-500 bg-green-500/5 text-green-700 font-medium" : "border-border text-muted-foreground hover:border-green-500/50"
-          )}
-        >
-          <span>Опубликованы</span>
-          <span className="text-lg font-semibold">{statusCounts.published}</span>
-        </button>
-        <button
-          onClick={() => setActiveTab('not_selected')}
-          className={cn(
-            "flex flex-col items-center px-4 py-1.5 rounded-lg border text-xs transition-colors",
-            activeTab === 'not_selected' ? "border-muted-foreground bg-muted/20 text-foreground font-medium" : "border-border text-muted-foreground hover:border-muted-foreground/50"
-          )}
-        >
-          <span>Не отобраны</span>
-          <span className="text-lg font-semibold">{statusCounts.not_selected}</span>
-        </button>
-      </div>
-
-      {/* Top bar with search and import */}
+      {/* Status filter tabs + toolbar */}
       <div className="flex items-center justify-between px-4 py-2 border-b bg-background">
         <div className="flex items-center gap-2">
+          {/* Compact status tabs */}
+          <div className="flex items-center gap-1">
+            {[
+              { key: null, label: 'Все вопросы', count: statusCounts.all, activeClass: 'bg-primary/10 text-primary border-primary' },
+              { key: 'in_progress', label: 'В работе', count: statusCounts.in_progress, activeClass: 'bg-yellow-500/10 text-yellow-700 border-yellow-500' },
+              { key: 'published', label: 'Опубликованы', count: statusCounts.published, activeClass: 'bg-green-500/10 text-green-700 border-green-500' },
+              { key: 'not_selected', label: 'Не отобраны', count: statusCounts.not_selected, activeClass: 'bg-muted text-foreground border-muted-foreground/40' },
+            ].map(tab => (
+              <button
+                key={tab.key ?? 'all'}
+                onClick={() => setActiveTab(tab.key as string | null)}
+                className={cn(
+                  "px-3 py-1 rounded-full border text-xs font-medium transition-colors whitespace-nowrap",
+                  activeTab === tab.key ? tab.activeClass : "border-border text-muted-foreground hover:bg-muted"
+                )}
+              >
+                {tab.label} <span className="font-semibold">{tab.count}</span>
+              </button>
+            ))}
+          </div>
+
+          <div className="w-px h-5 bg-border mx-1" />
+
           <div className="relative">
             <Search className="absolute left-2 top-1/2 -translate-y-1/2 w-3 h-3 text-muted-foreground" />
             <Input
@@ -485,48 +465,61 @@ export function QuestionsTable({
             Импорт
           </Button>
           <QuestionFilters filters={filters} onFiltersChange={setFilters} />
+
+          {/* Gear dropdown for bulk actions */}
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="outline" size="sm" className="h-7 w-7 p-0 relative">
+                <Settings2 className="w-3.5 h-3.5" />
+                {bulkDeleteIds.length > 0 && (
+                  <span className="absolute -top-1 -right-1 bg-primary text-primary-foreground text-[9px] rounded-full w-4 h-4 flex items-center justify-center font-medium">
+                    {bulkDeleteIds.length}
+                  </span>
+                )}
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              {bulkDeleteIds.length > 0 && (
+                <div className="px-2 py-1.5 text-xs text-muted-foreground border-b mb-1">
+                  Выбрано: {bulkDeleteIds.length} из {tabFilteredQuestions.length}
+                  <button className="ml-2 text-primary hover:underline" onClick={() => setBulkDeleteIds([])}>Сбросить</button>
+                </div>
+              )}
+              {onBulkUpdateDate && (
+                <DropdownMenuItem
+                  disabled={bulkDeleteIds.length === 0}
+                  onClick={() => { setBulkDateValue(undefined); setShowBulkDateDialog(true); }}
+                >
+                  <CalendarIcon className="w-3.5 h-3.5 mr-2" />
+                  Плановая дата
+                </DropdownMenuItem>
+              )}
+              {onBulkUpdateStatus && (
+                <DropdownMenuItem
+                  disabled={bulkDeleteIds.length === 0}
+                  onClick={() => { setBulkActionValue(''); setShowBulkStatusDialog(true); }}
+                >
+                  <Check className="w-3.5 h-3.5 mr-2" />
+                  Статус
+                </DropdownMenuItem>
+              )}
+              {onDeleteQuestion && (
+                <DropdownMenuItem
+                  disabled={bulkDeleteIds.length === 0}
+                  className="text-destructive focus:text-destructive"
+                  onClick={() => setShowBulkDeleteDialog(true)}
+                >
+                  <Trash2 className="w-3.5 h-3.5 mr-2" />
+                  Удалить
+                </DropdownMenuItem>
+              )}
+            </DropdownMenuContent>
+          </DropdownMenu>
         </div>
         <span className="text-xs text-muted-foreground">
           {tabFilteredQuestions.length} из {questions.length}
         </span>
       </div>
-
-      {/* Bulk actions bar */}
-      {bulkDeleteIds.length > 0 && (
-        <div className="px-4 py-2 border-b">
-          <BulkActionsBar
-            selectedCount={bulkDeleteIds.length}
-            totalCount={tabFilteredQuestions.length}
-            onClearSelection={() => setBulkDeleteIds([])}
-          >
-            {onBulkUpdateDate && (
-              <BulkActionButton
-                icon={<CalendarIcon className="w-3 h-3 mr-1" />}
-                onClick={() => { setBulkDateValue(undefined); setShowBulkDateDialog(true); }}
-              >
-                Плановая дата
-              </BulkActionButton>
-            )}
-            {onBulkUpdateStatus && (
-              <BulkActionButton
-                icon={<Check className="w-3 h-3 mr-1" />}
-                onClick={() => { setBulkActionValue(''); setShowBulkStatusDialog(true); }}
-              >
-                Статус
-              </BulkActionButton>
-            )}
-            {onDeleteQuestion && (
-              <BulkActionButton
-                variant="destructive"
-                icon={<Trash2 className="w-3 h-3 mr-1" />}
-                onClick={() => setShowBulkDeleteDialog(true)}
-              >
-                Удалить
-              </BulkActionButton>
-            )}
-          </BulkActionsBar>
-        </div>
-      )}
 
       {/* Table header */}
       <div className="grid grid-cols-[40px_60px_120px_80px_1fr_140px_130px_100px] gap-0 px-4 py-2 border-b bg-muted/20 text-xs font-medium text-muted-foreground sticky top-0">
