@@ -74,6 +74,8 @@ interface VideoSidePanelProps {
   onUpdateVideo: (id: string, updates: Partial<Video>) => void;
   onPublish: (video: Video, channelIds: string[]) => void;
   isGenerating: boolean;
+  onPrev?: () => void;
+  onNext?: () => void;
 }
 
 const coverStatusOptions = [
@@ -112,7 +114,9 @@ export function VideoSidePanel({
   onGenerateVoiceover,
   onUpdateVideo,
   onPublish,
-  isGenerating
+  isGenerating,
+  onPrev,
+  onNext
 }: VideoSidePanelProps) {
   const [selectedChannels, setSelectedChannels] = useState<string[]>([]);
   const [advisorAnswer, setAdvisorAnswer] = useState('');
@@ -266,14 +270,14 @@ export function VideoSidePanel({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-4xl w-[90vw] max-h-[90vh] p-0 flex flex-col gap-0 overflow-hidden">
+      <DialogContent className="max-w-4xl w-[90vw] max-h-[90vh] p-0 flex flex-col gap-0 overflow-hidden [&>button:last-child]:hidden">
         {/* Header */}
         <div className="flex items-center justify-between px-4 py-3 border-b shrink-0">
           <div className="flex items-center gap-2">
-            <button className="p-1 hover:bg-muted rounded">
+            <button className="p-1 hover:bg-muted rounded disabled:opacity-30" onClick={onPrev} disabled={!onPrev}>
               <ChevronUp className="w-4 h-4" />
             </button>
-            <button className="p-1 hover:bg-muted rounded">
+            <button className="p-1 hover:bg-muted rounded disabled:opacity-30" onClick={onNext} disabled={!onNext}>
               <ChevronDown className="w-4 h-4" />
             </button>
           </div>
