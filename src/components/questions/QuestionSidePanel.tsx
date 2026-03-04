@@ -1,14 +1,14 @@
 import { useState, useEffect } from 'react';
-import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet';
+import { UnifiedPanel, PanelField } from '@/components/ui/unified-panel';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Calendar } from '@/components/ui/calendar';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Badge } from '@/components/ui/badge';
-import { CalendarIcon, Save, Video } from 'lucide-react';
+import { Separator } from '@/components/ui/separator';
+import { CalendarIcon, Loader2, Video } from 'lucide-react';
 import { format } from 'date-fns';
 import { ru } from 'date-fns/locale';
 import { cn } from '@/lib/utils';
@@ -32,17 +32,19 @@ interface QuestionSidePanelProps {
   question: QuestionData | null;
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  onSave: (uniqueKey: string, updates: { 
-    question?: string; 
+  onSave: (uniqueKey: string, updates: {
+    question?: string;
     question_rus?: string;
-    question_eng?: string; 
+    question_eng?: string;
     hook?: string;
     hook_rus?: string;
-    safety_score?: string; 
+    safety_score?: string;
     relevance_score?: number;
     question_status?: string;
     publication_date?: string;
   }) => void;
+  onPrev?: () => void;
+  onNext?: () => void;
 }
 
 const safetyOptions = [
@@ -52,7 +54,7 @@ const safetyOptions = [
   { value: 'unchecked', label: 'Не проверено', color: 'bg-gray-500' },
 ];
 
-export function QuestionSidePanel({ question, open, onOpenChange, onSave }: QuestionSidePanelProps) {
+export function QuestionSidePanel({ question, open, onOpenChange, onSave, onPrev, onNext }: QuestionSidePanelProps) {
   const [formData, setFormData] = useState({
     question: '',
     question_rus: '',
@@ -64,6 +66,7 @@ export function QuestionSidePanel({ question, open, onOpenChange, onSave }: Ques
     question_status: 'pending',
     publication_date: null as Date | null,
   });
+  const [saving, setSaving] = useState(false);
 
   useEffect(() => {
     if (question) {
@@ -83,7 +86,7 @@ export function QuestionSidePanel({ question, open, onOpenChange, onSave }: Ques
 
   const handleSave = () => {
     if (!question) return;
-    
+    setSaving(true);
     onSave(question.unique_key, {
       question: formData.question,
       question_rus: formData.question_rus || undefined,
@@ -95,175 +98,190 @@ export function QuestionSidePanel({ question, open, onOpenChange, onSave }: Ques
       question_status: formData.question_status,
       publication_date: formData.publication_date?.toISOString(),
     });
+    setSaving(false);
     onOpenChange(false);
   };
 
   const currentSafety = safetyOptions.find(o => o.value === formData.safety_score) || safetyOptions[3];
 
+  const panelTitle = (
+    <span className="flex items-center gap-2">
+      <span className="font-mono">#{question?.question_id}</span>
+      <Badge variant="outline" className="text-xs gap-1">
+        <span className={`w-2 h-2 rounded-full ${currentSafety.color}`} />
+        {currentSafety.label}
+      </Badge>
+    </span>
+  );
+
   return (
-    <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent className="w-[400px] sm:w-[540px] overflow-y-auto">
-        <SheetHeader>
-          <SheetTitle className="flex items-center gap-3">
-            <span className="text-2xl font-mono">#{question?.question_id}</span>
-            <Badge variant="outline" className="gap-1">
-              <span className={`w-2 h-2 rounded-full ${currentSafety.color}`} />
-              {currentSafety.label}
-            </Badge>
-          </SheetTitle>
-        </SheetHeader>
-
-        <div className="space-y-6 mt-6">
-          {/* Stats */}
-          <div className="flex items-center gap-4 p-3 bg-muted/50 rounded-lg">
-            <div className="flex items-center gap-2">
-              <Video className="w-4 h-4 text-muted-foreground" />
-              <span className="text-sm">
-                <strong>{question?.videos_count || 0}</strong> роликов
-              </span>
-            </div>
-          </div>
-
-          {/* Question Text Russian */}
-          <div className="space-y-2">
-            <Label>Вопрос (рус)</Label>
-            <Textarea
-              value={formData.question_rus}
-              onChange={(e) => setFormData(prev => ({ ...prev, question_rus: e.target.value }))}
-              placeholder="Введите текст вопроса на русском..."
-              rows={3}
-            />
-          </div>
-
-          {/* Question Text English */}
-          <div className="space-y-2">
-            <Label>Вопрос (eng)</Label>
-            <Textarea
-              value={formData.question_eng || formData.question}
-              onChange={(e) => setFormData(prev => ({ 
-                ...prev, 
-                question_eng: e.target.value,
-                question: e.target.value 
-              }))}
-              placeholder="Enter question text in English..."
-              rows={3}
-            />
-          </div>
-
-          {/* Hook Russian */}
-          <div className="space-y-2">
-            <Label>Хук (рус)</Label>
-            <Textarea
-              value={formData.hook_rus}
-              onChange={(e) => setFormData(prev => ({ ...prev, hook_rus: e.target.value }))}
-              placeholder="Введите хук на русском..."
-              rows={2}
-            />
-          </div>
-
-          {/* Hook English */}
-          <div className="space-y-2">
-            <Label>Хук (eng)</Label>
-            <Textarea
-              value={formData.hook}
-              onChange={(e) => setFormData(prev => ({ ...prev, hook: e.target.value }))}
-              placeholder="Enter hook in English..."
-              rows={2}
-            />
-          </div>
-
-          {/* Relevance Score */}
-          <div className="space-y-2">
-            <Label>Актуальность (0-100)</Label>
-            <Input
-              type="number"
-              min={0}
-              max={100}
-              value={formData.relevance_score}
-              onChange={(e) => setFormData(prev => ({ ...prev, relevance_score: parseInt(e.target.value) || 0 }))}
-            />
-          </div>
-
-          {/* Question Status */}
-          <div className="space-y-2">
-            <Label>Статус вопроса</Label>
-            <Select
-              value={formData.question_status}
-              onValueChange={(value) => setFormData(prev => ({ ...prev, question_status: value }))}
-            >
-              <SelectTrigger>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="pending">Ожидает проверки</SelectItem>
-                <SelectItem value="checked">Проверен</SelectItem>
-                <SelectItem value="approved">Одобрен</SelectItem>
-                <SelectItem value="rejected">Отклонён</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-
-          {/* Safety Score */}
-          <div className="space-y-2">
-            <Label>Безопасность</Label>
-            <Select
-              value={formData.safety_score}
-              onValueChange={(value) => setFormData(prev => ({ ...prev, safety_score: value }))}
-            >
-              <SelectTrigger>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {safetyOptions.map(opt => (
-                  <SelectItem key={opt.value} value={opt.value}>
-                    <div className="flex items-center gap-2">
-                      <span className={`w-2 h-2 rounded-full ${opt.color}`} />
-                      {opt.label}
-                    </div>
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-
-          {/* Publication Date */}
-          <div className="space-y-2">
-            <Label>Дата публикации</Label>
-            <Popover>
-              <PopoverTrigger asChild>
-                <Button
-                  variant="outline"
-                  className={cn(
-                    "w-full justify-start text-left font-normal",
-                    !formData.publication_date && "text-muted-foreground"
-                  )}
-                >
-                  <CalendarIcon className="mr-2 h-4 w-4" />
-                  {formData.publication_date 
-                    ? format(formData.publication_date, 'dd MMMM yyyy', { locale: ru })
-                    : 'Выберите дату'
-                  }
-                </Button>
-              </PopoverTrigger>
-              <PopoverContent className="w-auto p-0" align="start">
-                <Calendar
-                  mode="single"
-                  selected={formData.publication_date || undefined}
-                  onSelect={(date) => setFormData(prev => ({ ...prev, publication_date: date || null }))}
-                  initialFocus
-                  className={cn("p-3 pointer-events-auto")}
-                />
-              </PopoverContent>
-            </Popover>
-          </div>
-
-          {/* Save Button */}
-          <Button onClick={handleSave} className="w-full" size="lg">
-            <Save className="w-4 h-4 mr-2" />
-            Сохранить изменения
+    <UnifiedPanel
+      open={open}
+      onOpenChange={onOpenChange}
+      title={panelTitle}
+      width="sm"
+      onPrev={onPrev}
+      onNext={onNext}
+      footer={
+        <>
+          <Button variant="outline" size="sm" onClick={() => onOpenChange(false)}>
+            Отмена
           </Button>
+          <Button size="sm" onClick={handleSave} disabled={saving}>
+            {saving && <Loader2 className="w-3 h-3 mr-1 animate-spin" />}
+            Сохранить
+          </Button>
+        </>
+      }
+    >
+      {/* Stats */}
+      <div className="flex items-center gap-4 p-3 bg-muted/50 rounded-lg">
+        <div className="flex items-center gap-2">
+          <Video className="w-4 h-4 text-muted-foreground" />
+          <span className="text-sm">
+            <strong>{question?.videos_count || 0}</strong> роликов
+          </span>
         </div>
-      </SheetContent>
-    </Sheet>
+      </div>
+
+      {/* Question Text Russian */}
+      <div className="space-y-1.5">
+        <label className="text-sm font-medium">Вопрос (рус)</label>
+        <Textarea
+          value={formData.question_rus}
+          onChange={(e) => setFormData(prev => ({ ...prev, question_rus: e.target.value }))}
+          placeholder="Введите текст вопроса на русском..."
+          rows={3}
+          className="text-sm"
+        />
+      </div>
+
+      {/* Question Text English */}
+      <div className="space-y-1.5">
+        <label className="text-sm font-medium">Вопрос (eng)</label>
+        <Textarea
+          value={formData.question_eng || formData.question}
+          onChange={(e) => setFormData(prev => ({
+            ...prev,
+            question_eng: e.target.value,
+            question: e.target.value
+          }))}
+          placeholder="Enter question text in English..."
+          rows={3}
+          className="text-sm"
+        />
+      </div>
+
+      <Separator />
+
+      {/* Hook Russian */}
+      <div className="space-y-1.5">
+        <label className="text-sm font-medium">Хук (рус)</label>
+        <Textarea
+          value={formData.hook_rus}
+          onChange={(e) => setFormData(prev => ({ ...prev, hook_rus: e.target.value }))}
+          placeholder="Введите хук на русском..."
+          rows={2}
+          className="text-sm"
+        />
+      </div>
+
+      {/* Hook English */}
+      <div className="space-y-1.5">
+        <label className="text-sm font-medium">Хук (eng)</label>
+        <Textarea
+          value={formData.hook}
+          onChange={(e) => setFormData(prev => ({ ...prev, hook: e.target.value }))}
+          placeholder="Enter hook in English..."
+          rows={2}
+          className="text-sm"
+        />
+      </div>
+
+      <Separator />
+
+      {/* Relevance Score */}
+      <PanelField label="Актуальность">
+        <Input
+          type="number"
+          min={0}
+          max={100}
+          value={formData.relevance_score}
+          onChange={(e) => setFormData(prev => ({ ...prev, relevance_score: parseInt(e.target.value) || 0 }))}
+          className="h-8 text-sm"
+        />
+      </PanelField>
+
+      {/* Question Status */}
+      <PanelField label="Статус">
+        <Select
+          value={formData.question_status}
+          onValueChange={(value) => setFormData(prev => ({ ...prev, question_status: value }))}
+        >
+          <SelectTrigger className="h-8 text-sm">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="pending">Ожидает проверки</SelectItem>
+            <SelectItem value="checked">Проверен</SelectItem>
+            <SelectItem value="approved">Одобрен</SelectItem>
+            <SelectItem value="rejected">Отклонён</SelectItem>
+          </SelectContent>
+        </Select>
+      </PanelField>
+
+      {/* Safety Score */}
+      <PanelField label="Безопасность">
+        <Select
+          value={formData.safety_score}
+          onValueChange={(value) => setFormData(prev => ({ ...prev, safety_score: value }))}
+        >
+          <SelectTrigger className="h-8 text-sm">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {safetyOptions.map(opt => (
+              <SelectItem key={opt.value} value={opt.value}>
+                <div className="flex items-center gap-2">
+                  <span className={`w-2 h-2 rounded-full ${opt.color}`} />
+                  {opt.label}
+                </div>
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </PanelField>
+
+      {/* Publication Date */}
+      <PanelField label="Дата публикации">
+        <Popover>
+          <PopoverTrigger asChild>
+            <Button
+              variant="outline"
+              size="sm"
+              className={cn(
+                "justify-start text-left text-sm",
+                !formData.publication_date && "text-muted-foreground"
+              )}
+            >
+              <CalendarIcon className="w-3 h-3 mr-2" />
+              {formData.publication_date
+                ? format(formData.publication_date, 'dd MMMM yyyy', { locale: ru })
+                : 'Выберите дату'
+              }
+            </Button>
+          </PopoverTrigger>
+          <PopoverContent className="w-auto p-0" align="start">
+            <Calendar
+              mode="single"
+              selected={formData.publication_date || undefined}
+              onSelect={(date) => setFormData(prev => ({ ...prev, publication_date: date || null }))}
+              initialFocus
+              className="p-3 pointer-events-auto"
+            />
+          </PopoverContent>
+        </Popover>
+      </PanelField>
+    </UnifiedPanel>
   );
 }
