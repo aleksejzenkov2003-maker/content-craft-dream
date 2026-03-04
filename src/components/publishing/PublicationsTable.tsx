@@ -739,11 +739,23 @@ const minuteOptions = [0, 5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55];
                           if (!concatRequired) return <span className="text-muted-foreground text-xs">—</span>;
                           if (hasFinalVideo) {
                             return (
-                              <Button size="xs" variant="outline" className="bg-green-500 text-white hover:bg-green-600 border-green-500" asChild>
-                                <a href={pub.final_video_url!} target="_blank" rel="noopener noreferrer">
-                                  Склейка
-                                </a>
-                              </Button>
+                              <div className="flex items-center gap-1">
+                                <Button size="xs" variant="outline" className="bg-green-500 text-white hover:bg-green-600 border-green-500" asChild>
+                                  <a href={pub.final_video_url!} target="_blank" rel="noopener noreferrer">
+                                    Склейка
+                                  </a>
+                                </Button>
+                                <Button
+                                  size="xs"
+                                  variant="outline"
+                                  className="text-orange-600 border-orange-400 hover:bg-orange-50"
+                                  disabled={isBusyConcat}
+                                  onClick={() => handleConcat(pub)}
+                                  title="Переделать склейку"
+                                >
+                                  {isBusyConcat ? <Loader2 className="w-3 h-3 animate-spin" /> : <RefreshCw className="w-3 h-3" />}
+                                </Button>
+                              </div>
                             );
                           }
                           return (
