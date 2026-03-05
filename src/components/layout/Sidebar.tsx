@@ -47,6 +47,10 @@ const navItems: NavItem[] = [{
   id: 'channels',
   label: 'Каналы',
   icon: Globe
+}, {
+  id: 'proxies',
+  label: 'Прокси-сервера',
+  icon: Server
 }];
 interface SidebarProps {
   activeTab: string;
