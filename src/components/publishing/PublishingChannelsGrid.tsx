@@ -166,70 +166,38 @@ export function PublishingChannelsGrid() {
           </CardContent>
         </Card>
       ) : (
-        <div className="space-y-6">
-          {Object.entries(grouped).map(([networkType, groupChannels]) => (
-            <div key={networkType} className="space-y-3">
-              <h3 className="text-lg font-semibold text-muted-foreground">
-                {networkLabels[networkType] || networkType}
-              </h3>
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                {groupChannels.map((channel) => (
-                  <Card
-                    key={channel.id}
-                    className="cursor-pointer hover:border-primary/50 transition-colors overflow-hidden"
-                    onClick={() => handleOpenDialog(channel)}
-                  >
-                    <CardContent className="p-4">
-                      <div className="flex gap-3">
-                        {/* Left: info */}
-                        <div className="flex-1 space-y-2 min-w-0">
-                          <h4 className="font-semibold text-base truncate">{channel.name}</h4>
-                          <div className="flex flex-col gap-1.5">
-                            {channel.post_text_prompt && (
-                              <Badge variant="destructive" className="text-xs w-fit">
-                                Промт: {getPromptLabel(channel.post_text_prompt) || 'Задан'}
-                              </Badge>
-                            )}
-                            {channel.proxy_server && (
-                              <Badge variant="secondary" className="text-xs w-fit">
-                                Прокси: {channel.location || channel.proxy_server}
-                              </Badge>
-                            )}
-                          </div>
-                          <div className="flex items-center gap-2 pt-1">
-                            <Badge variant={channel.is_active ? 'default' : 'secondary'} className="text-xs">
-                              {channel.is_active ? 'Активен' : 'Неактивен'}
-                            </Badge>
-                            <Switch
-                              checked={channel.is_active}
-                              onCheckedChange={(e) => {
-                                e; // prevent card click
-                                handleToggleActive(channel);
-                              }}
-                              onClick={(e) => e.stopPropagation()}
-                            />
-                          </div>
-                        </div>
-                        {/* Right: back cover thumbnail */}
-                        <div className="w-20 aspect-[9/16] rounded-lg overflow-hidden bg-muted flex-shrink-0 border border-border">
-                          {channel.back_cover_url ? (
-                            <img
-                              src={channel.back_cover_url}
-                              alt="Задняя обложка"
-                              className="w-full h-full object-cover"
-                            />
-                          ) : (
-                            <div className="w-full h-full flex items-center justify-center">
-                              <Image className="w-5 h-5 text-muted-foreground" />
-                            </div>
-                          )}
-                        </div>
-                      </div>
-                    </CardContent>
-                  </Card>
-                ))}
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+          {channels.map((channel) => (
+            <Card
+              key={channel.id}
+              className="cursor-pointer hover:border-primary/50 transition-colors overflow-hidden"
+              onClick={() => handleOpenDialog(channel)}
+            >
+              {/* Back cover image */}
+              <div className="aspect-[9/16] bg-muted relative">
+                {channel.back_cover_url ? (
+                  <img
+                    src={channel.back_cover_url}
+                    alt="Задняя обложка"
+                    className="w-full h-full object-cover"
+                  />
+                ) : (
+                  <div className="w-full h-full flex items-center justify-center">
+                    <Image className="w-10 h-10 text-muted-foreground" />
+                  </div>
+                )}
               </div>
-            </div>
+              {/* Name + type below */}
+              <CardContent className="p-3 space-y-1.5">
+                <div className="flex items-center gap-2">
+                  <Globe className="w-4 h-4 text-muted-foreground flex-shrink-0" />
+                  <span className="font-medium text-sm truncate">{channel.name}</span>
+                </div>
+                <Badge variant="outline" className="text-xs">
+                  {networkLabels[channel.network_type] || channel.network_type}
+                </Badge>
+              </CardContent>
+            </Card>
           ))}
         </div>
       )}
