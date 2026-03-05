@@ -111,9 +111,9 @@ export function PromptsPage() {
       temperature: prompt.temperature, max_tokens: prompt.max_tokens,
       system_prompt: prompt.system_prompt, user_template: prompt.user_template,
     });
-    // Find linked channel
-    const linked = channels.find(c => c.prompt_id === prompt.id);
-    setLinkedChannelId(linked?.id || '');
+    // Find all linked channels
+    const linked = channels.filter(c => c.prompt_id === prompt.id).map(c => c.id);
+    setLinkedChannelIds(linked);
     setTestResult('');
     setTestContent('');
     setIsDialogOpen(true);
