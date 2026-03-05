@@ -268,11 +268,15 @@ export function PromptsPage() {
                     )}
                   </div>
 
-                  {/* Linked channel */}
-                  {linkedChannel && (
-                    <Badge variant="secondary" className="text-[10px]">
-                      🔗 {linkedChannel.name}
-                    </Badge>
+                  {/* Linked channels */}
+                  {linkedChs.length > 0 && (
+                    <div className="flex flex-wrap gap-1">
+                      {linkedChs.map(ch => (
+                        <Badge key={ch.id} variant="secondary" className="text-[10px]">
+                          🔗 {ch.name}
+                        </Badge>
+                      ))}
+                    </div>
                   )}
 
                   {/* System prompt preview */}
