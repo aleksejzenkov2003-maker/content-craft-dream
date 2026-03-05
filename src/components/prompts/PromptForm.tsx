@@ -41,9 +41,6 @@ const IMAGE_MODELS = [
 const IMAGE_TYPES = ['atmosphere', 'scene'];
 
 const TYPES = [
-  { value: 'rewrite', label: 'Рерайт' },
-  { value: 'summary', label: 'Резюме' },
-  { value: 'translate', label: 'Перевод' },
   { value: 'atmosphere', label: 'Атмосфера обложки' },
   { value: 'scene', label: 'Сцена' },
   { value: 'post_text', label: 'Текст публикации' },
