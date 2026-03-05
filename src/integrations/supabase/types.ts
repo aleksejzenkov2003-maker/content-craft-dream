@@ -496,6 +496,45 @@ export type Database = {
         }
         Relationships: []
       }
+      proxy_servers: {
+        Row: {
+          created_at: string
+          id: string
+          is_active: boolean
+          login: string | null
+          name: string
+          password: string | null
+          port: number
+          protocol: string
+          server: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          login?: string | null
+          name: string
+          password?: string | null
+          port?: number
+          protocol?: string
+          server: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          login?: string | null
+          name?: string
+          password?: string | null
+          port?: number
+          protocol?: string
+          server?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       publications: {
         Row: {
           channel_id: string | null
@@ -580,6 +619,7 @@ export type Database = {
           name: string
           network_type: string
           post_text_prompt: string | null
+          proxy_id: string | null
           proxy_server: string | null
           updated_at: string
         }
@@ -594,6 +634,7 @@ export type Database = {
           name: string
           network_type: string
           post_text_prompt?: string | null
+          proxy_id?: string | null
           proxy_server?: string | null
           updated_at?: string
         }
@@ -608,10 +649,19 @@ export type Database = {
           name?: string
           network_type?: string
           post_text_prompt?: string | null
+          proxy_id?: string | null
           proxy_server?: string | null
           updated_at?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "publishing_channels_proxy_id_fkey"
+            columns: ["proxy_id"]
+            isOneToOne: false
+            referencedRelation: "proxy_servers"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       relevance_keywords: {
         Row: {
