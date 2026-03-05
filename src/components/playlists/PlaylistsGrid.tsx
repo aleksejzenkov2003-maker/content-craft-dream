@@ -149,54 +149,37 @@ export function PlaylistsGrid({
         </div>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-        {playlists.map((playlist) => (
-          <Card
+      <div className="border rounded-lg overflow-hidden">
+        {playlists.map((playlist, index) => (
+          <div
             key={playlist.id}
-            className="hover:border-primary/50 transition-colors cursor-pointer"
-            onClick={() => onSelectPlaylist?.(playlist)}
+            className={`flex items-center justify-between px-4 py-3 hover:bg-muted/50 transition-colors ${index !== playlists.length - 1 ? 'border-b' : ''}`}
           >
-            <CardHeader className="pb-2">
-              <div className="flex items-start justify-between">
-                <CardTitle className="text-base">{playlist.name}</CardTitle>
-                <div className="flex gap-1">
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="h-7 w-7"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      setEditingPlaylist(playlist);
-                    }}
-                  >
-                    <Edit className="w-4 h-4" />
-                  </Button>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="h-7 w-7 text-destructive hover:text-destructive"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      setDeletingPlaylistId(playlist.id);
-                    }}
-                  >
-                    <Trash2 className="w-4 h-4" />
-                  </Button>
-                </div>
+            <span className="text-sm font-medium">{playlist.name}</span>
+            <div className="flex items-center gap-4">
+              <span className="text-sm text-muted-foreground min-w-[80px] text-right">
+                {playlist.video_count ? `${playlist.video_count} видео` : '-'}
+              </span>
+              <div className="flex gap-1">
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-7 w-7"
+                  onClick={() => setEditingPlaylist(playlist)}
+                >
+                  <Edit className="w-4 h-4 text-muted-foreground" />
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-7 w-7 text-destructive hover:text-destructive"
+                  onClick={() => setDeletingPlaylistId(playlist.id)}
+                >
+                  <Trash2 className="w-4 h-4" />
+                </Button>
               </div>
-            </CardHeader>
-            <CardContent>
-              {playlist.description && (
-                <p className="text-sm text-muted-foreground mb-3 line-clamp-2">
-                  {playlist.description}
-                </p>
-              )}
-              <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                <ListVideo className="w-4 h-4" />
-                <span>{playlist.video_count} видео</span>
-              </div>
-            </CardContent>
-          </Card>
+            </div>
+          </div>
         ))}
       </div>
 
