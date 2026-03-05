@@ -42,6 +42,7 @@ const headerTitles: Record<string, { title: string; subtitle: string }> = {
   advisors: { title: 'Духовники', subtitle: 'Управление аватарами и настройками' },
   playlists: { title: 'Плейлисты', subtitle: 'Группировка видео по категориям' },
   channels: { title: 'Каналы', subtitle: 'Настройка каналов публикации' },
+  proxies: { title: 'Прокси-сервера', subtitle: 'Управление прокси для публикации' },
   settings: { title: 'Настройки', subtitle: 'Конфигурация системы' },
 };
 
