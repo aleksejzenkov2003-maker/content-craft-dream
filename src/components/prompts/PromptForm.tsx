@@ -48,19 +48,6 @@ const TYPES = [
 ];
 
 const VARIABLES_BY_TYPE: Record<string, { name: string; desc: string }[]> = {
-  rewrite: [
-    { name: '{{content}}', desc: 'Текст контента' },
-    { name: '{{title}}', desc: 'Заголовок' },
-    { name: '{{source}}', desc: 'Источник (youtube, telegram...)' },
-    { name: '{{channel}}', desc: 'Название канала' },
-  ],
-  summary: [
-    { name: '{{content}}', desc: 'Текст контента' },
-    { name: '{{title}}', desc: 'Заголовок' },
-  ],
-  translate: [
-    { name: '{{content}}', desc: 'Текст контента' },
-  ],
   atmosphere: [
     { name: '{{question}}', desc: 'Вопрос' },
     { name: '{{hook}}', desc: 'Хук' },
