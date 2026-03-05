@@ -43,7 +43,7 @@ const TYPES = [
 ];
 
 const typeLabels: Record<string, string> = {
-  atmosphere: 'Атмосфера', scene: 'Сцена', post_text: 'Текст публикации', custom: 'Кастомный',
+  atmosphere: 'Фон обложки', scene: 'Сцена монологов', post_text: 'Текст публикации',
 };
 
 const modelLabels: Record<string, string> = {
