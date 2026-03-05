@@ -5,11 +5,6 @@ import { Button } from '@/components/ui/button';
 import { Loader2, CheckCircle, XCircle, Play, Volume2 } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
-import { usePrompts, DbPrompt } from '@/hooks/usePrompts';
-import { PromptLibrary } from '@/components/prompts/PromptLibrary';
-import { PromptEditor } from '@/components/prompts/PromptEditor';
-import { PromptForm } from '@/components/prompts/PromptForm';
-import { useAdvisors } from '@/hooks/useAdvisors';
 
 interface Voice {
   voice_id: string;
@@ -30,12 +25,6 @@ export function SettingsPage() {
     kie: 'unknown',
   });
   const [playingVoice, setPlayingVoice] = useState<string | null>(null);
-
-  // Prompts
-  const { prompts, loading: promptsLoading, updatePrompt, testPrompt, addPrompt, deletePrompt } = usePrompts();
-  const { advisors, loading: advisorsLoading } = useAdvisors();
-  const [editingPrompt, setEditingPrompt] = useState<DbPrompt | null>(null);
-  const [showPromptForm, setShowPromptForm] = useState(false);
 
   const fetchVoices = async () => {
     setLoadingVoices(true);
@@ -144,47 +133,6 @@ export function SettingsPage() {
     }
   };
 
-  // Prompt handlers
-  const handleEditPrompt = (prompt: DbPrompt) => {
-    setEditingPrompt(prompt);
-    setShowPromptForm(true);
-  };
-
-  const handleDuplicatePrompt = async (prompt: DbPrompt) => {
-    await addPrompt({
-      name: `${prompt.name} (копия)`,
-      type: prompt.type,
-      system_prompt: prompt.system_prompt,
-      user_template: prompt.user_template,
-      model: prompt.model,
-      temperature: prompt.temperature,
-      max_tokens: prompt.max_tokens,
-    });
-  };
-
-  const handleSetActive = async (id: string) => {
-    const prompt = prompts.find(p => p.id === id);
-    if (!prompt) return;
-    for (const p of prompts.filter(p => p.type === prompt.type && p.is_active)) {
-      await updatePrompt(p.id, { is_active: false });
-    }
-    await updatePrompt(id, { is_active: true });
-  };
-
-  const handleCreateNew = () => {
-    setEditingPrompt(null);
-    setShowPromptForm(true);
-  };
-
-  const handleSavePromptForm = async (data: Omit<DbPrompt, 'id' | 'created_at' | 'is_active'>) => {
-    if (editingPrompt) {
-      await updatePrompt(editingPrompt.id, data);
-    } else {
-      await addPrompt(data);
-    }
-    setShowPromptForm(false);
-    setEditingPrompt(null);
-  };
 
   return (
     <div className="space-y-6">
@@ -220,43 +168,6 @@ export function SettingsPage() {
               </Button>
             </div>
           ))}
-        </CardContent>
-      </Card>
-
-      {/* Prompts Section */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-lg">Промпты генерации</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-6">
-          {promptsLoading ? (
-            <div className="flex items-center justify-center py-8">
-              <Loader2 className="w-6 h-6 animate-spin text-primary" />
-            </div>
-          ) : (
-            <>
-              <PromptLibrary
-                prompts={prompts}
-                onEdit={handleEditPrompt}
-                onDuplicate={handleDuplicatePrompt}
-                onDelete={deletePrompt}
-                onSetActive={handleSetActive}
-                onCreateNew={handleCreateNew}
-              />
-
-              {showPromptForm && (
-                <PromptForm
-                  prompt={editingPrompt}
-                  onSave={handleSavePromptForm}
-                  onCancel={() => { setShowPromptForm(false); setEditingPrompt(null); }}
-                  onTest={testPrompt}
-                  advisors={advisors}
-                />
-              )}
-
-
-            </>
-          )}
         </CardContent>
       </Card>
 

@@ -12,6 +12,7 @@ import { VideoDetailModal } from '@/components/videos/VideoDetailModal';
 import { VideoSidePanel } from '@/components/videos/VideoSidePanel';
 import { PublishingChannelsGrid } from '@/components/publishing/PublishingChannelsGrid';
 import { ProxyServersGrid } from '@/components/proxies/ProxyServersGrid';
+import { PromptsPage } from '@/components/prompts/PromptsPage';
 import { PublicationsTable } from '@/components/publishing/PublicationsTable';
 import { PublishingKanban } from '@/components/publishing/PublishingKanban';
 import { ScenesMatrix } from '@/components/scenes/ScenesMatrix';
@@ -43,6 +44,7 @@ const headerTitles: Record<string, { title: string; subtitle: string }> = {
   playlists: { title: 'Плейлисты', subtitle: 'Группировка видео по категориям' },
   channels: { title: 'Каналы', subtitle: 'Настройка каналов публикации' },
   proxies: { title: 'Прокси-сервера', subtitle: 'Управление прокси для публикации' },
+  prompts: { title: 'Промты', subtitle: 'Управление промтами генерации' },
   settings: { title: 'Настройки', subtitle: 'Конфигурация системы' },
 };
 
@@ -911,6 +913,7 @@ export default function Index() {
           {activeTab === 'back-covers' && <BackCoversGrid />}
           {activeTab === 'channels' && <PublishingChannelsGrid />}
           {activeTab === 'proxies' && <ProxyServersGrid />}
+          {activeTab === 'prompts' && <PromptsPage />}
 
           {activeTab === 'settings' && <SettingsPage />}
         </div>

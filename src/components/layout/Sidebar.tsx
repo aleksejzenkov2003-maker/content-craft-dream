@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { cn } from '@/lib/utils';
-import { LayoutDashboard, Video, Settings, ChevronLeft, ChevronRight, Users, ListVideo, Send, Globe, Image, HelpCircle, ImageIcon, Server } from 'lucide-react';
+import { LayoutDashboard, Video, Settings, ChevronLeft, ChevronRight, Users, ListVideo, Send, Globe, Image, HelpCircle, ImageIcon, Server, FileText } from 'lucide-react';
 interface NavItem {
   id: string;
   label: string;
@@ -51,6 +51,10 @@ const navItems: NavItem[] = [{
   id: 'proxies',
   label: 'Прокси-сервера',
   icon: Server
+}, {
+  id: 'prompts',
+  label: 'Промты',
+  icon: FileText
 }];
 interface SidebarProps {
   activeTab: string;

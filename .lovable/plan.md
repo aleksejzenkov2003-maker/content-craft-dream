@@ -1,44 +1,30 @@
 
 
-## Plan: Dedicated Prompts Page
+## Проблема: наивная бинарная склейка MP4 не работает
 
-### Overview
-Move prompt management from Settings to its own sidebar tab "Промты" with a card grid (matching mockup) and an edit dialog with channel linking.
+### Диагноз
 
-### Database Changes
+Логи подтверждают: Edge Function скачивает оба файла (12.6MB + 0.3MB), объединяет их в 12.9MB и загружает. Но **простое `concat` двух MP4 файлов не даёт рабочее видео** — плеер видит только `moov` атом первого файла и проигрывает только основное видео. Задняя обложка игнорируется.
 
-**Alter `publishing_channels`:**
-- Add `prompt_id` (uuid, nullable, FK to `prompts`) — replaces text-based `post_text_prompt` as primary prompt reference
+MP4 — контейнерный формат с метаданными (`moov` atom), описывающими структуру медиаданных (`mdat`). Простое склеивание байтов не обновляет эти метаданные.
 
-### Sidebar & Routing
+### Решение: правильная MP4-конкатенация на уровне атомов
 
-- Add "Промты" nav item (icon: `FileText`) to `Sidebar.tsx` after "Прокси-сервера"
-- Add `prompts` to `headerTitles` in `Index.tsx`
-- Render new `<PromptsPage />` when `activeTab === 'prompts'`
+Переписать Edge Function `concat-video` с реализацией MP4 box-level конкатенации:
 
-### New: `src/components/prompts/PromptsPage.tsx`
+1. **Парсинг обоих MP4** — извлечь top-level боксы (`ftyp`, `moov`, `mdat`) из каждого файла
+2. **Извлечь трек-метаданные** — из `moov → trak → mdia → minf → stbl` получить таблицы семплов: `stsz` (размеры), `stts` (тайминги), `stco`/`co64` (смещения чанков), `stsc` (семплы-в-чанках), `stss` (ключевые кадры)
+3. **Объединить mdat** — конкатенация медиаданных из обоих файлов
+4. **Пересчитать moov** — объединить таблицы семплов, пересчитать chunk offsets для второго файла, обновить длительности в `mvhd`, `tkhd`, `mdhd`
+5. **Записать результат** — `ftyp` + обновлённый `moov` + объединённый `mdat`
 
-**Card Grid** (matching mockup style):
-- 2-column responsive grid of cards with dashed border
-- Each card shows: prompt name, model badge (red, e.g. "Claude Sonnet 4.5"), type badge (green, e.g. "Текст" / "Изображение"), delete icon (top-right), edit icon (bottom-right)
-- "+ Новый Промт" button top-right
+### Файлы для изменения
 
-**Edit Dialog** (two-column layout per mockup):
-- Left column: Name, Model (select), Type (select), Temperature (input), Max Tokens (input), System Prompt (textarea), User Prompt (textarea with variable chips)
-- Right column: Link dropdown (select from `publishing_channels` grouped by network type, e.g. "Каналы публикаций - Youtube"), Result area (for testing)
-- Footer: Отмена / Сохранить buttons
-- When saving with a Link selected, set `prompt_id` on that channel
+- `supabase/functions/concat-video/index.ts` — полная переработка с правильной MP4-конкатенацией через парсинг/реконструкцию атомов
 
-### Modified Files
+### Технические детали
 
-1. **`src/components/layout/Sidebar.tsx`** — Add "Промты" nav item
-2. **`src/pages/Index.tsx`** — Add prompts tab, import & render `PromptsPage`, pass `usePrompts` + `useAdvisors` data
-3. **`src/hooks/usePublishingChannels.ts`** — Add `prompt_id` to interface
-4. **`src/components/publishing/PublishingChannelsGrid.tsx`** — Use `prompt_id` instead of text matching for prompt display
-5. **`src/components/settings/SettingsPage.tsx`** — Remove prompts section (keep only API checks and voices)
+Реализация ~300 строк: парсер рекурсивно обходит MP4-боксы, находит нужные таблицы семплов в `stbl`, объединяет их с корректным пересчётом смещений, и собирает новый файл. Поддерживается один видео-трек и один аудио-трек (стандартная структура HeyGen MP4).
 
-### Channel Integration
-- When editing a prompt, user can select which channel(s) it links to via the "Link" dropdown
-- Saving updates `publishing_channels.prompt_id` for the selected channel
-- In channels grid, show linked prompt name from `prompt_id` reference instead of text matching
+Ограничения подхода: работает только если оба файла используют одинаковые кодеки и разрешение (что верно для HeyGen + back cover из одного пайплайна). Для разных кодеков нужен транскодинг, которого в Edge Functions нет.
 
