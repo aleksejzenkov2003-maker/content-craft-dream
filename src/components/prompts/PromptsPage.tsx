@@ -37,9 +37,6 @@ const IMAGE_MODELS = [
 const IMAGE_TYPES = ['atmosphere', 'scene'];
 
 const TYPES = [
-  { value: 'rewrite', label: 'Рерайт' },
-  { value: 'summary', label: 'Резюме' },
-  { value: 'translate', label: 'Перевод' },
   { value: 'atmosphere', label: 'Атмосфера обложки' },
   { value: 'scene', label: 'Сцена' },
   { value: 'post_text', label: 'Текст публикации' },
@@ -47,7 +44,6 @@ const TYPES = [
 ];
 
 const typeLabels: Record<string, string> = {
-  rewrite: 'Рерайт', summary: 'Резюме', translate: 'Перевод',
   atmosphere: 'Атмосфера', scene: 'Сцена', post_text: 'Текст публикации', custom: 'Кастомный',
 };
 
@@ -62,14 +58,6 @@ const modelLabels: Record<string, string> = {
 };
 
 const VARIABLES_BY_TYPE: Record<string, { name: string; desc: string }[]> = {
-  rewrite: [
-    { name: '{{content}}', desc: 'Текст контента' },
-    { name: '{{title}}', desc: 'Заголовок' },
-    { name: '{{source}}', desc: 'Источник' },
-    { name: '{{channel}}', desc: 'Канал' },
-  ],
-  summary: [{ name: '{{content}}', desc: 'Текст контента' }, { name: '{{title}}', desc: 'Заголовок' }],
-  translate: [{ name: '{{content}}', desc: 'Текст контента' }],
   atmosphere: [
     { name: '{{question}}', desc: 'Вопрос' }, { name: '{{hook}}', desc: 'Хук' },
     { name: '{{answer}}', desc: 'Ответ' }, { name: '{{advisor}}', desc: 'Духовник' },
@@ -94,7 +82,7 @@ export function PromptsPage() {
 
   // Form state
   const [form, setForm] = useState({
-    name: '', type: 'rewrite', model: 'claude-sonnet-4-5',
+    name: '', type: 'atmosphere', model: 'google/gemini-2.5-flash-image',
     temperature: 0.7, max_tokens: 4000, system_prompt: '', user_template: '',
   });
   const [linkedChannelId, setLinkedChannelId] = useState<string>('');
