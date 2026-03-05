@@ -26,6 +26,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { CsvImporter } from '@/components/import/CsvImporter';
 import { CHANNEL_COLUMN_MAPPING, CHANNEL_PREVIEW_COLUMNS, CHANNEL_FIELD_DEFINITIONS } from '@/components/import/importConfigs';
 import { usePrompts } from '@/hooks/usePrompts';
+import { useProxyServers } from '@/hooks/useProxyServers';
 
 const networkLabels: Record<string, string> = {
   instagram: 'Instagram',
@@ -38,6 +39,7 @@ const networkLabels: Record<string, string> = {
 export function PublishingChannelsGrid() {
   const { channels, loading, addChannel, updateChannel, deleteChannel, bulkImport } = usePublishingChannels();
   const { prompts } = usePrompts();
+  const { proxies } = useProxyServers();
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [showImporter, setShowImporter] = useState(false);
   const [editingChannel, setEditingChannel] = useState<PublishingChannel | null>(null);
@@ -52,6 +54,7 @@ export function PublishingChannelsGrid() {
     post_text_prompt: '',
     is_active: true,
     back_cover_url: '',
+    proxy_id: '',
   });
 
   const resetForm = () => {
@@ -63,6 +66,7 @@ export function PublishingChannelsGrid() {
       post_text_prompt: '',
       is_active: true,
       back_cover_url: '',
+      proxy_id: '',
     });
     setEditingChannel(null);
   };
@@ -78,6 +82,7 @@ export function PublishingChannelsGrid() {
         post_text_prompt: channel.post_text_prompt || '',
         is_active: channel.is_active,
         back_cover_url: channel.back_cover_url || '',
+        proxy_id: channel.proxy_id || '',
       });
     } else {
       resetForm();
@@ -88,12 +93,14 @@ export function PublishingChannelsGrid() {
   const handleSubmit = async () => {
     if (!formData.name) return;
     try {
+      const selectedProxy = proxies.find(p => p.id === formData.proxy_id);
       const payload = {
         ...formData,
         back_cover_url: formData.back_cover_url || null,
-        proxy_server: formData.proxy_server || null,
-        location: formData.location || null,
+        proxy_server: selectedProxy ? `${selectedProxy.server}:${selectedProxy.port}` : null,
+        location: selectedProxy?.name || null,
         post_text_prompt: formData.post_text_prompt || null,
+        proxy_id: formData.proxy_id || null,
       };
       if (editingChannel) {
         await updateChannel(editingChannel.id, payload);
@@ -269,19 +276,22 @@ export function PublishingChannelsGrid() {
               </div>
               <div className="space-y-2">
                 <Label>Прокси-сервер</Label>
-                <Input
-                  value={formData.proxy_server}
-                  onChange={(e) => setFormData({ ...formData, proxy_server: e.target.value })}
-                  placeholder="proxy.example.com:8080"
-                />
-              </div>
-              <div className="space-y-2">
-                <Label>Локация</Label>
-                <Input
-                  value={formData.location}
-                  onChange={(e) => setFormData({ ...formData, location: e.target.value })}
-                  placeholder="Вашингтон (США)"
-                />
+                <Select
+                  value={formData.proxy_id || '__none__'}
+                  onValueChange={(value) => setFormData({ ...formData, proxy_id: value === '__none__' ? '' : value })}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Без прокси" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="__none__">Без прокси</SelectItem>
+                    {proxies.filter(p => p.is_active).map(p => (
+                      <SelectItem key={p.id} value={p.id}>
+                        {p.name} ({p.server}:{p.port})
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
               <div className="space-y-2">
                 <Label>Промт для генерации текста</Label>

@@ -11,6 +11,7 @@ import { VIDEO_COLUMN_MAPPING, VIDEO_FIELD_DEFINITIONS, VIDEO_PREVIEW_COLUMNS } 
 import { VideoDetailModal } from '@/components/videos/VideoDetailModal';
 import { VideoSidePanel } from '@/components/videos/VideoSidePanel';
 import { PublishingChannelsGrid } from '@/components/publishing/PublishingChannelsGrid';
+import { ProxyServersGrid } from '@/components/proxies/ProxyServersGrid';
 import { PublicationsTable } from '@/components/publishing/PublicationsTable';
 import { PublishingKanban } from '@/components/publishing/PublishingKanban';
 import { ScenesMatrix } from '@/components/scenes/ScenesMatrix';
@@ -41,6 +42,7 @@ const headerTitles: Record<string, { title: string; subtitle: string }> = {
   advisors: { title: 'Духовники', subtitle: 'Управление аватарами и настройками' },
   playlists: { title: 'Плейлисты', subtitle: 'Группировка видео по категориям' },
   channels: { title: 'Каналы', subtitle: 'Настройка каналов публикации' },
+  proxies: { title: 'Прокси-сервера', subtitle: 'Управление прокси для публикации' },
   settings: { title: 'Настройки', subtitle: 'Конфигурация системы' },
 };
 
@@ -908,6 +910,7 @@ export default function Index() {
 
           {activeTab === 'back-covers' && <BackCoversGrid />}
           {activeTab === 'channels' && <PublishingChannelsGrid />}
+          {activeTab === 'proxies' && <ProxyServersGrid />}
 
           {activeTab === 'settings' && <SettingsPage />}
         </div>
