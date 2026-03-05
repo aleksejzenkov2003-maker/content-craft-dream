@@ -82,7 +82,7 @@ export function PromptsPage() {
 
   // Form state
   const [form, setForm] = useState({
-    name: '', type: 'rewrite', model: 'claude-sonnet-4-5',
+    name: '', type: 'atmosphere', model: 'google/gemini-2.5-flash-image',
     temperature: 0.7, max_tokens: 4000, system_prompt: '', user_template: '',
   });
   const [linkedChannelId, setLinkedChannelId] = useState<string>('');
