@@ -39,6 +39,7 @@ const networkLabels: Record<string, string> = {
 export function PublishingChannelsGrid() {
   const { channels, loading, addChannel, updateChannel, deleteChannel, bulkImport } = usePublishingChannels();
   const { prompts } = usePrompts();
+  const { proxies } = useProxyServers();
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [showImporter, setShowImporter] = useState(false);
   const [editingChannel, setEditingChannel] = useState<PublishingChannel | null>(null);
