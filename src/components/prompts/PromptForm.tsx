@@ -64,10 +64,6 @@ const VARIABLES_BY_TYPE: Record<string, { name: string; desc: string }[]> = {
     { name: '{{answer}}', desc: 'Ответ духовника' },
     { name: '{{advisor}}', desc: 'Духовник' },
   ],
-  custom: [
-    { name: '{{content}}', desc: 'Текст контента' },
-    { name: '{{title}}', desc: 'Заголовок' },
-  ],
 };
 
 export function PromptForm({ prompt, onSave, onCancel, onTest, advisors = [] }: PromptFormProps) {

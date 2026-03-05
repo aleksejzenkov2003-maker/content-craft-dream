@@ -67,7 +67,6 @@ const VARIABLES_BY_TYPE: Record<string, { name: string; desc: string }[]> = {
     { name: '{{question}}', desc: 'Вопрос' }, { name: '{{hook}}', desc: 'Хук' },
     { name: '{{answer}}', desc: 'Ответ' }, { name: '{{advisor}}', desc: 'Духовник' },
   ],
-  custom: [{ name: '{{content}}', desc: 'Текст контента' }, { name: '{{title}}', desc: 'Заголовок' }],
 };
 
 export function PromptsPage() {
