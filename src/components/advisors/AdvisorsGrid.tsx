@@ -288,7 +288,7 @@ export function AdvisorsGrid({
                 {/* Miniature / card preview */}
                 <div className="space-y-2">
                   <div className="text-sm font-medium text-center">Миниатюра</div>
-                  <div className="relative w-36 aspect-[9/16] bg-muted rounded-xl overflow-hidden border-2 border-border">
+                  <div className="relative w-48 aspect-[9/16] bg-muted rounded-xl overflow-hidden border-2 border-border">
                     {getPrimaryPhoto(selectedAdvisor) ? (
                       <>
                         <img
