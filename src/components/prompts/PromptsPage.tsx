@@ -233,7 +233,7 @@ export function PromptsPage() {
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
           {prompts.map((prompt) => {
-            const linkedChannel = channels.find(c => c.prompt_id === prompt.id);
+            const linkedChs = channels.filter(c => c.prompt_id === prompt.id);
             return (
               <Card
                 key={prompt.id}
