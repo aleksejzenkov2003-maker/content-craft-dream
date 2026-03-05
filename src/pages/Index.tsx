@@ -910,6 +910,7 @@ export default function Index() {
 
           {activeTab === 'back-covers' && <BackCoversGrid />}
           {activeTab === 'channels' && <PublishingChannelsGrid />}
+          {activeTab === 'proxies' && <ProxyServersGrid />}
 
           {activeTab === 'settings' && <SettingsPage />}
         </div>

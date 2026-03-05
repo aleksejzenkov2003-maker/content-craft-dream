@@ -276,19 +276,22 @@ export function PublishingChannelsGrid() {
               </div>
               <div className="space-y-2">
                 <Label>Прокси-сервер</Label>
-                <Input
-                  value={formData.proxy_server}
-                  onChange={(e) => setFormData({ ...formData, proxy_server: e.target.value })}
-                  placeholder="proxy.example.com:8080"
-                />
-              </div>
-              <div className="space-y-2">
-                <Label>Локация</Label>
-                <Input
-                  value={formData.location}
-                  onChange={(e) => setFormData({ ...formData, location: e.target.value })}
-                  placeholder="Вашингтон (США)"
-                />
+                <Select
+                  value={formData.proxy_id || '__none__'}
+                  onValueChange={(value) => setFormData({ ...formData, proxy_id: value === '__none__' ? '' : value })}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Без прокси" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="__none__">Без прокси</SelectItem>
+                    {proxies.filter(p => p.is_active).map(p => (
+                      <SelectItem key={p.id} value={p.id}>
+                        {p.name} ({p.server}:{p.port})
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
               <div className="space-y-2">
                 <Label>Промт для генерации текста</Label>
