@@ -27,7 +27,7 @@ const navItems: NavItem[] = [{
   badgeKey: 'publications'
 }, {
   id: 'scenes',
-  label: 'Сцены',
+  label: 'Сцены монологов',
   icon: Image
 }, {
   id: 'back-covers',
