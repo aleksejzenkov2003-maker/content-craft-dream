@@ -619,6 +619,7 @@ export type Database = {
           name: string
           network_type: string
           post_text_prompt: string | null
+          prompt_id: string | null
           proxy_id: string | null
           proxy_server: string | null
           updated_at: string
@@ -634,6 +635,7 @@ export type Database = {
           name: string
           network_type: string
           post_text_prompt?: string | null
+          prompt_id?: string | null
           proxy_id?: string | null
           proxy_server?: string | null
           updated_at?: string
@@ -649,11 +651,19 @@ export type Database = {
           name?: string
           network_type?: string
           post_text_prompt?: string | null
+          prompt_id?: string | null
           proxy_id?: string | null
           proxy_server?: string | null
           updated_at?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "publishing_channels_prompt_id_fkey"
+            columns: ["prompt_id"]
+            isOneToOne: false
+            referencedRelation: "prompts"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "publishing_channels_proxy_id_fkey"
             columns: ["proxy_id"]
