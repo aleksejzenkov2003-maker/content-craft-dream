@@ -25,8 +25,6 @@ export function SettingsPage() {
     kie: 'unknown',
   });
   const [playingVoice, setPlayingVoice] = useState<string | null>(null);
-  const [editingPrompt, setEditingPrompt] = useState<DbPrompt | null>(null);
-  const [showPromptForm, setShowPromptForm] = useState(false);
 
   const fetchVoices = async () => {
     setLoadingVoices(true);
