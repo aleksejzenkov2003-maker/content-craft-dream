@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -10,6 +10,7 @@ import {
   DialogContent,
   DialogHeader,
   DialogTitle,
+  DialogFooter,
   DialogTrigger,
 } from '@/components/ui/dialog';
 import {
@@ -19,25 +20,12 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu';
-import { Plus, MoreVertical, Edit, Trash2, Instagram, Youtube, Globe, Facebook, FileSpreadsheet } from 'lucide-react';
+import { Plus, Globe, FileSpreadsheet, Image } from 'lucide-react';
 import { PublishingChannel, usePublishingChannels } from '@/hooks/usePublishingChannels';
 import { Textarea } from '@/components/ui/textarea';
 import { CsvImporter } from '@/components/import/CsvImporter';
 import { CHANNEL_COLUMN_MAPPING, CHANNEL_PREVIEW_COLUMNS, CHANNEL_FIELD_DEFINITIONS } from '@/components/import/importConfigs';
-
-const networkIcons: Record<string, React.ElementType> = {
-  instagram: Instagram,
-  youtube: Youtube,
-  facebook: Facebook,
-  tiktok: Globe,
-  website: Globe,
-};
+import { usePrompts } from '@/hooks/usePrompts';
 
 const networkLabels: Record<string, string> = {
   instagram: 'Instagram',
@@ -49,9 +37,12 @@ const networkLabels: Record<string, string> = {
 
 export function PublishingChannelsGrid() {
   const { channels, loading, addChannel, updateChannel, deleteChannel, bulkImport } = usePublishingChannels();
+  const { prompts } = usePrompts();
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [showImporter, setShowImporter] = useState(false);
   const [editingChannel, setEditingChannel] = useState<PublishingChannel | null>(null);
+
+  const postTextPrompts = prompts.filter(p => p.type === 'post_text');
 
   const [formData, setFormData] = useState({
     name: '',
@@ -60,6 +51,7 @@ export function PublishingChannelsGrid() {
     location: '',
     post_text_prompt: '',
     is_active: true,
+    back_cover_url: '',
   });
 
   const resetForm = () => {
@@ -70,6 +62,7 @@ export function PublishingChannelsGrid() {
       location: '',
       post_text_prompt: '',
       is_active: true,
+      back_cover_url: '',
     });
     setEditingChannel(null);
   };
@@ -84,6 +77,7 @@ export function PublishingChannelsGrid() {
         location: channel.location || '',
         post_text_prompt: channel.post_text_prompt || '',
         is_active: channel.is_active,
+        back_cover_url: channel.back_cover_url || '',
       });
     } else {
       resetForm();
@@ -93,23 +87,23 @@ export function PublishingChannelsGrid() {
 
   const handleSubmit = async () => {
     if (!formData.name) return;
-
     try {
+      const payload = {
+        ...formData,
+        back_cover_url: formData.back_cover_url || null,
+        proxy_server: formData.proxy_server || null,
+        location: formData.location || null,
+        post_text_prompt: formData.post_text_prompt || null,
+      };
       if (editingChannel) {
-        await updateChannel(editingChannel.id, formData);
+        await updateChannel(editingChannel.id, payload);
       } else {
-        await addChannel(formData);
+        await addChannel(payload);
       }
       setIsDialogOpen(false);
       resetForm();
     } catch (error) {
       console.error('Error saving channel:', error);
-    }
-  };
-
-  const handleDelete = async (id: string) => {
-    if (confirm('Удалить канал публикации?')) {
-      await deleteChannel(id);
     }
   };
 
@@ -121,6 +115,13 @@ export function PublishingChannelsGrid() {
     await bulkImport(data as Partial<PublishingChannel>[]);
   };
 
+  // Find prompt name by matching prompt text
+  const getPromptLabel = (promptText: string | null) => {
+    if (!promptText) return null;
+    const found = postTextPrompts.find(p => p.system_prompt === promptText || p.user_template === promptText);
+    return found?.name || (promptText.length > 30 ? promptText.slice(0, 30) + '…' : promptText);
+  };
+
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
@@ -128,6 +129,14 @@ export function PublishingChannelsGrid() {
       </div>
     );
   }
+
+  // Group channels by network_type
+  const grouped = channels.reduce<Record<string, PublishingChannel[]>>((acc, ch) => {
+    const key = ch.network_type;
+    if (!acc[key]) acc[key] = [];
+    acc[key].push(ch);
+    return acc;
+  }, {});
 
   return (
     <div className="space-y-6">
@@ -138,89 +147,15 @@ export function PublishingChannelsGrid() {
             <FileSpreadsheet className="w-4 h-4 mr-2" />
             Импорт CSV
           </Button>
-          <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-            <DialogTrigger asChild>
-              <Button onClick={() => handleOpenDialog()}>
-                <Plus className="w-4 h-4 mr-2" />
-                Добавить канал
-              </Button>
-            </DialogTrigger>
-            <DialogContent className="max-w-md">
-              <DialogHeader>
-                <DialogTitle>
-                  {editingChannel ? 'Редактировать канал' : 'Новый канал публикации'}
-                </DialogTitle>
-              </DialogHeader>
-              <div className="space-y-4">
-                <div>
-                  <Label>Название</Label>
-                  <Input
-                    value={formData.name}
-                    onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                    placeholder="Мой Instagram"
-                  />
-                </div>
-                <div>
-                  <Label>Тип сети</Label>
-                  <Select
-                    value={formData.network_type}
-                    onValueChange={(value) => setFormData({ ...formData, network_type: value })}
-                  >
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="instagram">Instagram</SelectItem>
-                      <SelectItem value="tiktok">TikTok</SelectItem>
-                      <SelectItem value="youtube">YouTube</SelectItem>
-                      <SelectItem value="facebook">Facebook</SelectItem>
-                      <SelectItem value="website">Website</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div>
-                  <Label>Прокси-сервер</Label>
-                  <Input
-                    value={formData.proxy_server}
-                    onChange={(e) => setFormData({ ...formData, proxy_server: e.target.value })}
-                    placeholder="proxy.example.com:8080"
-                  />
-                </div>
-                <div>
-                  <Label>Локация</Label>
-                  <Input
-                    value={formData.location}
-                    onChange={(e) => setFormData({ ...formData, location: e.target.value })}
-                    placeholder="USA, New York"
-                  />
-                </div>
-                <div>
-                  <Label>Промт для генерации текста поста</Label>
-                  <Textarea
-                    value={formData.post_text_prompt}
-                    onChange={(e) => setFormData({ ...formData, post_text_prompt: e.target.value })}
-                    placeholder="Напиши привлекательный текст для Instagram поста о..."
-                    rows={4}
-                  />
-                </div>
-                <div className="flex items-center justify-between">
-                  <Label>Активен</Label>
-                  <Switch
-                    checked={formData.is_active}
-                    onCheckedChange={(checked) => setFormData({ ...formData, is_active: checked })}
-                  />
-                </div>
-                <Button onClick={handleSubmit} className="w-full">
-                  {editingChannel ? 'Сохранить' : 'Добавить'}
-                </Button>
-              </div>
-            </DialogContent>
-          </Dialog>
+          <Button onClick={() => handleOpenDialog()}>
+            <Plus className="w-4 h-4 mr-2" />
+            Новый Канал
+          </Button>
         </div>
       </div>
 
       {channels.length === 0 ? (
-        <Card className="glass-card">
+        <Card>
           <CardContent className="flex flex-col items-center justify-center py-12">
             <Globe className="w-12 h-12 text-muted-foreground mb-4" />
             <p className="text-muted-foreground">Нет каналов публикации</p>
@@ -231,72 +166,206 @@ export function PublishingChannelsGrid() {
           </CardContent>
         </Card>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {channels.map((channel) => {
-            const Icon = networkIcons[channel.network_type] || Globe;
-            return (
-              <Card key={channel.id} className="glass-card">
-                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                  <div className="flex items-center gap-3">
-                    <div className="p-2 rounded-lg bg-primary/10">
-                      <Icon className="w-5 h-5 text-primary" />
-                    </div>
-                    <div>
-                      <CardTitle className="text-base">{channel.name}</CardTitle>
-                      <p className="text-sm text-muted-foreground">
-                        {networkLabels[channel.network_type]}
-                      </p>
-                    </div>
-                  </div>
-                  <DropdownMenu>
-                    <DropdownMenuTrigger asChild>
-                      <Button variant="ghost" size="icon">
-                        <MoreVertical className="w-4 h-4" />
-                      </Button>
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent align="end">
-                      <DropdownMenuItem onClick={() => handleOpenDialog(channel)}>
-                        <Edit className="w-4 h-4 mr-2" />
-                        Редактировать
-                      </DropdownMenuItem>
-                      <DropdownMenuItem
-                        className="text-destructive"
-                        onClick={() => handleDelete(channel.id)}
-                      >
-                        <Trash2 className="w-4 h-4 mr-2" />
-                        Удалить
-                      </DropdownMenuItem>
-                    </DropdownMenuContent>
-                  </DropdownMenu>
-                </CardHeader>
-                <CardContent>
-                  <div className="space-y-2">
-                    {channel.location && (
-                      <p className="text-sm text-muted-foreground">
-                        📍 {channel.location}
-                      </p>
-                    )}
-                    {channel.proxy_server && (
-                      <p className="text-sm text-muted-foreground">
-                        🔒 Прокси: {channel.proxy_server}
-                      </p>
-                    )}
-                    <div className="flex items-center justify-between pt-2">
-                      <Badge variant={channel.is_active ? 'default' : 'secondary'}>
-                        {channel.is_active ? 'Активен' : 'Неактивен'}
-                      </Badge>
-                      <Switch
-                        checked={channel.is_active}
-                        onCheckedChange={() => handleToggleActive(channel)}
-                      />
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-            );
-          })}
+        <div className="space-y-6">
+          {Object.entries(grouped).map(([networkType, groupChannels]) => (
+            <div key={networkType} className="space-y-3">
+              <h3 className="text-lg font-semibold text-muted-foreground">
+                {networkLabels[networkType] || networkType}
+              </h3>
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                {groupChannels.map((channel) => (
+                  <Card
+                    key={channel.id}
+                    className="cursor-pointer hover:border-primary/50 transition-colors overflow-hidden"
+                    onClick={() => handleOpenDialog(channel)}
+                  >
+                    <CardContent className="p-4">
+                      <div className="flex gap-3">
+                        {/* Left: info */}
+                        <div className="flex-1 space-y-2 min-w-0">
+                          <h4 className="font-semibold text-base truncate">{channel.name}</h4>
+                          <div className="flex flex-col gap-1.5">
+                            {channel.post_text_prompt && (
+                              <Badge variant="destructive" className="text-xs w-fit">
+                                Промт: {getPromptLabel(channel.post_text_prompt) || 'Задан'}
+                              </Badge>
+                            )}
+                            {channel.proxy_server && (
+                              <Badge variant="secondary" className="text-xs w-fit">
+                                Прокси: {channel.location || channel.proxy_server}
+                              </Badge>
+                            )}
+                          </div>
+                          <div className="flex items-center gap-2 pt-1">
+                            <Badge variant={channel.is_active ? 'default' : 'secondary'} className="text-xs">
+                              {channel.is_active ? 'Активен' : 'Неактивен'}
+                            </Badge>
+                            <Switch
+                              checked={channel.is_active}
+                              onCheckedChange={(e) => {
+                                e; // prevent card click
+                                handleToggleActive(channel);
+                              }}
+                              onClick={(e) => e.stopPropagation()}
+                            />
+                          </div>
+                        </div>
+                        {/* Right: back cover thumbnail */}
+                        <div className="w-20 aspect-[9/16] rounded-lg overflow-hidden bg-muted flex-shrink-0 border border-border">
+                          {channel.back_cover_url ? (
+                            <img
+                              src={channel.back_cover_url}
+                              alt="Задняя обложка"
+                              className="w-full h-full object-cover"
+                            />
+                          ) : (
+                            <div className="w-full h-full flex items-center justify-center">
+                              <Image className="w-5 h-5 text-muted-foreground" />
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+                ))}
+              </div>
+            </div>
+          ))}
         </div>
       )}
+
+      {/* Edit / Add Dialog */}
+      <Dialog open={isDialogOpen} onOpenChange={(open) => { if (!open) { setIsDialogOpen(false); resetForm(); } else { setIsDialogOpen(true); } }}>
+        <DialogContent className="max-w-3xl">
+          <DialogHeader>
+            <DialogTitle>
+              {editingChannel ? 'Редактировать канал' : 'Новый канал публикации'}
+            </DialogTitle>
+          </DialogHeader>
+          <div className="flex flex-col md:flex-row gap-6">
+            {/* Left: fields */}
+            <div className="flex-1 space-y-4">
+              <div className="space-y-2">
+                <Label>Название соцсети</Label>
+                <Input
+                  value={formData.name}
+                  onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                  placeholder="Мой Instagram"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>Тип соцсети</Label>
+                <Select
+                  value={formData.network_type}
+                  onValueChange={(value) => setFormData({ ...formData, network_type: value })}
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="instagram">Instagram</SelectItem>
+                    <SelectItem value="tiktok">TikTok</SelectItem>
+                    <SelectItem value="youtube">YouTube</SelectItem>
+                    <SelectItem value="facebook">Facebook</SelectItem>
+                    <SelectItem value="website">Website</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label>Прокси-сервер</Label>
+                <Input
+                  value={formData.proxy_server}
+                  onChange={(e) => setFormData({ ...formData, proxy_server: e.target.value })}
+                  placeholder="proxy.example.com:8080"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>Локация</Label>
+                <Input
+                  value={formData.location}
+                  onChange={(e) => setFormData({ ...formData, location: e.target.value })}
+                  placeholder="Вашингтон (США)"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>Промт для генерации текста</Label>
+                {postTextPrompts.length > 0 ? (
+                  <Select
+                    value={formData.post_text_prompt || '__custom__'}
+                    onValueChange={(value) => {
+                      if (value === '__custom__') {
+                        setFormData({ ...formData, post_text_prompt: '' });
+                      } else {
+                        const p = postTextPrompts.find(pr => pr.id === value);
+                        if (p) setFormData({ ...formData, post_text_prompt: p.user_template });
+                      }
+                    }}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Выберите промт..." />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="__custom__">Свой текст</SelectItem>
+                      {postTextPrompts.map(p => (
+                        <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                ) : null}
+                <Textarea
+                  value={formData.post_text_prompt}
+                  onChange={(e) => setFormData({ ...formData, post_text_prompt: e.target.value })}
+                  placeholder="Напиши привлекательный текст для поста о..."
+                  rows={3}
+                />
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="text-sm">{formData.is_active ? 'Активен' : 'Неактивен'}</span>
+                <Switch
+                  checked={formData.is_active}
+                  onCheckedChange={(checked) => setFormData({ ...formData, is_active: checked })}
+                />
+              </div>
+            </div>
+
+            {/* Right: back cover preview */}
+            <div className="space-y-2">
+              <div className="text-sm font-medium text-center">Задняя обложка</div>
+              <div className="relative w-48 aspect-[9/16] bg-muted rounded-xl overflow-hidden border-2 border-border">
+                {formData.back_cover_url ? (
+                  <img
+                    src={formData.back_cover_url}
+                    alt="Задняя обложка"
+                    className="w-full h-full object-cover"
+                  />
+                ) : (
+                  <div className="w-full h-full flex items-center justify-center">
+                    <Image className="w-8 h-8 text-muted-foreground" />
+                  </div>
+                )}
+              </div>
+              <div className="space-y-1">
+                <Label className="text-xs">URL обложки</Label>
+                <Input
+                  value={formData.back_cover_url}
+                  onChange={(e) => setFormData({ ...formData, back_cover_url: e.target.value })}
+                  placeholder="https://..."
+                  className="text-xs"
+                />
+              </div>
+            </div>
+          </div>
+
+          <DialogFooter className="mt-4">
+            <Button variant="outline" onClick={() => { setIsDialogOpen(false); resetForm(); }}>
+              Отмена
+            </Button>
+            <Button onClick={handleSubmit} disabled={!formData.name}>
+              {editingChannel ? 'Сохранить' : 'Добавить'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       <CsvImporter
         open={showImporter}
