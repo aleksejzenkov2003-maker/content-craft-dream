@@ -12,6 +12,7 @@ import { VideoDetailModal } from '@/components/videos/VideoDetailModal';
 import { VideoSidePanel } from '@/components/videos/VideoSidePanel';
 import { PublishingChannelsGrid } from '@/components/publishing/PublishingChannelsGrid';
 import { ProxyServersGrid } from '@/components/proxies/ProxyServersGrid';
+import { PromptsPage } from '@/components/prompts/PromptsPage';
 import { PublicationsTable } from '@/components/publishing/PublicationsTable';
 import { PublishingKanban } from '@/components/publishing/PublishingKanban';
 import { ScenesMatrix } from '@/components/scenes/ScenesMatrix';
