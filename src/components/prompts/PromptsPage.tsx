@@ -44,7 +44,6 @@ const TYPES = [
 ];
 
 const typeLabels: Record<string, string> = {
-  rewrite: 'Рерайт', summary: 'Резюме', translate: 'Перевод',
   atmosphere: 'Атмосфера', scene: 'Сцена', post_text: 'Текст публикации', custom: 'Кастомный',
 };
 
