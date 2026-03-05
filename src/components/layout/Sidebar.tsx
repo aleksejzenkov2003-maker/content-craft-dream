@@ -51,6 +51,10 @@ const navItems: NavItem[] = [{
   id: 'proxies',
   label: 'Прокси-сервера',
   icon: Server
+}, {
+  id: 'prompts',
+  label: 'Промты',
+  icon: FileText
 }];
 interface SidebarProps {
   activeTab: string;
