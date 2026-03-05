@@ -1,30 +1,68 @@
 
 
-## Проблема: наивная бинарная склейка MP4 не работает
+## Plan: Proxy Servers Screen
 
-### Диагноз
+### Overview
+Create a dedicated "Прокси-сервера" section with a new database table, hook, and UI component. Proxy servers will be standalone entities linked to publishing channels, enabling reuse across multiple channels.
 
-Логи подтверждают: Edge Function скачивает оба файла (12.6MB + 0.3MB), объединяет их в 12.9MB и загружает. Но **простое `concat` двух MP4 файлов не даёт рабочее видео** — плеер видит только `moov` атом первого файла и проигрывает только основное видео. Задняя обложка игнорируется.
+### Database Changes
 
-MP4 — контейнерный формат с метаданными (`moov` atom), описывающими структуру медиаданных (`mdat`). Простое склеивание байтов не обновляет эти метаданные.
+**New table `proxy_servers`:**
+- `id` (uuid, PK)
+- `name` (text, e.g. "Вашингтон (США)")
+- `login` (text)
+- `password` (text)
+- `server` (text, e.g. "proxy.soax.com")
+- `port` (integer)
+- `protocol` (text, default "HTTP")
+- `is_active` (boolean, default true)
+- `created_at`, `updated_at` (timestamps)
+- RLS: allow all for authenticated
 
-### Решение: правильная MP4-конкатенация на уровне атомов
+**Alter `publishing_channels`:**
+- Add `proxy_id` (uuid, nullable, FK to proxy_servers)
+- Existing `proxy_server` and `location` fields remain for backward compatibility but `proxy_id` becomes the primary reference
 
-Переписать Edge Function `concat-video` с реализацией MP4 box-level конкатенации:
+### New Files
 
-1. **Парсинг обоих MP4** — извлечь top-level боксы (`ftyp`, `moov`, `mdat`) из каждого файла
-2. **Извлечь трек-метаданные** — из `moov → trak → mdia → minf → stbl` получить таблицы семплов: `stsz` (размеры), `stts` (тайминги), `stco`/`co64` (смещения чанков), `stsc` (семплы-в-чанках), `stss` (ключевые кадры)
-3. **Объединить mdat** — конкатенация медиаданных из обоих файлов
-4. **Пересчитать moov** — объединить таблицы семплов, пересчитать chunk offsets для второго файла, обновить длительности в `mvhd`, `tkhd`, `mdhd`
-5. **Записать результат** — `ftyp` + обновлённый `moov` + объединённый `mdat`
+1. **`src/hooks/useProxyServers.ts`** — CRUD hook (fetch, add, update, delete) for `proxy_servers` table
 
-### Файлы для изменения
+2. **`src/components/proxies/ProxyServersGrid.tsx`** — Main screen:
+   - Grid of cards, each card = one proxy server
+   - Card shows: proxy name (location), badges for linked channels (color-coded by network type: red=YouTube, green=Instagram, blue=Facebook)
+   - Click card → edit dialog with fields: Name, Login, Password, Server, Port, Protocol
+   - "+ Новый Прокси" button
+   - Channels are fetched from `publishing_channels` where `proxy_id` matches
 
-- `supabase/functions/concat-video/index.ts` — полная переработка с правильной MP4-конкатенацией через парсинг/реконструкцию атомов
+### Modified Files
 
-### Технические детали
+3. **`src/components/layout/Sidebar.tsx`** — Add "Прокси-сервера" nav item (icon: `Server` from lucide)
 
-Реализация ~300 строк: парсер рекурсивно обходит MP4-боксы, находит нужные таблицы семплов в `stbl`, объединяет их с корректным пересчётом смещений, и собирает новый файл. Поддерживается один видео-трек и один аудио-трек (стандартная структура HeyGen MP4).
+4. **`src/pages/Index.tsx`**:
+   - Add header title for `proxies` tab
+   - Render `<ProxyServersGrid />` when `activeTab === 'proxies'`
 
-Ограничения подхода: работает только если оба файла используют одинаковые кодеки и разрешение (что верно для HeyGen + back cover из одного пайплайна). Для разных кодеков нужен транскодинг, которого в Edge Functions нет.
+5. **`src/components/publishing/PublishingChannelsGrid.tsx`** — Replace proxy text input with a Select dropdown of proxy servers from the new table. When a proxy is selected, set `proxy_id` on the channel.
+
+6. **`src/hooks/usePublishingChannels.ts`** — Update `PublishingChannel` interface to include `proxy_id`
+
+### UI Layout (from mockup)
+
+```text
+┌──────────────────────────────────────────────┐
+│  ПРОКСИ-СЕРВЕРА                  [+ Новый]   │
+├──────────────────────────────────────────────┤
+│  ┌─────────────┐  ┌─────────────┐            │
+│  │ Вашингтон   │  │ Нью-Йорк    │            │
+│  │ [Yt1][Ig1]  │  │ [Yt4][Ig4]  │            │
+│  │ [Fb1][Fb1]  │  │ [Fb4][Fb5]  │            │
+│  └─────────────┘  └─────────────┘            │
+│  ┌─────────────┐  ┌─────────────┐            │
+│  │ Лондон      │  │ Нью-Касл    │            │
+│  │ [Yt2][Ig2]  │  │ [Yt5][Ig5]  │            │
+│  └─────────────┘  └─────────────┘            │
+└──────────────────────────────────────────────┘
+```
+
+Edit dialog shows: Name, Login (with copy), Password (with copy), Server (with copy), Port (with copy), Protocol (display only).
 
