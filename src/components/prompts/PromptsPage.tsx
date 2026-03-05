@@ -83,7 +83,7 @@ export function PromptsPage() {
     name: '', type: 'atmosphere', model: 'google/gemini-2.5-flash-image',
     temperature: 0.7, max_tokens: 4000, system_prompt: '', user_template: '',
   });
-  const [linkedChannelId, setLinkedChannelId] = useState<string>('');
+  const [linkedChannelIds, setLinkedChannelIds] = useState<string[]>([]);
   const [saving, setSaving] = useState(false);
 
   // Test state
@@ -97,8 +97,8 @@ export function PromptsPage() {
 
   const openNew = () => {
     setEditingPrompt(null);
-    setForm({ name: '', type: 'rewrite', model: 'claude-sonnet-4-5', temperature: 0.7, max_tokens: 4000, system_prompt: '', user_template: '' });
-    setLinkedChannelId('');
+    setForm({ name: '', type: 'atmosphere', model: 'google/gemini-2.5-flash-image', temperature: 0.7, max_tokens: 4000, system_prompt: '', user_template: '' });
+    setLinkedChannelIds([]);
     setTestResult('');
     setTestContent('');
     setIsDialogOpen(true);
@@ -111,9 +111,9 @@ export function PromptsPage() {
       temperature: prompt.temperature, max_tokens: prompt.max_tokens,
       system_prompt: prompt.system_prompt, user_template: prompt.user_template,
     });
-    // Find linked channel
-    const linked = channels.find(c => c.prompt_id === prompt.id);
-    setLinkedChannelId(linked?.id || '');
+    // Find all linked channels
+    const linked = channels.filter(c => c.prompt_id === prompt.id).map(c => c.id);
+    setLinkedChannelIds(linked);
     setTestResult('');
     setTestContent('');
     setIsDialogOpen(true);
@@ -134,16 +134,19 @@ export function PromptsPage() {
 
       // Update channel linking
       if (promptId) {
-        // Unlink old channels that had this prompt
+        // Unlink old channels that had this prompt but are no longer selected
         const oldLinked = channels.filter(c => c.prompt_id === promptId);
         for (const ch of oldLinked) {
-          if (ch.id !== linkedChannelId) {
+          if (!linkedChannelIds.includes(ch.id)) {
             await updateChannel(ch.id, { prompt_id: null } as any);
           }
         }
-        // Link new channel
-        if (linkedChannelId) {
-          await updateChannel(linkedChannelId, { prompt_id: promptId } as any);
+        // Link new channels
+        for (const chId of linkedChannelIds) {
+          const ch = channels.find(c => c.id === chId);
+          if (ch?.prompt_id !== promptId) {
+            await updateChannel(chId, { prompt_id: promptId } as any);
+          }
         }
       }
 
@@ -230,7 +233,7 @@ export function PromptsPage() {
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
           {prompts.map((prompt) => {
-            const linkedChannel = channels.find(c => c.prompt_id === prompt.id);
+            const linkedChs = channels.filter(c => c.prompt_id === prompt.id);
             return (
               <Card
                 key={prompt.id}
@@ -265,11 +268,15 @@ export function PromptsPage() {
                     )}
                   </div>
 
-                  {/* Linked channel */}
-                  {linkedChannel && (
-                    <Badge variant="secondary" className="text-[10px]">
-                      🔗 {linkedChannel.name}
-                    </Badge>
+                  {/* Linked channels */}
+                  {linkedChs.length > 0 && (
+                    <div className="flex flex-wrap gap-1">
+                      {linkedChs.map(ch => (
+                        <Badge key={ch.id} variant="secondary" className="text-[10px]">
+                          🔗 {ch.name}
+                        </Badge>
+                      ))}
+                    </div>
                   )}
 
                   {/* System prompt preview */}
@@ -304,20 +311,32 @@ export function PromptsPage() {
                   <Input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} placeholder="Мой промт" />
                 </div>
                 <div className="space-y-1.5">
-                  <Label className="text-xs">Привязка к каналу</Label>
-                  <Select value={linkedChannelId || '__none__'} onValueChange={(v) => setLinkedChannelId(v === '__none__' ? '' : v)}>
-                    <SelectTrigger><SelectValue placeholder="Без привязки" /></SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="__none__">Без привязки</SelectItem>
-                      {Object.entries(channelsByType).map(([type, chs]) => (
-                        chs.map(ch => (
-                          <SelectItem key={ch.id} value={ch.id}>
-                            {type.charAt(0).toUpperCase() + type.slice(1)} — {ch.name}
-                          </SelectItem>
-                        ))
-                      ))}
-                    </SelectContent>
-                  </Select>
+                  <Label className="text-xs">Привязка к каналам</Label>
+                  <div className="border rounded-md p-2 max-h-[200px] overflow-y-auto space-y-0.5">
+                    {Object.entries(channelsByType).map(([type, chs]) => (
+                      chs.map(ch => {
+                        const checked = linkedChannelIds.includes(ch.id);
+                        return (
+                          <label key={ch.id} className="flex items-center gap-2 px-2 py-1.5 rounded hover:bg-muted/50 cursor-pointer text-sm">
+                            <input
+                              type="checkbox"
+                              checked={checked}
+                              onChange={() => {
+                                setLinkedChannelIds(prev =>
+                                  checked ? prev.filter(id => id !== ch.id) : [...prev, ch.id]
+                                );
+                              }}
+                              className="rounded border-input"
+                            />
+                            <span>{type.charAt(0).toUpperCase() + type.slice(1)} — {ch.name}</span>
+                          </label>
+                        );
+                      })
+                    ))}
+                    {channels.length === 0 && (
+                      <p className="text-xs text-muted-foreground p-2">Нет каналов</p>
+                    )}
+                  </div>
                 </div>
               </div>
 
