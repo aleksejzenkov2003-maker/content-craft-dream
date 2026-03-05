@@ -201,7 +201,17 @@ export function PublishingChannelsGrid() {
                   </div>
                   {/* Right: back cover thumbnail */}
                   <div className="w-24 aspect-[9/16] rounded-lg overflow-hidden bg-muted flex-shrink-0 border border-border">
-                    {channel.back_cover_url ? (
+                    {channel.back_cover_video_url ? (
+                      <video
+                        src={channel.back_cover_video_url}
+                        className="w-full h-full object-cover"
+                        muted
+                        playsInline
+                        preload="metadata"
+                        onMouseEnter={(e) => (e.currentTarget as HTMLVideoElement).play()}
+                        onMouseLeave={(e) => { const v = e.currentTarget as HTMLVideoElement; v.pause(); v.currentTime = 0; }}
+                      />
+                    ) : channel.back_cover_url ? (
                       <img
                         src={channel.back_cover_url}
                         alt="Задняя обложка"
