@@ -26,6 +26,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { CsvImporter } from '@/components/import/CsvImporter';
 import { CHANNEL_COLUMN_MAPPING, CHANNEL_PREVIEW_COLUMNS, CHANNEL_FIELD_DEFINITIONS } from '@/components/import/importConfigs';
 import { usePrompts } from '@/hooks/usePrompts';
+import { useProxyServers } from '@/hooks/useProxyServers';
 
 const networkLabels: Record<string, string> = {
   instagram: 'Instagram',
