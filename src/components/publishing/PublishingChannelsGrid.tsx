@@ -93,12 +93,14 @@ export function PublishingChannelsGrid() {
   const handleSubmit = async () => {
     if (!formData.name) return;
     try {
+      const selectedProxy = proxies.find(p => p.id === formData.proxy_id);
       const payload = {
         ...formData,
         back_cover_url: formData.back_cover_url || null,
-        proxy_server: formData.proxy_server || null,
-        location: formData.location || null,
+        proxy_server: selectedProxy ? `${selectedProxy.server}:${selectedProxy.port}` : null,
+        location: selectedProxy?.name || null,
         post_text_prompt: formData.post_text_prompt || null,
+        proxy_id: formData.proxy_id || null,
       };
       if (editingChannel) {
         await updateChannel(editingChannel.id, payload);
