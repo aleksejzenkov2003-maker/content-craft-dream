@@ -83,7 +83,7 @@ export function PromptsPage() {
     name: '', type: 'atmosphere', model: 'google/gemini-2.5-flash-image',
     temperature: 0.7, max_tokens: 4000, system_prompt: '', user_template: '',
   });
-  const [linkedChannelId, setLinkedChannelId] = useState<string>('');
+  const [linkedChannelIds, setLinkedChannelIds] = useState<string[]>([]);
   const [saving, setSaving] = useState(false);
 
   // Test state
