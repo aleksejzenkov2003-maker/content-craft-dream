@@ -37,14 +37,13 @@ const IMAGE_MODELS = [
 const IMAGE_TYPES = ['atmosphere', 'scene'];
 
 const TYPES = [
-  { value: 'atmosphere', label: 'Атмосфера обложки' },
-  { value: 'scene', label: 'Сцена' },
+  { value: 'atmosphere', label: 'Фон обложки' },
+  { value: 'scene', label: 'Сцена монологов' },
   { value: 'post_text', label: 'Текст публикации' },
-  { value: 'custom', label: 'Кастомный' },
 ];
 
 const typeLabels: Record<string, string> = {
-  atmosphere: 'Атмосфера', scene: 'Сцена', post_text: 'Текст публикации', custom: 'Кастомный',
+  atmosphere: 'Фон обложки', scene: 'Сцена монологов', post_text: 'Текст публикации',
 };
 
 const modelLabels: Record<string, string> = {
@@ -68,7 +67,6 @@ const VARIABLES_BY_TYPE: Record<string, { name: string; desc: string }[]> = {
     { name: '{{question}}', desc: 'Вопрос' }, { name: '{{hook}}', desc: 'Хук' },
     { name: '{{answer}}', desc: 'Ответ' }, { name: '{{advisor}}', desc: 'Духовник' },
   ],
-  custom: [{ name: '{{content}}', desc: 'Текст контента' }, { name: '{{title}}', desc: 'Заголовок' }],
 };
 
 export function PromptsPage() {
