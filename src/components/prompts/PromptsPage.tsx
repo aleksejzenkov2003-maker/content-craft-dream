@@ -386,7 +386,7 @@ export function PromptsPage() {
               <div className="p-2 bg-muted/30 rounded-lg text-xs space-y-1">
                 <p className="font-medium text-muted-foreground">Переменные:</p>
                 <div className="flex flex-wrap gap-1.5">
-                  {(VARIABLES_BY_TYPE[form.type] || VARIABLES_BY_TYPE.custom).map(v => (
+                  {(VARIABLES_BY_TYPE[form.type] || []).map(v => (
                     <Badge
                       key={v.name} variant="outline"
                       className="font-mono text-[10px] cursor-pointer hover:bg-muted"
