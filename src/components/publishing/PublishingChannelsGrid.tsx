@@ -190,11 +190,14 @@ export function PublishingChannelsGrid() {
                   <div className="flex-1 space-y-2 min-w-0">
                     <h4 className="font-semibold text-base truncate">{channel.name}</h4>
                     <div className="flex flex-col gap-1.5">
-                      {channel.post_text_prompt && (
+                    {(() => {
+                      const label = getPromptLabel(channel);
+                      return label ? (
                         <Badge variant="destructive" className="text-xs w-fit">
-                          Промт: {getPromptLabel(channel.post_text_prompt) || 'Задан'}
+                          Промт: {label}
                         </Badge>
-                      )}
+                      ) : null;
+                    })()}
                       {channel.proxy_server && (
                         <Badge variant="secondary" className="text-xs w-fit bg-emerald-700 text-white hover:bg-emerald-700">
                           Прокси: {channel.location || channel.proxy_server}
