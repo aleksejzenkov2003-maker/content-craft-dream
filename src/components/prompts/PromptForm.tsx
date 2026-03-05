@@ -80,8 +80,8 @@ export function PromptForm({ prompt, onSave, onCancel, onTest, advisors = [] }: 
   
   const [form, setForm] = useState({
     name: '',
-    type: 'rewrite',
-    model: 'claude-sonnet-4-5',
+    type: 'atmosphere',
+    model: 'google/gemini-2.5-flash-image',
     temperature: 0.7,
     max_tokens: 4000,
     system_prompt: '',

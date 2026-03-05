@@ -58,14 +58,6 @@ const modelLabels: Record<string, string> = {
 };
 
 const VARIABLES_BY_TYPE: Record<string, { name: string; desc: string }[]> = {
-  rewrite: [
-    { name: '{{content}}', desc: 'Текст контента' },
-    { name: '{{title}}', desc: 'Заголовок' },
-    { name: '{{source}}', desc: 'Источник' },
-    { name: '{{channel}}', desc: 'Канал' },
-  ],
-  summary: [{ name: '{{content}}', desc: 'Текст контента' }, { name: '{{title}}', desc: 'Заголовок' }],
-  translate: [{ name: '{{content}}', desc: 'Текст контента' }],
   atmosphere: [
     { name: '{{question}}', desc: 'Вопрос' }, { name: '{{hook}}', desc: 'Хук' },
     { name: '{{answer}}', desc: 'Ответ' }, { name: '{{advisor}}', desc: 'Духовник' },
