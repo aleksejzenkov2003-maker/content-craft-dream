@@ -122,11 +122,15 @@ export function PublishingChannelsGrid() {
     await bulkImport(data as Partial<PublishingChannel>[]);
   };
 
-  // Find prompt name by matching prompt text
-  const getPromptLabel = (promptText: string | null) => {
-    if (!promptText) return null;
-    const found = postTextPrompts.find(p => p.system_prompt === promptText || p.user_template === promptText);
-    return found?.name || (promptText.length > 30 ? promptText.slice(0, 30) + '…' : promptText);
+  // Find prompt name by prompt_id or text matching
+  const getPromptLabel = (channel: PublishingChannel) => {
+    if (channel.prompt_id) {
+      const found = prompts.find(p => p.id === channel.prompt_id);
+      return found?.name || null;
+    }
+    if (!channel.post_text_prompt) return null;
+    const found = postTextPrompts.find(p => p.system_prompt === channel.post_text_prompt || p.user_template === channel.post_text_prompt);
+    return found?.name || (channel.post_text_prompt.length > 30 ? channel.post_text_prompt.slice(0, 30) + '…' : channel.post_text_prompt);
   };
 
   if (loading) {
