@@ -97,8 +97,8 @@ export function PromptsPage() {
 
   const openNew = () => {
     setEditingPrompt(null);
-    setForm({ name: '', type: 'rewrite', model: 'claude-sonnet-4-5', temperature: 0.7, max_tokens: 4000, system_prompt: '', user_template: '' });
-    setLinkedChannelId('');
+    setForm({ name: '', type: 'atmosphere', model: 'google/gemini-2.5-flash-image', temperature: 0.7, max_tokens: 4000, system_prompt: '', user_template: '' });
+    setLinkedChannelIds([]);
     setTestResult('');
     setTestContent('');
     setIsDialogOpen(true);
