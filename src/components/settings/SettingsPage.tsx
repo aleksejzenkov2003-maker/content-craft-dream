@@ -25,10 +25,6 @@ export function SettingsPage() {
     kie: 'unknown',
   });
   const [playingVoice, setPlayingVoice] = useState<string | null>(null);
-
-  // Prompts
-  const { prompts, loading: promptsLoading, updatePrompt, testPrompt, addPrompt, deletePrompt } = usePrompts();
-  const { advisors, loading: advisorsLoading } = useAdvisors();
   const [editingPrompt, setEditingPrompt] = useState<DbPrompt | null>(null);
   const [showPromptForm, setShowPromptForm] = useState(false);
 
