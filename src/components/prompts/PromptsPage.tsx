@@ -134,16 +134,19 @@ export function PromptsPage() {
 
       // Update channel linking
       if (promptId) {
-        // Unlink old channels that had this prompt
+        // Unlink old channels that had this prompt but are no longer selected
         const oldLinked = channels.filter(c => c.prompt_id === promptId);
         for (const ch of oldLinked) {
-          if (ch.id !== linkedChannelId) {
+          if (!linkedChannelIds.includes(ch.id)) {
             await updateChannel(ch.id, { prompt_id: null } as any);
           }
         }
-        // Link new channel
-        if (linkedChannelId) {
-          await updateChannel(linkedChannelId, { prompt_id: promptId } as any);
+        // Link new channels
+        for (const chId of linkedChannelIds) {
+          const ch = channels.find(c => c.id === chId);
+          if (ch?.prompt_id !== promptId) {
+            await updateChannel(chId, { prompt_id: promptId } as any);
+          }
         }
       }
 
