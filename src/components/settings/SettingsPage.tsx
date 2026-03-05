@@ -5,11 +5,6 @@ import { Button } from '@/components/ui/button';
 import { Loader2, CheckCircle, XCircle, Play, Volume2 } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
-import { usePrompts, DbPrompt } from '@/hooks/usePrompts';
-import { PromptLibrary } from '@/components/prompts/PromptLibrary';
-import { PromptEditor } from '@/components/prompts/PromptEditor';
-import { PromptForm } from '@/components/prompts/PromptForm';
-import { useAdvisors } from '@/hooks/useAdvisors';
 
 interface Voice {
   voice_id: string;
