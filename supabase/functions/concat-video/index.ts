@@ -217,22 +217,20 @@ function buildMvhd(timescale: number, duration: number): Uint8Array {
 }
 
 function buildTkhd(trackId: number, duration: number, width: number, height: number, isAudio: boolean): Uint8Array {
+  // version 0 tkhd payload: 80 bytes
+  // [0-3] creation_time, [4-7] modification_time, [8-11] track_id, [12-15] reserved
+  // [16-19] duration, [20-27] reserved, [28-29] layer, [30-31] alternate_group
+  // [32-33] volume, [34-35] reserved, [36-71] matrix (36 bytes)
+  // [72-75] width (16.16), [76-79] height (16.16)
   const p = new Uint8Array(80);
-  w32(p, 0, 0); // creation_time
-  w32(p, 4, 0); // modification_time
   w32(p, 8, trackId);
-  // reserved 4 bytes
   w32(p, 16, duration);
-  // reserved 8 bytes
-  // layer, alternate_group = 0
-  if (isAudio) { p[28] = 0x01; p[29] = 0x00; } // volume = 1.0 for audio
-  // reserved 2 bytes
-  // matrix (36 bytes)
+  if (isAudio) { p[32] = 0x01; p[33] = 0x00; } // volume = 1.0
   const matrix = [0x00010000,0,0,0,0x00010000,0,0,0,0x40000000];
-  for (let i = 0; i < 9; i++) w32(p, 32 + i*4, matrix[i]);
-  w32(p, 68, width << 16); // width in 16.16
-  w32(p, 72, height << 16); // height in 16.16
-  const flags = isAudio ? 1 : 3; // track_enabled, track_in_movie
+  for (let i = 0; i < 9; i++) w32(p, 36 + i*4, matrix[i]);
+  w32(p, 72, width << 16);
+  w32(p, 76, height << 16);
+  const flags = isAudio ? 1 : 3; // track_enabled + track_in_movie
   return makeFullBox("tkhd", 0, flags, p);
 }
 
