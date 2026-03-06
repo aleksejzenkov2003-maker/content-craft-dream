@@ -594,7 +594,7 @@ function concatMP4(file1: Uint8Array, file2: Uint8Array): Uint8Array {
       const newStssBuf = mergedStss ? writeStss(mergedStss) : null;
 
       // Rebuild stbl
-      const newStbl = rebuildStbl(t1.stblBox, newStszBuf, newSttsBuf, newStscBuf, newStcoBuf, newStssBuf);
+      const newStbl = rebuildStbl(t1.stblBox, newStszBuf, newSttsBuf, newStscBuf, newStcoBuf, newStssBuf, mergedStsdBuf);
 
       // Rebuild minf → stbl
       const trakChildren = getChildren(t1.trakBox);
