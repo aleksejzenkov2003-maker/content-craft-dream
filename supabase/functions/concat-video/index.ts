@@ -595,14 +595,32 @@ function concatMP4(file1: Uint8Array, file2: Uint8Array): Uint8Array {
         mergedStsz = { defaultSize: 0, sizes: [...sizes1, ...sizes2] };
       }
 
-      // Merge stts
-      const mergedStts = [...t1.stts, ...t2.stts];
+      // For audio tracks: rescale file2 stts deltas and duration if timescales differ
+      let stts2ForMerge = t2.stts;
+      let duration2ForMerge = t2.duration;
+      
+      if (t1.handlerType === "soun") {
+        console.log(`Track soun timescales: file1=${t1.timescale}, file2=${t2.timescale}`);
+        if (t1.timescale !== t2.timescale) {
+          const ratio = t1.timescale / t2.timescale;
+          console.log(`Track soun: rescaling file2 stts deltas by ratio ${ratio.toFixed(6)} (${t2.timescale} → ${t1.timescale})`);
+          stts2ForMerge = t2.stts.map(e => ({
+            count: e.count,
+            delta: Math.round(e.delta * ratio),
+          }));
+          duration2ForMerge = Math.round(t2.duration * ratio);
+          console.log(`Track soun: rescaled duration: ${t2.duration} → ${duration2ForMerge}`);
+        }
+      }
+
+      // Merge stts (with potentially rescaled file2 deltas for audio)
+      const mergedStts = [...t1.stts, ...stts2ForMerge];
 
       // Merge stsd (sample descriptions) from both tracks
       const stsdMerge = mergeStsd(t1.stsdBox, t2.stsdBox, t1.handlerType);
       const mergedStsdBuf = stsdMerge.merged;
       if (stsdMerge.dedupedForCompatibility) {
-        console.log(`Track ${t1.handlerType}: deduped identical stsd entries for decoder compatibility`);
+        console.log(`Track ${t1.handlerType}: using file1 stsd for all samples`);
       } else {
         console.log(`Track ${t1.handlerType}: merging stsd entries: ${stsdMerge.entryCount1} + ${stsdMerge.entryCount2} = ${stsdMerge.entryCount1 + stsdMerge.entryCount2}`);
       }
@@ -641,8 +659,8 @@ function concatMP4(file1: Uint8Array, file2: Uint8Array): Uint8Array {
         mergedStss = [...ss1, ...ss2.map(s => s + t1.sampleCount)];
       }
 
-      // Combined duration in track's timescale
-      const newTrackDuration = t1.duration + t2.duration;
+      // Combined duration in track's timescale (file2 already rescaled for audio)
+      const newTrackDuration = t1.duration + duration2ForMerge;
       // Convert to mvhd timescale
       const durationInMvhdTs = Math.round(newTrackDuration * mvhdTimescale / t1.timescale);
       if (durationInMvhdTs > maxDurationInMvhdTimescale) maxDurationInMvhdTimescale = durationInMvhdTs;
