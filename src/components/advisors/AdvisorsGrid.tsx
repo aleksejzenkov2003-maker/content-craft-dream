@@ -250,15 +250,16 @@ export function AdvisorsGrid({
                 </div>
               </div>
 
-              {/* Right: main photo + thumbnail */}
+              {/* Right: scene photo + thumbnail photo */}
               <div className="flex gap-4">
-                {/* Main photo */}
+                {/* Scene photo (for video generation) */}
                 <div className="space-y-2">
-                  <div className="text-sm font-medium text-center">Главное фото</div>
+                  <div className="text-sm font-medium text-center">Фото для сцены</div>
+                  <div className="text-xs text-muted-foreground text-center">Генерация видео</div>
                   <div className="relative w-48 aspect-[9/16] bg-muted rounded-xl overflow-hidden border-2 border-border">
-                    {getPrimaryPhoto(selectedAdvisor) ? (
+                    {getScenePhoto(selectedAdvisor) ? (
                       <img
-                        src={getPrimaryPhoto(selectedAdvisor)!.photo_url}
+                        src={getScenePhoto(selectedAdvisor)!.photo_url}
                         alt=""
                         className="w-full h-full object-cover"
                       />
@@ -268,37 +269,17 @@ export function AdvisorsGrid({
                       </div>
                     )}
                   </div>
-                  {/* Photo actions */}
-                  <div className="flex gap-1 justify-center flex-wrap">
-                    {selectedAdvisor.photos?.map((photo, i) => (
-                      <button
-                        key={photo.id}
-                        onClick={() => onSetPrimaryPhoto(selectedAdvisor.id, photo.id)}
-                        className={cn(
-                          "w-8 h-8 rounded-full border-2 overflow-hidden transition-colors",
-                          photo.is_primary ? "border-primary" : "border-border hover:border-primary/50"
-                        )}
-                      >
-                        <img src={photo.photo_url} alt="" className="w-full h-full object-cover" />
-                      </button>
-                    ))}
-                    <button
-                      onClick={() => triggerFileInput(selectedAdvisor.id)}
-                      className="w-8 h-8 rounded-full border-2 border-dashed border-muted-foreground/30 flex items-center justify-center hover:border-primary/50"
-                    >
-                      <Plus className="w-3 h-3 text-muted-foreground" />
-                    </button>
-                  </div>
                 </div>
 
-                {/* Miniature / card preview */}
+                {/* Thumbnail photo (for cover overlay) */}
                 <div className="space-y-2">
                   <div className="text-sm font-medium text-center">Миниатюра</div>
+                  <div className="text-xs text-muted-foreground text-center">Обложка видео</div>
                   <div className="relative w-48 aspect-[9/16] bg-muted rounded-xl overflow-hidden border-2 border-border">
-                    {getPrimaryPhoto(selectedAdvisor) ? (
+                    {getThumbnailPhoto(selectedAdvisor) ? (
                       <>
                         <img
-                          src={getPrimaryPhoto(selectedAdvisor)!.photo_url}
+                          src={getThumbnailPhoto(selectedAdvisor)!.photo_url}
                           alt=""
                           className="w-full h-full object-cover"
                         />
@@ -315,6 +296,82 @@ export function AdvisorsGrid({
                     )}
                   </div>
                 </div>
+              </div>
+
+              {/* Photo carousel with role assignment */}
+              <div className="md:col-span-2 space-y-2 mt-2">
+                <div className="text-sm font-medium">Все фотографии</div>
+                <div className="flex gap-2 flex-wrap">
+                  {selectedAdvisor.photos?.map((photo) => {
+                    const isScene = photo.id === selectedAdvisor.scene_photo_id;
+                    const isThumbnail = photo.id === selectedAdvisor.thumbnail_photo_id;
+                    return (
+                      <div key={photo.id} className="relative group">
+                        <button
+                          onClick={() => onSetPrimaryPhoto(selectedAdvisor.id, photo.id)}
+                          className={cn(
+                            "w-12 h-12 rounded-full border-2 overflow-hidden transition-colors",
+                            photo.is_primary ? "border-primary" : "border-border hover:border-primary/50"
+                          )}
+                        >
+                          <img src={photo.photo_url} alt="" className="w-full h-full object-cover" />
+                        </button>
+                        {/* Role indicators */}
+                        <div className="flex gap-0.5 justify-center mt-1">
+                          {isScene && <span className="text-[9px] bg-blue-500/20 text-blue-600 rounded px-1">С</span>}
+                          {isThumbnail && <span className="text-[9px] bg-purple-500/20 text-purple-600 rounded px-1">М</span>}
+                        </div>
+                        {/* Action buttons on hover */}
+                        <div className="absolute -top-1 -right-1 hidden group-hover:flex gap-0.5">
+                          <button
+                            onClick={(e) => { e.stopPropagation(); onDeletePhoto(photo.id); }}
+                            className="w-4 h-4 rounded-full bg-destructive text-destructive-foreground flex items-center justify-center"
+                            title="Удалить"
+                          >
+                            <Trash2 className="w-2.5 h-2.5" />
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  })}
+                  <button
+                    onClick={() => triggerFileInput(selectedAdvisor.id)}
+                    className="w-12 h-12 rounded-full border-2 border-dashed border-muted-foreground/30 flex items-center justify-center hover:border-primary/50"
+                  >
+                    <Plus className="w-4 h-4 text-muted-foreground" />
+                  </button>
+                </div>
+                {/* Role assignment buttons */}
+                {selectedAdvisor.photos && selectedAdvisor.photos.length > 0 && (
+                  <div className="flex gap-2 mt-2">
+                    <div className="space-y-1">
+                      <Label className="text-xs">Фото для сцены</Label>
+                      <select
+                        className="w-full text-xs border rounded px-2 py-1 bg-background"
+                        value={selectedAdvisor.scene_photo_id || ''}
+                        onChange={(e) => setSelectedAdvisor({ ...selectedAdvisor, scene_photo_id: e.target.value || null })}
+                      >
+                        <option value="">По умолчанию (основное)</option>
+                        {selectedAdvisor.photos.map((p, i) => (
+                          <option key={p.id} value={p.id}>Фото {i + 1}{p.is_primary ? ' (основное)' : ''}</option>
+                        ))}
+                      </select>
+                    </div>
+                    <div className="space-y-1">
+                      <Label className="text-xs">Фото для миниатюры</Label>
+                      <select
+                        className="w-full text-xs border rounded px-2 py-1 bg-background"
+                        value={selectedAdvisor.thumbnail_photo_id || ''}
+                        onChange={(e) => setSelectedAdvisor({ ...selectedAdvisor, thumbnail_photo_id: e.target.value || null })}
+                      >
+                        <option value="">По умолчанию (основное)</option>
+                        {selectedAdvisor.photos.map((p, i) => (
+                          <option key={p.id} value={p.id}>Фото {i + 1}{p.is_primary ? ' (основное)' : ''}</option>
+                        ))}
+                      </select>
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
           )}
