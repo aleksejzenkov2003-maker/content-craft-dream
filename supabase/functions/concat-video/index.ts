@@ -223,37 +223,87 @@ function writeStss(entries: number[]): Uint8Array {
 
 // ── stsd helpers ──────────────────────────────────────────────────
 
-function readStsdEntryCount(stsdBox: Box): number {
-  // stsd is a full box: version(1) + flags(3) + entry_count(4)
-  return r32(stsdBox.data, stsdBox.offset + stsdBox.headerSize + 4);
+function extractStsdEntries(stsdBox: Box): Uint8Array[] {
+  const entries: Uint8Array[] = [];
+  const entriesStart = stsdBox.offset + stsdBox.headerSize + 8; // fullbox(4) + entry_count(4)
+  const entriesEnd = stsdBox.offset + stsdBox.size;
+  let pos = entriesStart;
+
+  while (pos + 8 <= entriesEnd) {
+    const size = r32(stsdBox.data, pos);
+    if (size < 8 || pos + size > entriesEnd) break;
+    entries.push(stsdBox.data.slice(pos, pos + size));
+    pos += size;
+  }
+
+  return entries;
 }
 
-function mergeStsd(stsd1Box: Box, stsd2Box: Box): { merged: Uint8Array; entryCount1: number } {
-  const entryCount1 = readStsdEntryCount(stsd1Box);
-  const entryCount2 = readStsdEntryCount(stsd2Box);
-  
-  // Extract raw entries from both stsd boxes (skip header + version/flags + entry_count)
-  const entries1Start = stsd1Box.offset + stsd1Box.headerSize + 8; // +4 version/flags +4 entry_count
-  const entries1End = stsd1Box.offset + stsd1Box.size;
-  const entries1 = stsd1Box.data.slice(entries1Start, entries1End);
-  
-  const entries2Start = stsd2Box.offset + stsd2Box.headerSize + 8;
-  const entries2End = stsd2Box.offset + stsd2Box.size;
-  const entries2 = stsd2Box.data.slice(entries2Start, entries2End);
-  
-  const totalEntries = entryCount1 + entryCount2;
-  const bodySize = 4 + 4 + entries1.length + entries2.length; // version/flags + entry_count + entries
-  const totalSize = 8 + bodySize;
-  
+function buildStsdFromEntries(entries: Uint8Array[]): Uint8Array {
+  const entriesSize = entries.reduce((sum, e) => sum + e.length, 0);
+  const totalSize = 8 + 4 + 4 + entriesSize; // header + fullbox + entry_count + entries
   const buf = new Uint8Array(totalSize);
   w32(buf, 0, totalSize);
   buf[4] = 0x73; buf[5] = 0x74; buf[6] = 0x73; buf[7] = 0x64; // "stsd"
   // version + flags = 0
-  w32(buf, 12, totalEntries);
-  buf.set(entries1, 16);
-  buf.set(entries2, 16 + entries1.length);
-  
-  return { merged: buf, entryCount1 };
+  w32(buf, 12, entries.length);
+
+  let pos = 16;
+  for (const entry of entries) {
+    buf.set(entry, pos);
+    pos += entry.length;
+  }
+
+  return buf;
+}
+
+function areEntriesEqual(a: Uint8Array, b: Uint8Array): boolean {
+  if (a.length !== b.length) return false;
+  for (let i = 0; i < a.length; i++) {
+    if (a[i] !== b[i]) return false;
+  }
+  return true;
+}
+
+interface StsdMergeResult {
+  merged: Uint8Array;
+  entryCount1: number;
+  entryCount2: number;
+  mapSdiFile2: (sdi: number) => number;
+  dedupedForCompatibility: boolean;
+}
+
+function mergeStsd(stsd1Box: Box, stsd2Box: Box, handlerType: string): StsdMergeResult {
+  const entries1 = extractStsdEntries(stsd1Box);
+  const entries2 = extractStsdEntries(stsd2Box);
+  const entryCount1 = entries1.length;
+  const entryCount2 = entries2.length;
+
+  // Browser compatibility: for audio, if both descriptions are byte-identical,
+  // keep a single sample description to avoid decoder issues on sample-entry switches.
+  if (
+    handlerType === "soun" &&
+    entryCount1 === 1 &&
+    entryCount2 === 1 &&
+    areEntriesEqual(entries1[0], entries2[0])
+  ) {
+    return {
+      merged: buildStsdFromEntries(entries1),
+      entryCount1,
+      entryCount2,
+      mapSdiFile2: () => 1,
+      dedupedForCompatibility: true,
+    };
+  }
+
+  const mergedEntries = [...entries1, ...entries2];
+  return {
+    merged: buildStsdFromEntries(mergedEntries),
+    entryCount1,
+    entryCount2,
+    mapSdiFile2: (sdi: number) => sdi + entryCount1,
+    dedupedForCompatibility: false,
+  };
 }
 
 // ── Track info extraction ──────────────────────────────────────────
