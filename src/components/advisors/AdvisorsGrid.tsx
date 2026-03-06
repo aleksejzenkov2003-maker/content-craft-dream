@@ -389,7 +389,9 @@ export function AdvisorsGrid({
                     speech_speed: selectedAdvisor.speech_speed,
                     elevenlabs_voice_id: selectedAdvisor.elevenlabs_voice_id,
                     is_active: selectedAdvisor.is_active,
-                  });
+                    scene_photo_id: selectedAdvisor.scene_photo_id,
+                    thumbnail_photo_id: selectedAdvisor.thumbnail_photo_id,
+                  } as any);
                   setSelectedAdvisor(null);
                 }
               }}
