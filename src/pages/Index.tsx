@@ -39,7 +39,7 @@ const headerTitles: Record<string, { title: string; subtitle: string }> = {
   videos: { title: 'Ролики', subtitle: 'Все видео с духовниками' },
   'publications-list': { title: 'Публикации', subtitle: 'Список публикаций по каналам' },
   scenes: { title: 'Сцены', subtitle: 'Генерация сцен для плейлистов' },
-  'back-covers': { title: 'Задние обложки', subtitle: 'Шаблоны задних обложек по духовникам' },
+  
   advisors: { title: 'Духовники', subtitle: 'Управление аватарами и настройками' },
   playlists: { title: 'Плейлисты', subtitle: 'Группировка видео по категориям' },
   channels: { title: 'Каналы', subtitle: 'Настройка каналов публикации' },
