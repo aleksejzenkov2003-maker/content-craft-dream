@@ -593,17 +593,22 @@ function concatMP4(file1: Uint8Array, file2: Uint8Array): Uint8Array {
       const mergedStts = [...t1.stts, ...t2.stts];
 
       // Merge stsd (sample descriptions) from both tracks
-      const { merged: mergedStsdBuf, entryCount1: stsdEntryCount1 } = mergeStsd(t1.stsdBox, t2.stsdBox);
-      console.log(`Track ${t1.handlerType}: merging stsd entries: ${stsdEntryCount1} + ${readStsdEntryCount(t2.stsdBox)} = ${stsdEntryCount1 + readStsdEntryCount(t2.stsdBox)}`);
+      const stsdMerge = mergeStsd(t1.stsdBox, t2.stsdBox, t1.handlerType);
+      const mergedStsdBuf = stsdMerge.merged;
+      if (stsdMerge.dedupedForCompatibility) {
+        console.log(`Track ${t1.handlerType}: deduped identical stsd entries for decoder compatibility`);
+      } else {
+        console.log(`Track ${t1.handlerType}: merging stsd entries: ${stsdMerge.entryCount1} + ${stsdMerge.entryCount2} = ${stsdMerge.entryCount1 + stsdMerge.entryCount2}`);
+      }
 
-      // Merge stsc — shift file2 chunk indices AND offset sdi for file2
+      // Merge stsc — shift file2 chunk indices and remap sample-description indices
       const chunkOffset2 = t1.chunkCount;
       const mergedStsc = [
         ...t1.stsc,
         ...t2.stsc.map(e => ({
           firstChunk: e.firstChunk + chunkOffset2,
           samplesPerChunk: e.samplesPerChunk,
-          sdi: e.sdi + stsdEntryCount1, // offset to reference file2's sample descriptions
+          sdi: stsdMerge.mapSdiFile2(e.sdi),
         })),
       ];
 
