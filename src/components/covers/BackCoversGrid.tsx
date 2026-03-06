@@ -274,6 +274,16 @@ export function BackCoversGrid() {
               />
             )}
 
+            {normalizing && (
+              <div className="space-y-2">
+                <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                  Нормализация аудио... {normalizeProgress}%
+                </div>
+                <Progress value={normalizeProgress} />
+              </div>
+            )}
+
             <div className="flex justify-end gap-2">
               <Button variant="outline" onClick={() => setShowAddDialog(false)}>
                 Отмена
