@@ -51,8 +51,8 @@ const headerTitles: Record<string, { title: string; subtitle: string }> = {
 export default function Index() {
   const [activeTab, setActiveTab] = useState('dashboard');
   const [videoFilters, setVideoFilters] = useState<VideoFilters>({});
-  const [editingVideo, setEditingVideo] = useState<Video | null>(null);
-  const [viewingVideo, setViewingVideo] = useState<Video | null>(null);
+  const [editingVideoId, setEditingVideoId] = useState<string | null>(null);
+  const [viewingVideoId, setViewingVideoId] = useState<string | null>(null);
   const [showVideoEditor, setShowVideoEditor] = useState(false);
   const [showVideoDetail, setShowVideoDetail] = useState(false);
   const [showSidePanel, setShowSidePanel] = useState(false);
