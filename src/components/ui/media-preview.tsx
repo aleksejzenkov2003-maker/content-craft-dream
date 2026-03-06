@@ -140,7 +140,8 @@ export function MediaPreview({
               <video
                 src={src}
                 controls
-                autoPlay
+                playsInline
+                preload="metadata"
                 className="w-full h-auto max-h-[85vh]"
               />
             )}

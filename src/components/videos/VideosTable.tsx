@@ -792,7 +792,8 @@ export function VideosTable({
                                 <video
                                   src={video.heygen_video_url}
                                   controls
-                                  autoPlay
+                                  playsInline
+                                  preload="metadata"
                                   className="w-full rounded-md"
                                   poster={video.front_cover_url || undefined}
                                 />
