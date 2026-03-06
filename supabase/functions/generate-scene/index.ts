@@ -159,7 +159,7 @@ Ultra high resolution, 9:16 aspect ratio.`;
         input: {
           prompt: `${scenePrompt}\nUltra high resolution, professional quality.`,
           aspect_ratio: '9:16',
-          output_format: 'PNG',
+          output_format: 'png',
         },
       }),
     });
