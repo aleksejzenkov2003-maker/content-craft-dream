@@ -129,13 +129,6 @@ serve(async (req) => {
     let generatedText = "";
 
     if (anthropicKey) {
-      const messages: Array<{ role: string; content: string }> = [];
-      
-      if (systemPrompt) {
-        messages.push({ role: "user", content: prompt });
-      } else {
-        messages.push({ role: "user", content: prompt });
-      }
 
       const response = await fetch("https://api.anthropic.com/v1/messages", {
         method: "POST",
