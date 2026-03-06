@@ -202,7 +202,7 @@ export function AdvisorsGrid({
             <div
               key={advisor.id}
               className="cursor-pointer rounded-xl border bg-card overflow-hidden hover:border-primary/50 transition-colors group"
-              onClick={() => setSelectedAdvisor(advisor)}
+              onClick={() => openAdvisorDialog(advisor)}
             >
               {/* Name above the card */}
               <div className="px-3 py-2 text-sm font-medium truncate text-center">
