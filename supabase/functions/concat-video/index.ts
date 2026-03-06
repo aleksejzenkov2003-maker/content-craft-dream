@@ -201,19 +201,17 @@ function buildCtts(entries: { count: number; offset: number }[]): Uint8Array {
 // ── Build moov hierarchy from scratch ──
 
 function buildMvhd(timescale: number, duration: number): Uint8Array {
-  // version 0 mvhd: 96 bytes payload
+  // version 0 mvhd payload: 96 bytes
+  // [0-3] creation_time, [4-7] modification_time, [8-11] timescale, [12-15] duration
+  // [16-19] rate=1.0, [20-21] volume=1.0, [22-31] reserved
+  // [32-67] matrix (36 bytes), [68-91] pre_defined (24 bytes), [92-95] next_track_ID
   const p = new Uint8Array(96);
-  w32(p, 0, 0); // creation_time
-  w32(p, 4, 0); // modification_time
   w32(p, 8, timescale);
   w32(p, 12, duration);
   w32(p, 16, 0x00010000); // rate = 1.0
   p[20] = 0x01; p[21] = 0x00; // volume = 1.0
-  // reserved 10 bytes (22-31)
-  // matrix (36 bytes) - identity
   const matrix = [0x00010000,0,0,0,0x00010000,0,0,0,0x40000000];
   for (let i = 0; i < 9; i++) w32(p, 32 + i*4, matrix[i]);
-  // pre_defined 24 bytes (68-91)
   w32(p, 92, 3); // next_track_ID
   return makeFullBox("mvhd", 0, 0, p);
 }
