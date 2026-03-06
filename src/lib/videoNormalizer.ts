@@ -57,7 +57,7 @@ export async function normalizeVideoAudio(
   ]);
 
   const data = await ff.readFile(outputName);
-  const blob = new Blob([data], { type: 'video/mp4' });
+  const blob = new Blob([data as Uint8Array], { type: 'video/mp4' });
 
   // Cleanup
   await ff.deleteFile(inputName);
