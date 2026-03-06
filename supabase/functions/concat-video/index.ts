@@ -785,19 +785,51 @@ Deno.serve(async (req) => {
       .update({ publication_status: "concatenating", error_message: null })
       .eq("id", publication_id);
 
+    // Resolve fresh main_video_url from DB if the provided one looks like an expiring signed URL
+    let resolvedMainUrl = main_video_url;
+    if (main_video_url && main_video_url.includes("Expires=")) {
+      // Check if the signed URL is still valid (with 30s buffer)
+      const expiresMatch = main_video_url.match(/Expires=(\d+)/);
+      const expiresAt = expiresMatch ? parseInt(expiresMatch[1]) : 0;
+      const now = Math.floor(Date.now() / 1000);
+      if (expiresAt > 0 && expiresAt < now + 30) {
+        console.log(`Signed URL expired or expiring soon (expires=${expiresAt}, now=${now}). Fetching fresh URL from DB...`);
+        // Get the video_id from the publication, then get the latest heygen_video_url
+        const { data: pubData } = await supabase
+          .from("publications")
+          .select("video_id")
+          .eq("id", publication_id)
+          .single();
+        if (pubData?.video_id) {
+          const { data: videoData } = await supabase
+            .from("videos")
+            .select("heygen_video_url, video_path")
+            .eq("id", pubData.video_id)
+            .single();
+          const freshUrl = videoData?.heygen_video_url || videoData?.video_path;
+          if (freshUrl) {
+            console.log(`Using fresh URL from DB: ${freshUrl.substring(0, 80)}...`);
+            resolvedMainUrl = freshUrl;
+          } else {
+            console.log("No fresh URL found in DB, trying original URL anyway");
+          }
+        }
+      }
+    }
+
     // No back cover — just use main video
     if (!back_cover_video_url) {
       console.log("No back cover, using main video as final");
       await supabase.from("publications")
-        .update({ final_video_url: main_video_url, publication_status: "checked" })
+        .update({ final_video_url: resolvedMainUrl, publication_status: "checked" })
         .eq("id", publication_id);
       return new Response(
-        JSON.stringify({ success: true, final_video_url: main_video_url }),
+        JSON.stringify({ success: true, final_video_url: resolvedMainUrl }),
         { headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
 
-    const mainVideo = await downloadVideo(main_video_url);
+    const mainVideo = await downloadVideo(resolvedMainUrl);
     const backCoverVideo = await downloadVideo(back_cover_video_url);
 
     console.log("Starting MP4 atom-level concatenation...");
