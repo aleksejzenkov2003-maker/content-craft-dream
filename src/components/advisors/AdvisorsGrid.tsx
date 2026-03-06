@@ -241,25 +241,25 @@ export function AdvisorsGrid({
           </DialogHeader>
 
           {selectedAdvisor && (
-            <div className="flex flex-col md:flex-row gap-6">
-              {/* Left: fields */}
-              <div className="flex-1 space-y-4">
-                <div className="space-y-2">
-                  <Label>Имя</Label>
+            <div className="space-y-4">
+              {/* Top: fields in a row */}
+              <div className="grid grid-cols-3 gap-4">
+                <div className="space-y-1">
+                  <Label className="text-xs">Имя</Label>
                   <Input
                     value={selectedAdvisor.display_name || selectedAdvisor.name}
                     onChange={(e) => setEditFormData({ ...editFormData, display_name: e.target.value })}
                   />
                 </div>
-                <div className="space-y-2">
-                  <Label>Eleven Labs Voice ID</Label>
+                <div className="space-y-1">
+                  <Label className="text-xs">Eleven Labs Voice ID</Label>
                   <Input
                     value={selectedAdvisor.elevenlabs_voice_id || ''}
                     onChange={(e) => setEditFormData({ ...editFormData, elevenlabs_voice_id: e.target.value })}
                   />
                 </div>
-                <div className="space-y-2">
-                  <Label>Скорость речи</Label>
+                <div className="space-y-1">
+                  <Label className="text-xs">Скорость речи</Label>
                   <Input
                     type="number"
                     step="0.1"
@@ -271,19 +271,15 @@ export function AdvisorsGrid({
                 </div>
               </div>
 
-              {/* Right: scene photo + thumbnail photo */}
+              {/* Photos row: scene + thumbnail + gallery */}
               <div className="flex gap-4">
-                {/* Scene photo (for video generation) */}
-                <div className="space-y-2">
+                {/* Scene photo */}
+                <div className="space-y-1">
                   <div className="text-sm font-medium text-center">Фото для сцены</div>
                   <div className="text-xs text-muted-foreground text-center">Генерация видео</div>
-                  <div className="relative w-48 aspect-[9/16] bg-muted rounded-xl overflow-hidden border-2 border-border">
+                  <div className="relative w-44 aspect-[9/16] bg-muted rounded-xl overflow-hidden border-2 border-border">
                     {getScenePhoto(selectedAdvisor) ? (
-                      <img
-                        src={getScenePhoto(selectedAdvisor)!.photo_url}
-                        alt=""
-                        className="w-full h-full object-cover"
-                      />
+                      <img src={getScenePhoto(selectedAdvisor)!.photo_url} alt="" className="w-full h-full object-cover" />
                     ) : (
                       <div className="w-full h-full flex items-center justify-center">
                         <Image className="w-8 h-8 text-muted-foreground" />
@@ -292,18 +288,14 @@ export function AdvisorsGrid({
                   </div>
                 </div>
 
-                {/* Thumbnail photo (for cover overlay) */}
-                <div className="space-y-2">
+                {/* Thumbnail photo */}
+                <div className="space-y-1">
                   <div className="text-sm font-medium text-center">Миниатюра</div>
                   <div className="text-xs text-muted-foreground text-center">Обложка видео</div>
-                  <div className="relative w-48 aspect-[9/16] bg-muted rounded-xl overflow-hidden border-2 border-border">
+                  <div className="relative w-44 aspect-[9/16] bg-muted rounded-xl overflow-hidden border-2 border-border">
                     {getThumbnailPhoto(selectedAdvisor) ? (
                       <>
-                        <img
-                          src={getThumbnailPhoto(selectedAdvisor)!.photo_url}
-                          alt=""
-                          className="w-full h-full object-cover"
-                        />
+                        <img src={getThumbnailPhoto(selectedAdvisor)!.photo_url} alt="" className="w-full h-full object-cover" />
                         <div className="absolute bottom-0 inset-x-0 bg-gradient-to-t from-black/70 to-transparent pt-6 pb-2 px-2">
                           <span className="text-white text-xs font-medium">
                             {selectedAdvisor.display_name || selectedAdvisor.name}
@@ -317,82 +309,79 @@ export function AdvisorsGrid({
                     )}
                   </div>
                 </div>
-              </div>
 
-              {/* Photo carousel with role assignment */}
-              <div className="md:col-span-2 space-y-2 mt-2">
-                <div className="text-sm font-medium">Все фотографии</div>
-                <div className="flex gap-2 flex-wrap">
-                  {selectedAdvisor.photos?.map((photo) => {
-                    const isScene = photo.id === selectedAdvisor.scene_photo_id;
-                    const isThumbnail = photo.id === selectedAdvisor.thumbnail_photo_id;
-                    return (
-                      <div key={photo.id} className="relative group">
-                        <button
-                          onClick={() => onSetPrimaryPhoto(selectedAdvisor.id, photo.id)}
-                          className={cn(
-                            "w-12 h-12 rounded-full border-2 overflow-hidden transition-colors",
-                            photo.is_primary ? "border-primary" : "border-border hover:border-primary/50"
-                          )}
-                        >
-                          <img src={photo.photo_url} alt="" className="w-full h-full object-cover" />
-                        </button>
-                        {/* Role indicators */}
-                        <div className="flex gap-0.5 justify-center mt-1">
-                          {isScene && <span className="text-[9px] bg-blue-500/20 text-blue-600 rounded px-1">С</span>}
-                          {isThumbnail && <span className="text-[9px] bg-purple-500/20 text-purple-600 rounded px-1">М</span>}
-                        </div>
-                        {/* Action buttons on hover */}
-                        <div className="absolute -top-1 -right-1 hidden group-hover:flex gap-0.5">
+                {/* Gallery + role selectors */}
+                <div className="flex-1 space-y-3">
+                  <div className="text-sm font-medium">Все фотографии</div>
+                  <div className="flex gap-2 flex-wrap">
+                    {selectedAdvisor.photos?.map((photo) => {
+                      const isScene = photo.id === selectedAdvisor.scene_photo_id;
+                      const isThumbnail = photo.id === selectedAdvisor.thumbnail_photo_id;
+                      return (
+                        <div key={photo.id} className="relative group">
                           <button
-                            onClick={(e) => { e.stopPropagation(); onDeletePhoto(photo.id); }}
-                            className="w-4 h-4 rounded-full bg-destructive text-destructive-foreground flex items-center justify-center"
-                            title="Удалить"
+                            onClick={() => onSetPrimaryPhoto(selectedAdvisor.id, photo.id)}
+                            className={cn(
+                              "w-12 h-12 rounded-full border-2 overflow-hidden transition-colors",
+                              photo.is_primary ? "border-primary" : "border-border hover:border-primary/50"
+                            )}
                           >
-                            <Trash2 className="w-2.5 h-2.5" />
+                            <img src={photo.photo_url} alt="" className="w-full h-full object-cover" />
                           </button>
+                          <div className="flex gap-0.5 justify-center mt-1">
+                            {isScene && <span className="text-[9px] bg-blue-500/20 text-blue-600 rounded px-1">С</span>}
+                            {isThumbnail && <span className="text-[9px] bg-purple-500/20 text-purple-600 rounded px-1">М</span>}
+                          </div>
+                          <div className="absolute -top-1 -right-1 hidden group-hover:flex gap-0.5">
+                            <button
+                              onClick={(e) => { e.stopPropagation(); onDeletePhoto(photo.id); }}
+                              className="w-4 h-4 rounded-full bg-destructive text-destructive-foreground flex items-center justify-center"
+                              title="Удалить"
+                            >
+                              <Trash2 className="w-2.5 h-2.5" />
+                            </button>
+                          </div>
                         </div>
-                      </div>
-                    );
-                  })}
-                  <button
-                    onClick={() => triggerFileInput(selectedAdvisor.id)}
-                    className="w-12 h-12 rounded-full border-2 border-dashed border-muted-foreground/30 flex items-center justify-center hover:border-primary/50"
-                  >
-                    <Plus className="w-4 h-4 text-muted-foreground" />
-                  </button>
-                </div>
-                {/* Role assignment buttons */}
-                {selectedAdvisor.photos && selectedAdvisor.photos.length > 0 && (
-                  <div className="flex gap-2 mt-2">
-                    <div className="space-y-1">
-                      <Label className="text-xs">Фото для сцены</Label>
-                      <select
-                        className="w-full text-xs border rounded px-2 py-1 bg-background"
-                        value={selectedAdvisor.scene_photo_id || ''}
-                        onChange={(e) => setEditFormData({ ...editFormData, scene_photo_id: e.target.value || null })}
-                      >
-                        <option value="">По умолчанию (основное)</option>
-                        {selectedAdvisor.photos.map((p, i) => (
-                          <option key={p.id} value={p.id}>Фото {i + 1}{p.is_primary ? ' (основное)' : ''}</option>
-                        ))}
-                      </select>
-                    </div>
-                    <div className="space-y-1">
-                      <Label className="text-xs">Фото для миниатюры</Label>
-                      <select
-                        className="w-full text-xs border rounded px-2 py-1 bg-background"
-                        value={selectedAdvisor.thumbnail_photo_id || ''}
-                        onChange={(e) => setEditFormData({ ...editFormData, thumbnail_photo_id: e.target.value || null })}
-                      >
-                        <option value="">По умолчанию (основное)</option>
-                        {selectedAdvisor.photos.map((p, i) => (
-                          <option key={p.id} value={p.id}>Фото {i + 1}{p.is_primary ? ' (основное)' : ''}</option>
-                        ))}
-                      </select>
-                    </div>
+                      );
+                    })}
+                    <button
+                      onClick={() => triggerFileInput(selectedAdvisor.id)}
+                      className="w-12 h-12 rounded-full border-2 border-dashed border-muted-foreground/30 flex items-center justify-center hover:border-primary/50"
+                    >
+                      <Plus className="w-4 h-4 text-muted-foreground" />
+                    </button>
                   </div>
-                )}
+                  {selectedAdvisor.photos && selectedAdvisor.photos.length > 0 && (
+                    <div className="grid grid-cols-2 gap-2">
+                      <div className="space-y-1">
+                        <Label className="text-xs">Фото для сцены</Label>
+                        <select
+                          className="w-full text-xs border rounded px-2 py-1 bg-background"
+                          value={selectedAdvisor.scene_photo_id || ''}
+                          onChange={(e) => setEditFormData({ ...editFormData, scene_photo_id: e.target.value || null })}
+                        >
+                          <option value="">По умолчанию</option>
+                          {selectedAdvisor.photos.map((p, i) => (
+                            <option key={p.id} value={p.id}>Фото {i + 1}{p.is_primary ? ' (осн.)' : ''}</option>
+                          ))}
+                        </select>
+                      </div>
+                      <div className="space-y-1">
+                        <Label className="text-xs">Фото для миниатюры</Label>
+                        <select
+                          className="w-full text-xs border rounded px-2 py-1 bg-background"
+                          value={selectedAdvisor.thumbnail_photo_id || ''}
+                          onChange={(e) => setEditFormData({ ...editFormData, thumbnail_photo_id: e.target.value || null })}
+                        >
+                          <option value="">По умолчанию</option>
+                          {selectedAdvisor.photos.map((p, i) => (
+                            <option key={p.id} value={p.id}>Фото {i + 1}{p.is_primary ? ' (осн.)' : ''}</option>
+                          ))}
+                        </select>
+                      </div>
+                    </div>
+                  )}
+                </div>
               </div>
             </div>
           )}
