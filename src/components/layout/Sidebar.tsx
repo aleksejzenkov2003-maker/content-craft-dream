@@ -30,10 +30,6 @@ const navItems: NavItem[] = [{
   label: 'Сцены монологов',
   icon: Image
 }, {
-  id: 'back-covers',
-  label: 'Задние обложки',
-  icon: ImageIcon
-}, {
   id: 'advisors',
   label: 'Духовники',
   icon: Users,
