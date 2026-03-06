@@ -279,14 +279,10 @@ function mergeStsd(stsd1Box: Box, stsd2Box: Box, handlerType: string): StsdMerge
   const entryCount1 = entries1.length;
   const entryCount2 = entries2.length;
 
-  // Browser compatibility: for audio, if both descriptions are byte-identical,
-  // keep a single sample description to avoid decoder issues on sample-entry switches.
-  if (
-    handlerType === "soun" &&
-    entryCount1 === 1 &&
-    entryCount2 === 1 &&
-    areEntriesEqual(entries1[0], entries2[0])
-  ) {
+  // Browser compatibility: many players плохо переживают смену audio sample-entry
+  // внутри одного трека, даже если MP4 формально валиден. Для single-entry audio
+  // фиксируем единый stsd и используем его для обеих частей.
+  if (handlerType === "soun" && entryCount1 === 1 && entryCount2 === 1) {
     return {
       merged: buildStsdFromEntries(entries1),
       entryCount1,
