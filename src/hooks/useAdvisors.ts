@@ -44,7 +44,7 @@ export function useAdvisors() {
 
       if (error) throw error;
 
-      const formattedData = (data || []).map(advisor => ({
+      const formattedData = (data || []).map((advisor: any) => ({
         ...advisor,
         photos: advisor.advisor_photos || []
       }));
