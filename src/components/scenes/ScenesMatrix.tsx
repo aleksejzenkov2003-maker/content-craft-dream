@@ -55,9 +55,23 @@ export function ScenesMatrix() {
 
   const sceneMap = useMemo(() => {
     const map = new Map<string, PlaylistScene>();
+    // scenes are ordered by created_at DESC (newest first)
+    // For duplicate playlist+advisor combos, keep the best one:
+    // priority: approved with URL > approved > generating > waiting
+    const priority = (s: PlaylistScene): number => {
+      const status = normalizeStatus(s.status);
+      if (status === 'approved' && s.scene_url) return 4;
+      if (status === 'approved') return 3;
+      if (status === 'generating') return 2;
+      return 1;
+    };
     scenes.forEach(scene => {
       if (scene.playlist_id && scene.advisor_id) {
-        map.set(`${scene.playlist_id}-${scene.advisor_id}`, scene);
+        const key = `${scene.playlist_id}-${scene.advisor_id}`;
+        const existing = map.get(key);
+        if (!existing || priority(scene) > priority(existing)) {
+          map.set(key, scene);
+        }
       }
     });
     return map;
