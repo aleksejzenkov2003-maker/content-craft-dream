@@ -94,7 +94,7 @@ serve(async (req) => {
         input: {
           prompt: fullPrompt,
           aspect_ratio: aspectRatio,
-          output_format: 'PNG',
+          output_format: 'png',
         },
       }),
     });

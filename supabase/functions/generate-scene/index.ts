@@ -112,13 +112,43 @@ serve(async (req) => {
     }
 
     let advisorName = '';
+    let advisorPhotoUrl = '';
     if (advisorId) {
       const { data: advisor } = await supabase
         .from('advisors')
-        .select('name, display_name')
+        .select('name, display_name, scene_photo_id')
         .eq('id', advisorId)
         .single();
       advisorName = advisor?.display_name || advisor?.name || '';
+
+      // Get advisor's scene photo (or primary photo as fallback)
+      if (advisor?.scene_photo_id) {
+        const { data: photo } = await supabase
+          .from('advisor_photos')
+          .select('photo_url')
+          .eq('id', advisor.scene_photo_id)
+          .single();
+        if (photo) advisorPhotoUrl = photo.photo_url;
+      }
+      if (!advisorPhotoUrl) {
+        const { data: primaryPhoto } = await supabase
+          .from('advisor_photos')
+          .select('photo_url')
+          .eq('advisor_id', advisorId)
+          .eq('is_primary', true)
+          .limit(1)
+          .single();
+        if (primaryPhoto) advisorPhotoUrl = primaryPhoto.photo_url;
+      }
+      if (!advisorPhotoUrl) {
+        const { data: anyPhoto } = await supabase
+          .from('advisor_photos')
+          .select('photo_url')
+          .eq('advisor_id', advisorId)
+          .limit(1)
+          .single();
+        if (anyPhoto) advisorPhotoUrl = anyPhoto.photo_url;
+      }
     }
 
     // Build prompt
@@ -145,7 +175,19 @@ Ultra high resolution, 9:16 aspect ratio.`;
       }
     }
 
-    console.log('Generating scene via Kie.ai, prompt:', scenePrompt);
+    console.log('Generating scene via Kie.ai, prompt:', scenePrompt, 'advisorPhoto:', advisorPhotoUrl || 'none');
+
+    // Build input with optional reference image
+    const kieInput: Record<string, unknown> = {
+      prompt: `${scenePrompt}\nUltra high resolution, professional quality.`,
+      aspect_ratio: '9:16',
+      output_format: 'png',
+    };
+
+    // Pass advisor photo as reference for identity lock
+    if (advisorPhotoUrl) {
+      kieInput.image_input = [advisorPhotoUrl];
+    }
 
     // Create task via Kie.ai API
     const createRes = await fetch('https://api.kie.ai/api/v1/jobs/createTask', {
@@ -156,11 +198,7 @@ Ultra high resolution, 9:16 aspect ratio.`;
       },
       body: JSON.stringify({
         model: 'nano-banana-pro',
-        input: {
-          prompt: `${scenePrompt}\nUltra high resolution, professional quality.`,
-          aspect_ratio: '9:16',
-          output_format: 'png',
-        },
+        input: kieInput,
       }),
     });
 
