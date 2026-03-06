@@ -525,7 +525,7 @@ export default function Index() {
                 onGenerateCover={handleGenerateCover}
                 onGenerateAtmosphere={handleGenerateAtmosphere}
                 onGenerateVoiceover={handleGenerateVoiceover}
-                onAddVideo={() => { setEditingVideo(null); setShowVideoEditor(true); }}
+                onAddVideo={() => { setEditingVideoId(null); setShowVideoEditor(true); }}
                 onImportVideos={() => setShowImportDialog(true)}
                 onViewVideo={handleViewVideo}
                 onUpdateVideo={updateVideo}
