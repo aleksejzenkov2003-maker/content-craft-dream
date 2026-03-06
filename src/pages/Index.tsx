@@ -570,7 +570,7 @@ export default function Index() {
                 advisors={advisors}
                 playlists={playlists}
                 open={showVideoEditor}
-                onClose={() => { setShowVideoEditor(false); setEditingVideo(null); }}
+                onClose={() => { setShowVideoEditor(false); setEditingVideoId(null); }}
                 onSave={handleSaveVideo}
               />
               <CsvImporter
