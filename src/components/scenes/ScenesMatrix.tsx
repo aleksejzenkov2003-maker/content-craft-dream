@@ -45,9 +45,9 @@ export function ScenesMatrix() {
   
   const [expandedAdvisors, setExpandedAdvisors] = useState<Set<string>>(new Set());
   const [generatingScenes, setGeneratingScenes] = useState<Set<string>>(new Set());
-  const [selectedScene, setSelectedScene] = useState<PlaylistScene | null>(null);
-  const [selectedPlaylist, setSelectedPlaylist] = useState<Playlist | null>(null);
-  const [selectedAdvisor, setSelectedAdvisor] = useState<Advisor | null>(null);
+  const [selectedSceneId, setSelectedSceneId] = useState<string | null>(null);
+  const [selectedPlaylistId, setSelectedPlaylistId] = useState<string | null>(null);
+  const [selectedAdvisorId, setSelectedAdvisorId] = useState<string | null>(null);
   const [showSidePanel, setShowSidePanel] = useState(false);
   const [showImporter, setShowImporter] = useState(false);
 
