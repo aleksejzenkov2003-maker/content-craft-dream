@@ -53,6 +53,11 @@ export function ScenesMatrix() {
 
   const loading = scenesLoading || advisorsLoading || playlistsLoading;
 
+  // Derive live objects from arrays
+  const selectedScene = selectedSceneId ? (scenes.find(s => s.id === selectedSceneId) ?? null) : null;
+  const selectedPlaylist = selectedPlaylistId ? (playlists.find(p => p.id === selectedPlaylistId) ?? null) : null;
+  const selectedAdvisor = selectedAdvisorId ? (advisors.find(a => a.id === selectedAdvisorId) ?? null) : null;
+
   const sceneMap = useMemo(() => {
     const map = new Map<string, PlaylistScene>();
     // scenes are ordered by created_at DESC (newest first)
