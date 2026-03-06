@@ -221,6 +221,41 @@ function writeStss(entries: number[]): Uint8Array {
   return buf;
 }
 
+// ── stsd helpers ──────────────────────────────────────────────────
+
+function readStsdEntryCount(stsdBox: Box): number {
+  // stsd is a full box: version(1) + flags(3) + entry_count(4)
+  return r32(stsdBox.data, stsdBox.offset + stsdBox.headerSize + 4);
+}
+
+function mergeStsd(stsd1Box: Box, stsd2Box: Box): { merged: Uint8Array; entryCount1: number } {
+  const entryCount1 = readStsdEntryCount(stsd1Box);
+  const entryCount2 = readStsdEntryCount(stsd2Box);
+  
+  // Extract raw entries from both stsd boxes (skip header + version/flags + entry_count)
+  const entries1Start = stsd1Box.offset + stsd1Box.headerSize + 8; // +4 version/flags +4 entry_count
+  const entries1End = stsd1Box.offset + stsd1Box.size;
+  const entries1 = stsd1Box.data.slice(entries1Start, entries1End);
+  
+  const entries2Start = stsd2Box.offset + stsd2Box.headerSize + 8;
+  const entries2End = stsd2Box.offset + stsd2Box.size;
+  const entries2 = stsd2Box.data.slice(entries2Start, entries2End);
+  
+  const totalEntries = entryCount1 + entryCount2;
+  const bodySize = 4 + 4 + entries1.length + entries2.length; // version/flags + entry_count + entries
+  const totalSize = 8 + bodySize;
+  
+  const buf = new Uint8Array(totalSize);
+  w32(buf, 0, totalSize);
+  buf[4] = 0x73; buf[5] = 0x74; buf[6] = 0x73; buf[7] = 0x64; // "stsd"
+  // version + flags = 0
+  w32(buf, 12, totalEntries);
+  buf.set(entries1, 16);
+  buf.set(entries2, 16 + entries1.length);
+  
+  return { merged: buf, entryCount1 };
+}
+
 // ── Track info extraction ──────────────────────────────────────────
 
 interface TrackInfo {
@@ -236,6 +271,7 @@ interface TrackInfo {
   sampleCount: number;
   chunkCount: number;
   stblBox: Box;
+  stsdBox: Box; // reference to stsd box for merging
 }
 
 function extractTrackInfo(trakBox: Box): TrackInfo {
