@@ -271,7 +271,12 @@ export function ScenesMatrix() {
   };
 
   const approvedCountByAdvisor = (advisorId: string): number => {
-    return scenes.filter(s => s.advisor_id === advisorId && normalizeStatus(s.status) === 'approved').length;
+    let count = 0;
+    playlists.forEach(p => {
+      const scene = sceneMap.get(`${p.id}-${advisorId}`);
+      if (scene && normalizeStatus(scene.status) === 'approved') count++;
+    });
+    return count;
   };
 
   return (
