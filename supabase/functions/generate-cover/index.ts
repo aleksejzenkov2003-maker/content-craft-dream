@@ -246,7 +246,7 @@ serve(async (req) => {
       .from('videos')
       .select(`
         *,
-        advisor:advisors (id, name, display_name),
+        advisor:advisors (id, name, display_name, thumbnail_photo_id),
         playlist:playlists (id, name)
       `)
       .eq('id', videoId)
@@ -254,18 +254,32 @@ serve(async (req) => {
 
     if (videoError || !video) throw new Error('Video not found');
 
-    // Get advisor primary photo
+    // Get advisor photo for cover: priority thumbnail_photo_id → is_primary → any photo
     let advisorPhotoUrl: string | null = null;
     if (video.advisor_id) {
-      const { data: photos } = await supabase
-        .from('advisor_photos')
-        .select('photo_url')
-        .eq('advisor_id', video.advisor_id)
-        .eq('is_primary', true)
-        .limit(1);
-      
-      advisorPhotoUrl = photos?.[0]?.photo_url || null;
+      // 1. Try thumbnail_photo_id from advisor settings
+      if (video.advisor?.thumbnail_photo_id) {
+        const { data: thumbPhoto } = await supabase
+          .from('advisor_photos')
+          .select('photo_url')
+          .eq('id', video.advisor.thumbnail_photo_id)
+          .single();
+        advisorPhotoUrl = thumbPhoto?.photo_url || null;
+        console.log('Using thumbnail_photo_id photo:', advisorPhotoUrl ? 'found' : 'not found');
+      }
 
+      // 2. Fallback to is_primary
+      if (!advisorPhotoUrl) {
+        const { data: photos } = await supabase
+          .from('advisor_photos')
+          .select('photo_url')
+          .eq('advisor_id', video.advisor_id)
+          .eq('is_primary', true)
+          .limit(1);
+        advisorPhotoUrl = photos?.[0]?.photo_url || null;
+      }
+
+      // 3. Fallback to any photo
       if (!advisorPhotoUrl) {
         const { data: anyPhotos } = await supabase
           .from('advisor_photos')

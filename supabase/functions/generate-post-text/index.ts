@@ -112,24 +112,23 @@ serve(async (req) => {
     const question = publication.video?.question || "";
     const hook = publication.video?.hook || "";
     const answer = publication.video?.advisor_answer || "";
+    const videoTitle = publication.video?.video_title || "";
+    const channelName = publication.channel?.name || "";
+    const networkType = publication.channel?.network_type || "";
 
     // Replace placeholders in user template
     const prompt = userTemplate
       .replace(/{{question}}/g, question)
       .replace(/{{hook}}/g, hook)
       .replace(/{{answer}}/g, answer)
-      .replace(/{{advisor}}/g, advisorName);
+      .replace(/{{advisor}}/g, advisorName)
+      .replace(/{{video_title}}/g, videoTitle)
+      .replace(/{{channel}}/g, channelName)
+      .replace(/{{network_type}}/g, networkType);
 
     let generatedText = "";
 
     if (anthropicKey) {
-      const messages: Array<{ role: string; content: string }> = [];
-      
-      if (systemPrompt) {
-        messages.push({ role: "user", content: prompt });
-      } else {
-        messages.push({ role: "user", content: prompt });
-      }
 
       const response = await fetch("https://api.anthropic.com/v1/messages", {
         method: "POST",

@@ -124,7 +124,7 @@ serve(async (req) => {
       .from('videos')
       .select(`
         *,
-        advisor:advisors (id, name, display_name, elevenlabs_voice_id)
+        advisor:advisors (id, name, display_name, elevenlabs_voice_id, scene_photo_id)
       `)
       .eq('id', videoId)
       .single();
@@ -184,7 +184,7 @@ serve(async (req) => {
     let heygenVideoId: string;
 
     if (sceneUrl) {
-      // === NEW: Scene-based generation via av4 API ===
+      // === Scene-based generation via av4 API ===
       console.log('Using scene-based generation (av4 API)...');
       
       const imageKey = await uploadAssetToHeygen(sceneUrl, heygenKey);
@@ -226,17 +226,31 @@ serve(async (req) => {
       let fallbackImageUrl: string | null = video.front_cover_url || video.atmosphere_url || null;
 
       if (!fallbackImageUrl && video.advisor_id) {
-        const { data: photos } = await supabase
-          .from('advisor_photos')
-          .select('photo_url, is_primary')
-          .eq('advisor_id', video.advisor_id)
-          .not('photo_url', 'is', null)
-          .order('is_primary', { ascending: false })
-          .limit(5);
+        // 1. Try scene_photo_id from advisor settings
+        if (video.advisor?.scene_photo_id) {
+          const { data: scenePhoto } = await supabase
+            .from('advisor_photos')
+            .select('photo_url')
+            .eq('id', video.advisor.scene_photo_id)
+            .single();
+          fallbackImageUrl = scenePhoto?.photo_url || null;
+          console.log('Using scene_photo_id photo:', fallbackImageUrl ? 'found' : 'not found');
+        }
 
-        fallbackImageUrl = photos?.find((p: { is_primary: boolean | null }) => p.is_primary)?.photo_url
-          || photos?.[0]?.photo_url
-          || null;
+        // 2. Fallback to is_primary / any photo
+        if (!fallbackImageUrl) {
+          const { data: photos } = await supabase
+            .from('advisor_photos')
+            .select('photo_url, is_primary')
+            .eq('advisor_id', video.advisor_id)
+            .not('photo_url', 'is', null)
+            .order('is_primary', { ascending: false })
+            .limit(5);
+
+          fallbackImageUrl = photos?.find((p: { is_primary: boolean | null }) => p.is_primary)?.photo_url
+            || photos?.[0]?.photo_url
+            || null;
+        }
       }
 
       if (!fallbackImageUrl) {
