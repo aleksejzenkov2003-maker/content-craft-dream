@@ -263,17 +263,9 @@ function buildVmhd(): Uint8Array {
 }
 
 function buildDinf(): Uint8Array {
-  // dref with one self-reference entry
-  const drefPayload = new Uint8Array(4 + 12);
-  w32(drefPayload, 0, 1); // entry count
-  w32(drefPayload, 4, 12); // url entry size
-  wtag(drefPayload, 8, "url ");
-  // version=0, flags=1 (self-contained)
-  drefPayload[12] = 0; drefPayload[13] = 0; drefPayload[14] = 0; drefPayload[15] = 1;
-  // Hmm, that's wrong. Let me build it properly.
   const urlBox = makeFullBox("url ", 0, 1, new Uint8Array(0));
   const drefPl = new Uint8Array(4 + urlBox.length);
-  w32(drefPl, 0, 1);
+  w32(drefPl, 0, 1); // entry count = 1
   drefPl.set(urlBox, 4);
   const dref = makeFullBox("dref", 0, 0, drefPl);
   return makeBox("dinf", dref);
