@@ -10,12 +10,15 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { Label } from '@/components/ui/label';
+import { Progress } from '@/components/ui/progress';
 import { Loader2, Plus, Search, Video, Trash2, Monitor, Upload } from 'lucide-react';
 import { usePublishingChannels, PublishingChannel } from '@/hooks/usePublishingChannels';
 import { toast } from 'sonner';
 import { FileUploader } from '@/components/upload/FileUploader';
 import { CsvImporter } from '@/components/import/CsvImporter';
 import { BACK_COVER_VIDEO_COLUMN_MAPPING, BACK_COVER_VIDEO_PREVIEW_COLUMNS, BACK_COVER_VIDEO_FIELD_DEFINITIONS } from '@/components/import/importConfigs';
+import { normalizeVideoAudio } from '@/lib/videoNormalizer';
+import { supabase } from '@/integrations/supabase/client';
 
 export function BackCoversGrid() {
   const { channels, loading, updateChannel } = usePublishingChannels();
