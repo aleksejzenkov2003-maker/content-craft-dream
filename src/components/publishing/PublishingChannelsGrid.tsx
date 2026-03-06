@@ -84,6 +84,7 @@ export function PublishingChannelsGrid() {
         post_text_prompt: channel.post_text_prompt || '',
         is_active: channel.is_active,
         back_cover_url: channel.back_cover_url || '',
+        back_cover_video_url: channel.back_cover_video_url || '',
         proxy_id: channel.proxy_id || '',
       });
     } else {
