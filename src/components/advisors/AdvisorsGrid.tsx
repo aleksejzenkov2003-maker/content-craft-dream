@@ -113,6 +113,26 @@ export function AdvisorsGrid({
     }
   };
 
+  // Derive live advisor from array; merge with local form edits
+  const selectedAdvisorLive = selectedAdvisorId ? (advisors.find(a => a.id === selectedAdvisorId) ?? null) : null;
+  const selectedAdvisor = selectedAdvisorLive ? { ...selectedAdvisorLive, ...editFormData } as Advisor : null;
+
+  const openAdvisorDialog = (advisor: Advisor) => {
+    setSelectedAdvisorId(advisor.id);
+    setEditFormData({
+      display_name: advisor.display_name,
+      elevenlabs_voice_id: advisor.elevenlabs_voice_id,
+      speech_speed: advisor.speech_speed,
+      scene_photo_id: advisor.scene_photo_id,
+      thumbnail_photo_id: advisor.thumbnail_photo_id,
+    });
+  };
+
+  const closeAdvisorDialog = () => {
+    setSelectedAdvisorId(null);
+    setEditFormData({});
+  };
+
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
