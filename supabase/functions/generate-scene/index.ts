@@ -175,7 +175,19 @@ Ultra high resolution, 9:16 aspect ratio.`;
       }
     }
 
-    console.log('Generating scene via Kie.ai, prompt:', scenePrompt);
+    console.log('Generating scene via Kie.ai, prompt:', scenePrompt, 'advisorPhoto:', advisorPhotoUrl || 'none');
+
+    // Build input with optional reference image
+    const kieInput: Record<string, unknown> = {
+      prompt: `${scenePrompt}\nUltra high resolution, professional quality.`,
+      aspect_ratio: '9:16',
+      output_format: 'png',
+    };
+
+    // Pass advisor photo as reference for identity lock
+    if (advisorPhotoUrl) {
+      kieInput.image_input = [advisorPhotoUrl];
+    }
 
     // Create task via Kie.ai API
     const createRes = await fetch('https://api.kie.ai/api/v1/jobs/createTask', {
@@ -186,11 +198,7 @@ Ultra high resolution, 9:16 aspect ratio.`;
       },
       body: JSON.stringify({
         model: 'nano-banana-pro',
-        input: {
-          prompt: `${scenePrompt}\nUltra high resolution, professional quality.`,
-          aspect_ratio: '9:16',
-          output_format: 'png',
-        },
+        input: kieInput,
       }),
     });
 
