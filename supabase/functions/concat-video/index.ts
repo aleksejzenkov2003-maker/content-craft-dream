@@ -785,34 +785,57 @@ Deno.serve(async (req) => {
       .update({ publication_status: "concatenating", error_message: null })
       .eq("id", publication_id);
 
-    // Resolve fresh main_video_url from DB if the provided one looks like an expiring signed URL
+    // Always resolve the main video URL fresh — HeyGen signed URLs expire quickly
     let resolvedMainUrl = main_video_url;
-    if (main_video_url && main_video_url.includes("Expires=")) {
-      // Check if the signed URL is still valid (with 30s buffer)
-      const expiresMatch = main_video_url.match(/Expires=(\d+)/);
-      const expiresAt = expiresMatch ? parseInt(expiresMatch[1]) : 0;
-      const now = Math.floor(Date.now() / 1000);
-      if (expiresAt > 0 && expiresAt < now + 30) {
-        console.log(`Signed URL expired or expiring soon (expires=${expiresAt}, now=${now}). Fetching fresh URL from DB...`);
-        // Get the video_id from the publication, then get the latest heygen_video_url
-        const { data: pubData } = await supabase
-          .from("publications")
-          .select("video_id")
-          .eq("id", publication_id)
-          .single();
-        if (pubData?.video_id) {
-          const { data: videoData } = await supabase
-            .from("videos")
-            .select("heygen_video_url, video_path")
-            .eq("id", pubData.video_id)
-            .single();
-          const freshUrl = videoData?.heygen_video_url || videoData?.video_path;
-          if (freshUrl) {
-            console.log(`Using fresh URL from DB: ${freshUrl.substring(0, 80)}...`);
-            resolvedMainUrl = freshUrl;
-          } else {
-            console.log("No fresh URL found in DB, trying original URL anyway");
+    const { data: pubData } = await supabase
+      .from("publications")
+      .select("video_id")
+      .eq("id", publication_id)
+      .single();
+
+    if (pubData?.video_id) {
+      const { data: videoData } = await supabase
+        .from("videos")
+        .select("heygen_video_url, heygen_video_id, video_path")
+        .eq("id", pubData.video_id)
+        .single();
+
+      // If we have a heygen_video_id, fetch a fresh download URL from HeyGen API
+      if (videoData?.heygen_video_id) {
+        const heygenKey = Deno.env.get("HEYGEN_API_KEY");
+        if (heygenKey) {
+          try {
+            console.log(`Fetching fresh URL from HeyGen API for video: ${videoData.heygen_video_id}`);
+            const heygenResp = await fetch(
+              `https://api.heygen.com/v1/video_status.get?video_id=${videoData.heygen_video_id}`,
+              { headers: { "X-Api-Key": heygenKey } }
+            );
+            if (heygenResp.ok) {
+              const heygenData = await heygenResp.json();
+              const freshUrl = heygenData?.data?.video_url;
+              if (freshUrl) {
+                console.log(`Got fresh HeyGen URL: ${freshUrl.substring(0, 80)}...`);
+                resolvedMainUrl = freshUrl;
+                // Also update the DB with the fresh URL for future use
+                await supabase.from("videos")
+                  .update({ heygen_video_url: freshUrl })
+                  .eq("id", pubData.video_id);
+              }
+            } else {
+              console.log(`HeyGen API returned ${heygenResp.status}, falling back to stored URL`);
+              await heygenResp.text(); // consume body
+            }
+          } catch (e) {
+            console.log(`HeyGen API error: ${e.message}, falling back to stored URL`);
           }
+        }
+      }
+
+      // Fallback: use stored URL if HeyGen API didn't work
+      if (resolvedMainUrl === main_video_url) {
+        const storedUrl = videoData?.heygen_video_url || videoData?.video_path;
+        if (storedUrl) {
+          resolvedMainUrl = storedUrl;
         }
       }
     }
