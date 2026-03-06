@@ -347,45 +347,45 @@ export function PublishingChannelsGrid() {
             </div>
 
             {/* Right: back cover preview */}
-            <div className="space-y-2">
-              <div className="text-sm font-medium text-center">Задняя обложка</div>
+            <div className="space-y-3 w-52">
+              <div className="text-sm font-medium text-center">Задняя обложка (видео)</div>
               <div className="relative w-48 aspect-[9/16] bg-muted rounded-xl overflow-hidden border-2 border-border">
                 {formData.back_cover_video_url ? (
-                  <video
-                    src={formData.back_cover_video_url}
-                    className="w-full h-full object-cover"
-                    muted
-                    playsInline
-                    preload="metadata"
-                    controls
-                  />
-                ) : formData.back_cover_url ? (
-                  <img
-                    src={formData.back_cover_url}
-                    alt="Задняя обложка"
-                    className="w-full h-full object-cover"
-                  />
+                  <>
+                    <video
+                      src={formData.back_cover_video_url}
+                      className="w-full h-full object-cover"
+                      muted
+                      playsInline
+                      preload="metadata"
+                      controls
+                    />
+                    <Button
+                      variant="destructive"
+                      size="icon"
+                      className="absolute top-1 right-1 h-6 w-6"
+                      onClick={() => setFormData({ ...formData, back_cover_video_url: '' })}
+                    >
+                      <Trash2 className="w-3 h-3" />
+                    </Button>
+                  </>
                 ) : (
-                  <div className="w-full h-full flex items-center justify-center">
-                    <Image className="w-8 h-8 text-muted-foreground" />
-                  </div>
+                  <FileUploader
+                    accept="video/mp4,video/quicktime,video/webm,video/*"
+                    maxSize={200}
+                    folder="back-covers"
+                    onUpload={(url) => setFormData({ ...formData, back_cover_video_url: url })}
+                    placeholder="Перетащите видео или нажмите"
+                    className="w-full h-full"
+                  />
                 )}
               </div>
               <div className="space-y-1">
-                <Label className="text-xs">URL видео обложки</Label>
+                <Label className="text-xs">Или вставьте URL</Label>
                 <Input
                   value={formData.back_cover_video_url}
                   onChange={(e) => setFormData({ ...formData, back_cover_video_url: e.target.value })}
                   placeholder="https://...mp4"
-                  className="text-xs"
-                />
-              </div>
-              <div className="space-y-1">
-                <Label className="text-xs">URL изображения</Label>
-                <Input
-                  value={formData.back_cover_url}
-                  onChange={(e) => setFormData({ ...formData, back_cover_url: e.target.value })}
-                  placeholder="https://...png"
                   className="text-xs"
                 />
               </div>
