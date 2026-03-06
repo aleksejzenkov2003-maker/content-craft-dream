@@ -107,7 +107,9 @@ export type Database = {
           id: string
           is_active: boolean | null
           name: string
+          scene_photo_id: string | null
           speech_speed: number | null
+          thumbnail_photo_id: string | null
           updated_at: string
         }
         Insert: {
@@ -119,7 +121,9 @@ export type Database = {
           id?: string
           is_active?: boolean | null
           name: string
+          scene_photo_id?: string | null
           speech_speed?: number | null
+          thumbnail_photo_id?: string | null
           updated_at?: string
         }
         Update: {
@@ -131,10 +135,27 @@ export type Database = {
           id?: string
           is_active?: boolean | null
           name?: string
+          scene_photo_id?: string | null
           speech_speed?: number | null
+          thumbnail_photo_id?: string | null
           updated_at?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "advisors_scene_photo_id_fkey"
+            columns: ["scene_photo_id"]
+            isOneToOne: false
+            referencedRelation: "advisor_photos"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "advisors_thumbnail_photo_id_fkey"
+            columns: ["thumbnail_photo_id"]
+            isOneToOne: false
+            referencedRelation: "advisor_photos"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       channels: {
         Row: {

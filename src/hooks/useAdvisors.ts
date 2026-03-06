@@ -22,6 +22,8 @@ export interface Advisor {
   is_active: boolean;
   created_at: string;
   updated_at: string;
+  scene_photo_id: string | null;
+  thumbnail_photo_id: string | null;
   photos?: AdvisorPhoto[];
 }
 
@@ -36,13 +38,13 @@ export function useAdvisors() {
         .from('advisors')
         .select(`
           *,
-          advisor_photos (*)
+          advisor_photos!advisor_photos_advisor_id_fkey (*)
         `)
         .order('name');
 
       if (error) throw error;
 
-      const formattedData = (data || []).map(advisor => ({
+      const formattedData = (data || []).map((advisor: any) => ({
         ...advisor,
         photos: advisor.advisor_photos || []
       }));
