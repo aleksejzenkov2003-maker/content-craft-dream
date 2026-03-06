@@ -338,11 +338,16 @@ function rebuildStbl(
   newStsc: Uint8Array,
   newStco: Uint8Array,
   newStss: Uint8Array | null,
+  newStsd: Uint8Array | null = null,
 ): Uint8Array {
   const children = getChildren(origStbl);
   const parts: Uint8Array[] = [];
 
   for (const child of children) {
+    if (child.type === "stsd") {
+      parts.push(newStsd || child.data.slice(child.offset, child.offset + child.size));
+      continue;
+    }
     if (child.type === "stsz") { parts.push(newStsz); continue; }
     if (child.type === "stts") { parts.push(newStts); continue; }
     if (child.type === "stsc") { parts.push(newStsc); continue; }
@@ -351,7 +356,7 @@ function rebuildStbl(
       if (newStss) parts.push(newStss);
       continue;
     }
-    // Copy other boxes as-is (stsd, etc.)
+    // Copy other boxes as-is
     parts.push(child.data.slice(child.offset, child.offset + child.size));
   }
 
