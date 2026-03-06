@@ -112,13 +112,43 @@ serve(async (req) => {
     }
 
     let advisorName = '';
+    let advisorPhotoUrl = '';
     if (advisorId) {
       const { data: advisor } = await supabase
         .from('advisors')
-        .select('name, display_name')
+        .select('name, display_name, scene_photo_id')
         .eq('id', advisorId)
         .single();
       advisorName = advisor?.display_name || advisor?.name || '';
+
+      // Get advisor's scene photo (or primary photo as fallback)
+      if (advisor?.scene_photo_id) {
+        const { data: photo } = await supabase
+          .from('advisor_photos')
+          .select('photo_url')
+          .eq('id', advisor.scene_photo_id)
+          .single();
+        if (photo) advisorPhotoUrl = photo.photo_url;
+      }
+      if (!advisorPhotoUrl) {
+        const { data: primaryPhoto } = await supabase
+          .from('advisor_photos')
+          .select('photo_url')
+          .eq('advisor_id', advisorId)
+          .eq('is_primary', true)
+          .limit(1)
+          .single();
+        if (primaryPhoto) advisorPhotoUrl = primaryPhoto.photo_url;
+      }
+      if (!advisorPhotoUrl) {
+        const { data: anyPhoto } = await supabase
+          .from('advisor_photos')
+          .select('photo_url')
+          .eq('advisor_id', advisorId)
+          .limit(1)
+          .single();
+        if (anyPhoto) advisorPhotoUrl = anyPhoto.photo_url;
+      }
     }
 
     // Build prompt
