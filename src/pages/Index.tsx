@@ -765,11 +765,11 @@ export default function Index() {
                 isGenerating={isGenerating}
                 onPrev={viewingVideo ? (() => {
                   const idx = videos.findIndex(v => v.id === viewingVideo.id);
-                  if (idx > 0) setViewingVideo(videos[idx - 1]);
+                  if (idx > 0) setViewingVideoId(videos[idx - 1].id);
                 }) : undefined}
                 onNext={viewingVideo ? (() => {
                   const idx = videos.findIndex(v => v.id === viewingVideo.id);
-                  if (idx < videos.length - 1) setViewingVideo(videos[idx + 1]);
+                  if (idx < videos.length - 1) setViewingVideoId(videos[idx + 1].id);
                 }) : undefined}
               />
             </>

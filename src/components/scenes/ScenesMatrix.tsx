@@ -173,9 +173,6 @@ export function ScenesMatrix() {
 
   const handleUpdateScene = async (id: string, updates: Partial<PlaylistScene>) => {
     await updateScene(id, updates);
-    if (selectedScene && selectedScene.id === id) {
-      setSelectedScene({ ...selectedScene, ...updates } as PlaylistScene);
-    }
   };
 
   const resolveRow = (row: Record<string, any>, lookups: Lookups) => {

@@ -398,7 +398,7 @@ export function AdvisorsGrid({
           )}
 
           <DialogFooter className="mt-4">
-            <Button variant="outline" onClick={() => setSelectedAdvisor(null)}>
+            <Button variant="outline" onClick={() => closeAdvisorDialog()}>
               Отмена
             </Button>
             <Button
@@ -413,7 +413,7 @@ export function AdvisorsGrid({
                     scene_photo_id: selectedAdvisor.scene_photo_id,
                     thumbnail_photo_id: selectedAdvisor.thumbnail_photo_id,
                   } as any);
-                  setSelectedAdvisor(null);
+                  closeAdvisorDialog();
                 }
               }}
             >
