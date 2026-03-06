@@ -183,15 +183,15 @@ async function composeCover(
               width: '100%',
             },
           },
-          // Circular advisor photo
+          // Advisor photo in original format
           React.createElement('img', {
             src: advisorPhotoUrl,
             style: {
-              width: 200,
               height: 200,
-              borderRadius: '50%',
+              maxWidth: 300,
+              borderRadius: 16,
               objectFit: 'cover',
-              border: '6px solid white',
+              border: '4px solid white',
             },
           }),
           // Advisor name
