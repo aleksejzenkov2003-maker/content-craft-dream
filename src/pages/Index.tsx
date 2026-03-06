@@ -325,7 +325,7 @@ export default function Index() {
   };
 
   const handleViewVideo = (video: Video) => {
-    setViewingVideo(video);
+    setViewingVideoId(video.id);
     setShowSidePanel(true);
   };
 
