@@ -271,35 +271,33 @@ function mergeStsd(stsd1Box: Box, stsd2Box: Box, handlerType: string): StsdMerge
   const entryCount1 = entries1.length;
   const entryCount2 = entries2.length;
 
-  // For audio: ALWAYS use file1's stsd to avoid mid-track codec switching issues.
-  // Timescale rescaling (done in concatMP4) ensures file2 samples decode correctly.
-  if (handlerType === "soun") {
+  // For single-entry audio: deduplicate ONLY when entries are truly byte-identical.
+  // If they differ, keep both entries so file2 audio chunks can use their own decoder config.
+  if (handlerType === "soun" && entryCount1 === 1 && entryCount2 === 1) {
     const e1 = entries1[0];
-    const e2 = entries2.length > 0 ? entries2[0] : null;
-    let identical = false;
-    if (e2 && e1.length === e2.length) {
-      identical = true;
+    const e2 = entries2[0];
+    let identical = e1.length === e2.length;
+    if (identical) {
       for (let i = 0; i < e1.length; i++) {
         if (e1[i] !== e2[i]) { identical = false; break; }
       }
     }
+
     if (identical) {
-      console.log(`Track soun: stsd entries are truly identical (${e1.length} bytes)`);
-    } else {
-      console.log(`Track soun: stsd entries DIFFER — forcing file1 stsd for all audio (timescale will be rescaled)`);
-      if (e2) {
-        const hex = (arr: Uint8Array) => Array.from(arr.slice(0, 20)).map(b => b.toString(16).padStart(2, '0')).join(' ');
-        console.log(`  entry1 head: ${hex(e1)}`);
-        console.log(`  entry2 head: ${hex(e2)}`);
-      }
+      console.log(`Track soun: stsd entries are truly identical (${e1.length} bytes), deduplicating`);
+      return {
+        merged: buildStsdFromEntries(entries1),
+        entryCount1,
+        entryCount2,
+        mapSdiFile2: () => 1,
+        dedupedForCompatibility: true,
+      };
     }
-    return {
-      merged: buildStsdFromEntries(entries1),
-      entryCount1,
-      entryCount2,
-      mapSdiFile2: () => 1,
-      dedupedForCompatibility: true,
-    };
+
+    console.log(`Track soun: stsd entries DIFFER (${e1.length} vs ${e2.length} bytes), keeping both entries`);
+    const hex = (arr: Uint8Array) => Array.from(arr.slice(0, 20)).map(b => b.toString(16).padStart(2, '0')).join(' ');
+    console.log(`  entry1 head: ${hex(e1)}`);
+    console.log(`  entry2 head: ${hex(e2)}`);
   }
 
   const mergedEntries = [...entries1, ...entries2];
