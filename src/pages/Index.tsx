@@ -742,7 +742,7 @@ export default function Index() {
               />
               <VideoDetailModal
                 open={showVideoDetail}
-                onOpenChange={(open) => { setShowVideoDetail(open); if (!open) setViewingVideo(null); }}
+                onOpenChange={(open) => { setShowVideoDetail(open); if (!open) setViewingVideoId(null); }}
                 video={viewingVideo}
                 advisors={advisors}
                 onUpdateVideo={updateVideo}
