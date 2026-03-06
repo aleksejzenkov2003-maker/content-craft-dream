@@ -123,6 +123,12 @@ export function AdvisorsGrid({
   const getPrimaryPhoto = (advisor: Advisor) =>
     advisor.photos?.find(p => p.is_primary) || advisor.photos?.[0];
 
+  const getScenePhoto = (advisor: Advisor) =>
+    advisor.photos?.find(p => p.id === advisor.scene_photo_id) || getPrimaryPhoto(advisor);
+
+  const getThumbnailPhoto = (advisor: Advisor) =>
+    advisor.photos?.find(p => p.id === advisor.thumbnail_photo_id) || getPrimaryPhoto(advisor);
+
   return (
     <div className="space-y-6">
       <input type="file" ref={fileInputRef} className="hidden" accept="image/*" onChange={handleFileChange} />
