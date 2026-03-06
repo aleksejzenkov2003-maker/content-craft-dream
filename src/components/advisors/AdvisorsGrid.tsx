@@ -39,7 +39,8 @@ export function AdvisorsGrid({
 }: AdvisorsGridProps) {
   const [showAddDialog, setShowAddDialog] = useState(false);
   const [showImporter, setShowImporter] = useState(false);
-  const [selectedAdvisor, setSelectedAdvisor] = useState<Advisor | null>(null);
+  const [selectedAdvisorId, setSelectedAdvisorId] = useState<string | null>(null);
+  const [editFormData, setEditFormData] = useState<Partial<Advisor>>({});
   const [uploadingAdvisorId, setUploadingAdvisorId] = useState<string | null>(null);
   const [newName, setNewName] = useState('');
   const [newDisplayName, setNewDisplayName] = useState('');
