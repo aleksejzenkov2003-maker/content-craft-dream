@@ -753,7 +753,7 @@ export default function Index() {
               <VideoSidePanel
                 video={viewingVideo}
                 open={showSidePanel}
-                onOpenChange={(open) => { setShowSidePanel(open); if (!open) setViewingVideo(null); }}
+                onOpenChange={(open) => { setShowSidePanel(open); if (!open) setViewingVideoId(null); }}
                 advisors={advisors}
                 publishingChannels={publishingChannels}
                 onGenerateAtmosphere={handleGenerateAtmosphere}
