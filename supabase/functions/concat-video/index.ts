@@ -271,17 +271,32 @@ function mergeStsd(stsd1Box: Box, stsd2Box: Box, handlerType: string): StsdMerge
   const entryCount1 = entries1.length;
   const entryCount2 = entries2.length;
 
-  // Browser compatibility: many players плохо переживают смену audio sample-entry
-  // внутри одного трека, даже если MP4 формально валиден. Для single-entry audio
-  // фиксируем единый stsd и используем его для обеих частей.
+  // For single-entry audio: compare byte-by-byte before deduplicating
   if (handlerType === "soun" && entryCount1 === 1 && entryCount2 === 1) {
-    return {
-      merged: buildStsdFromEntries(entries1),
-      entryCount1,
-      entryCount2,
-      mapSdiFile2: () => 1,
-      dedupedForCompatibility: true,
-    };
+    const e1 = entries1[0];
+    const e2 = entries2[0];
+    let identical = e1.length === e2.length;
+    if (identical) {
+      for (let i = 0; i < e1.length; i++) {
+        if (e1[i] !== e2[i]) { identical = false; break; }
+      }
+    }
+    if (identical) {
+      console.log(`Track soun: stsd entries are truly identical (${e1.length} bytes), deduplicating`);
+      return {
+        merged: buildStsdFromEntries(entries1),
+        entryCount1,
+        entryCount2,
+        mapSdiFile2: () => 1,
+        dedupedForCompatibility: true,
+      };
+    }
+    // Entries differ — must keep both to preserve back cover audio
+    console.log(`Track soun: stsd entries DIFFER (${e1.length} vs ${e2.length} bytes), merging both`);
+    // Log first 16 bytes of each for debugging
+    const hex = (arr: Uint8Array) => Array.from(arr.slice(0, 16)).map(b => b.toString(16).padStart(2, '0')).join(' ');
+    console.log(`  entry1 head: ${hex(e1)}`);
+    console.log(`  entry2 head: ${hex(e2)}`);
   }
 
   const mergedEntries = [...entries1, ...entries2];
