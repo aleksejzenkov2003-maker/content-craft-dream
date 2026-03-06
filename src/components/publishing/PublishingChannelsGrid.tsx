@@ -54,6 +54,7 @@ export function PublishingChannelsGrid() {
     post_text_prompt: '',
     is_active: true,
     back_cover_url: '',
+    back_cover_video_url: '',
     proxy_id: '',
   });
 
@@ -66,6 +67,7 @@ export function PublishingChannelsGrid() {
       post_text_prompt: '',
       is_active: true,
       back_cover_url: '',
+      back_cover_video_url: '',
       proxy_id: '',
     });
     setEditingChannel(null);
@@ -82,6 +84,7 @@ export function PublishingChannelsGrid() {
         post_text_prompt: channel.post_text_prompt || '',
         is_active: channel.is_active,
         back_cover_url: channel.back_cover_url || '',
+        back_cover_video_url: channel.back_cover_video_url || '',
         proxy_id: channel.proxy_id || '',
       });
     } else {
@@ -97,6 +100,7 @@ export function PublishingChannelsGrid() {
       const payload = {
         ...formData,
         back_cover_url: formData.back_cover_url || null,
+        back_cover_video_url: formData.back_cover_video_url || null,
         proxy_server: selectedProxy ? `${selectedProxy.server}:${selectedProxy.port}` : null,
         location: selectedProxy?.name || null,
         post_text_prompt: formData.post_text_prompt || null,
@@ -345,7 +349,16 @@ export function PublishingChannelsGrid() {
             <div className="space-y-2">
               <div className="text-sm font-medium text-center">Задняя обложка</div>
               <div className="relative w-48 aspect-[9/16] bg-muted rounded-xl overflow-hidden border-2 border-border">
-                {formData.back_cover_url ? (
+                {formData.back_cover_video_url ? (
+                  <video
+                    src={formData.back_cover_video_url}
+                    className="w-full h-full object-cover"
+                    muted
+                    playsInline
+                    preload="metadata"
+                    controls
+                  />
+                ) : formData.back_cover_url ? (
                   <img
                     src={formData.back_cover_url}
                     alt="Задняя обложка"
@@ -358,11 +371,20 @@ export function PublishingChannelsGrid() {
                 )}
               </div>
               <div className="space-y-1">
-                <Label className="text-xs">URL обложки</Label>
+                <Label className="text-xs">URL видео обложки</Label>
+                <Input
+                  value={formData.back_cover_video_url}
+                  onChange={(e) => setFormData({ ...formData, back_cover_video_url: e.target.value })}
+                  placeholder="https://...mp4"
+                  className="text-xs"
+                />
+              </div>
+              <div className="space-y-1">
+                <Label className="text-xs">URL изображения</Label>
                 <Input
                   value={formData.back_cover_url}
                   onChange={(e) => setFormData({ ...formData, back_cover_url: e.target.value })}
-                  placeholder="https://..."
+                  placeholder="https://...png"
                   className="text-xs"
                 />
               </div>
