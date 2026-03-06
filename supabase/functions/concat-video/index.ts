@@ -404,9 +404,9 @@ function parseTrackData(buf: Uint8Array, trakBox: Box): TrackData | null {
   const tkhd = findBox(buf, ["tkhd"], s, e);
   if (tkhd) {
     const tkhdVer = buf[tkhd.off + tkhd.hdr];
-    const base = tkhd.off + tkhd.hdr + 4 + (tkhdVer === 1 ? 72 : 72);
-    // Actually tkhd v0: after 4(ver/flags) + creation(4) + mod(4) + trackId(4) + reserved(4) + duration(4) + reserved(8) + layer(2) + altGroup(2) + volume(2) + reserved(2) + matrix(36) = 76, then width(4) + height(4)
-    const wOff = tkhd.off + tkhd.hdr + 4 + (tkhdVer === 1 ? 72 : 60);
+    // v0: version/flags(4) + creation(4) + mod(4) + trackId(4) + reserved(4) + duration(4) + reserved(8) + layer(2) + altGroup(2) + volume(2) + reserved(2) + matrix(36) = 76
+    // v1: version/flags(4) + creation(8) + mod(8) + trackId(4) + reserved(4) + duration(8) + reserved(8) + layer(2) + altGroup(2) + volume(2) + reserved(2) + matrix(36) = 92
+    const wOff = tkhd.off + tkhd.hdr + (tkhdVer === 1 ? 92 : 76);
     width = r32(buf, wOff) >> 16;
     height = r32(buf, wOff + 4) >> 16;
   }
