@@ -234,7 +234,7 @@ export function AdvisorsGrid({
       </div>
 
       {/* Detail dialog — left fields, right photos */}
-      <Dialog open={!!selectedAdvisor} onOpenChange={(open) => !open && setSelectedAdvisor(null)}>
+      <Dialog open={!!selectedAdvisorId} onOpenChange={(open) => !open && closeAdvisorDialog()}>
         <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="sr-only">Редактирование духовника</DialogTitle>
