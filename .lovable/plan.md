@@ -1,110 +1,30 @@
 
 
-## Full Workflow Audit
+## Проблема: наивная бинарная склейка MP4 не работает
 
-### Pipeline Overview
-```text
-Questions → Videos → Voiceover → Cover (Atmosphere→Overlay) → HeyGen Video → Publications (Text + Concat) → Publish
-```
+### Диагноз
 
-### Block-by-Block Status
+Логи подтверждают: Edge Function скачивает оба файла (12.6MB + 0.3MB), объединяет их в 12.9MB и загружает. Но **простое `concat` двух MP4 файлов не даёт рабочее видео** — плеер видит только `moov` атом первого файла и проигрывает только основное видео. Задняя обложка игнорируется.
 
----
+MP4 — контейнерный формат с метаданными (`moov` atom), описывающими структуру медиаданных (`mdat`). Простое склеивание байтов не обновляет эти метаданные.
 
-#### 1. Questions (QuestionsTable)
-**Status: Working**
-- Questions are grouped from `videos` table by `question_id`
-- Status change to "Взят в работу" + planned date triggers `triggerAutoGeneration`
-- Bulk update status/date works via `bulkUpdateAll`
+### Решение: правильная MP4-конкатенация на уровне атомов
 
-**Issue found**: `triggerAutoGeneration` (line 418-463) uses `uniqueKey` format `questionId_questionText`, but `onUpdateQuestion` (line 814) passes `parseInt(uniqueKey)` as questionId — this parses only the numeric part correctly, BUT `triggerAutoGeneration` tries to extract the question text after the separator, which won't match since `onUpdateQuestion` passes just the number. Auto-generation may silently fail to find matching videos.
+Переписать Edge Function `concat-video` с реализацией MP4 box-level конкатенации:
 
----
+1. **Парсинг обоих MP4** — извлечь top-level боксы (`ftyp`, `moov`, `mdat`) из каждого файла
+2. **Извлечь трек-метаданные** — из `moov → trak → mdia → minf → stbl` получить таблицы семплов: `stsz` (размеры), `stts` (тайминги), `stco`/`co64` (смещения чанков), `stsc` (семплы-в-чанках), `stss` (ключевые кадры)
+3. **Объединить mdat** — конкатенация медиаданных из обоих файлов
+4. **Пересчитать moov** — объединить таблицы семплов, пересчитать chunk offsets для второго файла, обновить длительности в `mvhd`, `tkhd`, `mdhd`
+5. **Записать результат** — `ftyp` + обновлённый `moov` + объединённый `mdat`
 
-#### 2. Videos (VideosTable + useVideos)
-**Status: Working**
-- CRUD operations, bulk import with auto-creation of advisors/playlists
-- Filters by status tabs (В работе / Отработанные / Все)
-- Video side panel for detailed editing
+### Файлы для изменения
 
----
+- `supabase/functions/concat-video/index.ts` — полная переработка с правильной MP4-конкатенацией через парсинг/реконструкцию атомов
 
-#### 3. Voiceover Generation
-**Status: Working**
-- `generate-voiceover-for-video` Edge Function calls ElevenLabs API
-- Uses `advisor.elevenlabs_voice_id` with fallback
-- Updates `voiceover_url` and `voiceover_status` on video
+### Технические детали
 
----
+Реализация ~300 строк: парсер рекурсивно обходит MP4-боксы, находит нужные таблицы семплов в `stbl`, объединяет их с корректным пересчётом смещений, и собирает новый файл. Поддерживается один видео-трек и один аудио-трек (стандартная структура HeyGen MP4).
 
-#### 4. Cover Generation (2-step)
-**Status: Working**
-- **Step 1 (Atmosphere)**: Fetches prompt from `prompts` table (type=`atmosphere`), generates via AI (Lovable gateway → Gemini), then sends to Kie.ai `nano-banana` for image. Saves to `atmosphere_url` + `cover_thumbnails`.
-- **Step 2 (Overlay)**: Programmatic compositing via Satori — atmosphere + circular advisor photo + hook text. Saves to `front_cover_url`.
-
-**No issues found** — properly uses `prompts` table for atmosphere prompts.
-
----
-
-#### 5. Scene Generation
-**Status: Working**
-- `generate-scene` Edge Function fetches prompt from `prompts` table (type=`scene`)
-- Uses Kie.ai `nano-banana-pro` model
-- Saves to `playlist_scenes` table
-
-**No issues found** — properly uses `prompts` table for scene prompts.
-
----
-
-#### 6. HeyGen Video Generation
-**Status: Working**
-- `generate-video-heygen` Edge Function — uses av4 API
-- Requires `voiceover_url` as prerequisite (enforced in UI)
-- Image priority: approved scene → `front_cover_url` → `atmosphere_url` → advisor photo
-- Polling via `check-video-status` every 12 seconds
-
----
-
-#### 7. Publications & Text Generation
-**Status: Working with gap**
-- Publications are created when user publishes video to channels
-- Auto text generation via `generate-post-text` Edge Function (Anthropic Claude)
-- Auto concat via `concat-video` for channels with back covers
-
-**Issue found**: `generate-post-text` (line 56) reads `post_text_prompt` directly from `publishing_channels` but does NOT use the new `prompt_id` → `prompts` table linkage. If a channel has `prompt_id` set (via the new Prompts page) but no `post_text_prompt` text, it falls back to a generic DB prompt lookup. The `prompt_id` FK on channels is essentially **decorative** — never read by the actual generation logic.
-
----
-
-#### 8. Back Covers & Concat
-**Status: Working**
-- Back cover videos stored on `publishing_channels.back_cover_video_url`
-- Server-side concat via `concat-video` Edge Function
-- Auto-recovery for stuck jobs (>5 min)
-
----
-
-#### 9. Prompts Page (new)
-**Status: Partially working**
-- Card grid, edit dialog, channel linking — all functional
-- Channel linking updates `prompt_id` on `publishing_channels` — but as noted above, this field is **not consumed** by `generate-post-text`
-
----
-
-### Summary of Issues Found
-
-| # | Severity | Block | Issue |
-|---|----------|-------|-------|
-| 1 | **Medium** | Text Generation | `generate-post-text` does not use `prompt_id` from channels — it reads `post_text_prompt` text field directly. New prompt linkage is unused. |
-| 2 | **Low** | Auto-generation | `triggerAutoGeneration` may have key format mismatch between Questions table and the auto-trigger logic, potentially preventing auto-generation on status change. |
-
-### Recommended Fixes
-
-**Fix 1 — Make `generate-post-text` use `prompt_id`:**
-- When a channel has `prompt_id`, fetch that prompt's `system_prompt` + `user_template` from `prompts` table
-- Use as the generation prompt instead of `post_text_prompt` raw text
-- Fall back to `post_text_prompt` if no `prompt_id` is set
-
-**Fix 2 — Verify auto-generation key format:**
-- Audit `QuestionsTable` to confirm what `uniqueKey` format it passes to `onUpdateQuestion` and `onBulkUpdateStatus`
-- Ensure `triggerAutoGeneration` parsing matches
+Ограничения подхода: работает только если оба файла используют одинаковые кодеки и разрешение (что верно для HeyGen + back cover из одного пайплайна). Для разных кодеков нужен транскодинг, которого в Edge Functions нет.
 

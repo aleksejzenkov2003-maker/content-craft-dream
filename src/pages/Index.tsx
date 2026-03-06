@@ -416,14 +416,10 @@ export default function Index() {
 
   // Auto-generation logic: when question has status 'in_progress' and planned date, generate covers and videos
   const triggerAutoGeneration = async (uniqueKey: string) => {
-    const separatorIndex = uniqueKey.indexOf('_');
-    const questionId = parseInt(uniqueKey.substring(0, separatorIndex));
-    const questionText = uniqueKey.substring(separatorIndex + 1);
+    const questionId = parseInt(uniqueKey);
+    if (isNaN(questionId)) return;
     
-    const questionVideos = allVideos.filter(v => 
-      v.question_id === questionId && 
-      (v.question_rus || v.question_eng || v.question || '') === questionText
-    );
+    const questionVideos = allVideos.filter(v => v.question_id === questionId);
     
     if (questionVideos.length === 0) return;
     
@@ -441,8 +437,6 @@ export default function Index() {
     // Generate videos for videos that don't have them yet
     for (const video of questionVideos) {
       if (video.generation_status !== 'ready' && video.generation_status !== 'generating') {
-        // Trigger video generation via the side panel flow
-        // This would normally go through HeyGen but we trigger the generate-video edge function
         try {
           const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/generate-video-heygen`, {
             method: 'POST',
