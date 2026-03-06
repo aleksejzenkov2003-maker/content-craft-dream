@@ -519,7 +519,7 @@ export default function Index() {
                 publications={publications}
                 publishingChannels={publishingChannels}
                 loading={videosLoading}
-                onEditVideo={(video) => { setEditingVideo(video); setShowVideoEditor(true); }}
+                onEditVideo={(video) => { setEditingVideoId(video.id); setShowVideoEditor(true); }}
                 onDeleteVideo={deleteVideo}
                 onGenerateVideo={handleGenerateVideo}
                 onGenerateCover={handleGenerateCover}
