@@ -84,7 +84,7 @@ export function SceneSidePanel({
   const handleGenerate = async () => {
     setIsGenerating(true);
     try {
-      const primaryPhoto = advisor.photos?.find(p => p.is_primary) || advisor.photos?.[0];
+      const primaryPhoto = advisor.photos?.find(p => p.id === advisor.scene_photo_id) || advisor.photos?.find(p => p.is_primary) || advisor.photos?.[0];
       const response = await supabase.functions.invoke('generate-scene', {
         body: {
           playlistId: playlist.id,
