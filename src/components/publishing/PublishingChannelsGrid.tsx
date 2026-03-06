@@ -20,7 +20,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { Plus, Globe, FileSpreadsheet, Image } from 'lucide-react';
+import { Plus, Globe, FileSpreadsheet, Image, Trash2 } from 'lucide-react';
+import { FileUploader } from '@/components/upload/FileUploader';
 import { PublishingChannel, usePublishingChannels } from '@/hooks/usePublishingChannels';
 import { Textarea } from '@/components/ui/textarea';
 import { CsvImporter } from '@/components/import/CsvImporter';
