@@ -255,6 +255,8 @@ function buildStsdFromEntries(entries: Uint8Array[]): Uint8Array {
   }
 
   return buf;
+}
+
 interface StsdMergeResult {
   merged: Uint8Array;
   entryCount1: number;
