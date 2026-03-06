@@ -271,32 +271,35 @@ function mergeStsd(stsd1Box: Box, stsd2Box: Box, handlerType: string): StsdMerge
   const entryCount1 = entries1.length;
   const entryCount2 = entries2.length;
 
-  // For single-entry audio: compare byte-by-byte before deduplicating
-  if (handlerType === "soun" && entryCount1 === 1 && entryCount2 === 1) {
+  // For audio: ALWAYS use file1's stsd to avoid mid-track codec switching issues.
+  // Timescale rescaling (done in concatMP4) ensures file2 samples decode correctly.
+  if (handlerType === "soun") {
     const e1 = entries1[0];
-    const e2 = entries2[0];
-    let identical = e1.length === e2.length;
-    if (identical) {
+    const e2 = entries2.length > 0 ? entries2[0] : null;
+    let identical = false;
+    if (e2 && e1.length === e2.length) {
+      identical = true;
       for (let i = 0; i < e1.length; i++) {
         if (e1[i] !== e2[i]) { identical = false; break; }
       }
     }
     if (identical) {
-      console.log(`Track soun: stsd entries are truly identical (${e1.length} bytes), deduplicating`);
-      return {
-        merged: buildStsdFromEntries(entries1),
-        entryCount1,
-        entryCount2,
-        mapSdiFile2: () => 1,
-        dedupedForCompatibility: true,
-      };
+      console.log(`Track soun: stsd entries are truly identical (${e1.length} bytes)`);
+    } else {
+      console.log(`Track soun: stsd entries DIFFER — forcing file1 stsd for all audio (timescale will be rescaled)`);
+      if (e2) {
+        const hex = (arr: Uint8Array) => Array.from(arr.slice(0, 20)).map(b => b.toString(16).padStart(2, '0')).join(' ');
+        console.log(`  entry1 head: ${hex(e1)}`);
+        console.log(`  entry2 head: ${hex(e2)}`);
+      }
     }
-    // Entries differ — must keep both to preserve back cover audio
-    console.log(`Track soun: stsd entries DIFFER (${e1.length} vs ${e2.length} bytes), merging both`);
-    // Log first 16 bytes of each for debugging
-    const hex = (arr: Uint8Array) => Array.from(arr.slice(0, 16)).map(b => b.toString(16).padStart(2, '0')).join(' ');
-    console.log(`  entry1 head: ${hex(e1)}`);
-    console.log(`  entry2 head: ${hex(e2)}`);
+    return {
+      merged: buildStsdFromEntries(entries1),
+      entryCount1,
+      entryCount2,
+      mapSdiFile2: () => 1,
+      dedupedForCompatibility: true,
+    };
   }
 
   const mergedEntries = [...entries1, ...entries2];
@@ -592,14 +595,32 @@ function concatMP4(file1: Uint8Array, file2: Uint8Array): Uint8Array {
         mergedStsz = { defaultSize: 0, sizes: [...sizes1, ...sizes2] };
       }
 
-      // Merge stts
-      const mergedStts = [...t1.stts, ...t2.stts];
+      // For audio tracks: rescale file2 stts deltas and duration if timescales differ
+      let stts2ForMerge = t2.stts;
+      let duration2ForMerge = t2.duration;
+      
+      if (t1.handlerType === "soun") {
+        console.log(`Track soun timescales: file1=${t1.timescale}, file2=${t2.timescale}`);
+        if (t1.timescale !== t2.timescale) {
+          const ratio = t1.timescale / t2.timescale;
+          console.log(`Track soun: rescaling file2 stts deltas by ratio ${ratio.toFixed(6)} (${t2.timescale} → ${t1.timescale})`);
+          stts2ForMerge = t2.stts.map(e => ({
+            count: e.count,
+            delta: Math.round(e.delta * ratio),
+          }));
+          duration2ForMerge = Math.round(t2.duration * ratio);
+          console.log(`Track soun: rescaled duration: ${t2.duration} → ${duration2ForMerge}`);
+        }
+      }
+
+      // Merge stts (with potentially rescaled file2 deltas for audio)
+      const mergedStts = [...t1.stts, ...stts2ForMerge];
 
       // Merge stsd (sample descriptions) from both tracks
       const stsdMerge = mergeStsd(t1.stsdBox, t2.stsdBox, t1.handlerType);
       const mergedStsdBuf = stsdMerge.merged;
       if (stsdMerge.dedupedForCompatibility) {
-        console.log(`Track ${t1.handlerType}: deduped identical stsd entries for decoder compatibility`);
+        console.log(`Track ${t1.handlerType}: using file1 stsd for all samples`);
       } else {
         console.log(`Track ${t1.handlerType}: merging stsd entries: ${stsdMerge.entryCount1} + ${stsdMerge.entryCount2} = ${stsdMerge.entryCount1 + stsdMerge.entryCount2}`);
       }
@@ -638,8 +659,8 @@ function concatMP4(file1: Uint8Array, file2: Uint8Array): Uint8Array {
         mergedStss = [...ss1, ...ss2.map(s => s + t1.sampleCount)];
       }
 
-      // Combined duration in track's timescale
-      const newTrackDuration = t1.duration + t2.duration;
+      // Combined duration in track's timescale (file2 already rescaled for audio)
+      const newTrackDuration = t1.duration + duration2ForMerge;
       // Convert to mvhd timescale
       const durationInMvhdTs = Math.round(newTrackDuration * mvhdTimescale / t1.timescale);
       if (durationInMvhdTs > maxDurationInMvhdTimescale) maxDurationInMvhdTimescale = durationInMvhdTs;
