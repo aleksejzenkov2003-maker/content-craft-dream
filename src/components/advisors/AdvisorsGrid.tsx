@@ -248,14 +248,14 @@ export function AdvisorsGrid({
                   <Label>Имя</Label>
                   <Input
                     value={selectedAdvisor.display_name || selectedAdvisor.name}
-                    onChange={(e) => setSelectedAdvisor({ ...selectedAdvisor, display_name: e.target.value })}
+                    onChange={(e) => setEditFormData({ ...editFormData, display_name: e.target.value })}
                   />
                 </div>
                 <div className="space-y-2">
                   <Label>Eleven Labs Voice ID</Label>
                   <Input
                     value={selectedAdvisor.elevenlabs_voice_id || ''}
-                    onChange={(e) => setSelectedAdvisor({ ...selectedAdvisor, elevenlabs_voice_id: e.target.value })}
+                    onChange={(e) => setEditFormData({ ...editFormData, elevenlabs_voice_id: e.target.value })}
                   />
                 </div>
                 <div className="space-y-2">
@@ -266,7 +266,7 @@ export function AdvisorsGrid({
                     min="0.5"
                     max="2"
                     value={selectedAdvisor.speech_speed ?? 1}
-                    onChange={(e) => setSelectedAdvisor({ ...selectedAdvisor, speech_speed: parseFloat(e.target.value) })}
+                    onChange={(e) => setEditFormData({ ...editFormData, speech_speed: parseFloat(e.target.value) })}
                   />
                 </div>
               </div>
