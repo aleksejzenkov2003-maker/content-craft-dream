@@ -320,9 +320,9 @@ export function ScenesMatrix() {
                     ) : (
                       <ChevronRight className="w-4 h-4 text-muted-foreground" />
                     )}
-                    {advisor.photos?.[0]?.photo_url ? (
+                    {(advisor.photos?.find(p => p.id === advisor.scene_photo_id) || advisor.photos?.[0])?.photo_url ? (
                       <img
-                        src={advisor.photos[0].photo_url}
+                        src={(advisor.photos?.find(p => p.id === advisor.scene_photo_id) || advisor.photos?.[0])!.photo_url}
                         alt={advisor.name}
                         className="w-12 h-12 rounded-full object-cover"
                       />
