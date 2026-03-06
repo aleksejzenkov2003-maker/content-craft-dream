@@ -100,6 +100,7 @@ export function PublishingChannelsGrid() {
       const payload = {
         ...formData,
         back_cover_url: formData.back_cover_url || null,
+        back_cover_video_url: formData.back_cover_video_url || null,
         proxy_server: selectedProxy ? `${selectedProxy.server}:${selectedProxy.port}` : null,
         location: selectedProxy?.name || null,
         post_text_prompt: formData.post_text_prompt || null,
