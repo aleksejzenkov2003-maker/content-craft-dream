@@ -10,12 +10,15 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { Label } from '@/components/ui/label';
+import { Progress } from '@/components/ui/progress';
 import { Loader2, Plus, Search, Video, Trash2, Monitor, Upload } from 'lucide-react';
 import { usePublishingChannels, PublishingChannel } from '@/hooks/usePublishingChannels';
 import { toast } from 'sonner';
 import { FileUploader } from '@/components/upload/FileUploader';
 import { CsvImporter } from '@/components/import/CsvImporter';
 import { BACK_COVER_VIDEO_COLUMN_MAPPING, BACK_COVER_VIDEO_PREVIEW_COLUMNS, BACK_COVER_VIDEO_FIELD_DEFINITIONS } from '@/components/import/importConfigs';
+import { normalizeVideoAudio } from '@/lib/videoNormalizer';
+import { supabase } from '@/integrations/supabase/client';
 
 export function BackCoversGrid() {
   const { channels, loading, updateChannel } = usePublishingChannels();
@@ -24,7 +27,8 @@ export function BackCoversGrid() {
   const [showImportDialog, setShowImportDialog] = useState(false);
   const [editingChannel, setEditingChannel] = useState<PublishingChannel | null>(null);
   const [backCoverVideoUrl, setBackCoverVideoUrl] = useState('');
-
+  const [normalizing, setNormalizing] = useState(false);
+  const [normalizeProgress, setNormalizeProgress] = useState(0);
   const channelsWithBackCovers = channels.filter(
     (c) =>
       c.back_cover_video_url &&
@@ -236,9 +240,48 @@ export function BackCoversGrid() {
                 accept="video/mp4,video/quicktime,video/webm,video/x-msvideo,video/*"
                 maxSize={200}
                 folder="back-covers"
-                onUpload={(url) => setBackCoverVideoUrl(url)}
+                onUpload={async (url, file) => {
+                  if (file) {
+                    try {
+                      setNormalizing(true);
+                      setNormalizeProgress(0);
+                      toast.info('Нормализация аудио обложки...');
+                      const normalizedFile = await normalizeVideoAudio(file, (p) => setNormalizeProgress(p));
+                      // Upload normalized file to storage, replacing original
+                      const normalizedPath = `back-covers/normalized_${Date.now()}_${normalizedFile.name}`;
+                      const { error: upErr } = await supabase.storage
+                        .from('media-files')
+                        .upload(normalizedPath, normalizedFile, { contentType: 'video/mp4', upsert: true });
+                      if (upErr) throw upErr;
+                      const { data: urlData } = supabase.storage
+                        .from('media-files')
+                        .getPublicUrl(normalizedPath);
+                      setBackCoverVideoUrl(urlData.publicUrl);
+                      toast.success('Аудио нормализовано');
+                    } catch (err: any) {
+                      console.error('Normalization error:', err);
+                      toast.error('Ошибка нормализации, используем оригинал');
+                      setBackCoverVideoUrl(url);
+                    } finally {
+                      setNormalizing(false);
+                      setNormalizeProgress(0);
+                    }
+                  } else {
+                    setBackCoverVideoUrl(url);
+                  }
+                }}
                 placeholder="Перетащите видео сюда или нажмите для выбора (mp4, mov, webm)"
               />
+            )}
+
+            {normalizing && (
+              <div className="space-y-2">
+                <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                  Нормализация аудио... {normalizeProgress}%
+                </div>
+                <Progress value={normalizeProgress} />
+              </div>
             )}
 
             <div className="flex justify-end gap-2">
