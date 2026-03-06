@@ -38,7 +38,7 @@ export function useAdvisors() {
         .from('advisors')
         .select(`
           *,
-          advisor_photos (*)
+          advisor_photos!advisor_photos_advisor_id_fkey (*)
         `)
         .order('name');
 
