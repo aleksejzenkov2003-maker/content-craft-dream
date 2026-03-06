@@ -1,40 +1,30 @@
 
 
-## Problem
+## Проблема: наивная бинарная склейка MP4 не работает
 
-Across all screens, popups/panels show stale data because they store a **snapshot** of the object when opened. After mutations (delete, regenerate, update), the parent's data array gets refetched, but the panel still displays the old snapshot.
+### Диагноз
 
-### Affected Components
+Логи подтверждают: Edge Function скачивает оба файла (12.6MB + 0.3MB), объединяет их в 12.9MB и загружает. Но **простое `concat` двух MP4 файлов не даёт рабочее видео** — плеер видит только `moov` атом первого файла и проигрывает только основное видео. Задняя обложка игнорируется.
 
-| Component | Stale State Variable | Parent Data Source |
-|---|---|---|
-| `Index.tsx` → VideoSidePanel/VideoDetailModal | `viewingVideo` | `videos` array |
-| `Index.tsx` → VideoEditorDialog | `editingVideo` | `videos` array |
-| `ScenesMatrix.tsx` → SceneSidePanel | `selectedScene` | `scenes` array |
-| `AdvisorsGrid.tsx` → Dialog | `selectedAdvisor` | `advisors` prop |
+MP4 — контейнерный формат с метаданными (`moov` atom), описывающими структуру медиаданных (`mdat`). Простое склеивание байтов не обновляет эти метаданные.
 
-### Fix Strategy
+### Решение: правильная MP4-конкатенация на уровне атомов
 
-Replace snapshot-based state with **ID-based derivation**: store only the ID, derive the full object from the live data array.
+Переписать Edge Function `concat-video` с реализацией MP4 box-level конкатенации:
 
-### Changes
+1. **Парсинг обоих MP4** — извлечь top-level боксы (`ftyp`, `moov`, `mdat`) из каждого файла
+2. **Извлечь трек-метаданные** — из `moov → trak → mdia → minf → stbl` получить таблицы семплов: `stsz` (размеры), `stts` (тайминги), `stco`/`co64` (смещения чанков), `stsc` (семплы-в-чанках), `stss` (ключевые кадры)
+3. **Объединить mdat** — конкатенация медиаданных из обоих файлов
+4. **Пересчитать moov** — объединить таблицы семплов, пересчитать chunk offsets для второго файла, обновить длительности в `mvhd`, `tkhd`, `mdhd`
+5. **Записать результат** — `ftyp` + обновлённый `moov` + объединённый `mdat`
 
-**1. `src/pages/Index.tsx`**
-- Replace `viewingVideo: Video | null` with `viewingVideoId: string | null`
-- Replace `editingVideo: Video | null` with `editingVideoId: string | null`  
-- Derive actual objects: `const viewingVideo = videos.find(v => v.id === viewingVideoId) ?? allVideos.find(v => v.id === viewingVideoId) ?? null`
-- Same for `editingVideo`
-- Update all `setViewingVideo(video)` → `setViewingVideoId(video.id)`, etc.
-- Prev/Next navigation: just set the new ID
+### Файлы для изменения
 
-**2. `src/components/scenes/ScenesMatrix.tsx`**
-- Replace `selectedScene: PlaylistScene | null` with `selectedSceneId: string | null`
-- Derive: `const selectedScene = scenes.find(s => s.id === selectedSceneId) ?? null`
-- Remove the manual `setSelectedScene({ ...selectedScene, ...updates })` patch in `handleUpdateScene`
+- `supabase/functions/concat-video/index.ts` — полная переработка с правильной MP4-конкатенацией через парсинг/реконструкцию атомов
 
-**3. `src/components/advisors/AdvisorsGrid.tsx`**
-- Replace `selectedAdvisor: Advisor | null` with `selectedAdvisorId: string | null`
-- Derive: `const selectedAdvisor = advisors.find(a => a.id === selectedAdvisorId) ?? null`
+### Технические детали
 
-This ensures every time the data arrays refresh (after any mutation), the panels automatically show the latest data without manual synchronization.
+Реализация ~300 строк: парсер рекурсивно обходит MP4-боксы, находит нужные таблицы семплов в `stbl`, объединяет их с корректным пересчётом смещений, и собирает новый файл. Поддерживается один видео-трек и один аудио-трек (стандартная структура HeyGen MP4).
+
+Ограничения подхода: работает только если оба файла используют одинаковые кодеки и разрешение (что верно для HeyGen + back cover из одного пайплайна). Для разных кодеков нужен транскодинг, которого в Edge Functions нет.
 

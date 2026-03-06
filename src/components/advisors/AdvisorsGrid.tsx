@@ -39,7 +39,8 @@ export function AdvisorsGrid({
 }: AdvisorsGridProps) {
   const [showAddDialog, setShowAddDialog] = useState(false);
   const [showImporter, setShowImporter] = useState(false);
-  const [selectedAdvisor, setSelectedAdvisor] = useState<Advisor | null>(null);
+  const [selectedAdvisorId, setSelectedAdvisorId] = useState<string | null>(null);
+  const [editFormData, setEditFormData] = useState<Partial<Advisor>>({});
   const [uploadingAdvisorId, setUploadingAdvisorId] = useState<string | null>(null);
   const [newName, setNewName] = useState('');
   const [newDisplayName, setNewDisplayName] = useState('');
@@ -112,6 +113,26 @@ export function AdvisorsGrid({
     }
   };
 
+  // Derive live advisor from array; merge with local form edits
+  const selectedAdvisorLive = selectedAdvisorId ? (advisors.find(a => a.id === selectedAdvisorId) ?? null) : null;
+  const selectedAdvisor = selectedAdvisorLive ? { ...selectedAdvisorLive, ...editFormData } as Advisor : null;
+
+  const openAdvisorDialog = (advisor: Advisor) => {
+    setSelectedAdvisorId(advisor.id);
+    setEditFormData({
+      display_name: advisor.display_name,
+      elevenlabs_voice_id: advisor.elevenlabs_voice_id,
+      speech_speed: advisor.speech_speed,
+      scene_photo_id: advisor.scene_photo_id,
+      thumbnail_photo_id: advisor.thumbnail_photo_id,
+    });
+  };
+
+  const closeAdvisorDialog = () => {
+    setSelectedAdvisorId(null);
+    setEditFormData({});
+  };
+
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
@@ -181,7 +202,7 @@ export function AdvisorsGrid({
             <div
               key={advisor.id}
               className="cursor-pointer rounded-xl border bg-card overflow-hidden hover:border-primary/50 transition-colors group"
-              onClick={() => setSelectedAdvisor(advisor)}
+              onClick={() => openAdvisorDialog(advisor)}
             >
               {/* Name above the card */}
               <div className="px-3 py-2 text-sm font-medium truncate text-center">
@@ -213,7 +234,7 @@ export function AdvisorsGrid({
       </div>
 
       {/* Detail dialog — left fields, right photos */}
-      <Dialog open={!!selectedAdvisor} onOpenChange={(open) => !open && setSelectedAdvisor(null)}>
+      <Dialog open={!!selectedAdvisorId} onOpenChange={(open) => !open && closeAdvisorDialog()}>
         <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="sr-only">Редактирование духовника</DialogTitle>
@@ -227,14 +248,14 @@ export function AdvisorsGrid({
                   <Label>Имя</Label>
                   <Input
                     value={selectedAdvisor.display_name || selectedAdvisor.name}
-                    onChange={(e) => setSelectedAdvisor({ ...selectedAdvisor, display_name: e.target.value })}
+                    onChange={(e) => setEditFormData({ ...editFormData, display_name: e.target.value })}
                   />
                 </div>
                 <div className="space-y-2">
                   <Label>Eleven Labs Voice ID</Label>
                   <Input
                     value={selectedAdvisor.elevenlabs_voice_id || ''}
-                    onChange={(e) => setSelectedAdvisor({ ...selectedAdvisor, elevenlabs_voice_id: e.target.value })}
+                    onChange={(e) => setEditFormData({ ...editFormData, elevenlabs_voice_id: e.target.value })}
                   />
                 </div>
                 <div className="space-y-2">
@@ -245,7 +266,7 @@ export function AdvisorsGrid({
                     min="0.5"
                     max="2"
                     value={selectedAdvisor.speech_speed ?? 1}
-                    onChange={(e) => setSelectedAdvisor({ ...selectedAdvisor, speech_speed: parseFloat(e.target.value) })}
+                    onChange={(e) => setEditFormData({ ...editFormData, speech_speed: parseFloat(e.target.value) })}
                   />
                 </div>
               </div>
@@ -349,7 +370,7 @@ export function AdvisorsGrid({
                       <select
                         className="w-full text-xs border rounded px-2 py-1 bg-background"
                         value={selectedAdvisor.scene_photo_id || ''}
-                        onChange={(e) => setSelectedAdvisor({ ...selectedAdvisor, scene_photo_id: e.target.value || null })}
+                        onChange={(e) => setEditFormData({ ...editFormData, scene_photo_id: e.target.value || null })}
                       >
                         <option value="">По умолчанию (основное)</option>
                         {selectedAdvisor.photos.map((p, i) => (
@@ -362,7 +383,7 @@ export function AdvisorsGrid({
                       <select
                         className="w-full text-xs border rounded px-2 py-1 bg-background"
                         value={selectedAdvisor.thumbnail_photo_id || ''}
-                        onChange={(e) => setSelectedAdvisor({ ...selectedAdvisor, thumbnail_photo_id: e.target.value || null })}
+                        onChange={(e) => setEditFormData({ ...editFormData, thumbnail_photo_id: e.target.value || null })}
                       >
                         <option value="">По умолчанию (основное)</option>
                         {selectedAdvisor.photos.map((p, i) => (
@@ -377,7 +398,7 @@ export function AdvisorsGrid({
           )}
 
           <DialogFooter className="mt-4">
-            <Button variant="outline" onClick={() => setSelectedAdvisor(null)}>
+            <Button variant="outline" onClick={() => closeAdvisorDialog()}>
               Отмена
             </Button>
             <Button
@@ -392,7 +413,7 @@ export function AdvisorsGrid({
                     scene_photo_id: selectedAdvisor.scene_photo_id,
                     thumbnail_photo_id: selectedAdvisor.thumbnail_photo_id,
                   } as any);
-                  setSelectedAdvisor(null);
+                  closeAdvisorDialog();
                 }
               }}
             >

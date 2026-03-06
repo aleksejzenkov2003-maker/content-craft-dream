@@ -51,8 +51,8 @@ const headerTitles: Record<string, { title: string; subtitle: string }> = {
 export default function Index() {
   const [activeTab, setActiveTab] = useState('dashboard');
   const [videoFilters, setVideoFilters] = useState<VideoFilters>({});
-  const [editingVideo, setEditingVideo] = useState<Video | null>(null);
-  const [viewingVideo, setViewingVideo] = useState<Video | null>(null);
+  const [editingVideoId, setEditingVideoId] = useState<string | null>(null);
+  const [viewingVideoId, setViewingVideoId] = useState<string | null>(null);
   const [showVideoEditor, setShowVideoEditor] = useState(false);
   const [showVideoDetail, setShowVideoDetail] = useState(false);
   const [showSidePanel, setShowSidePanel] = useState(false);
@@ -65,6 +65,10 @@ export default function Index() {
   const { publications, loading: publicationsLoading, addPublication, refetch: refetchPublications } = usePublications();
   const { channels: publishingChannels } = usePublishingChannels();
   const { concatVideos } = useVideoConcat();
+
+  // Derive live objects from arrays instead of storing snapshots
+  const editingVideo = editingVideoId ? (videos.find(v => v.id === editingVideoId) ?? allVideos.find(v => v.id === editingVideoId) ?? null) : null;
+  const viewingVideo = viewingVideoId ? (videos.find(v => v.id === viewingVideoId) ?? allVideos.find(v => v.id === viewingVideoId) ?? null) : null;
   
   const { 
     isGenerating, 
@@ -321,7 +325,7 @@ export default function Index() {
   };
 
   const handleViewVideo = (video: Video) => {
-    setViewingVideo(video);
+    setViewingVideoId(video.id);
     setShowSidePanel(true);
   };
 
@@ -515,13 +519,13 @@ export default function Index() {
                 publications={publications}
                 publishingChannels={publishingChannels}
                 loading={videosLoading}
-                onEditVideo={(video) => { setEditingVideo(video); setShowVideoEditor(true); }}
+                onEditVideo={(video) => { setEditingVideoId(video.id); setShowVideoEditor(true); }}
                 onDeleteVideo={deleteVideo}
                 onGenerateVideo={handleGenerateVideo}
                 onGenerateCover={handleGenerateCover}
                 onGenerateAtmosphere={handleGenerateAtmosphere}
                 onGenerateVoiceover={handleGenerateVoiceover}
-                onAddVideo={() => { setEditingVideo(null); setShowVideoEditor(true); }}
+                onAddVideo={() => { setEditingVideoId(null); setShowVideoEditor(true); }}
                 onImportVideos={() => setShowImportDialog(true)}
                 onViewVideo={handleViewVideo}
                 onUpdateVideo={updateVideo}
@@ -566,7 +570,7 @@ export default function Index() {
                 advisors={advisors}
                 playlists={playlists}
                 open={showVideoEditor}
-                onClose={() => { setShowVideoEditor(false); setEditingVideo(null); }}
+                onClose={() => { setShowVideoEditor(false); setEditingVideoId(null); }}
                 onSave={handleSaveVideo}
               />
               <CsvImporter
@@ -738,7 +742,7 @@ export default function Index() {
               />
               <VideoDetailModal
                 open={showVideoDetail}
-                onOpenChange={(open) => { setShowVideoDetail(open); if (!open) setViewingVideo(null); }}
+                onOpenChange={(open) => { setShowVideoDetail(open); if (!open) setViewingVideoId(null); }}
                 video={viewingVideo}
                 advisors={advisors}
                 onUpdateVideo={updateVideo}
@@ -749,7 +753,7 @@ export default function Index() {
               <VideoSidePanel
                 video={viewingVideo}
                 open={showSidePanel}
-                onOpenChange={(open) => { setShowSidePanel(open); if (!open) setViewingVideo(null); }}
+                onOpenChange={(open) => { setShowSidePanel(open); if (!open) setViewingVideoId(null); }}
                 advisors={advisors}
                 publishingChannels={publishingChannels}
                 onGenerateAtmosphere={handleGenerateAtmosphere}
@@ -761,11 +765,11 @@ export default function Index() {
                 isGenerating={isGenerating}
                 onPrev={viewingVideo ? (() => {
                   const idx = videos.findIndex(v => v.id === viewingVideo.id);
-                  if (idx > 0) setViewingVideo(videos[idx - 1]);
+                  if (idx > 0) setViewingVideoId(videos[idx - 1].id);
                 }) : undefined}
                 onNext={viewingVideo ? (() => {
                   const idx = videos.findIndex(v => v.id === viewingVideo.id);
-                  if (idx < videos.length - 1) setViewingVideo(videos[idx + 1]);
+                  if (idx < videos.length - 1) setViewingVideoId(videos[idx + 1].id);
                 }) : undefined}
               />
             </>

@@ -45,13 +45,18 @@ export function ScenesMatrix() {
   
   const [expandedAdvisors, setExpandedAdvisors] = useState<Set<string>>(new Set());
   const [generatingScenes, setGeneratingScenes] = useState<Set<string>>(new Set());
-  const [selectedScene, setSelectedScene] = useState<PlaylistScene | null>(null);
-  const [selectedPlaylist, setSelectedPlaylist] = useState<Playlist | null>(null);
-  const [selectedAdvisor, setSelectedAdvisor] = useState<Advisor | null>(null);
+  const [selectedSceneId, setSelectedSceneId] = useState<string | null>(null);
+  const [selectedPlaylistId, setSelectedPlaylistId] = useState<string | null>(null);
+  const [selectedAdvisorId, setSelectedAdvisorId] = useState<string | null>(null);
   const [showSidePanel, setShowSidePanel] = useState(false);
   const [showImporter, setShowImporter] = useState(false);
 
   const loading = scenesLoading || advisorsLoading || playlistsLoading;
+
+  // Derive live objects from arrays
+  const selectedScene = selectedSceneId ? (scenes.find(s => s.id === selectedSceneId) ?? null) : null;
+  const selectedPlaylist = selectedPlaylistId ? (playlists.find(p => p.id === selectedPlaylistId) ?? null) : null;
+  const selectedAdvisor = selectedAdvisorId ? (advisors.find(a => a.id === selectedAdvisorId) ?? null) : null;
 
   const sceneMap = useMemo(() => {
     const map = new Map<string, PlaylistScene>();
@@ -140,9 +145,9 @@ export function ScenesMatrix() {
   };
 
   const handleOpenScene = (scene: PlaylistScene, playlist: Playlist, advisor: Advisor) => {
-    setSelectedScene(scene);
-    setSelectedPlaylist(playlist);
-    setSelectedAdvisor(advisor);
+    setSelectedSceneId(scene.id);
+    setSelectedPlaylistId(playlist.id);
+    setSelectedAdvisorId(advisor.id);
     setShowSidePanel(true);
   };
 
@@ -156,9 +161,9 @@ export function ScenesMatrix() {
       });
       
       if (newScene) {
-        setSelectedScene(newScene);
-        setSelectedPlaylist(playlist);
-        setSelectedAdvisor(advisor);
+        setSelectedSceneId(newScene.id);
+        setSelectedPlaylistId(playlist.id);
+        setSelectedAdvisorId(advisor.id);
         setShowSidePanel(true);
       }
     } catch (error) {
@@ -168,9 +173,6 @@ export function ScenesMatrix() {
 
   const handleUpdateScene = async (id: string, updates: Partial<PlaylistScene>) => {
     await updateScene(id, updates);
-    if (selectedScene && selectedScene.id === id) {
-      setSelectedScene({ ...selectedScene, ...updates } as PlaylistScene);
-    }
   };
 
   const resolveRow = (row: Record<string, any>, lookups: Lookups) => {
