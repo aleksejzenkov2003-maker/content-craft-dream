@@ -65,6 +65,10 @@ export default function Index() {
   const { publications, loading: publicationsLoading, addPublication, refetch: refetchPublications } = usePublications();
   const { channels: publishingChannels } = usePublishingChannels();
   const { concatVideos } = useVideoConcat();
+
+  // Derive live objects from arrays instead of storing snapshots
+  const editingVideo = editingVideoId ? (videos.find(v => v.id === editingVideoId) ?? allVideos.find(v => v.id === editingVideoId) ?? null) : null;
+  const viewingVideo = viewingVideoId ? (videos.find(v => v.id === viewingVideoId) ?? allVideos.find(v => v.id === viewingVideoId) ?? null) : null;
   
   const { 
     isGenerating, 
