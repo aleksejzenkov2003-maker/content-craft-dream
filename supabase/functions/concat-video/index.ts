@@ -221,6 +221,41 @@ function writeStss(entries: number[]): Uint8Array {
   return buf;
 }
 
+// ── stsd helpers ──────────────────────────────────────────────────
+
+function readStsdEntryCount(stsdBox: Box): number {
+  // stsd is a full box: version(1) + flags(3) + entry_count(4)
+  return r32(stsdBox.data, stsdBox.offset + stsdBox.headerSize + 4);
+}
+
+function mergeStsd(stsd1Box: Box, stsd2Box: Box): { merged: Uint8Array; entryCount1: number } {
+  const entryCount1 = readStsdEntryCount(stsd1Box);
+  const entryCount2 = readStsdEntryCount(stsd2Box);
+  
+  // Extract raw entries from both stsd boxes (skip header + version/flags + entry_count)
+  const entries1Start = stsd1Box.offset + stsd1Box.headerSize + 8; // +4 version/flags +4 entry_count
+  const entries1End = stsd1Box.offset + stsd1Box.size;
+  const entries1 = stsd1Box.data.slice(entries1Start, entries1End);
+  
+  const entries2Start = stsd2Box.offset + stsd2Box.headerSize + 8;
+  const entries2End = stsd2Box.offset + stsd2Box.size;
+  const entries2 = stsd2Box.data.slice(entries2Start, entries2End);
+  
+  const totalEntries = entryCount1 + entryCount2;
+  const bodySize = 4 + 4 + entries1.length + entries2.length; // version/flags + entry_count + entries
+  const totalSize = 8 + bodySize;
+  
+  const buf = new Uint8Array(totalSize);
+  w32(buf, 0, totalSize);
+  buf[4] = 0x73; buf[5] = 0x74; buf[6] = 0x73; buf[7] = 0x64; // "stsd"
+  // version + flags = 0
+  w32(buf, 12, totalEntries);
+  buf.set(entries1, 16);
+  buf.set(entries2, 16 + entries1.length);
+  
+  return { merged: buf, entryCount1 };
+}
+
 // ── Track info extraction ──────────────────────────────────────────
 
 interface TrackInfo {
@@ -236,6 +271,7 @@ interface TrackInfo {
   sampleCount: number;
   chunkCount: number;
   stblBox: Box;
+  stsdBox: Box; // reference to stsd box for merging
 }
 
 function extractTrackInfo(trakBox: Box): TrackInfo {
@@ -266,6 +302,7 @@ function extractTrackInfo(trakBox: Box): TrackInfo {
   const stblBox = findBox(minfChildren, "stbl")!;
   const stblChildren = getChildren(stblBox);
 
+  const stsdBox = findBox(stblChildren, "stsd")!;
   const stszBox = findBox(stblChildren, "stsz")!;
   const sttsBox = findBox(stblChildren, "stts")!;
   const stscBox = findBox(stblChildren, "stsc")!;
@@ -288,6 +325,7 @@ function extractTrackInfo(trakBox: Box): TrackInfo {
     sampleCount,
     chunkCount: stco.offsets.length,
     stblBox,
+    stsdBox,
   };
 }
 
@@ -300,11 +338,16 @@ function rebuildStbl(
   newStsc: Uint8Array,
   newStco: Uint8Array,
   newStss: Uint8Array | null,
+  newStsd: Uint8Array | null = null,
 ): Uint8Array {
   const children = getChildren(origStbl);
   const parts: Uint8Array[] = [];
 
   for (const child of children) {
+    if (child.type === "stsd") {
+      parts.push(newStsd || child.data.slice(child.offset, child.offset + child.size));
+      continue;
+    }
     if (child.type === "stsz") { parts.push(newStsz); continue; }
     if (child.type === "stts") { parts.push(newStts); continue; }
     if (child.type === "stsc") { parts.push(newStsc); continue; }
@@ -313,7 +356,7 @@ function rebuildStbl(
       if (newStss) parts.push(newStss);
       continue;
     }
-    // Copy other boxes as-is (stsd, etc.)
+    // Copy other boxes as-is
     parts.push(child.data.slice(child.offset, child.offset + child.size));
   }
 
@@ -499,14 +542,18 @@ function concatMP4(file1: Uint8Array, file2: Uint8Array): Uint8Array {
       // Merge stts
       const mergedStts = [...t1.stts, ...t2.stts];
 
-      // Merge stsc — shift file2 chunk indices
+      // Merge stsd (sample descriptions) from both tracks
+      const { merged: mergedStsdBuf, entryCount1: stsdEntryCount1 } = mergeStsd(t1.stsdBox, t2.stsdBox);
+      console.log(`Track ${t1.handlerType}: merging stsd entries: ${stsdEntryCount1} + ${readStsdEntryCount(t2.stsdBox)} = ${stsdEntryCount1 + readStsdEntryCount(t2.stsdBox)}`);
+
+      // Merge stsc — shift file2 chunk indices AND offset sdi for file2
       const chunkOffset2 = t1.chunkCount;
       const mergedStsc = [
         ...t1.stsc,
         ...t2.stsc.map(e => ({
           firstChunk: e.firstChunk + chunkOffset2,
           samplesPerChunk: e.samplesPerChunk,
-          sdi: e.sdi,
+          sdi: e.sdi + stsdEntryCount1, // offset to reference file2's sample descriptions
         })),
       ];
 
@@ -547,7 +594,7 @@ function concatMP4(file1: Uint8Array, file2: Uint8Array): Uint8Array {
       const newStssBuf = mergedStss ? writeStss(mergedStss) : null;
 
       // Rebuild stbl
-      const newStbl = rebuildStbl(t1.stblBox, newStszBuf, newSttsBuf, newStscBuf, newStcoBuf, newStssBuf);
+      const newStbl = rebuildStbl(t1.stblBox, newStszBuf, newSttsBuf, newStscBuf, newStcoBuf, newStssBuf, mergedStsdBuf);
 
       // Rebuild minf → stbl
       const trakChildren = getChildren(t1.trakBox);
