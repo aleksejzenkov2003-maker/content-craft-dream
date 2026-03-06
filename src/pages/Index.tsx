@@ -17,7 +17,7 @@ import { PublicationsTable } from '@/components/publishing/PublicationsTable';
 import { PublishingKanban } from '@/components/publishing/PublishingKanban';
 import { ScenesMatrix } from '@/components/scenes/ScenesMatrix';
 import { QuestionsTable } from '@/components/questions/QuestionsTable';
-import { BackCoversGrid } from '@/components/covers/BackCoversGrid';
+
 
 import { useAdvisors } from '@/hooks/useAdvisors';
 import { usePlaylists } from '@/hooks/usePlaylists';
@@ -39,7 +39,7 @@ const headerTitles: Record<string, { title: string; subtitle: string }> = {
   videos: { title: 'Ролики', subtitle: 'Все видео с духовниками' },
   'publications-list': { title: 'Публикации', subtitle: 'Список публикаций по каналам' },
   scenes: { title: 'Сцены', subtitle: 'Генерация сцен для плейлистов' },
-  'back-covers': { title: 'Задние обложки', subtitle: 'Шаблоны задних обложек по духовникам' },
+  
   advisors: { title: 'Духовники', subtitle: 'Управление аватарами и настройками' },
   playlists: { title: 'Плейлисты', subtitle: 'Группировка видео по категориям' },
   channels: { title: 'Каналы', subtitle: 'Настройка каналов публикации' },
@@ -904,7 +904,7 @@ export default function Index() {
             </div>
           )}
 
-          {activeTab === 'back-covers' && <BackCoversGrid />}
+          
           {activeTab === 'channels' && <PublishingChannelsGrid />}
           {activeTab === 'proxies' && <ProxyServersGrid />}
           {activeTab === 'prompts' && <PromptsPage />}

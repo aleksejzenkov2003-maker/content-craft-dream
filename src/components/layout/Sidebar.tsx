@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { cn } from '@/lib/utils';
-import { LayoutDashboard, Video, Settings, ChevronLeft, ChevronRight, Users, ListVideo, Send, Globe, Image, HelpCircle, ImageIcon, Server, FileText } from 'lucide-react';
+import { LayoutDashboard, Video, Settings, ChevronLeft, ChevronRight, Users, ListVideo, Send, Globe, Image, HelpCircle, Server, FileText } from 'lucide-react';
 interface NavItem {
   id: string;
   label: string;
@@ -29,10 +29,6 @@ const navItems: NavItem[] = [{
   id: 'scenes',
   label: 'Сцены монологов',
   icon: Image
-}, {
-  id: 'back-covers',
-  label: 'Задние обложки',
-  icon: ImageIcon
 }, {
   id: 'advisors',
   label: 'Духовники',
