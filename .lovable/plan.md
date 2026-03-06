@@ -1,37 +1,56 @@
+## Диагноз
+
+Текущий `concat-video` отправляет всё в n8n — нужно вернуть бинарную MP4-конкатенацию. Проблема со звуком: AAC AudioSpecificConfig задней обложки отличается от HeyGen-видео, поэтому бинарная склейка даёт тишину на втором сегменте.
+
+## Решение: нормализация аудио при загрузке обложки
+
+Два шага:
+
+### 1. Восстановить бинарный MP4-конкатенатор в `concat-video`
+
+Переписать `supabase/functions/concat-video/index.ts`:
+
+- Вернуть логику скачивания обоих файлов, парсинга MP4-боксов, объединения треков
+- Сохранить существующую логику получения свежих HeyGen URL
+- Ключевое отличие от предыдущих попыток: теперь оба файла будут иметь **одинаковый** AAC-конфиг, потому что обложка нормализуется при загрузке (шаг 2)
+
+### 2. Нормализовать аудио задней обложки при загрузке (browser-side)
+
+В `src/components/covers/BackCoversGrid.tsx` — после загрузки видео в Storage, перед сохранением URL:
+
+- Декодировать загруженное видео через `<video>` + `<canvas>` + `AudioContext`
+- Перезаписать через `MediaRecorder` с форматом `video/mp4; codecs="avc1.42E01E, mp4a.40.2"` (стандартный AAC-LC, 48kHz)
+- Загрузить нормализованный файл в Storage, заменив оригинал
+- Это гарантирует одинаковый AAC-конфиг для всех задних обложек
+
+**Проблема**: `MediaRecorder` в разных браузерах выдаёт разные контейнеры (Chrome — webm, Safari — mp4). Это ненадёжно.
+
+### Альтернатива шагу 2: ffmpeg.wasm в браузере
+
+Использовать `@ffmpeg/ffmpeg` (WASM-версия FFmpeg, ~25MB) для перекодирования аудио обложки прямо в браузере:
+
+```bash
+ffmpeg -i input.mp4 -c:v copy -c:a aac -ar 48000 -ac 1 -b:a 128k output.mp4
+```
+
+- Копирует видео без потерь, перекодирует только аудио в AAC-LC 48kHz
+- Работает одинаково во всех браузерах
+- Минус: тяжёлый пакет (~25MB), первая загрузка медленнее
+
+### Файлы для изменения
 
 
-## Решение: concat-video через n8n + FFmpeg
+| Файл                                       | Что делаем                                                                     |
+| ------------------------------------------ | ------------------------------------------------------------------------------ |
+| `supabase/functions/concat-video/index.ts` | Полная перезапись: вернуть бинарный MP4-конкатенатор                           |
+| `src/components/covers/BackCoversGrid.tsx` | Добавить нормализацию аудио при загрузке обложки                               |
+| `src/components/upload/FileUploader.tsx`   | Опционально: добавить callback для пост-обработки файла                        |
+| `package.json`                             | Добавить `@ffmpeg/ffmpeg` + `@ffmpeg/util` (если выбран вариант с ffmpeg.wasm) |
 
-### Что сделано
 
-Edge Function `concat-video` полностью переписана — убран ~750-строчный MP4 binary parser. Теперь функция:
+### Вопрос
 
-1. Резолвит свежий HeyGen URL (как раньше)
-2. Отправляет POST на `N8N_WEBHOOK_URL` с телом:
-   ```json
-   {
-     "publication_id": "...",
-     "main_video_url": "...",
-     "back_cover_video_url": "...",
-     "output_file_name": "concat/{id}_{ts}.mp4",
-     "storage_upload_url": "...",
-     "supabase_url": "...",
-     "supabase_service_key": "..."
-   }
-   ```
-3. Ожидает ответ с `final_video_url` и обновляет publication
+Какой подход к нормализации аудио предпочтительнее?
 
-### Что нужно настроить на стороне n8n
-
-Создать workflow:
-1. **Webhook** trigger (POST)
-2. **Download File** — скачать `main_video_url`
-3. **Download File** — скачать `back_cover_video_url`  
-4. **Execute Command** (FFmpeg):
-   ```bash
-   ffmpeg -i main.mp4 -i backcover.mp4 \
-     -filter_complex "[0:v][0:a][1:v][1:a]concat=n=2:v=1:a=1[v][a]" \
-     -map "[v]" -map "[a]" -c:v copy -c:a aac -b:a 128k output.mp4
-   ```
-5. **HTTP Request** — загрузить результат в Supabase Storage через `storage_upload_url`
-6. **Respond to Webhook** — вернуть `{ "final_video_url": "public_url" }`
+- **ffmpeg.wasm** — надёжно, но тяжёлый пакет (25MB)
+  &nbsp;
