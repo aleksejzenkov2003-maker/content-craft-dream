@@ -240,7 +240,36 @@ export function BackCoversGrid() {
                 accept="video/mp4,video/quicktime,video/webm,video/x-msvideo,video/*"
                 maxSize={200}
                 folder="back-covers"
-                onUpload={(url) => setBackCoverVideoUrl(url)}
+                onUpload={async (url, file) => {
+                  if (file) {
+                    try {
+                      setNormalizing(true);
+                      setNormalizeProgress(0);
+                      toast.info('Нормализация аудио обложки...');
+                      const normalizedFile = await normalizeVideoAudio(file, (p) => setNormalizeProgress(p));
+                      // Upload normalized file to storage, replacing original
+                      const normalizedPath = `back-covers/normalized_${Date.now()}_${normalizedFile.name}`;
+                      const { error: upErr } = await supabase.storage
+                        .from('media-files')
+                        .upload(normalizedPath, normalizedFile, { contentType: 'video/mp4', upsert: true });
+                      if (upErr) throw upErr;
+                      const { data: urlData } = supabase.storage
+                        .from('media-files')
+                        .getPublicUrl(normalizedPath);
+                      setBackCoverVideoUrl(urlData.publicUrl);
+                      toast.success('Аудио нормализовано');
+                    } catch (err: any) {
+                      console.error('Normalization error:', err);
+                      toast.error('Ошибка нормализации, используем оригинал');
+                      setBackCoverVideoUrl(url);
+                    } finally {
+                      setNormalizing(false);
+                      setNormalizeProgress(0);
+                    }
+                  } else {
+                    setBackCoverVideoUrl(url);
+                  }
+                }}
                 placeholder="Перетащите видео сюда или нажмите для выбора (mp4, mov, webm)"
               />
             )}
