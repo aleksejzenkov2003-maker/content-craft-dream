@@ -161,9 +161,9 @@ export function ScenesMatrix() {
       });
       
       if (newScene) {
-        setSelectedScene(newScene);
-        setSelectedPlaylist(playlist);
-        setSelectedAdvisor(advisor);
+        setSelectedSceneId(newScene.id);
+        setSelectedPlaylistId(playlist.id);
+        setSelectedAdvisorId(advisor.id);
         setShowSidePanel(true);
       }
     } catch (error) {
