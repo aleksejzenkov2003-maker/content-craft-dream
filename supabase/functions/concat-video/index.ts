@@ -302,6 +302,7 @@ function extractTrackInfo(trakBox: Box): TrackInfo {
   const stblBox = findBox(minfChildren, "stbl")!;
   const stblChildren = getChildren(stblBox);
 
+  const stsdBox = findBox(stblChildren, "stsd")!;
   const stszBox = findBox(stblChildren, "stsz")!;
   const sttsBox = findBox(stblChildren, "stts")!;
   const stscBox = findBox(stblChildren, "stsc")!;
@@ -324,6 +325,7 @@ function extractTrackInfo(trakBox: Box): TrackInfo {
     sampleCount,
     chunkCount: stco.offsets.length,
     stblBox,
+    stsdBox,
   };
 }
 
