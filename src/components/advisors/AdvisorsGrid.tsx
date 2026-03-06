@@ -383,7 +383,7 @@ export function AdvisorsGrid({
                       <select
                         className="w-full text-xs border rounded px-2 py-1 bg-background"
                         value={selectedAdvisor.thumbnail_photo_id || ''}
-                        onChange={(e) => setSelectedAdvisor({ ...selectedAdvisor, thumbnail_photo_id: e.target.value || null })}
+                        onChange={(e) => setEditFormData({ ...editFormData, thumbnail_photo_id: e.target.value || null })}
                       >
                         <option value="">По умолчанию (основное)</option>
                         {selectedAdvisor.photos.map((p, i) => (
