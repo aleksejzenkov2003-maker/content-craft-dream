@@ -40,7 +40,7 @@ serve(async (req) => {
           advisor_answer,
           advisor:advisors (id, name, display_name)
         ),
-        channel:publishing_channels (id, name, network_type, post_text_prompt)
+        channel:publishing_channels (id, name, network_type, post_text_prompt, prompt_id)
       `)
       .eq("id", publicationId)
       .single();
@@ -52,19 +52,50 @@ serve(async (req) => {
       );
     }
 
-    // Get channel's post text prompt, or fetch from DB, or use hardcoded fallback
-    let channelPrompt = publication.channel?.post_text_prompt;
-    
-    if (!channelPrompt) {
+    // Resolve prompt: priority is prompt_id → post_text_prompt → DB fallback → hardcoded
+    let systemPrompt = "";
+    let userTemplate = "";
+
+    const channelPromptId = publication.channel?.prompt_id;
+    const channelRawPrompt = publication.channel?.post_text_prompt;
+
+    if (channelPromptId) {
+      // Use linked prompt from prompts table
+      const { data: linkedPrompt } = await supabase
+        .from("prompts")
+        .select("system_prompt, user_template")
+        .eq("id", channelPromptId)
+        .single();
+
+      if (linkedPrompt) {
+        systemPrompt = linkedPrompt.system_prompt;
+        userTemplate = linkedPrompt.user_template;
+      }
+    }
+
+    if (!userTemplate && channelRawPrompt) {
+      // Fallback to raw text on channel
+      userTemplate = channelRawPrompt;
+    }
+
+    if (!userTemplate) {
+      // Fallback to active post_text prompt in DB
       const { data: dbPrompt } = await supabase
-        .from('prompts')
-        .select('user_template')
-        .eq('type', 'post_text')
-        .eq('is_active', true)
+        .from("prompts")
+        .select("system_prompt, user_template")
+        .eq("type", "post_text")
+        .eq("is_active", true)
         .limit(1)
         .single();
 
-      channelPrompt = dbPrompt?.user_template || `Создай привлекательный текст для публикации в социальных сетях на основе следующей информации:
+      if (dbPrompt) {
+        systemPrompt = dbPrompt.system_prompt;
+        userTemplate = dbPrompt.user_template;
+      }
+    }
+
+    if (!userTemplate) {
+      userTemplate = `Создай привлекательный текст для публикации в социальных сетях на основе следующей информации:
 - Вопрос: {{question}}
 - Хук: {{hook}}
 - Ответ духовника: {{answer}}
@@ -82,8 +113,8 @@ serve(async (req) => {
     const hook = publication.video?.hook || "";
     const answer = publication.video?.advisor_answer || "";
 
-    // Replace placeholders in prompt
-    const prompt = channelPrompt
+    // Replace placeholders in user template
+    const prompt = userTemplate
       .replace(/{{question}}/g, question)
       .replace(/{{hook}}/g, hook)
       .replace(/{{answer}}/g, answer)
@@ -92,7 +123,14 @@ serve(async (req) => {
     let generatedText = "";
 
     if (anthropicKey) {
-      // Use Anthropic API
+      const messages: Array<{ role: string; content: string }> = [];
+      
+      if (systemPrompt) {
+        messages.push({ role: "user", content: prompt });
+      } else {
+        messages.push({ role: "user", content: prompt });
+      }
+
       const response = await fetch("https://api.anthropic.com/v1/messages", {
         method: "POST",
         headers: {
@@ -103,6 +141,7 @@ serve(async (req) => {
         body: JSON.stringify({
           model: "claude-sonnet-4-20250514",
           max_tokens: 500,
+          ...(systemPrompt ? { system: systemPrompt } : {}),
           messages: [
             {
               role: "user",
