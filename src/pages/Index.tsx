@@ -17,7 +17,7 @@ import { PublicationsTable } from '@/components/publishing/PublicationsTable';
 import { PublishingKanban } from '@/components/publishing/PublishingKanban';
 import { ScenesMatrix } from '@/components/scenes/ScenesMatrix';
 import { QuestionsTable } from '@/components/questions/QuestionsTable';
-import { BackCoversGrid } from '@/components/covers/BackCoversGrid';
+
 
 import { useAdvisors } from '@/hooks/useAdvisors';
 import { usePlaylists } from '@/hooks/usePlaylists';
