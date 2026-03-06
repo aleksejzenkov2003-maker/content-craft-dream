@@ -542,14 +542,18 @@ function concatMP4(file1: Uint8Array, file2: Uint8Array): Uint8Array {
       // Merge stts
       const mergedStts = [...t1.stts, ...t2.stts];
 
-      // Merge stsc — shift file2 chunk indices
+      // Merge stsd (sample descriptions) from both tracks
+      const { merged: mergedStsdBuf, entryCount1: stsdEntryCount1 } = mergeStsd(t1.stsdBox, t2.stsdBox);
+      console.log(`Track ${t1.handlerType}: merging stsd entries: ${stsdEntryCount1} + ${readStsdEntryCount(t2.stsdBox)} = ${stsdEntryCount1 + readStsdEntryCount(t2.stsdBox)}`);
+
+      // Merge stsc — shift file2 chunk indices AND offset sdi for file2
       const chunkOffset2 = t1.chunkCount;
       const mergedStsc = [
         ...t1.stsc,
         ...t2.stsc.map(e => ({
           firstChunk: e.firstChunk + chunkOffset2,
           samplesPerChunk: e.samplesPerChunk,
-          sdi: e.sdi,
+          sdi: e.sdi + stsdEntryCount1, // offset to reference file2's sample descriptions
         })),
       ];
 
