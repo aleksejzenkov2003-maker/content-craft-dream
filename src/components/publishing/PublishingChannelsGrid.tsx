@@ -67,6 +67,7 @@ export function PublishingChannelsGrid() {
       post_text_prompt: '',
       is_active: true,
       back_cover_url: '',
+      back_cover_video_url: '',
       proxy_id: '',
     });
     setEditingChannel(null);
