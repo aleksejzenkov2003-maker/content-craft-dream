@@ -276,6 +276,14 @@ export default function Index() {
 
   const handleGenerateCover = async (video: Video) => {
     try {
+      // Check if advisor has a thumbnail photo
+      if (video.advisor_id) {
+        const advisor = advisors.find(a => a.id === video.advisor_id);
+        if (advisor && !advisor.thumbnail_photo_id) {
+          toast.warning('У духовника не назначено фото для миниатюры. Обложка будет без портрета. Назначьте фото (М) в разделе Духовники.');
+        }
+      }
+      
       toast.info('Генерация обложки...');
       
       const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/generate-cover`, {
