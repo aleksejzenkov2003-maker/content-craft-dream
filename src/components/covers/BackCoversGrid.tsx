@@ -27,7 +27,8 @@ export function BackCoversGrid() {
   const [showImportDialog, setShowImportDialog] = useState(false);
   const [editingChannel, setEditingChannel] = useState<PublishingChannel | null>(null);
   const [backCoverVideoUrl, setBackCoverVideoUrl] = useState('');
-
+  const [normalizing, setNormalizing] = useState(false);
+  const [normalizeProgress, setNormalizeProgress] = useState(0);
   const channelsWithBackCovers = channels.filter(
     (c) =>
       c.back_cover_video_url &&
