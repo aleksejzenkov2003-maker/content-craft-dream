@@ -145,9 +145,9 @@ export function ScenesMatrix() {
   };
 
   const handleOpenScene = (scene: PlaylistScene, playlist: Playlist, advisor: Advisor) => {
-    setSelectedScene(scene);
-    setSelectedPlaylist(playlist);
-    setSelectedAdvisor(advisor);
+    setSelectedSceneId(scene.id);
+    setSelectedPlaylistId(playlist.id);
+    setSelectedAdvisorId(advisor.id);
     setShowSidePanel(true);
   };
 
