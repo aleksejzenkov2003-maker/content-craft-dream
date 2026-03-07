@@ -282,7 +282,8 @@ export function VideoSidePanel({
                     toast.success('Субтитры добавлены');
                   } catch (err) {
                     console.error('Subtitle error:', err);
-                    toast.error('Ошибка добавления субтитров');
+                    const message = err instanceof Error ? err.message : 'Ошибка добавления субтитров';
+                    toast.error(message);
                   } finally {
                     setSubtitleProgress(null);
                   }
