@@ -263,6 +263,7 @@ export function VideoSidePanel({
           <div className="space-y-2">
             {(video.heygen_video_url || video.video_path) ? (
               <>
+                <div className="flex gap-1">
                 <Button
                   size="sm"
                   variant="outline"
