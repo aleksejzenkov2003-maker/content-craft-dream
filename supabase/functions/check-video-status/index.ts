@@ -185,6 +185,7 @@ serve(async (req) => {
         success: true,
         status: newStatus === 'ready' ? 'ready' : newStatus === 'error' ? 'error' : 'generating',
         videoUrl: effectiveVideoUrl,
+        errorMessage,
         currentStatus: newStatus,
       }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
