@@ -219,14 +219,15 @@ serve(async (req) => {
       if (!heygenVideoId) throw new Error('No video ID from HeyGen av4: ' + JSON.stringify(av4Result));
 
     } else {
-      // === FALLBACK: Use front_cover_url or atmosphere_url or advisor photo ===
+      // === FALLBACK: Use advisor photo (with face) as primary, covers as last resort ===
       console.log('Using fallback image for av4 API...');
 
-      // Priority: front_cover_url > atmosphere_url > advisor photo
-      let fallbackImageUrl: string | null = video.front_cover_url || video.atmosphere_url || null;
+      // HeyGen av4 requires an image WITH A FACE.
+      // Priority: advisor scene_photo > advisor primary photo > front_cover_url > atmosphere_url
+      let fallbackImageUrl: string | null = null;
 
-      if (!fallbackImageUrl && video.advisor_id) {
-        // 1. Try scene_photo_id from advisor settings
+      if (video.advisor_id) {
+        // 1. Try scene_photo_id from advisor settings (portrait with face)
         if (video.advisor?.scene_photo_id) {
           const { data: scenePhoto } = await supabase
             .from('advisor_photos')
@@ -237,7 +238,7 @@ serve(async (req) => {
           console.log('Using scene_photo_id photo:', fallbackImageUrl ? 'found' : 'not found');
         }
 
-        // 2. Fallback to is_primary / any photo
+        // 2. Fallback to is_primary / any advisor photo
         if (!fallbackImageUrl) {
           const { data: photos } = await supabase
             .from('advisor_photos')
@@ -250,11 +251,18 @@ serve(async (req) => {
           fallbackImageUrl = photos?.find((p: { is_primary: boolean | null }) => p.is_primary)?.photo_url
             || photos?.[0]?.photo_url
             || null;
+          if (fallbackImageUrl) console.log('Using advisor photo (primary/first)');
         }
       }
 
+      // 3. Last resort: cover images (may not contain a face — HeyGen may reject)
       if (!fallbackImageUrl) {
-        throw new Error('No image found. Generate a cover or upload advisor photo first.');
+        fallbackImageUrl = video.front_cover_url || video.atmosphere_url || null;
+        if (fallbackImageUrl) console.log('WARNING: Using cover/atmosphere as fallback — may lack face');
+      }
+
+      if (!fallbackImageUrl) {
+        throw new Error('No image found. Upload advisor photo or generate a cover first.');
       }
 
       console.log('Using fallback image:', fallbackImageUrl.substring(0, 80) + '...');
