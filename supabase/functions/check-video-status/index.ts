@@ -104,7 +104,7 @@ serve(async (req) => {
     const duration = result.data?.duration;
     const errorMessage = result.data?.error?.detail || result.data?.error?.message || result.error?.detail || result.error?.message || null;
 
-    console.log('HeyGen status:', status, videoUrl);
+    console.log('HeyGen status:', status, videoUrl, errorMessage ? `error=${errorMessage}` : '');
 
     let newStatus = video.generation_status;
 
