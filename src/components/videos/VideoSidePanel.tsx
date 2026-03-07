@@ -272,7 +272,7 @@ export function VideoSidePanel({
                     const ac = new AbortController();
                     setSubtitleAbort(ac);
                     try {
-                      const { burnSubtitles, getPhaseLabel } = await import('@/lib/videoSubtitles');
+                      const { burnSubtitles } = await import('@/lib/videoSubtitles');
                       const timestamps = video.word_timestamps;
                       const videoUrl = video.heygen_video_url || video.video_path;
                       if (!videoUrl) throw new Error('No video URL');
