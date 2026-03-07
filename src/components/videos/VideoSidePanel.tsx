@@ -349,6 +349,9 @@ export function VideoSidePanel({
                   </p>
                 </div>
               )}
+            ) : null}
+          </div>
+        )}
       </PanelSection>
 
       <Separator />
