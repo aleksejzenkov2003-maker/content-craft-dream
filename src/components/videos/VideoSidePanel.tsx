@@ -109,6 +109,13 @@ export function VideoSidePanel({
     }
   }, [video?.id]);
 
+  // Preload FFmpeg when panel opens and video has timestamps
+  useEffect(() => {
+    if (open && video?.word_timestamps) {
+      import('@/lib/ffmpegLoader').then(({ preloadFFmpeg }) => preloadFFmpeg()).catch(() => {});
+    }
+  }, [open, !!video?.word_timestamps]);
+
   useEffect(() => { fetchVariants(); }, [fetchVariants, (video as any)?.atmosphere_url, video?.front_cover_url]);
 
   useEffect(() => {
