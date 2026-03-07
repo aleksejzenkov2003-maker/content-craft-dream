@@ -107,14 +107,23 @@ serve(async (req) => {
 
     let newStatus = video.generation_status;
 
-    if (status === 'completed' && videoUrl) {
+    // Some HeyGen jobs may return failed while still having a playable url
+    // either in the same response or already persisted in DB from a previous poll.
+    const effectiveVideoUrl = videoUrl || video.heygen_video_url || null;
+    const hasPlayableVideo = Boolean(effectiveVideoUrl);
+
+    if ((status === 'completed' && hasPlayableVideo) || (status === 'failed' && hasPlayableVideo)) {
+      if (status === 'failed' && hasPlayableVideo) {
+        console.warn('HeyGen returned failed but a video URL exists; treating as ready');
+      }
+
       newStatus = 'ready';
 
       await supabase
         .from('videos')
         .update({ 
           generation_status: newStatus,
-          heygen_video_url: videoUrl,
+          heygen_video_url: effectiveVideoUrl,
         })
         .eq('id', videoId);
 
@@ -123,7 +132,7 @@ serve(async (req) => {
         action: 'video_ready',
         entity_type: 'video',
         entity_id: videoId,
-        details: { video_url: videoUrl, duration },
+        details: { video_url: effectiveVideoUrl, duration },
       });
 
       // Auto-mark publications for concat if channel has back_cover_video_url
@@ -172,9 +181,9 @@ serve(async (req) => {
 
     return new Response(
       JSON.stringify({ 
-        success: true, 
-        status: status === 'completed' ? 'ready' : status === 'failed' ? 'error' : 'generating',
-        videoUrl,
+        success: true,
+        status: newStatus === 'ready' ? 'ready' : newStatus === 'error' ? 'error' : 'generating',
+        videoUrl: effectiveVideoUrl,
         currentStatus: newStatus,
       }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
