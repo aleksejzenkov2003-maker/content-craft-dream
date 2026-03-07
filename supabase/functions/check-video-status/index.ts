@@ -102,8 +102,9 @@ serve(async (req) => {
     const status = result.data?.status;
     const videoUrl = result.data?.video_url;
     const duration = result.data?.duration;
+    const errorMessage = result.data?.error?.detail || result.data?.error?.message || result.error?.detail || result.error?.message || null;
 
-    console.log('HeyGen status:', status, videoUrl);
+    console.log('HeyGen status:', status, videoUrl, errorMessage ? `error=${errorMessage}` : '');
 
     let newStatus = video.generation_status;
 
@@ -184,6 +185,7 @@ serve(async (req) => {
         success: true,
         status: newStatus === 'ready' ? 'ready' : newStatus === 'error' ? 'error' : 'generating',
         videoUrl: effectiveVideoUrl,
+        errorMessage,
         currentStatus: newStatus,
       }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }

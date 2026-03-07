@@ -225,33 +225,44 @@ serve(async (req) => {
       // HeyGen av4 requires an image WITH A FACE.
       // Priority: advisor scene_photo > advisor primary photo > front_cover_url > atmosphere_url
       let fallbackImageUrl: string | null = null;
+      let fallbackImageKey: string | null = null;
 
       if (video.advisor_id) {
         // 1. Try scene_photo_id from advisor settings (portrait with face)
         if (video.advisor?.scene_photo_id) {
           const { data: scenePhoto } = await supabase
             .from('advisor_photos')
-            .select('photo_url')
+            .select('photo_url, heygen_asset_id')
             .eq('id', video.advisor.scene_photo_id)
             .single();
           fallbackImageUrl = scenePhoto?.photo_url || null;
+          fallbackImageKey = scenePhoto?.heygen_asset_id || null;
           console.log('Using scene_photo_id photo:', fallbackImageUrl ? 'found' : 'not found');
+          if (fallbackImageKey) console.log('scene_photo_id has existing heygen image_key');
         }
 
-        // 2. Fallback to is_primary / any advisor photo
+        // 2. Fallback to advisor photos (prefer already uploaded heygen_asset_id)
         if (!fallbackImageUrl) {
           const { data: photos } = await supabase
             .from('advisor_photos')
-            .select('photo_url, is_primary')
+            .select('photo_url, is_primary, heygen_asset_id, created_at')
             .eq('advisor_id', video.advisor_id)
             .not('photo_url', 'is', null)
             .order('is_primary', { ascending: false })
-            .limit(5);
+            .order('created_at', { ascending: true })
+            .limit(10);
 
-          fallbackImageUrl = photos?.find((p: { is_primary: boolean | null }) => p.is_primary)?.photo_url
-            || photos?.[0]?.photo_url
-            || null;
-          if (fallbackImageUrl) console.log('Using advisor photo (primary/first)');
+          const photoWithAsset = photos?.find((p: { heygen_asset_id: string | null }) => !!p.heygen_asset_id);
+          if (photoWithAsset) {
+            fallbackImageUrl = photoWithAsset.photo_url;
+            fallbackImageKey = photoWithAsset.heygen_asset_id;
+            console.log('Using advisor photo with existing heygen image_key');
+          } else {
+            fallbackImageUrl = photos?.find((p: { is_primary: boolean | null }) => p.is_primary)?.photo_url
+              || photos?.[0]?.photo_url
+              || null;
+            if (fallbackImageUrl) console.log('Using advisor photo (primary/first)');
+          }
         }
       }
 
@@ -261,12 +272,15 @@ serve(async (req) => {
         if (fallbackImageUrl) console.log('WARNING: Using cover/atmosphere as fallback — may lack face');
       }
 
-      if (!fallbackImageUrl) {
+      if (!fallbackImageUrl && !fallbackImageKey) {
         throw new Error('No image found. Upload advisor photo or generate a cover first.');
       }
 
-      console.log('Using fallback image:', fallbackImageUrl.substring(0, 80) + '...');
-      const imageKey = await uploadAssetToHeygen(fallbackImageUrl, heygenKey);
+      if (fallbackImageUrl) {
+        console.log('Using fallback image:', fallbackImageUrl.substring(0, 80) + '...');
+      }
+
+      const imageKey = fallbackImageKey || await uploadAssetToHeygen(fallbackImageUrl!, heygenKey);
       const audioAssetId = await uploadAudioToHeygen(voiceoverUrl, heygenKey);
 
       const av4Response = await fetch('https://api.heygen.com/v2/video/av4/generate', {

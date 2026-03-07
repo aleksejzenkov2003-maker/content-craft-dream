@@ -177,7 +177,7 @@ export default function Index() {
         triggerAutoConcat(videoId);
       } else if (data?.status === 'error' || data?.status === 'failed') {
         stopVideoPolling(videoId);
-        toast.error('Ошибка генерации видео');
+        toast.error(data?.errorMessage || 'Ошибка генерации видео');
         refetchVideos();
       }
     } catch (err) {
