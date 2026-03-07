@@ -329,37 +329,26 @@ export function VideoSidePanel({
                   <Button
                     size="sm"
                     variant="ghost"
-                    className="h-7 text-xs px-2 text-destructive hover:text-destructive"
+                    className="h-7 w-7 p-0 text-destructive hover:text-destructive"
                     onClick={() => subtitleAbort.abort()}
+                    title="Отменить"
                   >
-                    ✕
+                    <X className="w-4 h-4" />
                   </Button>
                 )}
               </div>
-            ) : (
-              <Button
-                size="sm"
-                variant="outline"
-                className="w-full h-7 text-xs"
-                onClick={async () => {
-                  const { generateSrt } = await import('@/lib/srtGenerator');
-                  const srt = generateSrt(video.word_timestamps, 5);
-                  const blob = new Blob([srt], { type: 'text/srt' });
-                  const url = URL.createObjectURL(blob);
-                  const a = document.createElement('a');
-                  a.href = url;
-                  a.download = `${video.video_number || video.id}.srt`;
-                  a.click();
-                  URL.revokeObjectURL(url);
-                  toast.success('SRT файл скачан');
-                }}
-              >
-                <Subtitles className="w-3 h-3 mr-1" />Скачать SRT (видео ещё нет)
-              </Button>
-            )}
-            {subtitleProgress !== null && <Progress value={subtitleProgress.progress} className="h-1.5" />}
-          </div>
-        )}
+
+              {subtitleProgress !== null && (
+                <div className="space-y-1">
+                  <Progress value={subtitleProgress.progress} className="h-1.5" />
+                  <p className="text-[10px] text-muted-foreground">
+                    {subtitleProgress.phase === 'loading_ffmpeg' && 'Загрузка и инициализация FFmpeg…'}
+                    {subtitleProgress.phase === 'downloading_video' && 'Скачивание исходного видео…'}
+                    {subtitleProgress.phase === 'burning_subtitles' && 'Вшивка субтитров в видео…'}
+                    {subtitleProgress.phase === 'uploading_result' && 'Загрузка результата в хранилище…'}
+                  </p>
+                </div>
+              )}
       </PanelSection>
 
       <Separator />
