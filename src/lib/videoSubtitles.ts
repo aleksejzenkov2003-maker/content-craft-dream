@@ -1,6 +1,12 @@
 import { generateAss, type WordTimestamp } from './srtGenerator';
 import { getSharedFFmpeg } from './ffmpegLoader';
 
+export type SubtitlePhase =
+  | 'loading_ffmpeg'
+  | 'downloading_video'
+  | 'burning_subtitles'
+  | 'uploading_result';
+
 export interface SubtitleOptions {
   wordsPerBlock?: number;
   fontName?: string;
@@ -11,23 +17,54 @@ export interface SubtitleOptions {
   marginV?: number;
 }
 
+export interface SubtitleProgressInfo {
+  phase: SubtitlePhase;
+  progress: number;
+}
+
+const PHASE_LABELS: Record<SubtitlePhase, string> = {
+  loading_ffmpeg: 'Загрузка FFmpeg',
+  downloading_video: 'Скачивание видео',
+  burning_subtitles: 'Вшивка субтитров',
+  uploading_result: 'Загрузка результата',
+};
+
+export function getPhaseLabel(phase: SubtitlePhase): string {
+  return PHASE_LABELS[phase];
+}
+
 export async function burnSubtitles(
   videoUrl: string,
   wordTimestamps: WordTimestamp[],
   options: SubtitleOptions = {},
-  onProgress?: (progress: number) => void
+  onProgress?: (info: SubtitleProgressInfo) => void,
+  signal?: AbortSignal
 ): Promise<File> {
-  const ff = await getSharedFFmpeg(onProgress);
+  const uid = Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+  const inputName = `in_${uid}.mp4`;
+  const subsName = `subs_${uid}.ass`;
+  const outputName = `out_${uid}.mp4`;
+
+  signal?.throwIfAborted();
+
+  onProgress?.({ phase: 'loading_ffmpeg', progress: 5 });
+
+  const ff = await getSharedFFmpeg(
+    (pct) => onProgress?.({ phase: 'loading_ffmpeg', progress: Math.min(20, pct) }),
+    signal
+  );
+
+  signal?.throwIfAborted();
 
   const progressHandler = ({ progress }: { progress: number }) => {
-    const mapped = 25 + Math.round(progress * 65);
-    onProgress?.(Math.max(25, Math.min(90, mapped)));
+    const mapped = 40 + Math.round(progress * 50); // 40-90
+    onProgress?.({ phase: 'burning_subtitles', progress: Math.max(40, Math.min(90, mapped)) });
   };
 
   ff.on('progress', progressHandler);
 
   try {
-    onProgress?.(20);
+    onProgress?.({ phase: 'downloading_video', progress: 22 });
 
     const assContent = generateAss(wordTimestamps, {
       wordsPerBlock: options.wordsPerBlock ?? 5,
@@ -39,20 +76,22 @@ export async function burnSubtitles(
       marginV: options.marginV ?? 40,
     });
 
-    const inputName = 'input.mp4';
-    const subsName = 'subs.ass';
-    const outputName = 'output.mp4';
+    signal?.throwIfAborted();
 
-    const videoResponse = await fetch(videoUrl);
+    const videoResponse = await fetch(videoUrl, { signal });
     if (!videoResponse.ok) {
       throw new Error(`Не удалось скачать видео: HTTP ${videoResponse.status}`);
     }
 
     const videoBuffer = await videoResponse.arrayBuffer();
-    onProgress?.(25);
+    onProgress?.({ phase: 'downloading_video', progress: 35 });
+
+    signal?.throwIfAborted();
 
     await ff.writeFile(inputName, new Uint8Array(videoBuffer));
     await ff.writeFile(subsName, new TextEncoder().encode(assContent));
+
+    onProgress?.({ phase: 'burning_subtitles', progress: 40 });
 
     await ff.exec([
       '-i', inputName,
@@ -64,19 +103,19 @@ export async function burnSubtitles(
       '-y', outputName,
     ]);
 
-    onProgress?.(95);
+    signal?.throwIfAborted();
+    onProgress?.({ phase: 'uploading_result', progress: 92 });
 
     const data = await ff.readFile(outputName);
     const uint8 = data instanceof Uint8Array ? data : new TextEncoder().encode(data as string);
     const blob = new Blob([new Uint8Array(uint8)], { type: 'video/mp4' });
 
-    await ff.deleteFile(inputName).catch(() => undefined);
-    await ff.deleteFile(subsName).catch(() => undefined);
-    await ff.deleteFile(outputName).catch(() => undefined);
-
-    onProgress?.(100);
+    onProgress?.({ phase: 'uploading_result', progress: 100 });
     return new File([blob], 'video_with_subtitles.mp4', { type: 'video/mp4' });
   } finally {
     (ff as unknown as { off?: (event: string, cb: unknown) => void }).off?.('progress', progressHandler);
+    await ff.deleteFile(inputName).catch(() => undefined);
+    await ff.deleteFile(subsName).catch(() => undefined);
+    await ff.deleteFile(outputName).catch(() => undefined);
   }
 }
