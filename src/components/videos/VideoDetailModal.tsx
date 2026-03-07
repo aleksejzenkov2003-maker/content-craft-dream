@@ -147,6 +147,21 @@ export function VideoDetailModal({
 
           {/* Info Tab */}
           <TabsContent value="info" className="space-y-4">
+            {/* Scene photo */}
+            {(() => {
+              const scenePhoto = advisor?.photos?.find(p => p.id === advisor?.scene_photo_id) || advisor?.photos?.find(p => p.is_primary) || advisor?.photos?.[0];
+              return scenePhoto ? (
+                <div className="space-y-2">
+                  <Label className="text-muted-foreground">Фото сцены</Label>
+                  <img
+                    src={scenePhoto.photo_url}
+                    alt="Scene"
+                    className="w-24 h-24 rounded-lg object-cover"
+                  />
+                </div>
+              ) : null;
+            })()}
+
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label className="text-muted-foreground">Духовник</Label>
