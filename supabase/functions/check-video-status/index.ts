@@ -107,7 +107,15 @@ serve(async (req) => {
 
     let newStatus = video.generation_status;
 
-    if (status === 'completed' && videoUrl) {
+    // Some HeyGen jobs may return failed while still providing a playable video_url.
+    // In that case we should treat the generation as successful.
+    const hasPlayableVideo = Boolean(videoUrl);
+
+    if ((status === 'completed' && hasPlayableVideo) || (status === 'failed' && hasPlayableVideo)) {
+      if (status === 'failed' && hasPlayableVideo) {
+        console.warn('HeyGen returned failed but provided video_url; treating as ready');
+      }
+
       newStatus = 'ready';
 
       await supabase
@@ -172,8 +180,8 @@ serve(async (req) => {
 
     return new Response(
       JSON.stringify({ 
-        success: true, 
-        status: status === 'completed' ? 'ready' : status === 'failed' ? 'error' : 'generating',
+        success: true,
+        status: newStatus === 'ready' ? 'ready' : newStatus === 'error' ? 'error' : 'generating',
         videoUrl,
         currentStatus: newStatus,
       }),
