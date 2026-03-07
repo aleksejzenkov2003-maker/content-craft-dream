@@ -90,7 +90,8 @@ export function VideoSidePanel({
   const [atmosIndex, setAtmosIndex] = useState(0);
   const [coverIndex, setCoverIndex] = useState(0);
   const [atmospherePromptText, setAtmospherePromptText] = useState('');
-  const [subtitleProgress, setSubtitleProgress] = useState<number | null>(null);
+  const [subtitleProgress, setSubtitleProgress] = useState<{ phase: string; progress: number } | null>(null);
+  const [subtitleAbort, setSubtitleAbort] = useState<AbortController | null>(null);
 
   const advisor = advisors.find((a) => a.id === video?.advisor_id);
   const advisorName = advisor?.display_name || advisor?.name || 'Духовник';
