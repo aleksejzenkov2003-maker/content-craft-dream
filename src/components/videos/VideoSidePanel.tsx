@@ -299,8 +299,8 @@ export function VideoSidePanel({
                 size="sm"
                 variant="outline"
                 className="w-full h-7 text-xs"
-                onClick={() => {
-                  const { generateSrt } = require('@/lib/srtGenerator');
+                onClick={async () => {
+                  const { generateSrt } = await import('@/lib/srtGenerator');
                   const srt = generateSrt(video.word_timestamps, 5);
                   const blob = new Blob([srt], { type: 'text/srt' });
                   const url = URL.createObjectURL(blob);
