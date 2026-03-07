@@ -36,7 +36,7 @@ async function fetchWithProgress(
     onProgress?.(loaded, contentLength);
   }
 
-  const blob = new Blob(chunks, {
+  const blob = new Blob(chunks as unknown as BlobPart[], {
     type: url.endsWith('.wasm') ? 'application/wasm' : 'text/javascript',
   });
   return URL.createObjectURL(blob);
