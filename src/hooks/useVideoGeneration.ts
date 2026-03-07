@@ -120,7 +120,7 @@ export function useVideoGeneration(options?: UseVideoGenerationOptions) {
           stopPolling();
           setIsGenerating(false);
           setGeneratingVideoId(null);
-          toast.error('Ошибка генерации видео');
+          toast.error(data?.errorMessage || 'Ошибка генерации видео');
           options?.onVideoUpdated?.();
         }
       } catch (err) {
