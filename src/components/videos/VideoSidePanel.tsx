@@ -250,6 +250,51 @@ export function VideoSidePanel({
             </SelectContent>
           </Select>
         </PanelField>
+        {/* Subtitles */}
+        {video.heygen_video_url && (video as any).word_timestamps && (
+          <div className="space-y-2">
+            <Button
+              size="sm"
+              variant="outline"
+              className="w-full h-7 text-xs"
+              disabled={subtitleProgress !== null}
+              onClick={async () => {
+                try {
+                  const { burnSubtitles } = await import('@/lib/videoSubtitles');
+                  const timestamps = (video as any).word_timestamps;
+                  setSubtitleProgress(0);
+                  const file = await burnSubtitles(
+                    video.heygen_video_url!,
+                    timestamps,
+                    { wordsPerBlock: 5, fontSize: 48 },
+                    (p) => setSubtitleProgress(p)
+                  );
+                  // Upload result
+                  const fileName = `videos/${video.id}_subtitled_${Date.now()}.mp4`;
+                  const { error: uploadError } = await supabase.storage
+                    .from('media-files')
+                    .upload(fileName, file, { contentType: 'video/mp4', upsert: true });
+                  if (uploadError) throw uploadError;
+                  const { data: urlData } = supabase.storage.from('media-files').getPublicUrl(fileName);
+                  onUpdateVideo(video.id, { video_path: urlData.publicUrl } as any);
+                  toast.success('Субтитры добавлены');
+                } catch (err) {
+                  console.error('Subtitle error:', err);
+                  toast.error('Ошибка добавления субтитров');
+                } finally {
+                  setSubtitleProgress(null);
+                }
+              }}
+            >
+              {subtitleProgress !== null ? (
+                <><Loader2 className="w-3 h-3 mr-1 animate-spin" />Субтитры {subtitleProgress}%</>
+              ) : (
+                <><Subtitles className="w-3 h-3 mr-1" />Добавить субтитры</>
+              )}
+            </Button>
+            {subtitleProgress !== null && <Progress value={subtitleProgress} className="h-1.5" />}
+          </div>
+        )}
       </PanelSection>
 
       <Separator />
