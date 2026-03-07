@@ -337,19 +337,20 @@ export function VideoSidePanel({
                     <X className="w-4 h-4" />
                   </Button>
                 )}
-              </div>
-
-              {subtitleProgress !== null && (
-                <div className="space-y-1">
-                  <Progress value={subtitleProgress.progress} className="h-1.5" />
-                  <p className="text-[10px] text-muted-foreground">
-                    {subtitleProgress.phase === 'loading_ffmpeg' && 'Загрузка и инициализация FFmpeg…'}
-                    {subtitleProgress.phase === 'downloading_video' && 'Скачивание исходного видео…'}
-                    {subtitleProgress.phase === 'burning_subtitles' && 'Вшивка субтитров в видео…'}
-                    {subtitleProgress.phase === 'uploading_result' && 'Загрузка результата в хранилище…'}
-                  </p>
                 </div>
-              )}
+
+                {subtitleProgress !== null && (
+                  <div className="space-y-1">
+                    <Progress value={subtitleProgress.progress} className="h-1.5" />
+                    <p className="text-[10px] text-muted-foreground">
+                      {subtitleProgress.phase === 'loading_ffmpeg' && 'Загрузка и инициализация FFmpeg…'}
+                      {subtitleProgress.phase === 'downloading_video' && 'Скачивание исходного видео…'}
+                      {subtitleProgress.phase === 'burning_subtitles' && 'Вшивка субтитров в видео…'}
+                      {subtitleProgress.phase === 'uploading_result' && 'Загрузка результата в хранилище…'}
+                    </p>
+                  </div>
+                )}
+              </>
             ) : null}
           </div>
         )}
