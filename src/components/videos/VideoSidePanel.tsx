@@ -265,7 +265,7 @@ export function VideoSidePanel({
                     const timestamps = video.word_timestamps;
                     const videoUrl = video.heygen_video_url || video.video_path;
                     if (!videoUrl) throw new Error('No video URL');
-                    setSubtitleProgress(0);
+                    setSubtitleProgress(3);
                     const file = await burnSubtitles(
                       videoUrl,
                       timestamps,
