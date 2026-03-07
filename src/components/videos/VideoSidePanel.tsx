@@ -18,8 +18,9 @@ import { PublishingChannel } from '@/hooks/usePublishingChannels';
 import {
   Loader2, ChevronLeft, ChevronRight, Link as LinkIcon,
   Image as ImageIcon, Play, Check, Trash2, CalendarIcon,
-  Sun, Layers, Volume2, MessageSquare,
+  Sun, Layers, Volume2, MessageSquare, Subtitles,
 } from 'lucide-react';
+import { Progress } from '@/components/ui/progress';
 import { format } from 'date-fns';
 import { ru } from 'date-fns/locale';
 import { cn } from '@/lib/utils';
