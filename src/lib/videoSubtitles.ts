@@ -1,5 +1,8 @@
 import { FFmpeg } from '@ffmpeg/ffmpeg';
 import { toBlobURL } from '@ffmpeg/util';
+import ffmpegCoreURL from '@ffmpeg/core/dist/esm/ffmpeg-core.js?url';
+import ffmpegWasmURL from '@ffmpeg/core/dist/esm/ffmpeg-core.wasm?url';
+import ffmpegWorkerURL from '@ffmpeg/core/dist/esm/ffmpeg-core.worker.js?url';
 import { generateAss, type WordTimestamp } from './srtGenerator';
 
 let ffmpeg: FFmpeg | null = null;
@@ -9,6 +12,12 @@ const FF_CORE_CANDIDATES = [
   'https://unpkg.com/@ffmpeg/core@0.12.6/dist/esm',
   'https://cdn.jsdelivr.net/npm/@ffmpeg/core@0.12.6/dist/esm',
 ];
+
+const LOCAL_FF_CORE = {
+  coreURL: ffmpegCoreURL,
+  wasmURL: ffmpegWasmURL,
+  workerURL: ffmpegWorkerURL,
+};
 
 async function withTimeout<T>(promise: Promise<T>, ms: number, message: string): Promise<T> {
   let timeoutId: number | undefined;
@@ -24,6 +33,13 @@ async function withTimeout<T>(promise: Promise<T>, ms: number, message: string):
 }
 
 async function loadFFmpegCore(instance: FFmpeg): Promise<void> {
+  try {
+    await instance.load(LOCAL_FF_CORE);
+    return;
+  } catch (error) {
+    console.warn('[subtitles] Failed to load local FFmpeg core, fallback to CDN', error);
+  }
+
   let lastError: unknown = null;
 
   for (const baseURL of FF_CORE_CANDIDATES) {
