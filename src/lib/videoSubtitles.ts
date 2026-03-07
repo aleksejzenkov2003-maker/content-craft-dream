@@ -44,7 +44,10 @@ async function loadFFmpegCore(instance: FFmpeg): Promise<void> {
 }
 
 async function getFFmpeg(onProgress?: (progress: number) => void): Promise<FFmpeg> {
-  if (ffmpeg && ffmpeg.loaded) return ffmpeg;
+  if (ffmpeg && ffmpeg.loaded) {
+    onProgress?.(15);
+    return ffmpeg;
+  }
 
   if (loadingPromise) {
     await loadingPromise;
