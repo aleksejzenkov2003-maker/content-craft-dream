@@ -1,69 +1,57 @@
 
 
-## Анализ вариантов субтитров
+## Решение: бинарная MP4-конкатенация + нормализация аудио через ffmpeg.wasm
 
-### Вариант 1: ElevenLabs timestamps → SRT → FFmpeg
-**Лучший вариант.**
-- Текст уже есть (advisor_answer), ошибок распознавания нет
-- ElevenLabs API возвращает `alignment` с word-level timestamps при генерации речи — это бесплатно, в том же запросе
-- Нужен только FFmpeg для вшивания SRT в видео
+### Что сделано
 
-**Проблема**: FFmpeg нельзя запустить в Edge Function. Нужен внешний сервис (n8n) или клиентский ffmpeg.wasm.
+1. **`supabase/functions/concat-video/index.ts`** — полная перезапись:
+   - Бинарный MP4-парсер: разбор боксов (moov/trak/stbl/stsz/stco/stsc/stts/stss/ctts)
+   - Извлечение сэмплов из обоих файлов, сборка нового mdat
+   - Объединение sample tables, пересчёт оффсетов, обновление duration
+   - Сохранение логики получения свежих HeyGen URL
+   - Загрузка результата в Storage
 
-### Вариант 2: Whisper
-- Требует отдельный API (OpenAI Whisper или аналог)
-- Ошибки распознавания на русском языке
-- Лишний шаг — текст уже известен
+2. **`src/lib/videoNormalizer.ts`** — утилита нормализации аудио через ffmpeg.wasm:
+   - Загружает ffmpeg WASM при первом использовании
+   - Перекодирует аудио в AAC-LC 48kHz mono 128kbps: `-c:v copy -c:a aac -ar 48000 -ac 1 -b:a 128k`
+   - Видео-поток копируется без потерь
 
-### Вариант 3: WhisperX + forced alignment
-- Точнее Whisper, но сложнее в настройке
-- Всё равно требует отдельный сервис
-- Избыточно, если ElevenLabs уже даёт timestamps
+3. **`src/components/covers/BackCoversGrid.tsx`** — интеграция нормализации:
+   - При загрузке видео-обложки автоматически нормализует аудио через ffmpeg.wasm
+   - Показывает прогресс нормализации
+   - Загружает нормализованный файл в Storage
+   - Fallback на оригинал при ошибке
+
+### Зависимости
+- `@ffmpeg/ffmpeg@0.12.10`
+- `@ffmpeg/util@0.12.1`
 
 ---
 
-### Рекомендация: Вариант 1
+## Субтитры: ElevenLabs timestamps → SRT → FFmpeg
 
-### Реализация
+### Что сделано
 
-#### 1. Изменить `generate-voiceover` Edge Function
-- Добавить параметр `with_timestamps: true` в запрос к ElevenLabs API
-- Endpoint: `/v1/text-to-speech/{voice_id}/with-timestamps`
-- Сохранять полученные word timestamps в БД (новое поле `word_timestamps` в таблице `voiceovers` или `videos`)
+1. **БД миграция** — добавлено поле `word_timestamps jsonb` в таблицу `videos`
 
-#### 2. Генерация SRT на клиенте
-- Утилита `generateSRT(timestamps)` — группирует слова по 5-7 в строку, формирует SRT-файл
-- Это чистый текстовый формат, никаких зависимостей не нужно
+2. **Edge Functions** — обновлены оба voiceover-генератора:
+   - `supabase/functions/generate-voiceover-for-video/index.ts` → endpoint `/with-timestamps`
+   - `supabase/functions/generate-voiceover/index.ts` → endpoint `/with-timestamps`
+   - Ответ содержит `audio_base64` + `alignment` (character-level timestamps)
+   - Функция `buildWordTimestamps()` собирает word-level timestamps из character-level
+   - Timestamps сохраняются в `videos.word_timestamps`
 
-#### 3. Вшивание субтитров через FFmpeg
-Два варианта:
-- **ffmpeg.wasm** (уже установлен в проекте) — вшивает SRT в видео прямо в браузере
-- **n8n webhook** — отправляет видео + SRT на сервер с FFmpeg
+3. **`src/lib/srtGenerator.ts`** — генерация субтитров:
+   - `generateSrt()` — SRT формат (группировка по N слов)
+   - `generateAss()` — ASS формат (со стилями: шрифт, размер, цвет, обводка)
+   - `generateSrtBlocks()` — промежуточная структура
 
-Учитывая что ffmpeg.wasm уже в зависимостях и n8n отвергнут — используем ffmpeg.wasm в браузере.
+4. **`src/lib/videoSubtitles.ts`** — вшивание субтитров через ffmpeg.wasm:
+   - `burnSubtitles(videoUrl, timestamps, options, onProgress)` → File
+   - Использует ASS-фильтр для стилизованных субтитров
+   - Видео перекодируется libx264 (preset fast, crf 23), аудио копируется
 
-### Файлы для изменения
-
-| Файл | Что делаем |
-|---|---|
-| `supabase/functions/generate-voiceover/index.ts` | Переключить на endpoint `with-timestamps`, сохранять timestamps |
-| `supabase/functions/generate-voiceover-for-video/index.ts` | Аналогично — timestamps |
-| БД миграция | Добавить `word_timestamps jsonb` в таблицу `videos` или `voiceovers` |
-| `src/lib/srtGenerator.ts` | Новый файл — генерация SRT из word timestamps |
-| `src/lib/videoSubtitles.ts` | Новый файл — вшивание SRT в видео через ffmpeg.wasm |
-| UI компонент | Кнопка "Добавить субтитры" в панели видео |
-
-### Формат timestamps от ElevenLabs
-
-```json
-{
-  "alignment": {
-    "characters": ["H","e","l","l","o"],
-    "character_start_times_seconds": [0.0, 0.05, ...],
-    "character_end_times_seconds": [0.05, 0.1, ...]
-  }
-}
-```
-
-Из character-level timestamps собираем word-level, затем группируем в SRT-блоки.
-
+5. **UI** — кнопка «Добавить субтитры» в `VideoSidePanel`:
+   - Появляется когда есть `heygen_video_url` и `word_timestamps`
+   - Показывает прогресс через Progress bar
+   - Результат загружается в Storage и сохраняется в `video_path`

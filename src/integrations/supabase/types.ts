@@ -899,6 +899,7 @@ export type Database = {
           video_title: string | null
           voiceover_status: string | null
           voiceover_url: string | null
+          word_timestamps: Json | null
           youtube_url: string | null
         }
         Insert: {
@@ -944,6 +945,7 @@ export type Database = {
           video_title?: string | null
           voiceover_status?: string | null
           voiceover_url?: string | null
+          word_timestamps?: Json | null
           youtube_url?: string | null
         }
         Update: {
@@ -989,6 +991,7 @@ export type Database = {
           video_title?: string | null
           voiceover_status?: string | null
           voiceover_url?: string | null
+          word_timestamps?: Json | null
           youtube_url?: string | null
         }
         Relationships: [
