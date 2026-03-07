@@ -44,9 +44,9 @@ serve(async (req) => {
 
     const voiceId = video.advisor?.elevenlabs_voice_id || 'JBFqnCBsd6RMkjVDRZzb';
 
-    console.log(`Calling ElevenLabs TTS, voice: ${voiceId}`);
+    console.log(`Calling ElevenLabs TTS with-timestamps, voice: ${voiceId}`);
     const response = await fetch(
-      `https://api.elevenlabs.io/v1/text-to-speech/${voiceId}?output_format=mp3_44100_128`,
+      `https://api.elevenlabs.io/v1/text-to-speech/${voiceId}/with-timestamps?output_format=mp3_44100_128`,
       {
         method: 'POST',
         headers: {
@@ -66,7 +66,24 @@ serve(async (req) => {
       throw new Error(`ElevenLabs API error: ${response.status} - ${errorText}`);
     }
 
-    const audioBuffer = await response.arrayBuffer();
+    const result = await response.json();
+    
+    // Decode base64 audio
+    const audioBase64 = result.audio_base64;
+    if (!audioBase64) throw new Error('No audio_base64 in response');
+    
+    const binaryString = atob(audioBase64);
+    const audioBuffer = new Uint8Array(binaryString.length);
+    for (let i = 0; i < binaryString.length; i++) {
+      audioBuffer[i] = binaryString.charCodeAt(i);
+    }
+
+    // Extract word timestamps from alignment
+    let wordTimestamps = null;
+    if (result.alignment) {
+      wordTimestamps = buildWordTimestamps(result.alignment);
+      console.log(`Extracted ${wordTimestamps.length} word timestamps`);
+    }
 
     // Upload to storage
     const fileName = `voiceovers/${videoId}_${Date.now()}.mp3`;
@@ -79,11 +96,15 @@ serve(async (req) => {
     const { data: urlData } = supabase.storage.from('media-files').getPublicUrl(fileName);
     const voiceoverUrl = urlData.publicUrl;
 
-    // Update video record
-    await supabase.from('videos').update({
+    // Update video record with voiceover URL and word timestamps
+    const updateData: Record<string, unknown> = {
       voiceover_url: voiceoverUrl,
       voiceover_status: 'ready',
-    }).eq('id', videoId);
+    };
+    if (wordTimestamps) {
+      updateData.word_timestamps = wordTimestamps;
+    }
+    await supabase.from('videos').update(updateData).eq('id', videoId);
 
     // Log activity
     const durationMs = Date.now() - startTime;
@@ -91,21 +112,20 @@ serve(async (req) => {
       action: 'voiceover_generated',
       entity_type: 'video',
       entity_id: videoId,
-      details: { voice_id: voiceId },
+      details: { voice_id: voiceId, has_timestamps: !!wordTimestamps },
       duration_ms: durationMs,
     });
 
     console.log('Voiceover generated:', voiceoverUrl);
 
     return new Response(
-      JSON.stringify({ success: true, voiceoverUrl }),
+      JSON.stringify({ success: true, voiceoverUrl, wordTimestamps }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
   } catch (error: unknown) {
     console.error('Voiceover error:', error);
     const errorMessage = error instanceof Error ? error.message : 'Unknown error';
 
-    // Try to update status to error
     try {
       if (videoId) {
         const supabase = createClient(Deno.env.get('SUPABASE_URL')!, Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!);
@@ -119,3 +139,45 @@ serve(async (req) => {
     );
   }
 });
+
+/**
+ * Build word-level timestamps from ElevenLabs character-level alignment.
+ * Returns array of { word, start, end } objects.
+ */
+function buildWordTimestamps(alignment: {
+  characters: string[];
+  character_start_times_seconds: number[];
+  character_end_times_seconds: number[];
+}): Array<{ word: string; start: number; end: number }> {
+  const { characters, character_start_times_seconds, character_end_times_seconds } = alignment;
+  const words: Array<{ word: string; start: number; end: number }> = [];
+  
+  let currentWord = '';
+  let wordStart = -1;
+  let wordEnd = 0;
+
+  for (let i = 0; i < characters.length; i++) {
+    const char = characters[i];
+    const charStart = character_start_times_seconds[i];
+    const charEnd = character_end_times_seconds[i];
+
+    if (char === ' ' || char === '\n' || char === '\r' || char === '\t') {
+      if (currentWord.length > 0) {
+        words.push({ word: currentWord, start: wordStart, end: wordEnd });
+        currentWord = '';
+        wordStart = -1;
+      }
+    } else {
+      if (wordStart < 0) wordStart = charStart;
+      currentWord += char;
+      wordEnd = charEnd;
+    }
+  }
+
+  // Push last word
+  if (currentWord.length > 0) {
+    words.push({ word: currentWord, start: wordStart, end: wordEnd });
+  }
+
+  return words;
+}
