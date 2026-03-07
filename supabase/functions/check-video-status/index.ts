@@ -102,6 +102,7 @@ serve(async (req) => {
     const status = result.data?.status;
     const videoUrl = result.data?.video_url;
     const duration = result.data?.duration;
+    const errorMessage = result.data?.error?.detail || result.data?.error?.message || result.error?.detail || result.error?.message || null;
 
     console.log('HeyGen status:', status, videoUrl);
 
