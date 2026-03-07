@@ -45,7 +45,7 @@ export interface Video {
   question_status: string | null;
   voiceover_url: string | null;
   voiceover_status: string | null;
-  word_timestamps: Array<{ word: string; start: number; end: number }> | null;
+  word_timestamps: any;
   // Selected channels for publication
   selected_channels: string[] | null;
   // Joined data
