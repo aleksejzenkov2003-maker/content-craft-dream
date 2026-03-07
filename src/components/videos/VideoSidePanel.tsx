@@ -251,49 +251,70 @@ export function VideoSidePanel({
           </Select>
         </PanelField>
         {/* Subtitles */}
-        {(video.heygen_video_url || video.video_path) && video.word_timestamps && (
+        {video.word_timestamps && (
           <div className="space-y-2">
-            <Button
-              size="sm"
-              variant="outline"
-              className="w-full h-7 text-xs"
-              disabled={subtitleProgress !== null}
-              onClick={async () => {
-                try {
-                  const { burnSubtitles } = await import('@/lib/videoSubtitles');
-                  const timestamps = video.word_timestamps;
-                  const videoUrl = video.heygen_video_url || video.video_path;
-                  if (!videoUrl) throw new Error('No video URL');
-                  setSubtitleProgress(0);
-                  const file = await burnSubtitles(
-                    videoUrl,
-                    timestamps,
-                    { wordsPerBlock: 5, fontSize: 48 },
-                    (p) => setSubtitleProgress(p)
-                  );
-                  // Upload result
-                  const fileName = `videos/${video.id}_subtitled_${Date.now()}.mp4`;
-                  const { error: uploadError } = await supabase.storage
-                    .from('media-files')
-                    .upload(fileName, file, { contentType: 'video/mp4', upsert: true });
-                  if (uploadError) throw uploadError;
-                  const { data: urlData } = supabase.storage.from('media-files').getPublicUrl(fileName);
-                  onUpdateVideo(video.id, { video_path: urlData.publicUrl } as any);
-                  toast.success('Субтитры добавлены');
-                } catch (err) {
-                  console.error('Subtitle error:', err);
-                  toast.error('Ошибка добавления субтитров');
-                } finally {
-                  setSubtitleProgress(null);
-                }
-              }}
-            >
-              {subtitleProgress !== null ? (
-                <><Loader2 className="w-3 h-3 mr-1 animate-spin" />Субтитры {subtitleProgress}%</>
-              ) : (
-                <><Subtitles className="w-3 h-3 mr-1" />Добавить субтитры</>
-              )}
-            </Button>
+            {(video.heygen_video_url || video.video_path) ? (
+              <Button
+                size="sm"
+                variant="outline"
+                className="w-full h-7 text-xs"
+                disabled={subtitleProgress !== null}
+                onClick={async () => {
+                  try {
+                    const { burnSubtitles } = await import('@/lib/videoSubtitles');
+                    const timestamps = video.word_timestamps;
+                    const videoUrl = video.heygen_video_url || video.video_path;
+                    if (!videoUrl) throw new Error('No video URL');
+                    setSubtitleProgress(0);
+                    const file = await burnSubtitles(
+                      videoUrl,
+                      timestamps,
+                      { wordsPerBlock: 5, fontSize: 48 },
+                      (p) => setSubtitleProgress(p)
+                    );
+                    const fileName = `videos/${video.id}_subtitled_${Date.now()}.mp4`;
+                    const { error: uploadError } = await supabase.storage
+                      .from('media-files')
+                      .upload(fileName, file, { contentType: 'video/mp4', upsert: true });
+                    if (uploadError) throw uploadError;
+                    const { data: urlData } = supabase.storage.from('media-files').getPublicUrl(fileName);
+                    onUpdateVideo(video.id, { video_path: urlData.publicUrl } as any);
+                    toast.success('Субтитры добавлены');
+                  } catch (err) {
+                    console.error('Subtitle error:', err);
+                    toast.error('Ошибка добавления субтитров');
+                  } finally {
+                    setSubtitleProgress(null);
+                  }
+                }}
+              >
+                {subtitleProgress !== null ? (
+                  <><Loader2 className="w-3 h-3 mr-1 animate-spin" />Субтитры {subtitleProgress}%</>
+                ) : (
+                  <><Subtitles className="w-3 h-3 mr-1" />Вшить субтитры в видео</>
+                )}
+              </Button>
+            ) : (
+              <Button
+                size="sm"
+                variant="outline"
+                className="w-full h-7 text-xs"
+                onClick={() => {
+                  const { generateSrt } = require('@/lib/srtGenerator');
+                  const srt = generateSrt(video.word_timestamps, 5);
+                  const blob = new Blob([srt], { type: 'text/srt' });
+                  const url = URL.createObjectURL(blob);
+                  const a = document.createElement('a');
+                  a.href = url;
+                  a.download = `${video.video_number || video.id}.srt`;
+                  a.click();
+                  URL.revokeObjectURL(url);
+                  toast.success('SRT файл скачан');
+                }}
+              >
+                <Subtitles className="w-3 h-3 mr-1" />Скачать SRT (видео ещё нет)
+              </Button>
+            )}
             {subtitleProgress !== null && <Progress value={subtitleProgress} className="h-1.5" />}
           </div>
         )}
