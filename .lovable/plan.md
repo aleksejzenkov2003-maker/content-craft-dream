@@ -1,57 +1,46 @@
 
 
-## Решение: бинарная MP4-конкатенация + нормализация аудио через ffmpeg.wasm
+## Problem
 
-### Что сделано
+The "Burn subtitles" button fails every time with "FFmpeg долго загружается" because the 45-second timeout in `videoSubtitles.ts` is too short for downloading the ~30MB WASM binary from CDN. Network logs confirm the CDN responds with 200 -- the download just takes longer than 45 seconds.
 
-1. **`supabase/functions/concat-video/index.ts`** — полная перезапись:
-   - Бинарный MP4-парсер: разбор боксов (moov/trak/stbl/stsz/stco/stsc/stts/stss/ctts)
-   - Извлечение сэмплов из обоих файлов, сборка нового mdat
-   - Объединение sample tables, пересчёт оффсетов, обновление duration
-   - Сохранение логики получения свежих HeyGen URL
-   - Загрузка результата в Storage
+## Root Cause
 
-2. **`src/lib/videoNormalizer.ts`** — утилита нормализации аудио через ffmpeg.wasm:
-   - Загружает ffmpeg WASM при первом использовании
-   - Перекодирует аудио в AAC-LC 48kHz mono 128kbps: `-c:v copy -c:a aac -ar 48000 -ac 1 -b:a 128k`
-   - Видео-поток копируется без потерь
+`withTimeout(loadFFmpegCore(ffmpeg!), 45000, ...)` -- the `toBlobURL()` call downloads the entire WASM file (~30MB), converts it to a blob URL, then `instance.load()` compiles it. On anything but a fast connection this exceeds 45 seconds.
 
-3. **`src/components/covers/BackCoversGrid.tsx`** — интеграция нормализации:
-   - При загрузке видео-обложки автоматически нормализует аудио через ffmpeg.wasm
-   - Показывает прогресс нормализации
-   - Загружает нормализованный файл в Storage
-   - Fallback на оригинал при ошибке
+## Plan
 
-### Зависимости
-- `@ffmpeg/ffmpeg@0.12.10`
-- `@ffmpeg/util@0.12.1`
+### 1. Remove the aggressive timeout on FFmpeg loading
 
----
+Replace the 45-second hard timeout with a much more generous 180-second timeout (3 minutes). The WASM file is large and needs time to download and compile.
 
-## Субтитры: ElevenLabs timestamps → SRT → FFmpeg
+### 2. Add download progress feedback
 
-### Что сделано
+Instead of showing a static "3%" while waiting, show intermediate progress during the download phase using `fetch` with `ReadableStream` progress tracking for the WASM file, so the user sees actual download progress (0-15%).
 
-1. **БД миграция** — добавлено поле `word_timestamps jsonb` в таблицу `videos`
+### 3. Unify FFmpeg instance with `videoNormalizer.ts`
 
-2. **Edge Functions** — обновлены оба voiceover-генератора:
-   - `supabase/functions/generate-voiceover-for-video/index.ts` → endpoint `/with-timestamps`
-   - `supabase/functions/generate-voiceover/index.ts` → endpoint `/with-timestamps`
-   - Ответ содержит `audio_base64` + `alignment` (character-level timestamps)
-   - Функция `buildWordTimestamps()` собирает word-level timestamps из character-level
-   - Timestamps сохраняются в `videos.word_timestamps`
+Both `videoSubtitles.ts` and `videoNormalizer.ts` create separate FFmpeg singletons with different CDN configs (UMD vs ESM). Consolidate into a single shared module (`src/lib/ffmpegLoader.ts`) that:
+- Uses UMD build (more compatible)
+- Has a single cached instance
+- Reports download progress
+- Uses a 180-second timeout
 
-3. **`src/lib/srtGenerator.ts`** — генерация субтитров:
-   - `generateSrt()` — SRT формат (группировка по N слов)
-   - `generateAss()` — ASS формат (со стилями: шрифт, размер, цвет, обводка)
-   - `generateSrtBlocks()` — промежуточная структура
+### Technical Details
 
-4. **`src/lib/videoSubtitles.ts`** — вшивание субтитров через ffmpeg.wasm:
-   - `burnSubtitles(videoUrl, timestamps, options, onProgress)` → File
-   - Использует ASS-фильтр для стилизованных субтитров
-   - Видео перекодируется libx264 (preset fast, crf 23), аудио копируется
+**New file: `src/lib/ffmpegLoader.ts`**
+- Exports `getSharedFFmpeg(onProgress?)` 
+- Downloads WASM with fetch + ReadableStream to track bytes received
+- Maps download progress to 0-15% range
+- Falls back between unpkg and jsdelivr CDNs
+- 180-second timeout
 
-5. **UI** — кнопка «Добавить субтитры» в `VideoSidePanel`:
-   - Появляется когда есть `heygen_video_url` и `word_timestamps`
-   - Показывает прогресс через Progress bar
-   - Результат загружается в Storage и сохраняется в `video_path`
+**Updated: `src/lib/videoSubtitles.ts`**
+- Remove local FFmpeg loading logic
+- Import `getSharedFFmpeg` from ffmpegLoader
+- Keep burn logic unchanged
+
+**Updated: `src/lib/videoNormalizer.ts`**  
+- Remove local FFmpeg loading logic
+- Import `getSharedFFmpeg` from ffmpegLoader
+
