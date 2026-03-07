@@ -251,7 +251,7 @@ export function VideoSidePanel({
           </Select>
         </PanelField>
         {/* Subtitles */}
-        {video.heygen_video_url && (video as any).word_timestamps && (
+        {video.heygen_video_url && video.word_timestamps && (
           <div className="space-y-2">
             <Button
               size="sm"
@@ -261,7 +261,7 @@ export function VideoSidePanel({
               onClick={async () => {
                 try {
                   const { burnSubtitles } = await import('@/lib/videoSubtitles');
-                  const timestamps = (video as any).word_timestamps;
+                  const timestamps = video.word_timestamps;
                   setSubtitleProgress(0);
                   const file = await burnSubtitles(
                     video.heygen_video_url!,
