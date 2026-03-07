@@ -90,7 +90,8 @@ export function VideoSidePanel({
   const [atmosIndex, setAtmosIndex] = useState(0);
   const [coverIndex, setCoverIndex] = useState(0);
   const [atmospherePromptText, setAtmospherePromptText] = useState('');
-  const [subtitleProgress, setSubtitleProgress] = useState<number | null>(null);
+  const [subtitleProgress, setSubtitleProgress] = useState<{ phase: string; progress: number } | null>(null);
+  const [subtitleAbort, setSubtitleAbort] = useState<AbortController | null>(null);
 
   const advisor = advisors.find((a) => a.id === video?.advisor_id);
   const advisorName = advisor?.display_name || advisor?.name || 'Духовник';
@@ -107,6 +108,13 @@ export function VideoSidePanel({
       setCoverIndex(covers.findIndex((c: any) => c.is_active) >= 0 ? covers.findIndex((c: any) => c.is_active) : 0);
     }
   }, [video?.id]);
+
+  // Preload FFmpeg when panel opens and video has timestamps
+  useEffect(() => {
+    if (open && video?.word_timestamps) {
+      import('@/lib/ffmpegLoader').then(({ preloadFFmpeg }) => preloadFFmpeg()).catch(() => {});
+    }
+  }, [open, !!video?.word_timestamps]);
 
   useEffect(() => { fetchVariants(); }, [fetchVariants, (video as any)?.atmosphere_url, video?.front_cover_url]);
 
@@ -254,47 +262,80 @@ export function VideoSidePanel({
         {video.word_timestamps && (
           <div className="space-y-2">
             {(video.heygen_video_url || video.video_path) ? (
-              <Button
-                size="sm"
-                variant="outline"
-                className="w-full h-7 text-xs"
-                disabled={subtitleProgress !== null}
-                onClick={async () => {
-                  try {
-                    const { burnSubtitles } = await import('@/lib/videoSubtitles');
-                    const timestamps = video.word_timestamps;
-                    const videoUrl = video.heygen_video_url || video.video_path;
-                    if (!videoUrl) throw new Error('No video URL');
-                    setSubtitleProgress(3);
-                    const file = await burnSubtitles(
-                      videoUrl,
-                      timestamps,
-                      { wordsPerBlock: 5, fontSize: 48 },
-                      (p) => setSubtitleProgress(p)
-                    );
-                    const fileName = `videos/${video.id}_subtitled_${Date.now()}.mp4`;
-                    const { error: uploadError } = await supabase.storage
-                      .from('media-files')
-                      .upload(fileName, file, { contentType: 'video/mp4', upsert: true });
-                    if (uploadError) throw uploadError;
-                    const { data: urlData } = supabase.storage.from('media-files').getPublicUrl(fileName);
-                    onUpdateVideo(video.id, { video_path: urlData.publicUrl } as any);
-                    toast.success('Субтитры добавлены');
-                  } catch (err) {
-                    console.error('Subtitle error:', err);
-                    const message = err instanceof Error ? err.message : 'Ошибка добавления субтитров';
-                    toast.error(message);
-                  } finally {
-                    setSubtitleProgress(null);
-                  }
-                }}
-              >
-                {subtitleProgress !== null ? (
-                  <><Loader2 className="w-3 h-3 mr-1 animate-spin" />Субтитры {subtitleProgress}%</>
-                ) : (
-                  <><Subtitles className="w-3 h-3 mr-1" />Вшить субтитры в видео</>
+              <div className="flex gap-1">
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="flex-1 h-7 text-xs"
+                  disabled={subtitleProgress !== null}
+                  onClick={async () => {
+                    const ac = new AbortController();
+                    setSubtitleAbort(ac);
+                    try {
+                      const { burnSubtitles, getPhaseLabel } = await import('@/lib/videoSubtitles');
+                      const timestamps = video.word_timestamps;
+                      const videoUrl = video.heygen_video_url || video.video_path;
+                      if (!videoUrl) throw new Error('No video URL');
+                      setSubtitleProgress({ phase: 'loading_ffmpeg', progress: 3 });
+
+                      // Watchdog: 8 min total
+                      const watchdog = setTimeout(() => ac.abort(), 8 * 60 * 1000);
+
+                      const file = await burnSubtitles(
+                        videoUrl,
+                        timestamps,
+                        { wordsPerBlock: 5, fontSize: 48 },
+                        (info) => setSubtitleProgress({ phase: info.phase, progress: info.progress }),
+                        ac.signal
+                      );
+
+                      clearTimeout(watchdog);
+
+                      setSubtitleProgress({ phase: 'uploading_result', progress: 95 });
+                      const fileName = `videos/${video.id}_subtitled_${Date.now()}.mp4`;
+                      const { error: uploadError } = await supabase.storage
+                        .from('media-files')
+                        .upload(fileName, file, { contentType: 'video/mp4', upsert: true });
+                      if (uploadError) throw uploadError;
+                      const { data: urlData } = supabase.storage.from('media-files').getPublicUrl(fileName);
+                      onUpdateVideo(video.id, { video_path: urlData.publicUrl } as any);
+                      toast.success('Субтитры добавлены');
+                    } catch (err) {
+                      if ((err as Error)?.name === 'AbortError') {
+                        toast.info('Операция отменена');
+                      } else {
+                        console.error('Subtitle error:', err);
+                        const message = err instanceof Error ? err.message : 'Ошибка добавления субтитров';
+                        toast.error(message);
+                      }
+                    } finally {
+                      setSubtitleProgress(null);
+                      setSubtitleAbort(null);
+                    }
+                  }}
+                >
+                  {subtitleProgress !== null ? (
+                    <><Loader2 className="w-3 h-3 mr-1 animate-spin" />{
+                      subtitleProgress.phase === 'loading_ffmpeg' ? 'Загрузка FFmpeg' :
+                      subtitleProgress.phase === 'downloading_video' ? 'Скачивание видео' :
+                      subtitleProgress.phase === 'burning_subtitles' ? 'Вшивка субтитров' :
+                      'Загрузка результата'
+                    } {subtitleProgress.progress}%</>
+                  ) : (
+                    <><Subtitles className="w-3 h-3 mr-1" />Вшить субтитры в видео</>
+                  )}
+                </Button>
+                {subtitleProgress !== null && subtitleAbort && (
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    className="h-7 text-xs px-2 text-destructive hover:text-destructive"
+                    onClick={() => subtitleAbort.abort()}
+                  >
+                    ✕
+                  </Button>
                 )}
-              </Button>
+              </div>
             ) : (
               <Button
                 size="sm"
@@ -316,7 +357,7 @@ export function VideoSidePanel({
                 <Subtitles className="w-3 h-3 mr-1" />Скачать SRT (видео ещё нет)
               </Button>
             )}
-            {subtitleProgress !== null && <Progress value={subtitleProgress} className="h-1.5" />}
+            {subtitleProgress !== null && <Progress value={subtitleProgress.progress} className="h-1.5" />}
           </div>
         )}
       </PanelSection>
