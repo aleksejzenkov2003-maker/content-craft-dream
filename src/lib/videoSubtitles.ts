@@ -1,7 +1,9 @@
-import { generateAss, type WordTimestamp } from './srtGenerator';
+import { generateAss, generateSrt, type WordTimestamp } from './srtGenerator';
 import { getSharedFFmpeg } from './ffmpegLoader';
+import { supabase } from '@/integrations/supabase/client';
 
 export type SubtitlePhase =
+  | 'server_processing'
   | 'loading_ffmpeg'
   | 'downloading_video'
   | 'burning_subtitles'
@@ -22,6 +24,7 @@ export interface SubtitleProgressInfo {
 }
 
 const PHASE_LABELS: Record<SubtitlePhase, string> = {
+  server_processing: 'Обработка на сервере',
   loading_ffmpeg: 'Загрузка FFmpeg',
   downloading_video: 'Скачивание видео',
   burning_subtitles: 'Вшивка субтитров',
@@ -32,12 +35,48 @@ export function getPhaseLabel(phase: SubtitlePhase): string {
   return PHASE_LABELS[phase];
 }
 
-export async function burnSubtitles(
+/**
+ * Tier 1: Server-side subtitle burning via edge function → n8n.
+ * Returns true if request was accepted for processing.
+ */
+export async function burnSubtitlesServer(
+  videoId: string,
+  onProgress?: (info: SubtitleProgressInfo) => void,
+): Promise<boolean> {
+  onProgress?.({ phase: 'server_processing', progress: 10 });
+
+  const { data, error } = await supabase.functions.invoke('burn-subtitles', {
+    body: { videoId },
+  });
+
+  if (error) {
+    console.warn('[subtitles] Server-side failed:', error);
+    return false;
+  }
+
+  if (data?.status === 'processing') {
+    onProgress?.({ phase: 'server_processing', progress: 100 });
+    return true;
+  }
+
+  // If n8n returned a result URL directly
+  if (data?.videoUrl) {
+    onProgress?.({ phase: 'uploading_result', progress: 100 });
+    return true;
+  }
+
+  return false;
+}
+
+/**
+ * Tier 2: Browser-side subtitle burning via ffmpeg.wasm (fallback).
+ */
+export async function burnSubtitlesBrowser(
   videoUrl: string,
   wordTimestamps: WordTimestamp[],
   options: SubtitleOptions = {},
   onProgress?: (info: SubtitleProgressInfo) => void,
-  signal?: AbortSignal
+  signal?: AbortSignal,
 ): Promise<File> {
   const uid = Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
   const inputName = `in_${uid}.mp4`;
@@ -45,18 +84,17 @@ export async function burnSubtitles(
   const outputName = `out_${uid}.mp4`;
 
   signal?.throwIfAborted();
-
   onProgress?.({ phase: 'loading_ffmpeg', progress: 5 });
 
   const ff = await getSharedFFmpeg(
     (pct) => onProgress?.({ phase: 'loading_ffmpeg', progress: Math.min(20, pct) }),
-    signal
+    signal,
   );
 
   signal?.throwIfAborted();
 
   const progressHandler = ({ progress }: { progress: number }) => {
-    const mapped = 40 + Math.round(progress * 50); // 40-90
+    const mapped = 40 + Math.round(progress * 50);
     onProgress?.({ phase: 'burning_subtitles', progress: Math.max(40, Math.min(90, mapped)) });
   };
 
@@ -118,3 +156,27 @@ export async function burnSubtitles(
     await ff.deleteFile(outputName).catch(() => undefined);
   }
 }
+
+/**
+ * Tier 3: Download SRT/ASS file as fallback.
+ */
+export function downloadSubtitleFile(
+  wordTimestamps: WordTimestamp[],
+  format: 'srt' | 'ass' = 'srt',
+): void {
+  const content = format === 'ass'
+    ? generateAss(wordTimestamps, { useSmartBlocks: true })
+    : generateSrt(wordTimestamps);
+  const ext = format;
+  const mime = format === 'ass' ? 'text/x-ssa' : 'text/srt';
+  const blob = new Blob([content], { type: mime });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `subtitles.${ext}`;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+// Legacy export for backward compatibility
+export const burnSubtitles = burnSubtitlesBrowser;

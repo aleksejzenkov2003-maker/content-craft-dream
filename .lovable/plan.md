@@ -1,87 +1,57 @@
 
 
-## Plan: Hybrid subtitle burning — backend (primary) + browser (fallback)
+## Решение: бинарная MP4-конкатенация + нормализация аудио через ffmpeg.wasm
 
-### Problem analysis
+### Что сделано
 
-The browser-side FFmpeg.wasm loading hangs at 5% because:
-1. The code passes **direct CDN URLs** to `instance.load()`, but the FFmpeg library internally creates a Web Worker that cannot load scripts cross-origin
-2. The officially recommended method is `toBlobURL` from `@ffmpeg/util` which converts files to same-origin blob URLs
-3. No `ffmpeg-core.worker.js` exists in the UMD build of `@ffmpeg/core@0.12.6` — only `ffmpeg-core.js` + `ffmpeg-core.wasm`
+1. **`supabase/functions/concat-video/index.ts`** — полная перезапись:
+   - Бинарный MP4-парсер: разбор боксов (moov/trak/stbl/stsz/stco/stsc/stts/stss/ctts)
+   - Извлечение сэмплов из обоих файлов, сборка нового mdat
+   - Объединение sample tables, пересчёт оффсетов, обновление duration
+   - Сохранение логики получения свежих HeyGen URL
+   - Загрузка результата в Storage
 
-### Solution: two-tier approach
+2. **`src/lib/videoNormalizer.ts`** — утилита нормализации аудио через ffmpeg.wasm:
+   - Загружает ffmpeg WASM при первом использовании
+   - Перекодирует аудио в AAC-LC 48kHz mono 128kbps: `-c:v copy -c:a aac -ar 48000 -ac 1 -b:a 128k`
+   - Видео-поток копируется без потерь
 
-#### Tier 1: Backend via n8n webhook (primary)
+3. **`src/components/covers/BackCoversGrid.tsx`** — интеграция нормализации:
+   - При загрузке видео-обложки автоматически нормализует аудио через ffmpeg.wasm
+   - Показывает прогресс нормализации
+   - Загружает нормализованный файл в Storage
+   - Fallback на оригинал при ошибке
 
-Create edge function `burn-subtitles/index.ts`:
-- Receives `videoId` from frontend
-- Reads video URL + `word_timestamps` from DB
-- Generates ASS subtitle content server-side (port `srtGenerator.ts` logic)
-- Sends `{videoUrl, assContent, videoId}` to existing n8n webhook (`N8N_WEBHOOK_URL`)
-- n8n handles FFmpeg processing on its server (no browser WASM needed)
-- n8n uploads result to storage and updates `video_path` in DB
-- Returns immediately with `{status: "processing"}`
+### Зависимости
+- `@ffmpeg/ffmpeg@0.12.10`
+- `@ffmpeg/util@0.12.1`
 
-#### Tier 2: Browser FFmpeg (fallback)
+---
 
-Rewrite `ffmpegLoader.ts` using the **proven working pattern**:
-- Use `toBlobURL` from `@ffmpeg/util` (the official method that handles cross-origin correctly)
-- Pass only `coreURL` + `wasmURL` as blob URLs (no workerURL for UMD build)
-- Add 30-second timeout with clear error message
-- If loading fails, surface error to user instead of hanging
+## Субтитры: ElevenLabs timestamps → SRT → FFmpeg
 
-```text
-User clicks "Burn Subtitles"
-        │
-        ▼
-  Try backend (edge fn → n8n)
-        │
-   Success? ──Yes──► Done (n8n processes async)
-        │
-       No
-        ▼
-  Try browser FFmpeg (toBlobURL)
-        │
-   Success? ──Yes──► Burn in browser, upload
-        │
-       No
-        ▼
-  Offer SRT/ASS download
-```
+### Что сделано
 
-### Files to create/modify
+1. **БД миграция** — добавлено поле `word_timestamps jsonb` в таблицу `videos`
 
-1. **`supabase/functions/burn-subtitles/index.ts`** (new)
-   - Edge function: reads video data, generates ASS, sends to n8n webhook
-   - Lightweight — no video processing, just orchestration
+2. **Edge Functions** — обновлены оба voiceover-генератора:
+   - `supabase/functions/generate-voiceover-for-video/index.ts` → endpoint `/with-timestamps`
+   - `supabase/functions/generate-voiceover/index.ts` → endpoint `/with-timestamps`
+   - Ответ содержит `audio_base64` + `alignment` (character-level timestamps)
+   - Функция `buildWordTimestamps()` собирает word-level timestamps из character-level
+   - Timestamps сохраняются в `videos.word_timestamps`
 
-2. **`src/lib/ffmpegLoader.ts`** (rewrite)
-   - Use `toBlobURL` from `@ffmpeg/util` instead of custom fetch logic
-   - Simpler, follows official FFmpeg.wasm examples
-   - 30s timeout per CDN attempt
+3. **`src/lib/srtGenerator.ts`** — генерация субтитров:
+   - `generateSrt()` — SRT формат (группировка по N слов)
+   - `generateAss()` — ASS формат (со стилями: шрифт, размер, цвет, обводка)
+   - `generateSrtBlocks()` — промежуточная структура
 
-3. **`src/lib/videoSubtitles.ts`** (update)
-   - Add `burnSubtitlesServer()` function that calls the edge function
-   - Keep `burnSubtitles()` as browser fallback
+4. **`src/lib/videoSubtitles.ts`** — вшивание субтитров через ffmpeg.wasm:
+   - `burnSubtitles(videoUrl, timestamps, options, onProgress)` → File
+   - Использует ASS-фильтр для стилизованных субтитров
+   - Видео перекодируется libx264 (preset fast, crf 23), аудио копируется
 
-4. **`src/components/videos/VideoSidePanel.tsx`** (update)
-   - Try server-side first, fall back to browser, then offer SRT download
-   - Show appropriate status messages for each path
-
-### Technical details
-
-**Browser FFmpeg fix** — the key change:
-```typescript
-import { toBlobURL } from '@ffmpeg/util';
-
-const baseURL = 'https://unpkg.com/@ffmpeg/core@0.12.6/dist/umd';
-const coreURL = await toBlobURL(`${baseURL}/ffmpeg-core.js`, 'text/javascript');
-const wasmURL = await toBlobURL(`${baseURL}/ffmpeg-core.wasm`, 'application/wasm');
-await instance.load({ coreURL, wasmURL });
-```
-
-**Edge function** — lightweight orchestration:
-- Generates ASS content from word_timestamps (same logic as `srtGenerator.ts`)
-- POSTs to n8n with video URL + ASS content
-- n8n runs `ffmpeg -i video.mp4 -vf "ass=subs.ass" -c:a copy -c:v libx264 -preset fast -crf 23 output.mp4`
-
+5. **UI** — кнопка «Добавить субтитры» в `VideoSidePanel`:
+   - Появляется когда есть `heygen_video_url` и `word_timestamps`
+   - Показывает прогресс через Progress bar
+   - Результат загружается в Storage и сохраняется в `video_path`
