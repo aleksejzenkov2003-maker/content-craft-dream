@@ -1,51 +1,57 @@
 
 
-## Plan: Move video concat from binary MP4 parser to ffmpeg.wasm (browser-side)
+## Решение: бинарная MP4-конкатенация + нормализация аудио через ffmpeg.wasm
 
-### Problem
-The current `concat-video` edge function uses a custom binary MP4 parser (~600 lines) that's fragile — breaks on codec mismatches, different timescales, missing tracks. The n8n approach uses ffmpeg's `concat` filter which handles all normalization automatically.
+### Что сделано
 
-### Solution
-Move the concat to the browser using ffmpeg.wasm (already loaded for subtitles). Use the same ffmpeg concat filter as n8n: normalize both videos to matching format, then concat.
+1. **`supabase/functions/concat-video/index.ts`** — полная перезапись:
+   - Бинарный MP4-парсер: разбор боксов (moov/trak/stbl/stsz/stco/stsc/stts/stss/ctts)
+   - Извлечение сэмплов из обоих файлов, сборка нового mdat
+   - Объединение sample tables, пересчёт оффсетов, обновление duration
+   - Сохранение логики получения свежих HeyGen URL
+   - Загрузка результата в Storage
 
-### Changes
+2. **`src/lib/videoNormalizer.ts`** — утилита нормализации аудио через ffmpeg.wasm:
+   - Загружает ffmpeg WASM при первом использовании
+   - Перекодирует аудио в AAC-LC 48kHz mono 128kbps: `-c:v copy -c:a aac -ar 48000 -ac 1 -b:a 128k`
+   - Видео-поток копируется без потерь
 
-**1. New file: `src/lib/videoConcat.ts`** — browser-side concat via ffmpeg.wasm
+3. **`src/components/covers/BackCoversGrid.tsx`** — интеграция нормализации:
+   - При загрузке видео-обложки автоматически нормализует аудио через ffmpeg.wasm
+   - Показывает прогресс нормализации
+   - Загружает нормализованный файл в Storage
+   - Fallback на оригинал при ошибке
 
-Core logic (mirrors n8n's "Финальный монтаж"):
-```
-ffmpeg -i main.mp4 -i back.mp4 \
-  -filter_complex "[0:v][0:a][1:v][1:a]concat=n=2:v=1:a=1[v][a]" \
-  -map "[v]" -map "[a]" \
-  -c:v libx264 -preset fast -crf 23 -c:a aac -b:a 128k output.mp4
-```
+### Зависимости
+- `@ffmpeg/ffmpeg@0.12.10`
+- `@ffmpeg/util@0.12.1`
 
-- Downloads both videos
-- Writes to ffmpeg virtual FS
-- Runs concat filter (handles different codecs/timescales automatically)
-- Returns File blob
-- Progress callback with phases: `downloading`, `concatenating`, `done`
-- AbortSignal support
+---
 
-**2. Rewrite: `src/hooks/useVideoConcat.ts`**
+## Субтитры: ElevenLabs timestamps → SRT → FFmpeg
 
-- Remove edge function call + polling
-- Instead: download videos → ffmpeg.wasm concat → upload result to Storage → update publication
-- All done client-side with progress updates
-- Upload final result directly to `media-files` bucket
+### Что сделано
 
-**3. Keep edge function** as fallback but it won't be called by default anymore.
+1. **БД миграция** — добавлено поле `word_timestamps jsonb` в таблицу `videos`
 
-**4. Minor: `src/components/publishing/PublicationsTable.tsx`**
-- Update progress display to show phase labels (downloading / concatenating / uploading)
+2. **Edge Functions** — обновлены оба voiceover-генератора:
+   - `supabase/functions/generate-voiceover-for-video/index.ts` → endpoint `/with-timestamps`
+   - `supabase/functions/generate-voiceover/index.ts` → endpoint `/with-timestamps`
+   - Ответ содержит `audio_base64` + `alignment` (character-level timestamps)
+   - Функция `buildWordTimestamps()` собирает word-level timestamps из character-level
+   - Timestamps сохраняются в `videos.word_timestamps`
 
-### Why this works
-- ffmpeg.wasm is already loaded for subtitles — no extra download
-- `concat` filter re-encodes → guarantees codec compatibility (the exact problem the binary parser can't solve)
-- Same approach as the proven n8n workflow
-- No server-side ffmpeg needed
+3. **`src/lib/srtGenerator.ts`** — генерация субтитров:
+   - `generateSrt()` — SRT формат (группировка по N слов)
+   - `generateAss()` — ASS формат (со стилями: шрифт, размер, цвет, обводка)
+   - `generateSrtBlocks()` — промежуточная структура
 
-### Trade-off
-- Client-side re-encoding is slower (~30-60s for typical short videos)
-- But it actually works reliably vs binary parser that breaks
+4. **`src/lib/videoSubtitles.ts`** — вшивание субтитров через ffmpeg.wasm:
+   - `burnSubtitles(videoUrl, timestamps, options, onProgress)` → File
+   - Использует ASS-фильтр для стилизованных субтитров
+   - Видео перекодируется libx264 (preset fast, crf 23), аудио копируется
 
+5. **UI** — кнопка «Добавить субтитры» в `VideoSidePanel`:
+   - Появляется когда есть `heygen_video_url` и `word_timestamps`
+   - Показывает прогресс через Progress bar
+   - Результат загружается в Storage и сохраняется в `video_path`

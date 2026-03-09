@@ -84,7 +84,7 @@ export function PublicationsTable({ groupBy = 'channel' }: PublicationsTableProp
   const { publications, loading, deletePublication, generateText, updatePublication, bulkImport, refetch } = usePublications();
   const { channels } = usePublishingChannels();
   const { videos } = useVideos();
-  const { concatVideos, loading: concatLoading, progress: concatProgress } = useVideoConcat();
+  const { concatVideos, loading: concatLoading, progress: concatProgress, phase: concatPhase } = useVideoConcat();
   const [concatingId, setConcatingId] = useState<string | null>(null);
   
   const [showImporter, setShowImporter] = useState(false);
@@ -772,7 +772,17 @@ const minuteOptions = [0, 5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55];
                                 Склейка
                               </Button>
                               {isConcating && concatProgress > 0 && (
-                                <Progress value={concatProgress} className="w-12 h-1.5" />
+                                <div className="flex flex-col gap-0.5">
+                                  <Progress value={concatProgress} className="w-16 h-1.5" />
+                                  {concatPhase && (
+                                    <span className="text-[10px] text-muted-foreground leading-none">
+                                      {concatPhase === 'loading_ffmpeg' ? 'Загрузка…' :
+                                       concatPhase === 'downloading' ? 'Скачивание…' :
+                                       concatPhase === 'concatenating' ? 'Склейка…' :
+                                       'Готово'}
+                                    </span>
+                                  )}
+                                </div>
                               )}
                             </div>
                           );
