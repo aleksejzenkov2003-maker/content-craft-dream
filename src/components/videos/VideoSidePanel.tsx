@@ -273,25 +273,28 @@ export function VideoSidePanel({
                     const ac = new AbortController();
                     setSubtitleAbort(ac);
                     try {
-                      // Tier 1: Try server-side (n8n)
-                      setSubtitleProgress({ phase: 'server_processing', progress: 5 });
-                      const { burnSubtitlesServer, burnSubtitlesBrowser } = await import('@/lib/videoSubtitles');
-                      
-                      const serverOk = await burnSubtitlesServer(
-                        video.id,
-                        (info) => setSubtitleProgress({ phase: info.phase, progress: info.progress }),
-                      );
+                      const { burnSubtitlesServer, burnSubtitlesBrowser, downloadSubtitleFile: dlSrt } = await import('@/lib/videoSubtitles');
 
-                      if (serverOk) {
-                        toast.success('Субтитры отправлены на обработку. Результат появится автоматически.');
+                      // Tier 1: Server-side (edge function with FFmpeg WASM)
+                      setSubtitleProgress({ phase: 'server_processing', progress: 5 });
+                      try {
+                        const result = await burnSubtitlesServer(
+                          video.id,
+                          (info) => setSubtitleProgress({ phase: info.phase, progress: info.progress }),
+                        );
+                        if (result.videoUrl) {
+                          onUpdateVideo(video.id, { video_path: result.videoUrl } as any);
+                        }
+                        toast.success('Субтитры вшиты на сервере');
                         setSubtitleProgress(null);
                         setSubtitleAbort(null);
                         return;
+                      } catch (serverErr) {
+                        console.warn('[subtitles] Server failed, trying browser:', serverErr);
+                        toast.info('Сервер недоступен, обработка в браузере…');
                       }
 
-                      // Tier 2: Browser fallback
-                      toast.info('Сервер недоступен, обработка в браузере…');
-                      const timestamps = video.word_timestamps;
+                      // Tier 2: Browser FFmpeg fallback
                       const videoUrl = video.heygen_video_url || video.video_path;
                       if (!videoUrl) throw new Error('No video URL');
                       setSubtitleProgress({ phase: 'loading_ffmpeg', progress: 3 });
@@ -300,7 +303,7 @@ export function VideoSidePanel({
 
                       const file = await burnSubtitlesBrowser(
                         videoUrl,
-                        timestamps,
+                        video.word_timestamps as any,
                         { fontSize: 48 },
                         (info) => setSubtitleProgress({ phase: info.phase, progress: info.progress }),
                         ac.signal,
@@ -322,8 +325,7 @@ export function VideoSidePanel({
                         toast.info('Операция отменена');
                       } else {
                         console.error('Subtitle error:', err);
-                        // Tier 3: Offer SRT download
-                        toast.error('Не удалось вшить субтитры. Скачайте SRT-файл.');
+                        toast.error('Не удалось вшить субтитры. Скачиваем SRT…');
                         try {
                           const { downloadSubtitleFile } = await import('@/lib/videoSubtitles');
                           downloadSubtitleFile(video.word_timestamps as any, 'srt');
