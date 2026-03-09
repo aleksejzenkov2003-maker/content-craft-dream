@@ -35,7 +35,7 @@ function createLinkedAbortController(signal?: AbortSignal) {
   };
 }
 
-async function fetchWithProgress(
+async function fetchToBlobUrl(
   url: string,
   onProgress?: (loaded: number, total: number) => void,
   signal?: AbortSignal
@@ -44,14 +44,39 @@ async function fetchWithProgress(
   if (!response.ok) throw new Error(`HTTP ${response.status} for ${url}`);
 
   const contentLength = Number(response.headers.get('content-length') || 0);
-  const reader = response.body?.getReader();
 
-  if (!reader || !contentLength) {
-    const blob = await response.blob();
+  // If we can stream with progress, do so
+  if (contentLength && response.body) {
+    const reader = response.body.getReader();
+    const chunks: Uint8Array[] = [];
+    let loaded = 0;
+
+    while (true) {
+      signal?.throwIfAborted();
+      const { done, value } = await reader.read();
+      if (done) break;
+      chunks.push(value);
+      loaded += value.length;
+      onProgress?.(loaded, contentLength);
+    }
+
+    const blob = new Blob(chunks as unknown as BlobPart[], {
+      type: url.endsWith('.wasm') ? 'application/wasm' : 'text/javascript',
+    });
     const blobUrl = URL.createObjectURL(blob);
     blobUrls.push(blobUrl);
     return blobUrl;
   }
+
+  // Fallback: read entire response as arrayBuffer (avoids stream-locked errors)
+  const buf = await response.arrayBuffer();
+  const blob = new Blob([buf], {
+    type: url.endsWith('.wasm') ? 'application/wasm' : 'text/javascript',
+  });
+  const blobUrl = URL.createObjectURL(blob);
+  blobUrls.push(blobUrl);
+  return blobUrl;
+}
 
   const chunks: Uint8Array[] = [];
   let loaded = 0;
