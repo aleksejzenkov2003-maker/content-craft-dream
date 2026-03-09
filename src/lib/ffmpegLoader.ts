@@ -2,7 +2,6 @@ import { FFmpeg } from '@ffmpeg/ffmpeg';
 
 let ffmpeg: FFmpeg | null = null;
 let loadingPromise: Promise<void> | null = null;
-const blobUrls: string[] = [];
 
 const FF_CORE_CANDIDATES = [
   'https://cdn.jsdelivr.net/npm/@ffmpeg/core@0.12.6/dist/umd',
@@ -11,13 +10,6 @@ const FF_CORE_CANDIDATES = [
 
 const CDN_ATTEMPT_TIMEOUT_MS = 60_000;
 const LOAD_TIMEOUT_MS = 180_000;
-
-function revokeBlobUrls() {
-  for (const url of blobUrls) {
-    try { URL.revokeObjectURL(url); } catch { /* noop */ }
-  }
-  blobUrls.length = 0;
-}
 
 function createLinkedAbortController(signal?: AbortSignal) {
   const controller = new AbortController();
@@ -31,47 +23,46 @@ function createLinkedAbortController(signal?: AbortSignal) {
   };
 }
 
-async function fetchToBlobUrl(
+/**
+ * Verify a CDN URL is reachable (HEAD request).
+ */
+async function checkUrl(url: string, signal?: AbortSignal): Promise<boolean> {
+  try {
+    const res = await fetch(url, { method: 'HEAD', signal, cache: 'force-cache' });
+    return res.ok;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Pre-fetch a URL into browser cache and report download progress.
+ * Returns the original URL (not a blob URL) so it can be used inside Web Workers.
+ */
+async function prefetchWithProgress(
   url: string,
   onProgress?: (loaded: number, total: number) => void,
   signal?: AbortSignal
-): Promise<string> {
+): Promise<void> {
   const response = await fetch(url, { signal, cache: 'force-cache' });
   if (!response.ok) throw new Error(`HTTP ${response.status} for ${url}`);
 
   const contentLength = Number(response.headers.get('content-length') || 0);
 
-  // Stream with progress when possible
-  if (contentLength && response.body) {
+  if (contentLength && response.body && onProgress) {
     const reader = response.body.getReader();
-    const chunks: Uint8Array[] = [];
     let loaded = 0;
-
     while (true) {
       signal?.throwIfAborted();
       const { done, value } = await reader.read();
       if (done) break;
-      chunks.push(value);
       loaded += value.length;
-      onProgress?.(loaded, contentLength);
+      onProgress(loaded, contentLength);
     }
-
-    const blob = new Blob(chunks as unknown as BlobPart[], {
-      type: url.endsWith('.wasm') ? 'application/wasm' : 'text/javascript',
-    });
-    const blobUrl = URL.createObjectURL(blob);
-    blobUrls.push(blobUrl);
-    return blobUrl;
+  } else {
+    // Just consume the body to populate the cache
+    await response.arrayBuffer();
   }
-
-  // Fallback: arrayBuffer (avoids "body stream is locked" errors)
-  const buf = await response.arrayBuffer();
-  const blob = new Blob([buf], {
-    type: url.endsWith('.wasm') ? 'application/wasm' : 'text/javascript',
-  });
-  const blobUrl = URL.createObjectURL(blob);
-  blobUrls.push(blobUrl);
-  return blobUrl;
 }
 
 async function loadFFmpegCore(
@@ -91,13 +82,19 @@ async function loadFFmpegCore(
       controller.signal.throwIfAborted();
       onProgress?.(2);
 
-      const coreURL = await fetchToBlobUrl(`${baseURL}/ffmpeg-core.js`, undefined, controller.signal);
+      const coreURL = `${baseURL}/ffmpeg-core.js`;
+      const wasmURL = `${baseURL}/ffmpeg-core.wasm`;
 
+      // Verify core JS is reachable
+      if (!(await checkUrl(coreURL, controller.signal))) {
+        throw new Error(`Core JS not reachable: ${coreURL}`);
+      }
       onProgress?.(4);
       controller.signal.throwIfAborted();
 
-      const wasmURL = await fetchToBlobUrl(
-        `${baseURL}/ffmpeg-core.wasm`,
+      // Pre-fetch WASM into browser cache with progress
+      await prefetchWithProgress(
+        wasmURL,
         (loaded, total) => {
           const pct = 4 + Math.round((loaded / total) * 10); // 4-14%
           onProgress?.(pct);
@@ -106,18 +103,9 @@ async function loadFFmpegCore(
       );
 
       onProgress?.(14);
-      controller.signal.throwIfAborted();
 
-      const workerURL = await fetchToBlobUrl(
-        `${baseURL}/ffmpeg-core.worker.js`,
-        undefined,
-        controller.signal,
-      );
-
-      onProgress?.(15);
-
-      // Heartbeat during WASM compilation (15→20)
-      let heartbeat = 15;
+      // Heartbeat during WASM compilation (14→20)
+      let heartbeat = 14;
       const heartbeatTimer = setInterval(() => {
         if (heartbeat < 20) {
           heartbeat += 1;
@@ -127,7 +115,11 @@ async function loadFFmpegCore(
 
       try {
         controller.signal.throwIfAborted();
-        await instance.load({ coreURL, wasmURL, workerURL });
+        // Pass direct CDN URLs — the library's internal Web Worker will
+        // fetch them itself. Blob URLs cause hangs because importScripts
+        // from a blob-origin worker with blob URLs is unreliable.
+        // UMD build has no separate worker file — only pass coreURL + wasmURL.
+        await instance.load({ coreURL, wasmURL });
       } finally {
         clearInterval(heartbeatTimer);
       }
@@ -152,7 +144,6 @@ async function loadFFmpegCore(
 function cleanup() {
   loadingPromise = null;
   ffmpeg = null;
-  revokeBlobUrls();
 }
 
 /**
