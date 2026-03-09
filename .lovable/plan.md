@@ -1,58 +1,57 @@
 
 
-## Problem
+## Решение: бинарная MP4-конкатенация + нормализация аудио через ffmpeg.wasm
 
-FFmpeg exits with code 1 on `drawtext` filter because **ffmpeg.wasm has no fonts available** in its virtual filesystem. The `drawtext` filter requires an explicit `fontfile=` parameter pointing to a `.ttf` file — without it, FFmpeg cannot render any text and fails silently. This is why concat works (no fonts needed) but subtitles fail.
+### Что сделано
 
-We also have zero visibility into the actual FFmpeg error because we never listen to the `log` event.
+1. **`supabase/functions/concat-video/index.ts`** — полная перезапись:
+   - Бинарный MP4-парсер: разбор боксов (moov/trak/stbl/stsz/stco/stsc/stts/stss/ctts)
+   - Извлечение сэмплов из обоих файлов, сборка нового mdat
+   - Объединение sample tables, пересчёт оффсетов, обновление duration
+   - Сохранение логики получения свежих HeyGen URL
+   - Загрузка результата в Storage
 
-## Solution
+2. **`src/lib/videoNormalizer.ts`** — утилита нормализации аудио через ffmpeg.wasm:
+   - Загружает ffmpeg WASM при первом использовании
+   - Перекодирует аудио в AAC-LC 48kHz mono 128kbps: `-c:v copy -c:a aac -ar 48000 -ac 1 -b:a 128k`
+   - Видео-поток копируется без потерь
 
-1. **Provide a font file** — fetch Montserrat Bold (already used in ASS style) from Google Fonts CDN, write it into FFmpeg's virtual filesystem, and reference it in every `drawtext` instance.
+3. **`src/components/covers/BackCoversGrid.tsx`** — интеграция нормализации:
+   - При загрузке видео-обложки автоматически нормализует аудио через ffmpeg.wasm
+   - Показывает прогресс нормализации
+   - Загружает нормализованный файл в Storage
+   - Fallback на оригинал при ошибке
 
-2. **Add FFmpeg log capture** — listen to the `log` event during exec to capture the actual error message. This prevents future blind debugging.
+### Зависимости
+- `@ffmpeg/ffmpeg@0.12.10`
+- `@ffmpeg/util@0.12.1`
 
-3. **Use `-filter_complex_script`** — with 40 subtitle blocks, the filter string is 6000+ chars. Writing it to a file in the virtual FS avoids potential argument length and escaping issues.
+---
 
-## Changes
+## Субтитры: ElevenLabs timestamps → SRT → FFmpeg
 
-**File: `src/lib/videoSubtitles.ts`**
+### Что сделано
 
-1. Add a font loading utility at the top:
-```typescript
-let fontData: Uint8Array | null = null;
-const FONT_URL = 'https://cdn.jsdelivr.net/fontsource/fonts/montserrat@latest/latin-700-normal.ttf';
-const FONT_PATH = '/tmp/Montserrat-Bold.ttf';
+1. **БД миграция** — добавлено поле `word_timestamps jsonb` в таблицу `videos`
 
-async function ensureFont(ff: FFmpeg): Promise<void> {
-  if (!fontData) {
-    const resp = await fetch(FONT_URL);
-    fontData = new Uint8Array(await resp.arrayBuffer());
-  }
-  await ff.writeFile(FONT_PATH, fontData);
-}
-```
+2. **Edge Functions** — обновлены оба voiceover-генератора:
+   - `supabase/functions/generate-voiceover-for-video/index.ts` → endpoint `/with-timestamps`
+   - `supabase/functions/generate-voiceover/index.ts` → endpoint `/with-timestamps`
+   - Ответ содержит `audio_base64` + `alignment` (character-level timestamps)
+   - Функция `buildWordTimestamps()` собирает word-level timestamps из character-level
+   - Timestamps сохраняются в `videos.word_timestamps`
 
-2. Update `buildDrawtextFilter` to include `fontfile=/tmp/Montserrat-Bold.ttf` in every drawtext entry.
+3. **`src/lib/srtGenerator.ts`** — генерация субтитров:
+   - `generateSrt()` — SRT формат (группировка по N слов)
+   - `generateAss()` — ASS формат (со стилями: шрифт, размер, цвет, обводка)
+   - `generateSrtBlocks()` — промежуточная структура
 
-3. In both `burnSubtitlesHybrid` and `burnSubtitlesBrowser`, before running `ff.exec`:
-   - Call `await ensureFont(ff)`
-   - Write the filter string to a file: `await ff.writeFile('filter.txt', vf)`
-   - Use `-filter_complex_script filter.txt` instead of `-vf`
+4. **`src/lib/videoSubtitles.ts`** — вшивание субтитров через ffmpeg.wasm:
+   - `burnSubtitles(videoUrl, timestamps, options, onProgress)` → File
+   - Использует ASS-фильтр для стилизованных субтитров
+   - Видео перекодируется libx264 (preset fast, crf 23), аудио копируется
 
-4. Add a log listener around `ff.exec` to capture FFmpeg stderr:
-```typescript
-const logs: string[] = [];
-const logHandler = ({ message }: { message: string }) => logs.push(message);
-ff.on('log', logHandler);
-// ... exec ...
-if (exitCode !== 0) {
-  console.error('[ffmpeg logs]', logs.join('\n'));
-  throw new Error(`FFmpeg error: ${logs.slice(-3).join(' | ')}`);
-}
-```
-
-5. Clean up the font and filter files in the `finally` block.
-
-No other files need changes.
-
+5. **UI** — кнопка «Добавить субтитры» в `VideoSidePanel`:
+   - Появляется когда есть `heygen_video_url` и `word_timestamps`
+   - Показывает прогресс через Progress bar
+   - Результат загружается в Storage и сохраняется в `video_path`
