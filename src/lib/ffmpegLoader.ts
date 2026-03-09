@@ -52,9 +52,10 @@ async function tryLoadFromCDN(
   onProgress?.(12);
   signal?.throwIfAborted();
 
-  // Key fix: provide classWorkerURL so the library doesn't try to resolve
-  // its internal worker.js via Vite (which fails in preview/iframe)
-  const classWorkerURL = await toBlobURL(classWorkerUrl, 'text/javascript');
+  // IMPORTANT: do NOT blobify class worker.
+  // worker.js contains relative ESM imports, and blob: URL breaks that resolution,
+  // causing FFmpeg load() to hang and eventually hit timeout.
+  const classWorkerURL = classWorkerUrl;
   onProgress?.(14);
   signal?.throwIfAborted();
 
