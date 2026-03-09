@@ -1,5 +1,5 @@
 import { generateAss, generateSrt, type WordTimestamp } from './srtGenerator';
-import { getSharedFFmpeg } from './ffmpegLoader';
+import { getSharedFFmpeg, isBrowserFFmpegSupported } from './ffmpegLoader';
 import { supabase } from '@/integrations/supabase/client';
 
 export type SubtitlePhase =
@@ -36,13 +36,13 @@ export function getPhaseLabel(phase: SubtitlePhase): string {
 }
 
 /**
- * Tier 1: Server-side subtitle burning via edge function → n8n.
- * Returns true if request was accepted for processing.
+ * Tier 1: Server-side subtitle burning via edge function (self-contained FFmpeg WASM in Deno).
+ * Returns { status, videoUrl } on success, or throws on error.
  */
 export async function burnSubtitlesServer(
   videoId: string,
   onProgress?: (info: SubtitleProgressInfo) => void,
-): Promise<boolean> {
+): Promise<{ status: string; videoUrl?: string }> {
   onProgress?.({ phase: 'server_processing', progress: 10 });
 
   const { data, error } = await supabase.functions.invoke('burn-subtitles', {
@@ -51,21 +51,19 @@ export async function burnSubtitlesServer(
 
   if (error) {
     console.warn('[subtitles] Server-side failed:', error);
-    return false;
+    throw new Error(error.message || 'Server processing failed');
   }
 
-  if (data?.status === 'processing') {
-    onProgress?.({ phase: 'server_processing', progress: 100 });
-    return true;
+  if (data?.error) {
+    throw new Error(data.error);
   }
 
-  // If n8n returned a result URL directly
-  if (data?.videoUrl) {
-    onProgress?.({ phase: 'uploading_result', progress: 100 });
-    return true;
-  }
+  onProgress?.({ phase: 'server_processing', progress: 100 });
 
-  return false;
+  return {
+    status: data?.status || 'completed',
+    videoUrl: data?.videoUrl,
+  };
 }
 
 /**
@@ -78,6 +76,10 @@ export async function burnSubtitlesBrowser(
   onProgress?: (info: SubtitleProgressInfo) => void,
   signal?: AbortSignal,
 ): Promise<File> {
+  if (!isBrowserFFmpegSupported()) {
+    throw new Error('Браузер не поддерживает FFmpeg WASM');
+  }
+
   const uid = Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
   const inputName = `in_${uid}.mp4`;
   const subsName = `subs_${uid}.ass`;

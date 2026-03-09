@@ -17,6 +17,18 @@ function cleanup() {
   ffmpeg = null;
 }
 
+/**
+ * Check if the browser environment supports FFmpeg WASM.
+ * Cross-origin iframes may lack SharedArrayBuffer.
+ */
+export function isBrowserFFmpegSupported(): boolean {
+  try {
+    return typeof globalThis.Worker !== 'undefined';
+  } catch {
+    return false;
+  }
+}
+
 async function tryLoadFromCDN(
   instance: FFmpeg,
   baseURL: string,
@@ -35,7 +47,21 @@ async function tryLoadFromCDN(
   signal?.throwIfAborted();
 
   // UMD build — no workerURL needed
-  await instance.load({ coreURL, wasmURL });
+  // Wrap instance.load with a hard timeout to avoid silent hangs
+  const loadPromise = instance.load({ coreURL, wasmURL });
+  const timeoutPromise = new Promise<never>((_, reject) => {
+    const id = globalThis.setTimeout(
+      () => reject(new Error('FFmpeg load() зависла — таймаут 30с')),
+      ATTEMPT_TIMEOUT_MS,
+    );
+    // If signal fires, also reject
+    signal?.addEventListener('abort', () => {
+      clearTimeout(id);
+      reject(signal.reason || new Error('Aborted'));
+    }, { once: true });
+  });
+
+  await Promise.race([loadPromise, timeoutPromise]);
   onProgress?.(20);
 }
 
@@ -60,6 +86,10 @@ export async function getSharedFFmpeg(
     }
   }
 
+  if (!isBrowserFFmpegSupported()) {
+    throw new Error('Браузер не поддерживает FFmpeg WASM (нет Worker API)');
+  }
+
   ffmpeg = new FFmpeg();
   onProgress?.(1);
 
@@ -67,21 +97,14 @@ export async function getSharedFFmpeg(
 
   const doLoad = async () => {
     for (const baseURL of CDN_BASES) {
-      const controller = new AbortController();
-      const forwardAbort = () => controller.abort(signal?.reason);
-      signal?.addEventListener('abort', forwardAbort, { once: true });
-      const timeoutId = globalThis.setTimeout(() => controller.abort(new Error('CDN timeout')), ATTEMPT_TIMEOUT_MS);
-
       try {
-        await tryLoadFromCDN(ffmpeg!, baseURL, onProgress, controller.signal);
+        signal?.throwIfAborted();
+        await tryLoadFromCDN(ffmpeg!, baseURL, onProgress, signal);
         return; // success
       } catch (err) {
         if (signal?.aborted) throw err;
         lastError = err;
         console.warn('[ffmpegLoader] Failed CDN:', baseURL, err);
-      } finally {
-        clearTimeout(timeoutId);
-        signal?.removeEventListener('abort', forwardAbort);
       }
     }
     throw lastError instanceof Error ? lastError : new Error('Не удалось загрузить FFmpeg');
@@ -109,5 +132,6 @@ export async function getSharedFFmpeg(
  * Preload FFmpeg in background silently.
  */
 export function preloadFFmpeg(): void {
+  if (!isBrowserFFmpegSupported()) return;
   getSharedFFmpeg().catch(() => { /* silent */ });
 }
