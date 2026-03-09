@@ -179,7 +179,6 @@ export async function burnSubtitlesHybrid(
   const uid = Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
   const inputName = `in_${uid}.mp4`;
   const outputName = `out_${uid}.mp4`;
-  const filterName = `filter_${uid}.txt`;
 
   const progressHandler = ({ progress }: { progress: number }) => {
     const mapped = 40 + Math.round(progress * 50);
