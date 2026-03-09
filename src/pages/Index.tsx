@@ -143,7 +143,7 @@ export default function Index() {
         .eq('id', videoId)
         .single();
 
-      const videoUrl = video?.heygen_video_url || video?.video_path;
+      const videoUrl = video?.video_path || video?.heygen_video_url;
       if (!videoUrl) return;
 
       // Get channels with back cover video URLs
