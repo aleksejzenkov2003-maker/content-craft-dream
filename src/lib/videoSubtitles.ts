@@ -66,13 +66,13 @@ export async function burnSubtitles(
     onProgress?.({ phase: 'downloading_video', progress: 22 });
 
     const assContent = generateAss(wordTimestamps, {
-      wordsPerBlock: options.wordsPerBlock ?? 5,
-      fontName: options.fontName ?? 'Arial',
+      useSmartBlocks: true,
+      fontName: options.fontName ?? 'Montserrat',
       fontSize: options.fontSize ?? 48,
       primaryColor: options.primaryColor ?? '&H00FFFFFF',
       outlineColor: options.outlineColor ?? '&H00000000',
-      outline: options.outline ?? 3,
-      marginV: options.marginV ?? 40,
+      outline: options.outline ?? 1,
+      marginV: options.marginV ?? 80,
     });
 
     signal?.throwIfAborted();

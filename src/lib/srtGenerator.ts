@@ -1,5 +1,5 @@
 /**
- * SRT subtitle generator from ElevenLabs word timestamps.
+ * SRT/ASS subtitle generator from ElevenLabs word timestamps.
  */
 
 export interface WordTimestamp {
@@ -13,6 +13,17 @@ export interface SrtBlock {
   startTime: string;
   endTime: string;
   text: string;
+  /** Original start in seconds (for ASS time formatting) */
+  startSec: number;
+  /** Original end in seconds */
+  endSec: number;
+}
+
+export interface SmartSegmentOptions {
+  maxChars?: number;
+  maxWords?: number;
+  maxDuration?: number;
+  gapSplit?: number;
 }
 
 /**
@@ -26,8 +37,81 @@ function formatSrtTime(seconds: number): string {
   return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')},${String(ms).padStart(3, '0')}`;
 }
 
+function normalizeSpaces(str: string): string {
+  return str.replace(/\s+/g, ' ').trim();
+}
+
 /**
- * Group word timestamps into SRT blocks of N words each.
+ * Smart segmentation ported from n8n workflow.
+ * Groups words adaptively based on character count, word count, duration, and gaps.
+ */
+export function generateSmartBlocks(
+  words: WordTimestamp[],
+  options: SmartSegmentOptions = {}
+): SrtBlock[] {
+  const {
+    maxChars = 24,
+    maxWords = 8,
+    maxDuration = 2.4,
+    gapSplit = 0.55,
+  } = options;
+
+  const blocks: SrtBlock[] = [];
+
+  let cur: { start: number; end: number; text: string; words: number; lastEnd: number } | null = null;
+
+  const flush = () => {
+    if (!cur) return;
+    const text = normalizeSpaces(cur.text);
+    if (!text) { cur = null; return; }
+    blocks.push({
+      index: blocks.length + 1,
+      startTime: formatSrtTime(cur.start),
+      endTime: formatSrtTime(Math.max(cur.end, cur.start + 0.3)),
+      startSec: cur.start,
+      endSec: Math.max(cur.end, cur.start + 0.3),
+      text,
+    });
+    cur = null;
+  };
+
+  for (const w of words) {
+    const t = w.word;
+    const start = w.start;
+    const end = w.end;
+
+    if (!cur) {
+      cur = { start, end, text: t, words: 1, lastEnd: end };
+      continue;
+    }
+
+    const gap = start - cur.lastEnd;
+    const proposedText = normalizeSpaces(cur.text + ' ' + t);
+    const duration = end - cur.start;
+
+    const shouldSplit =
+      gap > gapSplit ||
+      proposedText.length > maxChars ||
+      (cur.words + 1) > maxWords ||
+      duration > maxDuration;
+
+    if (shouldSplit) {
+      flush();
+      cur = { start, end, text: t, words: 1, lastEnd: end };
+    } else {
+      cur.text = proposedText;
+      cur.end = end;
+      cur.words += 1;
+      cur.lastEnd = end;
+    }
+  }
+
+  flush();
+  return blocks;
+}
+
+/**
+ * Group word timestamps into SRT blocks of N words each (legacy, kept for backward compat).
  */
 export function generateSrtBlocks(
   words: WordTimestamp[],
@@ -47,6 +131,8 @@ export function generateSrtBlocks(
       index: blocks.length + 1,
       startTime: formatSrtTime(blockStart),
       endTime: formatSrtTime(blockEnd),
+      startSec: blockStart,
+      endSec: blockEnd,
       text,
     });
   }
@@ -69,7 +155,7 @@ export function generateSrt(
 
 /**
  * Generate ASS subtitle content with styled subtitles.
- * ASS format gives better control over font, colors, and positioning than SRT.
+ * Uses smart segmentation by default.
  */
 export function generateAss(
   words: WordTimestamp[],
@@ -77,29 +163,35 @@ export function generateAss(
     wordsPerBlock?: number;
     fontName?: string;
     fontSize?: number;
-    primaryColor?: string;   // ASS format: &HAABBGGRR
+    primaryColor?: string;
     outlineColor?: string;
     backColor?: string;
     outline?: number;
     shadow?: number;
     marginV?: number;
-    alignment?: number; // 2 = bottom center, 8 = top center
+    alignment?: number;
+    useSmartBlocks?: boolean;
+    smartOptions?: SmartSegmentOptions;
   } = {}
 ): string {
   const {
-    wordsPerBlock = 5,
-    fontName = 'Arial',
+    fontName = 'Montserrat',
     fontSize = 48,
-    primaryColor = '&H00FFFFFF',  // white
-    outlineColor = '&H00000000',  // black
-    backColor = '&H80000000',     // semi-transparent black
-    outline = 3,
+    primaryColor = '&H00FFFFFF',
+    outlineColor = '&H00000000',
+    backColor = '&H80000000',
+    outline = 1,
     shadow = 0,
-    marginV = 40,
+    marginV = 80,
     alignment = 2,
+    useSmartBlocks = true,
+    smartOptions,
+    wordsPerBlock = 5,
   } = options;
 
-  const blocks = generateSrtBlocks(words, wordsPerBlock);
+  const blocks = useSmartBlocks
+    ? generateSmartBlocks(words, smartOptions)
+    : generateSrtBlocks(words, wordsPerBlock);
   
   const header = `[Script Info]
 Title: Subtitles
@@ -124,8 +216,8 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text`
   };
 
   const events = blocks.map(b => {
-    const start = formatAssTime(words[(b.index - 1) * wordsPerBlock].start);
-    const end = formatAssTime(words[Math.min(b.index * wordsPerBlock - 1, words.length - 1)].end);
+    const start = formatAssTime(b.startSec);
+    const end = formatAssTime(b.endSec);
     return `Dialogue: 0,${start},${end},Default,,0,0,0,,${b.text}`;
   });
 
