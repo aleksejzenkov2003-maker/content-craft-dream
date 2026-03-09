@@ -285,7 +285,7 @@ export function VideoSidePanel({
                       const file = await burnSubtitles(
                         videoUrl,
                         timestamps,
-                        { wordsPerBlock: 5, fontSize: 48 },
+                        { fontSize: 48 },
                         (info) => setSubtitleProgress({ phase: info.phase, progress: info.progress }),
                         ac.signal
                       );

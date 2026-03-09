@@ -1,56 +1,57 @@
 
 
-## Plan: Adopt n8n smart subtitle segmentation
+## Решение: бинарная MP4-конкатенация + нормализация аудио через ffmpeg.wasm
 
-### Problem
-Current `generateSrtBlocks` uses fixed `wordsPerBlock=5` — naive chunking that ignores word length, duration, and natural pauses. The n8n workflow uses adaptive segmentation with 4 constraints that produce better-looking subtitles for Shorts/Reels.
+### Что сделано
 
-### What to steal from n8n
+1. **`supabase/functions/concat-video/index.ts`** — полная перезапись:
+   - Бинарный MP4-парсер: разбор боксов (moov/trak/stbl/stsz/stco/stsc/stts/stss/ctts)
+   - Извлечение сэмплов из обоих файлов, сборка нового mdat
+   - Объединение sample tables, пересчёт оффсетов, обновление duration
+   - Сохранение логики получения свежих HeyGen URL
+   - Загрузка результата в Storage
 
-**Smart word grouping** (the "Парсинг субтитров" node logic):
-- `MAX_CHARS = 24` — max characters per subtitle line
-- `MAX_WORDS = 8` — max words per segment  
-- `MAX_DURATION = 2.4s` — max segment duration
-- `GAP_SPLIT = 0.55s` — gap between words triggers new segment
+2. **`src/lib/videoNormalizer.ts`** — утилита нормализации аудио через ffmpeg.wasm:
+   - Загружает ffmpeg WASM при первом использовании
+   - Перекодирует аудио в AAC-LC 48kHz mono 128kbps: `-c:v copy -c:a aac -ar 48000 -ac 1 -b:a 128k`
+   - Видео-поток копируется без потерь
 
-This replaces the fixed `wordsPerBlock` approach entirely.
+3. **`src/components/covers/BackCoversGrid.tsx`** — интеграция нормализации:
+   - При загрузке видео-обложки автоматически нормализует аудио через ffmpeg.wasm
+   - Показывает прогресс нормализации
+   - Загружает нормализованный файл в Storage
+   - Fallback на оригинал при ошибке
 
-**Subtitle style** (the "Прожиг субтитров" ffmpeg command):
-- `FontName=Montserrat` (vs current `Arial`)
-- `FontSize=12` (scaled to PlayRes — equivalent to smaller text)
-- `Bold=1, Outline=0.5, Shadow=0, MarginV=80`
+### Зависимости
+- `@ffmpeg/ffmpeg@0.12.10`
+- `@ffmpeg/util@0.12.1`
 
-### Changes
+---
 
-**File: `src/lib/srtGenerator.ts`**
+## Субтитры: ElevenLabs timestamps → SRT → FFmpeg
 
-1. Add new function `generateSmartBlocks(words, options?)` with the n8n segmentation logic (MAX_CHARS, MAX_WORDS, MAX_DURATION, GAP_SPLIT). Returns same `SrtBlock[]` format.
-2. Update `generateAss()` to use `generateSmartBlocks` by default instead of fixed chunking.
-3. Update default style: `fontName='Montserrat'`, `outline=1` (0.5 rounds up at 1080p), `marginV=80`.
-4. Keep `generateSrtBlocks` (fixed chunking) available for backward compat / SRT download.
+### Что сделано
 
-**File: `src/lib/videoSubtitles.ts`**
+1. **БД миграция** — добавлено поле `word_timestamps jsonb` в таблицу `videos`
 
-5. Update default options to match n8n style: Montserrat, outline=1, marginV=80.
-6. Remove `wordsPerBlock` from `SubtitleOptions` (smart grouping handles it).
+2. **Edge Functions** — обновлены оба voiceover-генератора:
+   - `supabase/functions/generate-voiceover-for-video/index.ts` → endpoint `/with-timestamps`
+   - `supabase/functions/generate-voiceover/index.ts` → endpoint `/with-timestamps`
+   - Ответ содержит `audio_base64` + `alignment` (character-level timestamps)
+   - Функция `buildWordTimestamps()` собирает word-level timestamps из character-level
+   - Timestamps сохраняются в `videos.word_timestamps`
 
-### Technical detail: smart segmentation algorithm
+3. **`src/lib/srtGenerator.ts`** — генерация субтитров:
+   - `generateSrt()` — SRT формат (группировка по N слов)
+   - `generateAss()` — ASS формат (со стилями: шрифт, размер, цвет, обводка)
+   - `generateSrtBlocks()` — промежуточная структура
 
-```text
-for each word:
-  if no current segment → start new
-  else check:
-    gap > 0.55s?          → flush, start new
-    combined chars > 24?  → flush, start new  
-    word count > 8?       → flush, start new
-    duration > 2.4s?      → flush, start new
-  otherwise → append to current
-```
+4. **`src/lib/videoSubtitles.ts`** — вшивание субтитров через ffmpeg.wasm:
+   - `burnSubtitles(videoUrl, timestamps, options, onProgress)` → File
+   - Использует ASS-фильтр для стилизованных субтитров
+   - Видео перекодируется libx264 (preset fast, crf 23), аудио копируется
 
-Identical logic to the n8n Code node, ported to TypeScript.
-
-### Not changing
-- `burnSubtitles` ffmpeg pipeline stays the same (ASS filter approach)
-- The n8n's 3-part concat (cover + video + ending) is already handled by `concat-video` edge function separately
-- Resolution stays 1080×1920 (our standard)
-
+5. **UI** — кнопка «Добавить субтитры» в `VideoSidePanel`:
+   - Появляется когда есть `heygen_video_url` и `word_timestamps`
+   - Показывает прогресс через Progress bar
+   - Результат загружается в Storage и сохраняется в `video_path`
