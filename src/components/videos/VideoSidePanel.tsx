@@ -273,21 +273,37 @@ export function VideoSidePanel({
                     const ac = new AbortController();
                     setSubtitleAbort(ac);
                     try {
-                      const { burnSubtitles } = await import('@/lib/videoSubtitles');
+                      // Tier 1: Try server-side (n8n)
+                      setSubtitleProgress({ phase: 'server_processing', progress: 5 });
+                      const { burnSubtitlesServer, burnSubtitlesBrowser } = await import('@/lib/videoSubtitles');
+                      
+                      const serverOk = await burnSubtitlesServer(
+                        video.id,
+                        (info) => setSubtitleProgress({ phase: info.phase, progress: info.progress }),
+                      );
+
+                      if (serverOk) {
+                        toast.success('Субтитры отправлены на обработку. Результат появится автоматически.');
+                        setSubtitleProgress(null);
+                        setSubtitleAbort(null);
+                        return;
+                      }
+
+                      // Tier 2: Browser fallback
+                      toast.info('Сервер недоступен, обработка в браузере…');
                       const timestamps = video.word_timestamps;
                       const videoUrl = video.heygen_video_url || video.video_path;
                       if (!videoUrl) throw new Error('No video URL');
                       setSubtitleProgress({ phase: 'loading_ffmpeg', progress: 3 });
 
-                      // Watchdog: 8 min total
                       const watchdog = setTimeout(() => ac.abort(), 8 * 60 * 1000);
 
-                      const file = await burnSubtitles(
+                      const file = await burnSubtitlesBrowser(
                         videoUrl,
                         timestamps,
                         { fontSize: 48 },
                         (info) => setSubtitleProgress({ phase: info.phase, progress: info.progress }),
-                        ac.signal
+                        ac.signal,
                       );
 
                       clearTimeout(watchdog);
@@ -306,8 +322,12 @@ export function VideoSidePanel({
                         toast.info('Операция отменена');
                       } else {
                         console.error('Subtitle error:', err);
-                        const message = err instanceof Error ? err.message : 'Ошибка добавления субтитров';
-                        toast.error(message);
+                        // Tier 3: Offer SRT download
+                        toast.error('Не удалось вшить субтитры. Скачайте SRT-файл.');
+                        try {
+                          const { downloadSubtitleFile } = await import('@/lib/videoSubtitles');
+                          downloadSubtitleFile(video.word_timestamps as any, 'srt');
+                        } catch (_) {}
                       }
                     } finally {
                       setSubtitleProgress(null);
@@ -317,6 +337,7 @@ export function VideoSidePanel({
                 >
                   {subtitleProgress !== null ? (
                     <><Loader2 className="w-3 h-3 mr-1 animate-spin" />{
+                      subtitleProgress.phase === 'server_processing' ? 'Обработка на сервере' :
                       subtitleProgress.phase === 'loading_ffmpeg' ? 'Загрузка FFmpeg' :
                       subtitleProgress.phase === 'downloading_video' ? 'Скачивание видео' :
                       subtitleProgress.phase === 'burning_subtitles' ? 'Вшивка субтитров' :
@@ -343,7 +364,8 @@ export function VideoSidePanel({
                   <div className="space-y-1">
                     <Progress value={subtitleProgress.progress} className="h-1.5" />
                     <p className="text-[10px] text-muted-foreground">
-                      {subtitleProgress.phase === 'loading_ffmpeg' && 'Загрузка и инициализация FFmpeg…'}
+                      {subtitleProgress.phase === 'server_processing' && 'Отправка на серверную обработку…'}
+                      {subtitleProgress.phase === 'loading_ffmpeg' && 'Загрузка FFmpeg в браузере…'}
                       {subtitleProgress.phase === 'downloading_video' && 'Скачивание исходного видео…'}
                       {subtitleProgress.phase === 'burning_subtitles' && 'Вшивка субтитров в видео…'}
                       {subtitleProgress.phase === 'uploading_result' && 'Загрузка результата в хранилище…'}
