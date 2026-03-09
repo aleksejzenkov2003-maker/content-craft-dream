@@ -5,8 +5,8 @@ let ffmpeg: FFmpeg | null = null;
 let loadingPromise: Promise<void> | null = null;
 
 const CORE_CDN_BASES = [
-  'https://unpkg.com/@ffmpeg/core@0.12.6/dist/umd',
-  'https://cdn.jsdelivr.net/npm/@ffmpeg/core@0.12.6/dist/umd',
+  'https://unpkg.com/@ffmpeg/core@0.12.6/dist/esm',
+  'https://cdn.jsdelivr.net/npm/@ffmpeg/core@0.12.6/dist/esm',
 ];
 
 // The @ffmpeg/ffmpeg library's own worker file (NOT the core worker)
