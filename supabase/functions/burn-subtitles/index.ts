@@ -11,7 +11,7 @@ interface WordTimestamp {
   end: number;
 }
 
-// ── ASS subtitle generation (self-contained, no imports) ──
+// ── ASS subtitle generation ──
 
 function normalizeSpaces(str: string): string {
   return str.replace(/\s+/g, ' ').trim();
@@ -82,48 +82,6 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text`
   return header + '\n' + events.join('\n') + '\n';
 }
 
-// ── FFmpeg WASM processing in Deno ──
-
-async function processVideoWithFFmpeg(
-  videoBytes: Uint8Array,
-  assContent: string,
-): Promise<Uint8Array> {
-  // Dynamic import of npm packages for Deno compatibility
-  const { FFmpeg } = await import('npm:@ffmpeg/ffmpeg@0.12.10');
-  const { toBlobURL } = await import('npm:@ffmpeg/util@0.12.1');
-
-  const ff = new FFmpeg();
-
-  const baseURL = 'https://unpkg.com/@ffmpeg/core@0.12.6/dist/umd';
-  const coreURL = await toBlobURL(`${baseURL}/ffmpeg-core.js`, 'text/javascript');
-  const wasmURL = await toBlobURL(`${baseURL}/ffmpeg-core.wasm`, 'application/wasm');
-
-  await ff.load({ coreURL, wasmURL });
-
-  await ff.writeFile('input.mp4', videoBytes);
-  await ff.writeFile('subs.ass', new TextEncoder().encode(assContent));
-
-  await ff.exec([
-    '-i', 'input.mp4',
-    '-vf', 'ass=subs.ass',
-    '-c:a', 'copy',
-    '-c:v', 'libx264',
-    '-preset', 'ultrafast',
-    '-crf', '28',
-    '-y', 'output.mp4',
-  ]);
-
-  const data = await ff.readFile('output.mp4');
-  const result = data instanceof Uint8Array ? data : new TextEncoder().encode(data as string);
-
-  // Cleanup
-  await ff.deleteFile('input.mp4').catch(() => {});
-  await ff.deleteFile('subs.ass').catch(() => {});
-  await ff.deleteFile('output.mp4').catch(() => {});
-
-  return new Uint8Array(result);
-}
-
 // ── Main handler ──
 
 Deno.serve(async (req) => {
@@ -144,7 +102,7 @@ Deno.serve(async (req) => {
     const serviceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
     const supabase = createClient(supabaseUrl, serviceRoleKey);
 
-    // 1. Fetch video data
+    // Fetch video data
     const { data: video, error: videoError } = await supabase
       .from('videos')
       .select('id, heygen_video_url, video_path, word_timestamps, voiceover_url')
@@ -173,53 +131,17 @@ Deno.serve(async (req) => {
       );
     }
 
-    // 2. Generate ASS subtitle content
+    // Generate ASS subtitle content
     const assContent = generateAss(video.word_timestamps as WordTimestamp[]);
 
-    // 3. Download video
-    console.log('[burn-subtitles] Downloading video from:', videoUrl);
-    const videoResponse = await fetch(videoUrl);
-    if (!videoResponse.ok) {
-      return new Response(
-        JSON.stringify({ error: `Failed to download video: HTTP ${videoResponse.status}` }),
-        { status: 502, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
-      );
-    }
-    const videoBuffer = new Uint8Array(await videoResponse.arrayBuffer());
-    console.log(`[burn-subtitles] Video downloaded: ${(videoBuffer.length / 1024 / 1024).toFixed(1)}MB`);
-
-    // 4. Process with FFmpeg WASM
-    console.log('[burn-subtitles] Starting FFmpeg processing…');
-    const outputBytes = await processVideoWithFFmpeg(videoBuffer, assContent);
-    console.log(`[burn-subtitles] FFmpeg done: ${(outputBytes.length / 1024 / 1024).toFixed(1)}MB output`);
-
-    // 5. Upload result to storage
-    const outputPath = `videos/${video.id}_subtitled_${Date.now()}.mp4`;
-    const { error: uploadError } = await supabase.storage
-      .from('media-files')
-      .upload(outputPath, outputBytes, { contentType: 'video/mp4', upsert: true });
-
-    if (uploadError) {
-      console.error('[burn-subtitles] Upload failed:', uploadError);
-      return new Response(
-        JSON.stringify({ error: 'Failed to upload result', details: uploadError.message }),
-        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
-      );
-    }
-
-    // 6. Get public URL and update DB
-    const { data: urlData } = supabase.storage.from('media-files').getPublicUrl(outputPath);
-    const resultUrl = urlData.publicUrl;
-
-    await supabase
-      .from('videos')
-      .update({ video_path: resultUrl })
-      .eq('id', videoId);
-
-    console.log('[burn-subtitles] Done:', resultUrl);
-
     return new Response(
-      JSON.stringify({ status: 'completed', videoUrl: resultUrl }),
+      JSON.stringify({
+        status: 'ready',
+        videoUrl,
+        assContent,
+        videoId: video.id,
+        timestampCount: video.word_timestamps.length,
+      }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
     );
 
