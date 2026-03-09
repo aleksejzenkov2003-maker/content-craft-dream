@@ -273,53 +273,55 @@ export function VideoSidePanel({
                     const ac = new AbortController();
                     setSubtitleAbort(ac);
                     try {
-                      const { burnSubtitlesServer, burnSubtitlesBrowser, downloadSubtitleFile: dlSrt } = await import('@/lib/videoSubtitles');
+                      const { burnSubtitlesHybrid, burnSubtitlesBrowser, downloadSubtitleFile } = await import('@/lib/videoSubtitles');
+                      const { isBrowserFFmpegSupported: checkSupport } = await import('@/lib/ffmpegLoader');
 
-                      // Tier 1: Server-side (edge function with FFmpeg WASM)
-                      setSubtitleProgress({ phase: 'server_processing', progress: 5 });
+                      // Hybrid: server generates ASS → browser burns with FFmpeg
+                      const watchdog = setTimeout(() => ac.abort(), 8 * 60 * 1000);
                       try {
-                        const result = await burnSubtitlesServer(
+                        const result = await burnSubtitlesHybrid(
                           video.id,
                           (info) => setSubtitleProgress({ phase: info.phase, progress: info.progress }),
+                          ac.signal,
                         );
-                        if (result.videoUrl) {
-                          onUpdateVideo(video.id, { video_path: result.videoUrl } as any);
-                        }
-                        toast.success('Субтитры вшиты на сервере');
-                        setSubtitleProgress(null);
-                        setSubtitleAbort(null);
+                        clearTimeout(watchdog);
+                        onUpdateVideo(video.id, { video_path: result.videoUrl } as any);
+                        toast.success('Субтитры вшиты');
                         return;
-                      } catch (serverErr) {
-                        console.warn('[subtitles] Server failed, trying browser:', serverErr);
-                        toast.info('Сервер недоступен, обработка в браузере…');
+                      } catch (hybridErr) {
+                        clearTimeout(watchdog);
+                        if (ac.signal.aborted) throw hybridErr;
+                        console.warn('[subtitles] Hybrid failed, trying pure browser:', hybridErr);
                       }
 
-                      // Tier 2: Browser FFmpeg fallback
-                      const videoUrl = video.heygen_video_url || video.video_path;
-                      if (!videoUrl) throw new Error('No video URL');
-                      setSubtitleProgress({ phase: 'loading_ffmpeg', progress: 3 });
+                      // Fallback: pure browser (generate ASS locally)
+                      if (checkSupport()) {
+                        const videoUrl = video.heygen_video_url || video.video_path;
+                        if (!videoUrl) throw new Error('No video URL');
+                        setSubtitleProgress({ phase: 'loading_ffmpeg', progress: 3 });
+                        const watchdog2 = setTimeout(() => ac.abort(), 8 * 60 * 1000);
+                        const file = await burnSubtitlesBrowser(
+                          videoUrl,
+                          video.word_timestamps as any,
+                          { fontSize: 48 },
+                          (info) => setSubtitleProgress({ phase: info.phase, progress: info.progress }),
+                          ac.signal,
+                        );
+                        clearTimeout(watchdog2);
+                        setSubtitleProgress({ phase: 'uploading_result', progress: 95 });
+                        const fileName = `videos/${video.id}_subtitled_${Date.now()}.mp4`;
+                        const { error: uploadError } = await supabase.storage
+                          .from('media-files')
+                          .upload(fileName, file, { contentType: 'video/mp4', upsert: true });
+                        if (uploadError) throw uploadError;
+                        const { data: urlData } = supabase.storage.from('media-files').getPublicUrl(fileName);
+                        onUpdateVideo(video.id, { video_path: urlData.publicUrl } as any);
+                        toast.success('Субтитры добавлены');
+                        return;
+                      }
 
-                      const watchdog = setTimeout(() => ac.abort(), 8 * 60 * 1000);
-
-                      const file = await burnSubtitlesBrowser(
-                        videoUrl,
-                        video.word_timestamps as any,
-                        { fontSize: 48 },
-                        (info) => setSubtitleProgress({ phase: info.phase, progress: info.progress }),
-                        ac.signal,
-                      );
-
-                      clearTimeout(watchdog);
-
-                      setSubtitleProgress({ phase: 'uploading_result', progress: 95 });
-                      const fileName = `videos/${video.id}_subtitled_${Date.now()}.mp4`;
-                      const { error: uploadError } = await supabase.storage
-                        .from('media-files')
-                        .upload(fileName, file, { contentType: 'video/mp4', upsert: true });
-                      if (uploadError) throw uploadError;
-                      const { data: urlData } = supabase.storage.from('media-files').getPublicUrl(fileName);
-                      onUpdateVideo(video.id, { video_path: urlData.publicUrl } as any);
-                      toast.success('Субтитры добавлены');
+                      // Tier 3: SRT download
+                      throw new Error('FFmpeg unavailable');
                     } catch (err) {
                       if ((err as Error)?.name === 'AbortError') {
                         toast.info('Операция отменена');
