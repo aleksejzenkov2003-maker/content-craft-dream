@@ -1,10 +1,12 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useRef } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
+import { concatVideosClient, ConcatPhase, getConcatPhaseLabel } from '@/lib/videoConcat';
 
 interface ConcatState {
   loading: boolean;
   progress: number;
+  phase: ConcatPhase | null;
   error: string | null;
 }
 
@@ -12,40 +14,74 @@ export function useVideoConcat() {
   const [state, setState] = useState<ConcatState>({
     loading: false,
     progress: 0,
+    phase: null,
     error: null,
   });
+  const abortRef = useRef<AbortController | null>(null);
 
   const concatVideos = useCallback(async (
     publicationId: string,
     mainVideoUrl: string,
     backCoverVideoUrl: string,
   ) => {
-    setState({ loading: true, progress: 10, error: null });
+    // Abort any previous concat
+    abortRef.current?.abort();
+    const controller = new AbortController();
+    abortRef.current = controller;
+
+    setState({ loading: true, progress: 0, phase: 'loading_ffmpeg', error: null });
 
     try {
-      // Call the server-side Edge Function
-      setState(prev => ({ ...prev, progress: 20 }));
+      // Update status to concatenating
+      await supabase
+        .from('publications')
+        .update({ publication_status: 'concatenating', error_message: null })
+        .eq('id', publicationId);
 
-      const { data, error } = await supabase.functions.invoke('concat-video', {
-        body: {
-          publication_id: publicationId,
-          main_video_url: mainVideoUrl,
-          back_cover_video_url: backCoverVideoUrl,
+      // Run client-side concat
+      const file = await concatVideosClient(
+        mainVideoUrl,
+        backCoverVideoUrl,
+        (info) => {
+          setState(prev => ({ ...prev, progress: info.progress, phase: info.phase }));
         },
-      });
+        controller.signal,
+      );
 
-      if (error) throw new Error(error.message || 'Edge Function error');
-      if (data?.error) throw new Error(data.error);
+      // Upload to storage
+      setState(prev => ({ ...prev, phase: 'done', progress: 96 }));
+      const fileName = `concat/${publicationId}_${Date.now()}.mp4`;
+      const { error: uploadError } = await supabase.storage
+        .from('media-files')
+        .upload(fileName, file, { contentType: 'video/mp4', upsert: true });
 
-      setState(prev => ({ ...prev, progress: 50 }));
+      if (uploadError) throw new Error(`Ошибка загрузки: ${uploadError.message}`);
 
-      // Poll for completion
-      const finalUrl = await pollForCompletion(publicationId);
+      const { data: urlData } = supabase.storage
+        .from('media-files')
+        .getPublicUrl(fileName);
 
-      setState({ loading: false, progress: 100, error: null });
+      const finalUrl = urlData.publicUrl;
+
+      // Update publication
+      await supabase
+        .from('publications')
+        .update({
+          publication_status: 'checked',
+          final_video_url: finalUrl,
+          error_message: null,
+        })
+        .eq('id', publicationId);
+
+      setState({ loading: false, progress: 100, phase: 'done', error: null });
       toast.success('Видео склеено успешно');
       return finalUrl;
     } catch (error: any) {
+      if (controller.signal.aborted) {
+        setState({ loading: false, progress: 0, phase: null, error: null });
+        return;
+      }
+
       console.error('Video concat error:', error);
       const errorMsg = error.message || 'Ошибка склейки видео';
 
@@ -57,38 +93,20 @@ export function useVideoConcat() {
         })
         .eq('id', publicationId);
 
-      setState({ loading: false, progress: 0, error: errorMsg });
+      setState({ loading: false, progress: 0, phase: null, error: errorMsg });
       toast.error(`Ошибка склейки: ${errorMsg}`);
       throw error;
     }
   }, []);
 
+  const cancelConcat = useCallback(() => {
+    abortRef.current?.abort();
+    setState({ loading: false, progress: 0, phase: null, error: null });
+  }, []);
+
   return {
     concatVideos,
+    cancelConcat,
     ...state,
   };
-}
-
-async function pollForCompletion(publicationId: string, maxAttempts = 30): Promise<string> {
-  for (let i = 0; i < maxAttempts; i++) {
-    await new Promise(r => setTimeout(r, 2000));
-
-    const { data } = await supabase
-      .from('publications')
-      .select('publication_status, final_video_url, error_message')
-      .eq('id', publicationId)
-      .single();
-
-    if (!data) continue;
-
-    if (data.publication_status === 'checked' && data.final_video_url) {
-      return data.final_video_url;
-    }
-
-    if (data.publication_status === 'needs_concat' || data.error_message) {
-      throw new Error(data.error_message || 'Concatenation failed');
-    }
-  }
-
-  throw new Error('Таймаут ожидания склейки');
 }
