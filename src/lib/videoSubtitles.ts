@@ -39,9 +39,8 @@ export function getPhaseLabel(phase: SubtitlePhase): string {
 // ── Font management ──
 
 let fontData: Uint8Array | null = null;
-// Noto Sans Bold includes Cyrillic glyphs (unlike latin-only Montserrat subset)
-const FONT_URL = 'https://cdn.jsdelivr.net/gh/google/fonts/ofl/notosans/static/NotoSans-Bold.ttf';
-const FONT_PATH = 'NotoSans-Bold.ttf';
+const FONT_URL = 'https://cdn.jsdelivr.net/fontsource/fonts/montserrat@latest/latin-700-normal.ttf';
+const FONT_PATH = 'Montserrat-Bold.ttf';
 
 async function ensureFont(ff: FFmpeg): Promise<void> {
   if (!fontData) {
@@ -180,7 +179,6 @@ export async function burnSubtitlesHybrid(
   const uid = Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
   const inputName = `in_${uid}.mp4`;
   const outputName = `out_${uid}.mp4`;
-  const filterName = `filter_${uid}.txt`;
 
   const progressHandler = ({ progress }: { progress: number }) => {
     const mapped = 40 + Math.round(progress * 50);
@@ -205,16 +203,15 @@ export async function burnSubtitlesHybrid(
 
     await ff.writeFile(inputName, new Uint8Array(videoBuffer));
 
-    // Write filter to file
+    // Build drawtext filter
     const vf = buildDrawtextFilter(blocks);
     console.log(`[subtitles] drawtext filter length: ${vf.length} chars`);
-    await ff.writeFile(filterName, vf);
 
     onProgress?.({ phase: 'burning_subtitles', progress: 40 });
 
     await execWithLogs(ff, [
       '-i', inputName,
-      '-filter_complex_script', filterName,
+      '-vf', vf,
       '-c:a', 'copy',
       '-c:v', 'libx264',
       '-preset', 'fast',
@@ -245,7 +242,6 @@ export async function burnSubtitlesHybrid(
     (ff as unknown as { off?: (event: string, cb: unknown) => void }).off?.('progress', progressHandler);
     await ff.deleteFile(inputName).catch(() => undefined);
     await ff.deleteFile(outputName).catch(() => undefined);
-    await ff.deleteFile(filterName).catch(() => undefined);
     await ff.deleteFile(FONT_PATH).catch(() => undefined);
   }
 }
@@ -266,7 +262,6 @@ export async function burnSubtitlesBrowser(
   const uid = Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
   const inputName = `in_${uid}.mp4`;
   const outputName = `out_${uid}.mp4`;
-  const filterName = `filter_${uid}.txt`;
 
   signal?.throwIfAborted();
   onProgress?.({ phase: 'loading_ffmpeg', progress: 5 });
@@ -312,19 +307,18 @@ export async function burnSubtitlesBrowser(
 
     await ff.writeFile(inputName, new Uint8Array(videoBuffer));
 
-    // Write filter to file
+    // Build drawtext filter
     const vf = buildDrawtextFilter(
       blocks,
       options.fontSize ?? 48,
       options.marginV ?? 80,
     );
-    await ff.writeFile(filterName, vf);
 
     onProgress?.({ phase: 'burning_subtitles', progress: 40 });
 
     await execWithLogs(ff, [
       '-i', inputName,
-      '-filter_complex_script', filterName,
+      '-vf', vf,
       '-c:a', 'copy',
       '-c:v', 'libx264',
       '-preset', 'fast',
@@ -345,7 +339,6 @@ export async function burnSubtitlesBrowser(
     (ff as unknown as { off?: (event: string, cb: unknown) => void }).off?.('progress', progressHandler);
     await ff.deleteFile(inputName).catch(() => undefined);
     await ff.deleteFile(outputName).catch(() => undefined);
-    await ff.deleteFile(filterName).catch(() => undefined);
     await ff.deleteFile(FONT_PATH).catch(() => undefined);
   }
 }
