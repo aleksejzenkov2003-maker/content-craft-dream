@@ -1,40 +1,57 @@
 
 
-## План: обновить layout обложки по указанным отступам
+## Решение: бинарная MP4-конкатенация + нормализация аудио через ffmpeg.wasm
 
-**Файл:** `supabase/functions/generate-cover/index.ts` — функция `composeCover` (строки 94–221)
+### Что сделано
 
-### Что меняем
+1. **`supabase/functions/concat-video/index.ts`** — полная перезапись:
+   - Бинарный MP4-парсер: разбор боксов (moov/trak/stbl/stsz/stco/stsc/stts/stss/ctts)
+   - Извлечение сэмплов из обоих файлов, сборка нового mdat
+   - Объединение sample tables, пересчёт оффсетов, обновление duration
+   - Сохранение логики получения свежих HeyGen URL
+   - Загрузка результата в Storage
 
-Текущий layout: flex-column с центрированным текстом и фото внизу слева.  
-Новый layout (по картинке): абсолютное позиционирование элементов на канвасе 1080×1920.
+2. **`src/lib/videoNormalizer.ts`** — утилита нормализации аудио через ffmpeg.wasm:
+   - Загружает ffmpeg WASM при первом использовании
+   - Перекодирует аудио в AAC-LC 48kHz mono 128kbps: `-c:v copy -c:a aac -ar 48000 -ac 1 -b:a 128k`
+   - Видео-поток копируется без потерь
 
-| Элемент | Позиция | Размер |
-|---------|---------|--------|
-| Фото советника | `top: 100, left: 100` | `350 × 618`, `borderRadius: 24`, белая рамка |
-| Имя советника | Под фото, `marginTop: 12`, `paddingLeft: 8` | `fontSize: 32` |
-| Текст хука | `top: 750`, центр по ширине, `padding: 0 60px` | `fontSize: 48–64` (адаптивно по длине) |
-| Градиент | Лёгкий сверху, усиленный к низу (для читаемости текста) | — |
+3. **`src/components/covers/BackCoversGrid.tsx`** — интеграция нормализации:
+   - При загрузке видео-обложки автоматически нормализует аудио через ffmpeg.wasm
+   - Показывает прогресс нормализации
+   - Загружает нормализованный файл в Storage
+   - Fallback на оригинал при ошибке
 
-### Технические детали
+### Зависимости
+- `@ffmpeg/ffmpeg@0.12.10`
+- `@ffmpeg/util@0.12.1`
 
-Заменяем `flex` layout в `composeCover` на `position: absolute` для каждого элемента:
+---
 
-```
-// Advisor photo — absolute
-top: 100, left: 100, width: 350, height: 618
-borderRadius: 24, border: '4px solid rgba(255,255,255,0.8)'
+## Субтитры: ElevenLabs timestamps → SRT → FFmpeg
 
-// Advisor name — below photo
-fontSize: 32, fontWeight: 600, marginTop: 12
+### Что сделано
 
-// Hook text — absolute
-top: 750, left: 0, width: '100%', centered
-fontSize: adaptive (48/56/64), fontWeight: 800
+1. **БД миграция** — добавлено поле `word_timestamps jsonb` в таблицу `videos`
 
-// Gradient — softer, stronger at bottom
-linear-gradient(to bottom, rgba(0,0,0,0.1) 0%, ... rgba(0,0,0,0.55) 100%)
-```
+2. **Edge Functions** — обновлены оба voiceover-генератора:
+   - `supabase/functions/generate-voiceover-for-video/index.ts` → endpoint `/with-timestamps`
+   - `supabase/functions/generate-voiceover/index.ts` → endpoint `/with-timestamps`
+   - Ответ содержит `audio_base64` + `alignment` (character-level timestamps)
+   - Функция `buildWordTimestamps()` собирает word-level timestamps из character-level
+   - Timestamps сохраняются в `videos.word_timestamps`
 
-Остальной код функции (загрузка, upload, Step 1) не меняется.
+3. **`src/lib/srtGenerator.ts`** — генерация субтитров:
+   - `generateSrt()` — SRT формат (группировка по N слов)
+   - `generateAss()` — ASS формат (со стилями: шрифт, размер, цвет, обводка)
+   - `generateSrtBlocks()` — промежуточная структура
 
+4. **`src/lib/videoSubtitles.ts`** — вшивание субтитров через ffmpeg.wasm:
+   - `burnSubtitles(videoUrl, timestamps, options, onProgress)` → File
+   - Использует ASS-фильтр для стилизованных субтитров
+   - Видео перекодируется libx264 (preset fast, crf 23), аудио копируется
+
+5. **UI** — кнопка «Добавить субтитры» в `VideoSidePanel`:
+   - Появляется когда есть `heygen_video_url` и `word_timestamps`
+   - Показывает прогресс через Progress bar
+   - Результат загружается в Storage и сохраняется в `video_path`

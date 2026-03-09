@@ -111,9 +111,6 @@ async function composeCover(
         width: '100%',
         height: '100%',
         display: 'flex',
-        flexDirection: 'column',
-        justifyContent: 'space-between',
-        alignItems: 'center',
         position: 'relative',
         fontFamily: 'sans-serif',
       },
@@ -137,20 +134,60 @@ async function composeCover(
         left: 0,
         width: '100%',
         height: '100%',
-        background: 'linear-gradient(to bottom, rgba(0,0,0,0.3) 0%, rgba(0,0,0,0.1) 40%, rgba(0,0,0,0.1) 60%, rgba(0,0,0,0.5) 100%)',
+        background: 'linear-gradient(to bottom, rgba(0,0,0,0.1) 0%, rgba(0,0,0,0.05) 30%, rgba(0,0,0,0.15) 60%, rgba(0,0,0,0.55) 100%)',
       },
     }),
-    // Hook text in the center area
+    // Advisor photo — absolute positioned top-left
+    advisorPhotoUrl
+      ? React.createElement(
+          'div',
+          {
+            style: {
+              position: 'absolute',
+              top: 100,
+              left: 100,
+              display: 'flex',
+              flexDirection: 'column',
+              zIndex: 10,
+            },
+          },
+          React.createElement('img', {
+            src: advisorPhotoUrl,
+            style: {
+              width: 350,
+              height: 618,
+              borderRadius: 24,
+              objectFit: 'cover',
+              border: '4px solid rgba(255,255,255,0.8)',
+            },
+          }),
+          React.createElement(
+            'div',
+            {
+              style: {
+                color: 'white',
+                fontSize: 32,
+                fontWeight: 600,
+                marginTop: 12,
+                paddingLeft: 8,
+              },
+            },
+            advisorName
+          )
+        )
+      : null,
+    // Hook text — absolute positioned
     React.createElement(
       'div',
       {
         style: {
+          position: 'absolute',
+          top: 750,
+          left: 0,
+          width: '100%',
           display: 'flex',
-          flexDirection: 'column',
-          alignItems: 'center',
           justifyContent: 'center',
-          flex: 1,
-          padding: '80px 60px',
+          padding: '0 60px',
           zIndex: 10,
         },
       },
@@ -160,56 +197,15 @@ async function composeCover(
           style: {
             color: 'white',
             fontSize: hookText.length > 80 ? 48 : hookText.length > 40 ? 56 : 64,
-            fontWeight: 700,
+            fontWeight: 800,
             textAlign: 'center',
             lineHeight: 1.3,
-            
-            maxWidth: '90%',
+            maxWidth: '100%',
           },
         },
         hookText
       )
-    ),
-    // Advisor miniature + name at bottom-left
-    advisorPhotoUrl
-      ? React.createElement(
-          'div',
-          {
-            style: {
-              display: 'flex',
-              alignItems: 'center',
-              padding: '40px 60px 80px 60px',
-              zIndex: 10,
-              width: '100%',
-            },
-          },
-          // Advisor photo in original format
-          React.createElement('img', {
-            src: advisorPhotoUrl,
-            style: {
-              height: 200,
-              maxWidth: 300,
-              borderRadius: 16,
-              objectFit: 'cover',
-              border: '4px solid white',
-            },
-          }),
-          // Advisor name
-          React.createElement(
-            'div',
-            {
-              style: {
-                color: 'white',
-                fontSize: 36,
-                fontWeight: 600,
-                marginLeft: 30,
-                
-              },
-            },
-            advisorName
-          )
-        )
-      : null
+    )
   );
 
   const response = new ImageResponse(element, {
