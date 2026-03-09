@@ -70,16 +70,21 @@ export default function Index() {
   useEffect(() => {
     if (activeTab !== 'videos') return;
 
-    const idleId = window.requestIdleCallback?.(() => {
+    let idleId: number | null = null;
+    const preload = () => {
       import('@/lib/ffmpegLoader').then(({ preloadFFmpeg }) => preloadFFmpeg()).catch(() => {});
-    });
+    };
 
-    if (!window.requestIdleCallback) {
-      import('@/lib/ffmpegLoader').then(({ preloadFFmpeg }) => preloadFFmpeg()).catch(() => {});
+    if ('requestIdleCallback' in window) {
+      idleId = (window as Window & { requestIdleCallback: (cb: IdleRequestCallback) => number }).requestIdleCallback(preload);
+    } else {
+      preload();
     }
 
     return () => {
-      if (idleId !== undefined) window.cancelIdleCallback?.(idleId);
+      if (idleId !== null && 'cancelIdleCallback' in window) {
+        (window as Window & { cancelIdleCallback: (id: number) => void }).cancelIdleCallback(idleId);
+      }
     };
   }, [activeTab]);
 
