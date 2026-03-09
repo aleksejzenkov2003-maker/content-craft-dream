@@ -1,14 +1,16 @@
 import { FFmpeg } from '@ffmpeg/ffmpeg';
-import { toBlobURL } from '@ffmpeg/util';
 
 let ffmpeg: FFmpeg | null = null;
 let loadingPromise: Promise<void> | null = null;
 const blobUrls: string[] = [];
 
 const FF_CORE_CANDIDATES = [
-  'https://unpkg.com/@ffmpeg/core@0.12.6/dist/umd',
   'https://cdn.jsdelivr.net/npm/@ffmpeg/core@0.12.6/dist/umd',
+  'https://unpkg.com/@ffmpeg/core@0.12.6/dist/umd',
 ];
+
+const CDN_ATTEMPT_TIMEOUT_MS = 60_000;
+const LOAD_TIMEOUT_MS = 180_000;
 
 function revokeBlobUrls() {
   for (const url of blobUrls) {
@@ -17,12 +19,28 @@ function revokeBlobUrls() {
   blobUrls.length = 0;
 }
 
+function createLinkedAbortController(signal?: AbortSignal) {
+  const controller = new AbortController();
+
+  if (!signal) {
+    return { controller, cleanup: () => undefined };
+  }
+
+  const forwardAbort = () => controller.abort(signal.reason);
+  signal.addEventListener('abort', forwardAbort, { once: true });
+
+  return {
+    controller,
+    cleanup: () => signal.removeEventListener('abort', forwardAbort),
+  };
+}
+
 async function fetchWithProgress(
   url: string,
   onProgress?: (loaded: number, total: number) => void,
   signal?: AbortSignal
 ): Promise<string> {
-  const response = await fetch(url, { signal });
+  const response = await fetch(url, { signal, cache: 'force-cache' });
   if (!response.ok) throw new Error(`HTTP ${response.status} for ${url}`);
 
   const contentLength = Number(response.headers.get('content-length') || 0);
@@ -63,22 +81,30 @@ async function loadFFmpegCore(
   let lastError: unknown = null;
 
   for (const baseURL of FF_CORE_CANDIDATES) {
-    try {
-      signal?.throwIfAborted();
-      onProgress?.(2);
-      const coreURL = await toBlobURL(`${baseURL}/ffmpeg-core.js`, 'text/javascript');
-      blobUrls.push(coreURL);
-      onProgress?.(4);
+    const { controller, cleanup } = createLinkedAbortController(signal);
+    const timeoutId = setTimeout(() => {
+      controller.abort(new Error(`Timeout loading FFmpeg core from ${baseURL}`));
+    }, CDN_ATTEMPT_TIMEOUT_MS);
 
-      signal?.throwIfAborted();
+    try {
+      controller.signal.throwIfAborted();
+      onProgress?.(2);
+
+      const coreURL = await fetchWithProgress(`${baseURL}/ffmpeg-core.js`, undefined, controller.signal);
+
+      onProgress?.(4);
+      controller.signal.throwIfAborted();
+
       const wasmURL = await fetchWithProgress(
         `${baseURL}/ffmpeg-core.wasm`,
         (loaded, total) => {
           const pct = 4 + Math.round((loaded / total) * 10); // 4-14%
           onProgress?.(pct);
         },
-        signal
+        controller.signal,
       );
+
+      const workerURL = await fetchWithProgress(`${baseURL}/ffmpeg-core.worker.js`, undefined, controller.signal);
 
       onProgress?.(14);
 
@@ -92,8 +118,8 @@ async function loadFFmpegCore(
       }, 800);
 
       try {
-        signal?.throwIfAborted();
-        await instance.load({ coreURL, wasmURL });
+        controller.signal.throwIfAborted();
+        await instance.load({ coreURL, wasmURL, workerURL });
       } finally {
         clearInterval(heartbeatTimer);
       }
@@ -104,6 +130,9 @@ async function loadFFmpegCore(
       if (signal?.aborted) throw error;
       lastError = error;
       console.warn('[ffmpegLoader] Failed CDN:', baseURL, error);
+    } finally {
+      clearTimeout(timeoutId);
+      cleanup();
     }
   }
 
@@ -148,7 +177,7 @@ export async function getSharedFFmpeg(
   const timeout = new Promise<never>((_, reject) => {
     setTimeout(
       () => reject(new Error('FFmpeg долго загружается (180 с). Проверьте интернет и попробуйте снова.')),
-      180_000
+      LOAD_TIMEOUT_MS
     );
   });
 
@@ -167,3 +196,4 @@ export async function getSharedFFmpeg(
 export function preloadFFmpeg(): void {
   getSharedFFmpeg().catch(() => { /* silent */ });
 }
+
