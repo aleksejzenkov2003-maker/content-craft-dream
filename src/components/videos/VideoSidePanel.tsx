@@ -273,7 +273,7 @@ export function VideoSidePanel({
                     const ac = new AbortController();
                     setSubtitleAbort(ac);
                     try {
-                      const { burnSubtitlesHybrid, burnSubtitlesBrowser, downloadSubtitleFile, isBrowserFFmpegSupported } = await import('@/lib/videoSubtitles');
+                      const { burnSubtitlesHybrid, burnSubtitlesBrowser, downloadSubtitleFile } = await import('@/lib/videoSubtitles');
                       const { isBrowserFFmpegSupported: checkSupport } = await import('@/lib/ffmpegLoader');
 
                       // Hybrid: server generates ASS → browser burns with FFmpeg
