@@ -262,7 +262,6 @@ export async function burnSubtitlesBrowser(
   const uid = Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
   const inputName = `in_${uid}.mp4`;
   const outputName = `out_${uid}.mp4`;
-  const filterName = `filter_${uid}.txt`;
 
   signal?.throwIfAborted();
   onProgress?.({ phase: 'loading_ffmpeg', progress: 5 });
