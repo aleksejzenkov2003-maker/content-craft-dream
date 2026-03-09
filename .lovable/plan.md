@@ -1,24 +1,57 @@
 
 
-## Plan: Fix FFmpeg hanging at 5% during subtitle burn
+## Решение: бинарная MP4-конкатенация + нормализация аудио через ffmpeg.wasm
 
-### Root cause
-The previous fix incorrectly removed the `workerURL` from the FFmpeg load call. The UMD build of `@ffmpeg/core@0.12.6` **does** include `ffmpeg-core.worker.js` — it's required for execution. Without it, `instance.load()` hangs silently because the internal Web Worker can't be created.
+### Что сделано
 
-The core JS has a `_locateFile` function that looks for the worker URL:
-```javascript
-if (path.endsWith(".worker.js")) return workerURL;
-```
-When `workerURL` is undefined (because we stopped passing it), the worker fetch falls back to a relative path that doesn't resolve, causing the hang.
+1. **`supabase/functions/concat-video/index.ts`** — полная перезапись:
+   - Бинарный MP4-парсер: разбор боксов (moov/trak/stbl/stsz/stco/stsc/stts/stss/ctts)
+   - Извлечение сэмплов из обоих файлов, сборка нового mdat
+   - Объединение sample tables, пересчёт оффсетов, обновление duration
+   - Сохранение логики получения свежих HeyGen URL
+   - Загрузка результата в Storage
 
-### Fix: `src/lib/ffmpegLoader.ts`
+2. **`src/lib/videoNormalizer.ts`** — утилита нормализации аудио через ffmpeg.wasm:
+   - Загружает ffmpeg WASM при первом использовании
+   - Перекодирует аудио в AAC-LC 48kHz mono 128kbps: `-c:v copy -c:a aac -ar 48000 -ac 1 -b:a 128k`
+   - Видео-поток копируется без потерь
 
-Re-add the worker file download and pass all three URLs to `instance.load()`:
+3. **`src/components/covers/BackCoversGrid.tsx`** — интеграция нормализации:
+   - При загрузке видео-обложки автоматически нормализует аудио через ffmpeg.wasm
+   - Показывает прогресс нормализации
+   - Загружает нормализованный файл в Storage
+   - Fallback на оригинал при ошибке
 
-1. Fetch `ffmpeg-core.worker.js` alongside the core JS and WASM (small file, fast)
-2. Pass `{ coreURL, wasmURL, workerURL }` to `instance.load()`
-3. Progress: JS at 2-4%, WASM at 4-14%, worker at 14-15%, compilation at 15-20%
+### Зависимости
+- `@ffmpeg/ffmpeg@0.12.10`
+- `@ffmpeg/util@0.12.1`
 
-### Why this was broken
-The error message about "worker.js 404" was misdiagnosed — the 404 was because the file was being fetched from the wrong URL (before blob URL conversion). The file exists on both CDNs at `@ffmpeg/core@0.12.6/dist/umd/ffmpeg-core.worker.js`.
+---
 
+## Субтитры: ElevenLabs timestamps → SRT → FFmpeg
+
+### Что сделано
+
+1. **БД миграция** — добавлено поле `word_timestamps jsonb` в таблицу `videos`
+
+2. **Edge Functions** — обновлены оба voiceover-генератора:
+   - `supabase/functions/generate-voiceover-for-video/index.ts` → endpoint `/with-timestamps`
+   - `supabase/functions/generate-voiceover/index.ts` → endpoint `/with-timestamps`
+   - Ответ содержит `audio_base64` + `alignment` (character-level timestamps)
+   - Функция `buildWordTimestamps()` собирает word-level timestamps из character-level
+   - Timestamps сохраняются в `videos.word_timestamps`
+
+3. **`src/lib/srtGenerator.ts`** — генерация субтитров:
+   - `generateSrt()` — SRT формат (группировка по N слов)
+   - `generateAss()` — ASS формат (со стилями: шрифт, размер, цвет, обводка)
+   - `generateSrtBlocks()` — промежуточная структура
+
+4. **`src/lib/videoSubtitles.ts`** — вшивание субтитров через ffmpeg.wasm:
+   - `burnSubtitles(videoUrl, timestamps, options, onProgress)` → File
+   - Использует ASS-фильтр для стилизованных субтитров
+   - Видео перекодируется libx264 (preset fast, crf 23), аудио копируется
+
+5. **UI** — кнопка «Добавить субтитры» в `VideoSidePanel`:
+   - Появляется когда есть `heygen_video_url` и `word_timestamps`
+   - Показывает прогресс через Progress bar
+   - Результат загружается в Storage и сохраняется в `video_path`

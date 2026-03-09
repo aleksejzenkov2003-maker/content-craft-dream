@@ -106,9 +106,18 @@ async function loadFFmpegCore(
       );
 
       onProgress?.(14);
+      controller.signal.throwIfAborted();
 
-      // Heartbeat during WASM compilation (14→20)
-      let heartbeat = 14;
+      const workerURL = await fetchToBlobUrl(
+        `${baseURL}/ffmpeg-core.worker.js`,
+        undefined,
+        controller.signal,
+      );
+
+      onProgress?.(15);
+
+      // Heartbeat during WASM compilation (15→20)
+      let heartbeat = 15;
       const heartbeatTimer = setInterval(() => {
         if (heartbeat < 20) {
           heartbeat += 1;
@@ -118,8 +127,7 @@ async function loadFFmpegCore(
 
       try {
         controller.signal.throwIfAborted();
-        // UMD build has no separate worker file — only pass coreURL + wasmURL
-        await instance.load({ coreURL, wasmURL });
+        await instance.load({ coreURL, wasmURL, workerURL });
       } finally {
         clearInterval(heartbeatTimer);
       }
