@@ -477,9 +477,10 @@ export function VideoSidePanel({
               {/* Video */}
               <div className="space-y-1.5">
                 <Label className="text-[11px] text-muted-foreground flex items-center gap-1"><Play className="w-3 h-3" />Видео</Label>
-                {video.heygen_video_url ? (
+                {(video.video_path || video.heygen_video_url) ? (
                   <div className="relative aspect-[9/16] rounded-lg overflow-hidden bg-black">
-                    <video src={video.heygen_video_url} controls className="w-full h-full object-contain" poster={video.front_cover_url || undefined} />
+                    <video src={video.video_path || video.heygen_video_url!} controls className="w-full h-full object-contain" poster={video.front_cover_url || undefined} />
+                    {video.video_path && <span className="absolute top-1 right-1 bg-black/60 text-white text-[8px] px-1.5 py-0.5 rounded">С субтитрами</span>}
                   </div>
                 ) : (
                   <div className="aspect-[9/16] rounded-lg border-2 border-dashed border-muted-foreground/20 bg-muted/30 flex flex-col items-center justify-center gap-2">
