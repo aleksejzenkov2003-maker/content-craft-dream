@@ -143,7 +143,7 @@ export default function Index() {
         .eq('id', videoId)
         .single();
 
-      const videoUrl = video?.heygen_video_url || video?.video_path;
+      const videoUrl = video?.video_path || video?.heygen_video_url;
       if (!videoUrl) return;
 
       // Get channels with back cover video URLs
@@ -417,7 +417,7 @@ export default function Index() {
         .eq('id', video.id)
         .single();
       
-      const videoUrl = freshVideo?.heygen_video_url || freshVideo?.video_path;
+      const videoUrl = freshVideo?.video_path || freshVideo?.heygen_video_url;
       if (videoUrl) {
         for (const pub of (inserted || [])) {
           if (channelsWithBackCover.has(pub.channel_id)) {
