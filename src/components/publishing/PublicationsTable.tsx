@@ -289,14 +289,14 @@ const minuteOptions = [0, 5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55];
     }
     
     // Try joined data first, then fetch from DB
-    let mainVideoUrl = pub.video?.heygen_video_url;
+    let mainVideoUrl = pub.video?.video_path || pub.video?.heygen_video_url;
     if (!mainVideoUrl && pub.video_id) {
       const { data: video } = await supabase
         .from('videos')
         .select('heygen_video_url, video_path')
         .eq('id', pub.video_id)
         .single();
-      mainVideoUrl = video?.heygen_video_url || video?.video_path || null;
+      mainVideoUrl = video?.video_path || video?.heygen_video_url || null;
     }
     
     if (!mainVideoUrl) {
