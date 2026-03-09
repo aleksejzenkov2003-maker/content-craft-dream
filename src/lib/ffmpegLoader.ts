@@ -4,9 +4,15 @@ import { toBlobURL } from '@ffmpeg/util';
 let ffmpeg: FFmpeg | null = null;
 let loadingPromise: Promise<void> | null = null;
 
-const CDN_BASES = [
+const CORE_CDN_BASES = [
   'https://unpkg.com/@ffmpeg/core@0.12.6/dist/umd',
   'https://cdn.jsdelivr.net/npm/@ffmpeg/core@0.12.6/dist/umd',
+];
+
+// The @ffmpeg/ffmpeg library's own worker file (NOT the core worker)
+const CLASS_WORKER_URLS = [
+  'https://unpkg.com/@ffmpeg/ffmpeg@0.12.10/dist/esm/worker.js',
+  'https://cdn.jsdelivr.net/npm/@ffmpeg/ffmpeg@0.12.10/dist/esm/worker.js',
 ];
 
 const ATTEMPT_TIMEOUT_MS = 30_000;
@@ -19,7 +25,6 @@ function cleanup() {
 
 /**
  * Check if the browser environment supports FFmpeg WASM.
- * Cross-origin iframes may lack SharedArrayBuffer.
  */
 export function isBrowserFFmpegSupported(): boolean {
   try {
@@ -31,30 +36,37 @@ export function isBrowserFFmpegSupported(): boolean {
 
 async function tryLoadFromCDN(
   instance: FFmpeg,
-  baseURL: string,
+  coreBaseURL: string,
+  classWorkerUrl: string,
   onProgress?: (pct: number) => void,
   signal?: AbortSignal,
 ): Promise<void> {
   signal?.throwIfAborted();
   onProgress?.(2);
 
-  const coreURL = await toBlobURL(`${baseURL}/ffmpeg-core.js`, 'text/javascript');
-  onProgress?.(8);
+  const coreURL = await toBlobURL(`${coreBaseURL}/ffmpeg-core.js`, 'text/javascript');
+  onProgress?.(6);
   signal?.throwIfAborted();
 
-  const wasmURL = await toBlobURL(`${baseURL}/ffmpeg-core.wasm`, 'application/wasm');
-  onProgress?.(16);
+  const wasmURL = await toBlobURL(`${coreBaseURL}/ffmpeg-core.wasm`, 'application/wasm');
+  onProgress?.(12);
   signal?.throwIfAborted();
 
-  // UMD build — no workerURL needed
-  // Wrap instance.load with a hard timeout to avoid silent hangs
-  const loadPromise = instance.load({ coreURL, wasmURL });
+  // Key fix: provide classWorkerURL so the library doesn't try to resolve
+  // its internal worker.js via Vite (which fails in preview/iframe)
+  const classWorkerURL = await toBlobURL(classWorkerUrl, 'text/javascript');
+  onProgress?.(14);
+  signal?.throwIfAborted();
+
+  console.log('[ffmpegLoader] Loading with classWorkerURL…');
+
+  // Wrap instance.load with a hard timeout
+  const loadPromise = instance.load({ coreURL, wasmURL, classWorkerURL });
   const timeoutPromise = new Promise<never>((_, reject) => {
     const id = globalThis.setTimeout(
       () => reject(new Error('FFmpeg load() зависла — таймаут 30с')),
       ATTEMPT_TIMEOUT_MS,
     );
-    // If signal fires, also reject
     signal?.addEventListener('abort', () => {
       clearTimeout(id);
       reject(signal.reason || new Error('Aborted'));
@@ -96,15 +108,20 @@ export async function getSharedFFmpeg(
   let lastError: unknown = null;
 
   const doLoad = async () => {
-    for (const baseURL of CDN_BASES) {
+    // Try each combination of core CDN + class worker CDN
+    for (let i = 0; i < CORE_CDN_BASES.length; i++) {
+      const coreBase = CORE_CDN_BASES[i];
+      const workerUrl = CLASS_WORKER_URLS[i] || CLASS_WORKER_URLS[0];
+
       try {
         signal?.throwIfAborted();
-        await tryLoadFromCDN(ffmpeg!, baseURL, onProgress, signal);
+        await tryLoadFromCDN(ffmpeg!, coreBase, workerUrl, onProgress, signal);
+        console.log('[ffmpegLoader] Loaded successfully from:', coreBase);
         return; // success
       } catch (err) {
         if (signal?.aborted) throw err;
         lastError = err;
-        console.warn('[ffmpegLoader] Failed CDN:', baseURL, err);
+        console.warn('[ffmpegLoader] Failed CDN:', coreBase, err);
       }
     }
     throw lastError instanceof Error ? lastError : new Error('Не удалось загрузить FFmpeg');
