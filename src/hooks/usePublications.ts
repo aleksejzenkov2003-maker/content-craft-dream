@@ -31,6 +31,7 @@ export interface Publication {
     advisor_answer: string | null;
     voiceover_url: string | null;
     heygen_video_url: string | null;
+    video_path: string | null;
     advisor?: {
       id: string;
       name: string;
