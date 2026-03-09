@@ -8,7 +8,6 @@ export type SubtitlePhase =
   | 'uploading_result';
 
 export interface SubtitleOptions {
-  wordsPerBlock?: number;
   fontName?: string;
   fontSize?: number;
   primaryColor?: string;
