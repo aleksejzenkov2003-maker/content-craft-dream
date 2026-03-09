@@ -66,11 +66,21 @@ export default function Index() {
   const { channels: publishingChannels } = usePublishingChannels();
   const { concatVideos } = useVideoConcat();
 
-  // Preload FFmpeg when user navigates to videos/questions tab
+  // Preload FFmpeg only on videos tab and only when browser is idle
   useEffect(() => {
-    if (activeTab === 'videos' || activeTab === 'questions') {
+    if (activeTab !== 'videos') return;
+
+    const idleId = window.requestIdleCallback?.(() => {
+      import('@/lib/ffmpegLoader').then(({ preloadFFmpeg }) => preloadFFmpeg()).catch(() => {});
+    });
+
+    if (!window.requestIdleCallback) {
       import('@/lib/ffmpegLoader').then(({ preloadFFmpeg }) => preloadFFmpeg()).catch(() => {});
     }
+
+    return () => {
+      if (idleId !== undefined) window.cancelIdleCallback?.(idleId);
+    };
   }, [activeTab]);
 
   // Derive live objects from arrays instead of storing snapshots
