@@ -66,6 +66,13 @@ export default function Index() {
   const { channels: publishingChannels } = usePublishingChannels();
   const { concatVideos } = useVideoConcat();
 
+  // Preload FFmpeg when user navigates to videos/questions tab
+  useEffect(() => {
+    if (activeTab === 'videos' || activeTab === 'questions') {
+      import('@/lib/ffmpegLoader').then(({ preloadFFmpeg }) => preloadFFmpeg()).catch(() => {});
+    }
+  }, [activeTab]);
+
   // Derive live objects from arrays instead of storing snapshots
   const editingVideo = editingVideoId ? (videos.find(v => v.id === editingVideoId) ?? allVideos.find(v => v.id === editingVideoId) ?? null) : null;
   const viewingVideo = viewingVideoId ? (videos.find(v => v.id === viewingVideoId) ?? allVideos.find(v => v.id === viewingVideoId) ?? null) : null;
