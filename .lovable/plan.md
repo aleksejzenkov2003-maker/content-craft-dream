@@ -1,57 +1,66 @@
 
 
-## Решение: бинарная MP4-конкатенация + нормализация аудио через ffmpeg.wasm
+## Plan: Self-contained edge function for subtitle burning (without n8n)
 
-### Что сделано
+### Architecture
 
-1. **`supabase/functions/concat-video/index.ts`** — полная перезапись:
-   - Бинарный MP4-парсер: разбор боксов (moov/trak/stbl/stsz/stco/stsc/stts/stss/ctts)
-   - Извлечение сэмплов из обоих файлов, сборка нового mdat
-   - Объединение sample tables, пересчёт оффсетов, обновление duration
-   - Сохранение логики получения свежих HeyGen URL
-   - Загрузка результата в Storage
+The edge function `burn-subtitles` will be completely rewritten to handle the entire process internally: read video data, generate ASS subtitles, download video, burn subtitles using FFmpeg WASM in Deno, upload result, and update the database. No n8n, no external services.
 
-2. **`src/lib/videoNormalizer.ts`** — утилита нормализации аудио через ffmpeg.wasm:
-   - Загружает ffmpeg WASM при первом использовании
-   - Перекодирует аудио в AAC-LC 48kHz mono 128kbps: `-c:v copy -c:a aac -ar 48000 -ac 1 -b:a 128k`
-   - Видео-поток копируется без потерь
+```text
+Frontend: click "Вшить субтитры"
+        │
+        ▼
+  Edge function (burn-subtitles)
+        ├── Read video + timestamps from DB
+        ├── Generate ASS content
+        ├── Download video binary
+        ├── Run ffmpeg.wasm in Deno runtime
+        ├── Upload result to storage
+        └── Update video_path in DB
+        │
+        ▼
+  Frontend polls/checks for result
+        │
+   Fallback if edge fn fails:
+        ▼
+  Browser FFmpeg (fixed) → or SRT download
+```
 
-3. **`src/components/covers/BackCoversGrid.tsx`** — интеграция нормализации:
-   - При загрузке видео-обложки автоматически нормализует аудио через ffmpeg.wasm
-   - Показывает прогресс нормализации
-   - Загружает нормализованный файл в Storage
-   - Fallback на оригинал при ошибке
+### Changes
 
-### Зависимости
-- `@ffmpeg/ffmpeg@0.12.10`
-- `@ffmpeg/util@0.12.1`
+1. **`supabase/functions/burn-subtitles/index.ts`** — full rewrite:
+   - Remove ALL n8n references
+   - Load `@aspect-build/aspect-ffmpeg` or raw ffmpeg.wasm for Deno
+   - Process video server-side: `-vf "ass=subs.ass" -c:a copy -c:v libx264 -preset ultrafast -crf 28`
+   - Upload to `media-files` bucket, update `videos.video_path`
+   - Return `{ status: 'completed', videoUrl }` or `{ status: 'error' }`
 
----
+2. **`src/lib/ffmpegLoader.ts`** — fix browser fallback:
+   - The real root cause of the 5% hang: the `@ffmpeg/ffmpeg` wrapper creates an internal Web Worker, and the FFmpeg core's `_locateFile` function needs a valid `workerURL` even in UMD build
+   - Check if `typeof SharedArrayBuffer !== 'undefined'` before attempting load (cross-origin iframe may block it)
+   - Add a 30-second hard timeout on `instance.load()` with explicit error instead of silent hang
+   - If SharedArrayBuffer unavailable, skip browser FFmpeg and go straight to edge function or SRT download
 
-## Субтитры: ElevenLabs timestamps → SRT → FFmpeg
+3. **`src/lib/videoSubtitles.ts`** — simplify:
+   - `burnSubtitlesServer()` — calls edge function, polls for completion
+   - Remove all n8n references and comments
+   - `burnSubtitlesBrowser()` — unchanged but with better error surfacing
 
-### Что сделано
+4. **`src/components/videos/VideoSidePanel.tsx`** — update flow:
+   - Try server (edge function) first
+   - If server fails, try browser FFmpeg with 30s timeout
+   - If browser fails, offer SRT/ASS download
+   - Add polling mechanism to check when server processing is done
 
-1. **БД миграция** — добавлено поле `word_timestamps jsonb` в таблицу `videos`
+### Constraints
 
-2. **Edge Functions** — обновлены оба voiceover-генератора:
-   - `supabase/functions/generate-voiceover-for-video/index.ts` → endpoint `/with-timestamps`
-   - `supabase/functions/generate-voiceover/index.ts` → endpoint `/with-timestamps`
-   - Ответ содержит `audio_base64` + `alignment` (character-level timestamps)
-   - Функция `buildWordTimestamps()` собирает word-level timestamps из character-level
-   - Timestamps сохраняются в `videos.word_timestamps`
+- Edge functions have ~150s timeout and ~256MB memory
+- For 1-3 min videos (~30-100MB), this should work with `-preset ultrafast`
+- FFmpeg WASM in Deno: uses `npm:@ffmpeg/ffmpeg` with Deno compatibility
+- If edge function hits limits, browser fallback kicks in automatically
 
-3. **`src/lib/srtGenerator.ts`** — генерация субтитров:
-   - `generateSrt()` — SRT формат (группировка по N слов)
-   - `generateAss()` — ASS формат (со стилями: шрифт, размер, цвет, обводка)
-   - `generateSrtBlocks()` — промежуточная структура
+### Config
 
-4. **`src/lib/videoSubtitles.ts`** — вшивание субтитров через ffmpeg.wasm:
-   - `burnSubtitles(videoUrl, timestamps, options, onProgress)` → File
-   - Использует ASS-фильтр для стилизованных субтитров
-   - Видео перекодируется libx264 (preset fast, crf 23), аудио копируется
+- Add `[functions.burn-subtitles] verify_jwt = false` to config.toml
+- No new secrets needed — uses existing `SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY`
 
-5. **UI** — кнопка «Добавить субтитры» в `VideoSidePanel`:
-   - Появляется когда есть `heygen_video_url` и `word_timestamps`
-   - Показывает прогресс через Progress bar
-   - Результат загружается в Storage и сохраняется в `video_path`
