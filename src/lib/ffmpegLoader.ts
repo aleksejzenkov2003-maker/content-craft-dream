@@ -5,8 +5,8 @@ let ffmpeg: FFmpeg | null = null;
 let loadingPromise: Promise<void> | null = null;
 
 const CORE_CDN_BASES = [
-  'https://unpkg.com/@ffmpeg/core@0.12.6/dist/umd',
-  'https://cdn.jsdelivr.net/npm/@ffmpeg/core@0.12.6/dist/umd',
+  'https://unpkg.com/@ffmpeg/core@0.12.6/dist/esm',
+  'https://cdn.jsdelivr.net/npm/@ffmpeg/core@0.12.6/dist/esm',
 ];
 
 // The @ffmpeg/ffmpeg library's own worker file (NOT the core worker)
@@ -52,21 +52,16 @@ async function tryLoadFromCDN(
   onProgress?.(12);
   signal?.throwIfAborted();
 
-  // UMD core also needs explicit workerURL when coreURL is blob:.
-  // Without this, ffmpeg-core.worker.js may resolve to undefined and load() hangs.
-  const workerURL = await toBlobURL(`${coreBaseURL}/ffmpeg-core.worker.js`, 'text/javascript');
-  onProgress?.(13);
-  signal?.throwIfAborted();
-
-  // IMPORTANT: do NOT blobify class worker.
-  // worker.js contains relative ESM imports; direct CDN URL preserves resolution.
+  // IMPORTANT: class worker must stay as real URL (not blob),
+  // because it imports ./const.js and ./errors.js relatively.
   const classWorkerURL = classWorkerUrl;
   onProgress?.(14);
+  signal?.throwIfAborted();
 
-  console.log('[ffmpegLoader] Loading with workerURL + classWorkerURL…');
+  console.log('[ffmpegLoader] Loading with ESM core + classWorkerURL…');
 
   // Wrap instance.load with a hard timeout
-  const loadPromise = instance.load({ coreURL, wasmURL, workerURL, classWorkerURL });
+  const loadPromise = instance.load({ coreURL, wasmURL, classWorkerURL });
   const timeoutPromise = new Promise<never>((_, reject) => {
     const id = globalThis.setTimeout(
       () => reject(new Error('FFmpeg load() зависла — таймаут 30с')),
