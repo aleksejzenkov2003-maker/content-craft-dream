@@ -127,8 +127,7 @@ async function loadFFmpegCore(
 
       try {
         controller.signal.throwIfAborted();
-        // UMD build has no separate worker file — only pass coreURL + wasmURL
-        await instance.load({ coreURL, wasmURL });
+        await instance.load({ coreURL, wasmURL, workerURL });
       } finally {
         clearInterval(heartbeatTimer);
       }
