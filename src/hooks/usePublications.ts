@@ -75,6 +75,7 @@ export function usePublications(filters?: PublicationFilters) {
             advisor_answer,
             voiceover_url,
             heygen_video_url,
+            video_path,
             advisor:advisors (id, name, display_name)
           ),
           channel:publishing_channels (id, name, network_type, post_text_prompt, back_cover_video_url)
