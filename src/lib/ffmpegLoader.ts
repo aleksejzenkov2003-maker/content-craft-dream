@@ -52,9 +52,26 @@ async function tryLoadFromCDN(
   onProgress?.(12);
   signal?.throwIfAborted();
 
-  // IMPORTANT: class worker must stay as real URL (not blob),
-  // because it imports ./const.js and ./errors.js relatively.
-  const classWorkerURL = classWorkerUrl;
+  // Fetch worker.js source, rewrite relative imports to absolute CDN URLs,
+  // then create a blob URL (same-origin, no SecurityError).
+  const workerBaseURL = classWorkerUrl.substring(0, classWorkerUrl.lastIndexOf('/'));
+  const workerResponse = await fetch(classWorkerUrl);
+  if (!workerResponse.ok) throw new Error(`Failed to fetch worker.js: ${workerResponse.status}`);
+  let workerSource = await workerResponse.text();
+
+  // Rewrite relative imports like './const.js' → absolute CDN URLs
+  workerSource = workerSource.replace(
+    /from\s+["']\.\/([^"']+)["']/g,
+    `from "${workerBaseURL}/$1"`
+  );
+  workerSource = workerSource.replace(
+    /import\s+["']\.\/([^"']+)["']/g,
+    `import "${workerBaseURL}/$1"`
+  );
+
+  const classWorkerURL = URL.createObjectURL(
+    new Blob([workerSource], { type: 'text/javascript' })
+  );
   onProgress?.(14);
   signal?.throwIfAborted();
 
