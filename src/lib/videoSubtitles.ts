@@ -1,4 +1,4 @@
-import { generateAss, generateSrt, type WordTimestamp } from './srtGenerator';
+import { generateAss, generateSrt, generateSmartBlocks, type WordTimestamp } from './srtGenerator';
 import { getSharedFFmpeg, isBrowserFFmpegSupported } from './ffmpegLoader';
 import { supabase } from '@/integrations/supabase/client';
 
@@ -35,9 +35,82 @@ export function getPhaseLabel(phase: SubtitlePhase): string {
   return PHASE_LABELS[phase];
 }
 
+// ── drawtext filter builder ──
+
+interface TimedBlock {
+  startSec: number;
+  endSec: number;
+  text: string;
+}
+
+/**
+ * Parse ASS content (from server) back into timed blocks.
+ */
+function parseAssToBlocks(assContent: string): TimedBlock[] {
+  const blocks: TimedBlock[] = [];
+  const lines = assContent.split('\n');
+  for (const line of lines) {
+    if (!line.startsWith('Dialogue:')) continue;
+    // Dialogue: 0,H:MM:SS.cs,H:MM:SS.cs,Default,,0,0,0,,Text
+    const parts = line.split(',');
+    if (parts.length < 10) continue;
+    const startStr = parts[1];
+    const endStr = parts[2];
+    const text = parts.slice(9).join(',').trim();
+    if (!text) continue;
+    blocks.push({
+      startSec: parseAssTime(startStr),
+      endSec: parseAssTime(endStr),
+      text,
+    });
+  }
+  return blocks;
+}
+
+function parseAssTime(str: string): number {
+  // H:MM:SS.cs
+  const m = str.trim().match(/^(\d+):(\d{2}):(\d{2})\.(\d{2})$/);
+  if (!m) return 0;
+  return parseInt(m[1]) * 3600 + parseInt(m[2]) * 60 + parseInt(m[3]) + parseInt(m[4]) / 100;
+}
+
+/**
+ * Escape text for FFmpeg drawtext filter.
+ */
+function escapeDrawtext(text: string): string {
+  return text
+    .replace(/\\/g, '\\\\\\\\')
+    .replace(/'/g, "'\\\\\\''")
+    .replace(/:/g, '\\:')
+    .replace(/;/g, '\\;')
+    .replace(/%/g, '%%')
+    .replace(/\[/g, '\\[')
+    .replace(/\]/g, '\\]');
+}
+
+/**
+ * Build a drawtext filter chain from timed blocks.
+ * Uses enable='between(t,start,end)' for each block.
+ */
+function buildDrawtextFilter(
+  blocks: TimedBlock[],
+  fontSize = 48,
+  marginV = 80,
+): string {
+  if (blocks.length === 0) return 'null';
+
+  const filters = blocks.map((b) => {
+    const escapedText = escapeDrawtext(b.text);
+    return `drawtext=text='${escapedText}':fontsize=${fontSize}:fontcolor=white:borderw=2:bordercolor=black:x=(w-text_w)/2:y=h-${marginV}-text_h:enable='between(t,${b.startSec.toFixed(3)},${b.endSec.toFixed(3)})'`;
+  });
+
+  return filters.join(',');
+}
+
+// ── Server preparation ──
+
 /**
  * Calls edge function to get ASS content + validated video URL from DB.
- * Returns data needed for browser-side FFmpeg processing.
  */
 export async function prepareSubtitlesServer(
   videoId: string,
@@ -55,8 +128,10 @@ export async function prepareSubtitlesServer(
   };
 }
 
+// ── Hybrid pipeline ──
+
 /**
- * Full pipeline: server prepares ASS → browser burns with FFmpeg → uploads result.
+ * Full pipeline: server prepares ASS → browser burns with FFmpeg drawtext → uploads result.
  */
 export async function burnSubtitlesHybrid(
   videoId: string,
@@ -70,6 +145,11 @@ export async function burnSubtitlesHybrid(
 
   signal?.throwIfAborted();
 
+  // Parse ASS into timed blocks for drawtext
+  const blocks = parseAssToBlocks(assContent);
+  if (blocks.length === 0) throw new Error('No subtitle blocks found');
+  console.log(`[subtitles] Parsed ${blocks.length} subtitle blocks`);
+
   // Step 2: Load FFmpeg in browser
   onProgress?.({ phase: 'loading_ffmpeg', progress: 12 });
   const ff = await getSharedFFmpeg(
@@ -81,7 +161,6 @@ export async function burnSubtitlesHybrid(
 
   const uid = Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
   const inputName = `in_${uid}.mp4`;
-  const subsName = `subs_${uid}.ass`;
   const outputName = `out_${uid}.mp4`;
 
   const progressHandler = ({ progress }: { progress: number }) => {
@@ -101,20 +180,26 @@ export async function burnSubtitlesHybrid(
 
     signal?.throwIfAborted();
 
-    // Step 4: Burn subtitles
+    // Step 4: Burn subtitles with drawtext filter
     await ff.writeFile(inputName, new Uint8Array(videoBuffer));
-    await ff.writeFile(subsName, new TextEncoder().encode(assContent));
     onProgress?.({ phase: 'burning_subtitles', progress: 40 });
 
-    await ff.exec([
+    const vf = buildDrawtextFilter(blocks);
+    console.log(`[subtitles] drawtext filter length: ${vf.length} chars`);
+
+    const exitCode = await ff.exec([
       '-i', inputName,
-      '-vf', `ass=${subsName}`,
+      '-vf', vf,
       '-c:a', 'copy',
       '-c:v', 'libx264',
       '-preset', 'fast',
       '-crf', '23',
       '-y', outputName,
     ]);
+
+    if (exitCode !== 0) {
+      throw new Error(`FFmpeg exited with code ${exitCode}`);
+    }
 
     signal?.throwIfAborted();
 
@@ -138,10 +223,11 @@ export async function burnSubtitlesHybrid(
   } finally {
     (ff as unknown as { off?: (event: string, cb: unknown) => void }).off?.('progress', progressHandler);
     await ff.deleteFile(inputName).catch(() => undefined);
-    await ff.deleteFile(subsName).catch(() => undefined);
     await ff.deleteFile(outputName).catch(() => undefined);
   }
 }
+
+// ── Browser-only pipeline ──
 
 /**
  * Tier 2: Browser-only subtitle burning (no server call).
@@ -159,7 +245,6 @@ export async function burnSubtitlesBrowser(
 
   const uid = Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
   const inputName = `in_${uid}.mp4`;
-  const subsName = `subs_${uid}.ass`;
   const outputName = `out_${uid}.mp4`;
 
   signal?.throwIfAborted();
@@ -182,15 +267,15 @@ export async function burnSubtitlesBrowser(
   try {
     onProgress?.({ phase: 'downloading_video', progress: 22 });
 
-    const assContent = generateAss(wordTimestamps, {
-      useSmartBlocks: true,
-      fontName: options.fontName ?? 'Montserrat',
-      fontSize: options.fontSize ?? 48,
-      primaryColor: options.primaryColor ?? '&H00FFFFFF',
-      outlineColor: options.outlineColor ?? '&H00000000',
-      outline: options.outline ?? 1,
-      marginV: options.marginV ?? 80,
-    });
+    // Build timed blocks from word timestamps
+    const srtBlocks = generateSmartBlocks(wordTimestamps);
+    const blocks: TimedBlock[] = srtBlocks.map(b => ({
+      startSec: b.startSec,
+      endSec: b.endSec,
+      text: b.text,
+    }));
+
+    if (blocks.length === 0) throw new Error('No subtitle blocks generated');
 
     signal?.throwIfAborted();
 
@@ -203,19 +288,28 @@ export async function burnSubtitlesBrowser(
     signal?.throwIfAborted();
 
     await ff.writeFile(inputName, new Uint8Array(videoBuffer));
-    await ff.writeFile(subsName, new TextEncoder().encode(assContent));
 
     onProgress?.({ phase: 'burning_subtitles', progress: 40 });
 
-    await ff.exec([
+    const vf = buildDrawtextFilter(
+      blocks,
+      options.fontSize ?? 48,
+      options.marginV ?? 80,
+    );
+
+    const exitCode = await ff.exec([
       '-i', inputName,
-      '-vf', `ass=${subsName}`,
+      '-vf', vf,
       '-c:a', 'copy',
       '-c:v', 'libx264',
       '-preset', 'fast',
       '-crf', '23',
       '-y', outputName,
     ]);
+
+    if (exitCode !== 0) {
+      throw new Error(`FFmpeg exited with code ${exitCode}`);
+    }
 
     signal?.throwIfAborted();
     onProgress?.({ phase: 'uploading_result', progress: 92 });
@@ -229,10 +323,11 @@ export async function burnSubtitlesBrowser(
   } finally {
     (ff as unknown as { off?: (event: string, cb: unknown) => void }).off?.('progress', progressHandler);
     await ff.deleteFile(inputName).catch(() => undefined);
-    await ff.deleteFile(subsName).catch(() => undefined);
     await ff.deleteFile(outputName).catch(() => undefined);
   }
 }
+
+// ── Fallback: download subtitle file ──
 
 /**
  * Tier 3: Download SRT/ASS file as fallback.
