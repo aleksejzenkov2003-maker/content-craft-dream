@@ -52,17 +52,21 @@ async function tryLoadFromCDN(
   onProgress?.(12);
   signal?.throwIfAborted();
 
-  // IMPORTANT: do NOT blobify class worker.
-  // worker.js contains relative ESM imports, and blob: URL breaks that resolution,
-  // causing FFmpeg load() to hang and eventually hit timeout.
-  const classWorkerURL = classWorkerUrl;
-  onProgress?.(14);
+  // UMD core also needs explicit workerURL when coreURL is blob:.
+  // Without this, ffmpeg-core.worker.js may resolve to undefined and load() hangs.
+  const workerURL = await toBlobURL(`${coreBaseURL}/ffmpeg-core.worker.js`, 'text/javascript');
+  onProgress?.(13);
   signal?.throwIfAborted();
 
-  console.log('[ffmpegLoader] Loading with classWorkerURL…');
+  // IMPORTANT: do NOT blobify class worker.
+  // worker.js contains relative ESM imports; direct CDN URL preserves resolution.
+  const classWorkerURL = classWorkerUrl;
+  onProgress?.(14);
+
+  console.log('[ffmpegLoader] Loading with workerURL + classWorkerURL…');
 
   // Wrap instance.load with a hard timeout
-  const loadPromise = instance.load({ coreURL, wasmURL, classWorkerURL });
+  const loadPromise = instance.load({ coreURL, wasmURL, workerURL, classWorkerURL });
   const timeoutPromise = new Promise<never>((_, reject) => {
     const id = globalThis.setTimeout(
       () => reject(new Error('FFmpeg load() зависла — таймаут 30с')),
