@@ -21,21 +21,17 @@ function revokeBlobUrls() {
 
 function createLinkedAbortController(signal?: AbortSignal) {
   const controller = new AbortController();
-
-  if (!signal) {
-    return { controller, cleanup: () => undefined };
-  }
+  if (!signal) return { controller, cleanup: () => undefined };
 
   const forwardAbort = () => controller.abort(signal.reason);
   signal.addEventListener('abort', forwardAbort, { once: true });
-
   return {
     controller,
     cleanup: () => signal.removeEventListener('abort', forwardAbort),
   };
 }
 
-async function fetchWithProgress(
+async function fetchToBlobUrl(
   url: string,
   onProgress?: (loaded: number, total: number) => void,
   signal?: AbortSignal
@@ -44,28 +40,33 @@ async function fetchWithProgress(
   if (!response.ok) throw new Error(`HTTP ${response.status} for ${url}`);
 
   const contentLength = Number(response.headers.get('content-length') || 0);
-  const reader = response.body?.getReader();
 
-  if (!reader || !contentLength) {
-    const blob = await response.blob();
+  // Stream with progress when possible
+  if (contentLength && response.body) {
+    const reader = response.body.getReader();
+    const chunks: Uint8Array[] = [];
+    let loaded = 0;
+
+    while (true) {
+      signal?.throwIfAborted();
+      const { done, value } = await reader.read();
+      if (done) break;
+      chunks.push(value);
+      loaded += value.length;
+      onProgress?.(loaded, contentLength);
+    }
+
+    const blob = new Blob(chunks as unknown as BlobPart[], {
+      type: url.endsWith('.wasm') ? 'application/wasm' : 'text/javascript',
+    });
     const blobUrl = URL.createObjectURL(blob);
     blobUrls.push(blobUrl);
     return blobUrl;
   }
 
-  const chunks: Uint8Array[] = [];
-  let loaded = 0;
-
-  while (true) {
-    signal?.throwIfAborted();
-    const { done, value } = await reader.read();
-    if (done) break;
-    chunks.push(value);
-    loaded += value.length;
-    onProgress?.(loaded, contentLength);
-  }
-
-  const blob = new Blob(chunks as unknown as BlobPart[], {
+  // Fallback: arrayBuffer (avoids "body stream is locked" errors)
+  const buf = await response.arrayBuffer();
+  const blob = new Blob([buf], {
     type: url.endsWith('.wasm') ? 'application/wasm' : 'text/javascript',
   });
   const blobUrl = URL.createObjectURL(blob);
@@ -82,7 +83,7 @@ async function loadFFmpegCore(
 
   for (const baseURL of FF_CORE_CANDIDATES) {
     const { controller, cleanup } = createLinkedAbortController(signal);
-    const timeoutId = setTimeout(() => {
+    const timeoutId = globalThis.setTimeout(() => {
       controller.abort(new Error(`Timeout loading FFmpeg core from ${baseURL}`));
     }, CDN_ATTEMPT_TIMEOUT_MS);
 
@@ -90,12 +91,12 @@ async function loadFFmpegCore(
       controller.signal.throwIfAborted();
       onProgress?.(2);
 
-      const coreURL = await fetchWithProgress(`${baseURL}/ffmpeg-core.js`, undefined, controller.signal);
+      const coreURL = await fetchToBlobUrl(`${baseURL}/ffmpeg-core.js`, undefined, controller.signal);
 
       onProgress?.(4);
       controller.signal.throwIfAborted();
 
-      const wasmURL = await fetchWithProgress(
+      const wasmURL = await fetchToBlobUrl(
         `${baseURL}/ffmpeg-core.wasm`,
         (loaded, total) => {
           const pct = 4 + Math.round((loaded / total) * 10); // 4-14%
@@ -103,8 +104,6 @@ async function loadFFmpegCore(
         },
         controller.signal,
       );
-
-      const workerURL = await fetchWithProgress(`${baseURL}/ffmpeg-core.worker.js`, undefined, controller.signal);
 
       onProgress?.(14);
 
@@ -119,7 +118,8 @@ async function loadFFmpegCore(
 
       try {
         controller.signal.throwIfAborted();
-        await instance.load({ coreURL, wasmURL, workerURL });
+        // UMD build has no separate worker file — only pass coreURL + wasmURL
+        await instance.load({ coreURL, wasmURL });
       } finally {
         clearInterval(heartbeatTimer);
       }
@@ -166,7 +166,6 @@ export async function getSharedFFmpeg(
       onProgress?.(20);
       return ffmpeg;
     }
-    // Previous load failed, fall through
   }
 
   ffmpeg = new FFmpeg();
@@ -175,7 +174,7 @@ export async function getSharedFFmpeg(
   loadingPromise = loadFFmpegCore(ffmpeg, onProgress, signal);
 
   const timeout = new Promise<never>((_, reject) => {
-    setTimeout(
+    globalThis.setTimeout(
       () => reject(new Error('FFmpeg долго загружается (180 с). Проверьте интернет и попробуйте снова.')),
       LOAD_TIMEOUT_MS
     );
@@ -196,4 +195,3 @@ export async function getSharedFFmpeg(
 export function preloadFFmpeg(): void {
   getSharedFFmpeg().catch(() => { /* silent */ });
 }
-
