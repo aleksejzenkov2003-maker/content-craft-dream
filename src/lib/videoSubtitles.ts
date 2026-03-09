@@ -339,7 +339,6 @@ export async function burnSubtitlesBrowser(
     (ff as unknown as { off?: (event: string, cb: unknown) => void }).off?.('progress', progressHandler);
     await ff.deleteFile(inputName).catch(() => undefined);
     await ff.deleteFile(outputName).catch(() => undefined);
-    await ff.deleteFile(filterName).catch(() => undefined);
     await ff.deleteFile(FONT_PATH).catch(() => undefined);
   }
 }
