@@ -666,11 +666,11 @@ const minuteOptions = [0, 5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55];
                       key={pub.id}
                       className={cn(
                         selectedIds.has(pub.id) && 'bg-primary/5',
-                        'cursor-pointer hover:bg-muted/50'
+                        'cursor-pointer hover:bg-muted/50 h-10'
                       )}
                       onClick={() => setEditingPublication(pub)}
                     >
-                      <TableCell onClick={(e) => e.stopPropagation()}>
+                      <TableCell className="py-1" onClick={(e) => e.stopPropagation()}>
                         <Checkbox
                           checked={selectedIds.has(pub.id)}
                           onCheckedChange={(checked) => handleSelectOne(pub.id, !!checked)}
