@@ -11,7 +11,7 @@ import { Advisor } from '@/hooks/useAdvisors';
 import { PublishingChannel } from '@/hooks/usePublishingChannels';
 import {
   Loader2, ChevronLeft, ChevronRight, Link as LinkIcon,
-  Image as ImageIcon, Play, Check, Trash2,
+  Image as ImageIcon, Play, Check, Trash2, Copy,
   Sun, Layers, Volume2, MessageSquare, Subtitles, X, ExternalLink, RefreshCw,
 } from 'lucide-react';
 import { Checkbox } from '@/components/ui/checkbox';
