@@ -7,7 +7,8 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Calendar } from '@/components/ui/calendar';
-import { Search, Loader2, FileSpreadsheet, Trash2, Check, ArrowUpDown, ArrowUp, ArrowDown, CalendarIcon, Clock, Settings2 } from 'lucide-react';
+import { Search, Loader2, FileSpreadsheet, Trash2, Check, ArrowUpDown, ArrowUp, ArrowDown, CalendarIcon, Clock, Settings2, Play } from 'lucide-react';
+import { DropdownMenuSeparator } from '@/components/ui/dropdown-menu';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { Video as VideoType } from '@/hooks/useVideos';
 import { Publication } from '@/hooks/usePublications';
@@ -59,6 +60,7 @@ interface QuestionsTableProps {
   advisors?: AdvisorLookup[];
   onBulkUpdateStatus?: (uniqueKeys: string[], status: string) => Promise<void>;
   onBulkUpdateDate?: (uniqueKeys: string[], date: string) => Promise<void>;
+  onStartProduction?: (uniqueKeys: string[]) => Promise<void>;
 }
 
 interface QuestionData {
@@ -109,6 +111,7 @@ export function QuestionsTable({
   advisors = [],
   onBulkUpdateStatus,
   onBulkUpdateDate,
+  onStartProduction,
 }: QuestionsTableProps) {
   const [searchInput, setSearchInput] = useState('');
   const [showImporter, setShowImporter] = useState(false);
@@ -310,16 +313,89 @@ export function QuestionsTable({
     );
   };
 
-  const handleSaveQuestion = (uniqueKey: string, updates: { question?: string; question_eng?: string; safety_score?: string; publication_date?: string; question_status?: string; playlist_id?: string }) => {
-    // Validate: can't set "in_progress" without a planned date
+  const handleSaveQuestion = async (uniqueKey: string, updates: { question?: string; question_eng?: string; safety_score?: string; publication_date?: string; question_status?: string; playlist_id?: string }) => {
+    // Validate: can't set "in_progress" without a planned date, playlist, and ready scene
     if (updates.question_status === 'in_progress') {
       const question = questions.find(q => q.unique_key === uniqueKey);
       if (!question?.planned_date && !updates.publication_date) {
         toast.error('Сначала укажите плановую дату публикации');
         return;
       }
+      if (!question?.playlist_id && !updates.playlist_id) {
+        toast.error('Сначала назначьте плейлист');
+        return;
+      }
+      // Check scene readiness
+      const playlistId = updates.playlist_id || question?.playlist_id;
+      if (playlistId) {
+        const { data: scenes } = await supabase
+          .from('playlist_scenes')
+          .select('id')
+          .eq('playlist_id', playlistId)
+          .not('scene_url', 'is', null)
+          .limit(1);
+        if (!scenes || scenes.length === 0) {
+          toast.error('Нет готовой сцены для плейлиста');
+          return;
+        }
+      }
     }
     onUpdateQuestion?.(uniqueKey, updates);
+  };
+
+  const handleStartProduction = async () => {
+    if (bulkDeleteIds.length === 0) return;
+    
+    // Validate all selected questions
+    const errors: string[] = [];
+    for (const key of bulkDeleteIds) {
+      const q = questions.find(q => q.unique_key === key);
+      if (!q) continue;
+      if (!q.planned_date) {
+        errors.push(`Вопрос ${q.question_id}: нет плановой даты`);
+      }
+      if (!q.playlist_id) {
+        errors.push(`Вопрос ${q.question_id}: не назначен плейлист`);
+      }
+    }
+    
+    if (errors.length > 0) {
+      toast.error(errors.slice(0, 3).join('\n'), { duration: 5000 });
+      return;
+    }
+    
+    // Check scenes for all unique playlists
+    const playlistIds = [...new Set(bulkDeleteIds.map(k => questions.find(q => q.unique_key === k)?.playlist_id).filter(Boolean))] as string[];
+    for (const plId of playlistIds) {
+      const { data: scenes } = await supabase
+        .from('playlist_scenes')
+        .select('id')
+        .eq('playlist_id', plId)
+        .not('scene_url', 'is', null)
+        .limit(1);
+      if (!scenes || scenes.length === 0) {
+        const pl = playlists.find(p => p.id === plId);
+        toast.error(`Нет готовой сцены для плейлиста "${pl?.name || plId}"`);
+        return;
+      }
+    }
+    
+    // Update status to in_progress
+    setIsBulkUpdating(true);
+    try {
+      if (onBulkUpdateStatus) {
+        await onBulkUpdateStatus(bulkDeleteIds, 'in_progress');
+      }
+      if (onStartProduction) {
+        await onStartProduction(bulkDeleteIds);
+      }
+      toast.success(`${bulkDeleteIds.length} вопрос(ов) взято в работу`);
+      setBulkDeleteIds([]);
+    } catch (e) {
+      toast.error('Ошибка запуска производства');
+    } finally {
+      setIsBulkUpdating(false);
+    }
   };
 
   const handleDeleteQuestion = async () => {
@@ -354,7 +430,7 @@ export function QuestionsTable({
   const handleBulkStatusUpdate = async () => {
     if (!onBulkUpdateStatus || !bulkActionValue) return;
     
-    // Validate: can't bulk set "in_progress" if any selected question has no date
+    // Validate: can't bulk set "in_progress" if any selected question has no date or playlist
     if (bulkActionValue === 'in_progress') {
       const withoutDate = bulkDeleteIds.filter(key => {
         const q = questions.find(q => q.unique_key === key);
@@ -362,6 +438,14 @@ export function QuestionsTable({
       });
       if (withoutDate.length > 0) {
         toast.error(`${withoutDate.length} вопрос(ов) без плановой даты. Сначала укажите дату.`);
+        return;
+      }
+      const withoutPlaylist = bulkDeleteIds.filter(key => {
+        const q = questions.find(q => q.unique_key === key);
+        return !q?.playlist_id;
+      });
+      if (withoutPlaylist.length > 0) {
+        toast.error(`${withoutPlaylist.length} вопрос(ов) без плейлиста. Сначала назначьте плейлист.`);
         return;
       }
     }
@@ -460,10 +544,6 @@ export function QuestionsTable({
               className="h-7 w-40 pl-7 text-xs"
             />
           </div>
-          <Button variant="outline" size="sm" onClick={() => setShowImporter(true)}>
-            <FileSpreadsheet className="w-3 h-3 mr-1" />
-            Импорт
-          </Button>
           <QuestionFilters filters={filters} onFiltersChange={setFilters} />
 
           {/* Gear dropdown for bulk actions */}
@@ -479,12 +559,30 @@ export function QuestionsTable({
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
+              {/* Import — always available */}
+              <DropdownMenuItem onClick={() => setShowImporter(true)}>
+                <FileSpreadsheet className="w-3.5 h-3.5 mr-2" />
+                Импорт
+              </DropdownMenuItem>
+              
+              <DropdownMenuSeparator />
+              
               {bulkDeleteIds.length > 0 && (
                 <div className="px-2 py-1.5 text-xs text-muted-foreground border-b mb-1">
                   Выбрано: {bulkDeleteIds.length} из {tabFilteredQuestions.length}
                   <button className="ml-2 text-primary hover:underline" onClick={() => setBulkDeleteIds([])}>Сбросить</button>
                 </div>
               )}
+              
+              {/* Взять в работу */}
+              <DropdownMenuItem
+                disabled={bulkDeleteIds.length === 0 || isBulkUpdating}
+                onClick={handleStartProduction}
+              >
+                <Play className="w-3.5 h-3.5 mr-2" />
+                Взять в работу
+              </DropdownMenuItem>
+              
               {onBulkUpdateDate && (
                 <DropdownMenuItem
                   disabled={bulkDeleteIds.length === 0}

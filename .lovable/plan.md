@@ -1,74 +1,57 @@
 
 
-## Changes Overview
+## Решение: бинарная MP4-конкатенация + нормализация аудио через ffmpeg.wasm
 
-Four modifications to the Questions block:
+### Что сделано
 
-1. **Add "Взять в работу" button to the gear dropdown menu**
-2. **Move "Импорт" button into the gear dropdown menu** (remove standalone button)
-3. **Validate scene readiness + planned date before allowing "Взят в работу" status**
-4. **Expand `triggerAutoGeneration` to include voiceover + atmosphere generation steps**
+1. **`supabase/functions/concat-video/index.ts`** — полная перезапись:
+   - Бинарный MP4-парсер: разбор боксов (moov/trak/stbl/stsz/stco/stsc/stts/stss/ctts)
+   - Извлечение сэмплов из обоих файлов, сборка нового mdat
+   - Объединение sample tables, пересчёт оффсетов, обновление duration
+   - Сохранение логики получения свежих HeyGen URL
+   - Загрузка результата в Storage
+
+2. **`src/lib/videoNormalizer.ts`** — утилита нормализации аудио через ffmpeg.wasm:
+   - Загружает ffmpeg WASM при первом использовании
+   - Перекодирует аудио в AAC-LC 48kHz mono 128kbps: `-c:v copy -c:a aac -ar 48000 -ac 1 -b:a 128k`
+   - Видео-поток копируется без потерь
+
+3. **`src/components/covers/BackCoversGrid.tsx`** — интеграция нормализации:
+   - При загрузке видео-обложки автоматически нормализует аудио через ffmpeg.wasm
+   - Показывает прогресс нормализации
+   - Загружает нормализованный файл в Storage
+   - Fallback на оригинал при ошибке
+
+### Зависимости
+- `@ffmpeg/ffmpeg@0.12.10`
+- `@ffmpeg/util@0.12.1`
 
 ---
 
-## Technical Plan
+## Субтитры: ElevenLabs timestamps → SRT → FFmpeg
 
-### File: `src/components/questions/QuestionsTable.tsx`
+### Что сделано
 
-**A) Gear dropdown — add "Взять в работу" + move "Импорт"**
+1. **БД миграция** — добавлено поле `word_timestamps jsonb` в таблицу `videos`
 
-- Remove the standalone `<Button>` for Import from the toolbar
-- Add `<DropdownMenuItem>` "Импорт" at the top of the gear dropdown (no selection required)
-- Add `<DropdownMenuItem>` "Взять в работу" (requires selection, calls `onBulkUpdateStatus` with `'in_progress'`)
+2. **Edge Functions** — обновлены оба voiceover-генератора:
+   - `supabase/functions/generate-voiceover-for-video/index.ts` → endpoint `/with-timestamps`
+   - `supabase/functions/generate-voiceover/index.ts` → endpoint `/with-timestamps`
+   - Ответ содержит `audio_base64` + `alignment` (character-level timestamps)
+   - Функция `buildWordTimestamps()` собирает word-level timestamps из character-level
+   - Timestamps сохраняются в `videos.word_timestamps`
 
-**B) Add new prop `onStartProduction` for triggering the full pipeline**
+3. **`src/lib/srtGenerator.ts`** — генерация субтитров:
+   - `generateSrt()` — SRT формат (группировка по N слов)
+   - `generateAss()` — ASS формат (со стилями: шрифт, размер, цвет, обводка)
+   - `generateSrtBlocks()` — промежуточная структура
 
-- New optional prop: `onStartProduction?: (uniqueKeys: string[]) => Promise<void>`
-- The "Взять в работу" menu item will:
-  1. Validate each selected question has a `planned_date` — show error if missing
-  2. Validate each selected question has a `playlist_id` — show error "Сначала назначьте плейлист" if missing
-  3. Check scenes exist for each playlist via a Supabase query to `playlist_scenes` table (status = approved/ready and scene_url is not null)
-  4. If validation passes, call `onBulkUpdateStatus` then `onStartProduction`
+4. **`src/lib/videoSubtitles.ts`** — вшивание субтитров через ffmpeg.wasm:
+   - `burnSubtitles(videoUrl, timestamps, options, onProgress)` → File
+   - Использует ASS-фильтр для стилизованных субтитров
+   - Видео перекодируется libx264 (preset fast, crf 23), аудио копируется
 
-**C) Update inline status change validation (`handleSaveQuestion`)**
-
-- When setting `question_status` to `'in_progress'`, also check `playlist_id` and scene readiness
-- Show specific error messages: "Не назначен плейлист" or "Нет готовой сцены для плейлиста"
-
-### File: `src/pages/Index.tsx`
-
-**D) Expand `triggerAutoGeneration`**
-
-Current logic only generates covers and HeyGen videos. Add these steps before cover generation:
-
-1. **Voiceover (ElevenLabs)** — for each video without `voiceover_url` and not `generating`:
-   ```
-   invoke generate-voiceover-for-video { videoId }
-   ```
-2. **Atmosphere background (Nano Banana)** — for each video without `atmosphere_url`:
-   ```
-   fetch generate-cover { videoId, step: 'atmosphere' }
-   ```
-3. **Cover overlay** — existing logic (fetch generate-cover with step: 'overlay'), but only after atmosphere is set
-4. Remove direct HeyGen video generation from auto-trigger (it requires voiceover to finish first; polling handles it)
-
-**E) Pass `onStartProduction` prop to `QuestionsTable`**
-
-- Wire it to call `triggerAutoGeneration` for each selected uniqueKey after status update
-
-### Validation Flow
-
-```text
-User clicks "Взять в работу"
-  ├── Check planned_date exists → error if missing
-  ├── Check playlist_id exists → error if missing  
-  ├── Query playlist_scenes for matching playlist_id
-  │   with scene_url IS NOT NULL → error if none found
-  ├── Update status to 'in_progress'
-  └── Trigger auto-generation pipeline:
-       a) Generate voiceover (ElevenLabs)
-       b) Generate atmosphere (Kie.ai)  
-       c) Generate cover overlay (Image Magic)
-       d) HeyGen video (triggered later via polling after voiceover ready)
-```
-
+5. **UI** — кнопка «Добавить субтитры» в `VideoSidePanel`:
+   - Появляется когда есть `heygen_video_url` и `word_timestamps`
+   - Показывает прогресс через Progress bar
+   - Результат загружается в Storage и сохраняется в `video_path`

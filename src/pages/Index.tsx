@@ -453,41 +453,79 @@ export default function Index() {
     const questionId = parseInt(uniqueKey);
     if (isNaN(questionId)) return;
     
-    const questionVideos = allVideos.filter(v => v.question_id === questionId);
+    // Refetch to get latest data
+    const { data: questionVideos } = await supabase
+      .from('videos')
+      .select('*')
+      .eq('question_id', questionId);
     
-    if (questionVideos.length === 0) return;
+    if (!questionVideos || questionVideos.length === 0) return;
     
     // Check if conditions are met: status is in_progress AND has planned date
     const firstVideo = questionVideos[0];
     if (firstVideo.question_status !== 'in_progress' || !firstVideo.publication_date) return;
     
-    // Generate covers for videos that don't have them yet
+    // Step a) Generate voiceover (ElevenLabs) for videos without it
     for (const video of questionVideos) {
-      if (video.cover_status !== 'ready' && video.cover_status !== 'generating') {
-        handleGenerateCover(video).catch(console.error);
-      }
-    }
-    
-    // Generate videos for videos that don't have them yet
-    for (const video of questionVideos) {
-      if (video.generation_status !== 'ready' && video.generation_status !== 'generating') {
+      if (!video.voiceover_url && video.voiceover_status !== 'generating' && video.advisor_answer) {
         try {
-          const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/generate-video-heygen`, {
+          toast.info(`Генерация озвучки для ролика ${video.video_number || video.id.slice(0, 6)}...`);
+          await supabase.from('videos').update({ voiceover_status: 'generating' }).eq('id', video.id);
+          fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/generate-voiceover-for-video`, {
             method: 'POST',
             headers: {
               'Content-Type': 'application/json',
               'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
             },
             body: JSON.stringify({ videoId: video.id }),
-          });
-          if (!response.ok) {
-            console.error('Auto video generation failed for', video.id);
-          }
+          }).catch(e => console.error('Auto voiceover error:', e));
         } catch (e) {
-          console.error('Auto video generation error:', e);
+          console.error('Auto voiceover error:', e);
         }
       }
     }
+    
+    // Step b) Generate atmosphere background (Kie.ai / Nano Banana) for videos without it
+    for (const video of questionVideos) {
+      if (!video.atmosphere_url && video.cover_status !== 'generating') {
+        try {
+          fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/generate-cover`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
+            },
+            body: JSON.stringify({ videoId: video.id, step: 'atmosphere' }),
+          }).then(async () => {
+            // Step c) After atmosphere, generate cover overlay (Image Magic)
+            await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/generate-cover`, {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
+              },
+              body: JSON.stringify({ videoId: video.id, step: 'overlay' }),
+            });
+            refetchVideos();
+          }).catch(e => console.error('Auto atmosphere/cover error:', e));
+        } catch (e) {
+          console.error('Auto atmosphere error:', e);
+        }
+      } else if (video.atmosphere_url && video.cover_status !== 'ready' && video.cover_status !== 'generating') {
+        // Has atmosphere but no cover overlay yet
+        fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/generate-cover`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
+          },
+          body: JSON.stringify({ videoId: video.id, step: 'overlay' }),
+        }).catch(e => console.error('Auto cover error:', e));
+      }
+    }
+    
+    // Note: HeyGen video generation requires voiceover to be ready first
+    // It will be triggered later via polling or manual action
   };
 
   const questions = [...new Set(videos.map(v => v.question).filter(Boolean))];
@@ -910,6 +948,12 @@ export default function Index() {
               }}
               onBulkImport={async (data) => {
                 await bulkImport(data);
+                await Promise.all([refetchAllVideos(), refetchVideos()]);
+              }}
+              onStartProduction={async (uniqueKeys) => {
+                for (const uniqueKey of uniqueKeys) {
+                  await triggerAutoGeneration(uniqueKey);
+                }
                 await Promise.all([refetchAllVideos(), refetchVideos()]);
               }}
             />
