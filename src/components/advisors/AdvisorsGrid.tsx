@@ -352,7 +352,7 @@ export function AdvisorsGrid({
                   {selectedAdvisor.photos && selectedAdvisor.photos.length > 0 && (
                     <div className="grid grid-cols-2 gap-2">
                       <div className="space-y-1">
-                        <Label className="text-xs">Фото для сцены</Label>
+                        <Label className="text-xs">Основное фото</Label>
                         <select
                           className="w-full text-xs border rounded px-2 py-1 bg-background"
                           value={selectedAdvisor.scene_photo_id || ''}
