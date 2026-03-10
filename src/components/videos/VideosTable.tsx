@@ -13,7 +13,6 @@ import {
   HoverCardTrigger,
 } from '@/components/ui/hover-card';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
-import { BulkActionsBar, BulkActionButton } from '@/components/ui/bulk-actions-bar';
 import { VideoFilters, VideoFilterState } from './VideoFilters';
 import { Video } from '@/hooks/useVideos';
 import { Advisor } from '@/hooks/useAdvisors';
@@ -39,7 +38,6 @@ import {
   Image as ImageIcon,
   Video as VideoIcon,
   Send,
-  Download,
   Upload,
   Settings2,
 } from 'lucide-react';
@@ -49,7 +47,6 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import * as XLSX from 'xlsx';
 import { format } from 'date-fns';
 import { toast } from 'sonner';
 import { ru } from 'date-fns/locale';
@@ -87,23 +84,8 @@ interface VideosTableProps {
   onFilterChange: (filters: any) => void;
 }
 
-const coverStatusConfig: Record<string, string> = {
-  pending: 'bg-muted-foreground/30',
-  generating: 'bg-yellow-500',
-  atmosphere_ready: 'bg-amber-500',
-  ready: 'bg-green-500',
-  error: 'bg-red-500',
-};
-
-const videoStatusConfig: Record<string, string> = {
-  pending: 'bg-muted-foreground/30',
-  generating: 'bg-yellow-500',
-  ready: 'bg-green-500',
-  published: 'bg-blue-500',
-  error: 'bg-red-500',
-};
-
-const voiceoverStatusConfig: Record<string, string> = {
+// Unified 4-state status config
+const statusConfig: Record<string, string> = {
   pending: 'bg-muted-foreground/30',
   generating: 'bg-yellow-500',
   ready: 'bg-green-500',
@@ -113,11 +95,18 @@ const voiceoverStatusConfig: Record<string, string> = {
 const statusLabels: Record<string, string> = {
   pending: 'Pending',
   generating: 'In progress',
-  atmosphere_ready: 'Фон готов',
   ready: 'Ready',
-  published: 'Published',
   error: 'Error',
 };
+
+// Resolve effective status: if asset URL exists → ready
+function resolveStatus(dbStatus: string | null, assetUrl: string | null | undefined): string {
+  if (assetUrl) return 'ready';
+  const s = dbStatus || 'pending';
+  if (s === 'atmosphere_ready' || s === 'published') return 'ready';
+  if (statusConfig[s]) return s;
+  return 'pending';
+}
 
 type SortColumn = 'id' | 'advisor' | 'cover_status' | 'video_status' | 'duration' | null;
 type SortDirection = 'asc' | 'desc';
@@ -227,43 +216,36 @@ export function VideosTable({
   const filteredVideos = useMemo(() => {
     let result = videos;
 
-    // Tab filter
     if (activeTab === 'in_progress') {
       result = result.filter(v => v.question_status === 'in_progress');
     } else if (activeTab === 'published') {
       result = result.filter(v => v.question_status === 'published' || v.question_status === 'not_selected');
     }
 
-    // Question filter
     if (filters.questionId !== undefined) {
       result = result.filter(v => v.question_id === filters.questionId);
     }
 
-    // Cover status filter
     if (advancedFilters.coverStatusFilter.length > 0) {
       result = result.filter(v => advancedFilters.coverStatusFilter.includes(v.cover_status || 'pending'));
     }
 
-    // Video status filter
     if (advancedFilters.videoStatusFilter.length > 0) {
       result = result.filter(v => advancedFilters.videoStatusFilter.includes(v.generation_status || 'pending'));
     }
 
-    // Has cover
     if (advancedFilters.hasCover === true) {
       result = result.filter(v => v.front_cover_url || v.cover_url);
     } else if (advancedFilters.hasCover === false) {
       result = result.filter(v => !v.front_cover_url && !v.cover_url);
     }
 
-    // Has video
     if (advancedFilters.hasVideo === true) {
       result = result.filter(v => v.heygen_video_url || v.video_path);
     } else if (advancedFilters.hasVideo === false) {
       result = result.filter(v => !v.heygen_video_url && !v.video_path);
     }
 
-    // Date range
     if (advancedFilters.dateRange.from) {
       result = result.filter(v => new Date(v.created_at) >= advancedFilters.dateRange.from!);
     }
@@ -305,23 +287,20 @@ export function VideosTable({
     });
   }, [filteredVideos, sortColumn, sortDirection]);
 
-  // Group videos by question_id only (not by text, to avoid duplicates)
+  // Group videos by question_id
   const groupedVideos = useMemo(() => {
     return sortedVideos.reduce((acc, video) => {
       const uniqueKey = `${video.question_id ?? 'none'}`;
       if (!acc[uniqueKey]) {
-        // Pick best available question text from first video
         const questionText = video.question_rus || video.question_eng || video.question || 'Без вопроса';
         acc[uniqueKey] = { questionId: video.question_id, questionText, videos: [], plannedDate: video.publication_date };
       } else {
-        // Merge: prefer Russian text if not yet set
         const group = acc[uniqueKey];
         if (video.question_rus && (!group.questionText || group.questionText === (video.question_eng || video.question))) {
           group.questionText = video.question_rus;
         }
       }
       acc[uniqueKey].videos.push(video);
-      // Use earliest date
       if (video.publication_date && (!acc[uniqueKey].plannedDate || video.publication_date < acc[uniqueKey].plannedDate!)) {
         acc[uniqueKey].plannedDate = video.publication_date;
       }
@@ -355,7 +334,6 @@ export function VideosTable({
 
   const clearSelection = () => setSelectedVideoIds(new Set());
 
-  // Get publications for a video
   const getVideoPublications = (videoId: string) => {
     return publications.filter(p => p.video_id === videoId);
   };
@@ -391,38 +369,6 @@ export function VideosTable({
     }
   };
 
-  const handleExportXlsx = () => {
-    const safetyMap: Record<string, string> = {
-      safe: '✅ Безопасно',
-      caution: '⚠️ Осторожно',
-      unsafe: '🚫 Небезопасно',
-    };
-
-    const rows = filteredVideos.map((video) => {
-      const advisorName = video.advisor?.display_name || video.advisor?.name || '';
-      const playlistName = video.playlist?.name || '';
-      return {
-        'ID ролика': video.video_number ?? '',
-        'ID вопроса': video.question_id ?? '',
-        'Духовник': advisorName,
-        'Безопасность вопроса': safetyMap[video.safety_score || ''] || video.safety_score || '',
-        'Актуальность': video.relevance_score ?? '',
-        'Хук': video.hook || '',
-        'Вопрос': video.question || '',
-        'Плейлист': playlistName,
-        'Ответ духовника': video.advisor_answer || '',
-        'Сцены для плейлистов': playlistName && advisorName ? `${playlistName} - ${advisorName}` : '',
-        'Заголовок видео': video.video_title || '',
-        'Промт для ответа': video.answer_prompt || '',
-      };
-    });
-
-    const ws = XLSX.utils.json_to_sheet(rows);
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, 'Ролики');
-    XLSX.writeFile(wb, `Ролики_${format(new Date(), 'yyyy-MM-dd')}.xlsx`);
-  };
-
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
@@ -431,17 +377,19 @@ export function VideosTable({
     );
   }
 
+  const COL_GRID = 'grid-cols-[40px_60px_130px_80px_80px_80px_55px_32px_60px_70px_70px_70px_40px]';
+
   return (
     <div className="flex flex-col h-full">
-      {/* Unified toolbar - matching Questions style */}
+      {/* Toolbar */}
       <div className="flex items-center justify-between px-4 py-2 border-b bg-background">
         <div className="flex items-center gap-2">
-          {/* Compact status tabs */}
+          {/* Tabs */}
           <div className="flex items-center gap-1">
             {[
-              { key: 'in_progress' as const, label: 'Ролики в работе', count: `${tabCounts.in_progress.questions} / ${tabCounts.in_progress.videos}`, activeClass: 'bg-primary/10 text-primary border-primary' },
-              { key: 'published' as const, label: 'Ролики отработанные', count: `${tabCounts.published.questions} / ${tabCounts.published.videos}`, activeClass: 'bg-muted text-foreground border-muted-foreground/40' },
-              { key: 'all' as const, label: 'Все ролики', count: `${tabCounts.all.questions} / ${tabCounts.all.videos}`, activeClass: 'bg-primary/10 text-primary border-primary' },
+              { key: 'in_progress' as const, label: 'В работе', count: `${tabCounts.in_progress.questions}/${tabCounts.in_progress.videos}`, activeClass: 'bg-primary/10 text-primary border-primary' },
+              { key: 'published' as const, label: 'Отработанные', count: `${tabCounts.published.questions}/${tabCounts.published.videos}`, activeClass: 'bg-muted text-foreground border-muted-foreground/40' },
+              { key: 'all' as const, label: 'Все', count: `${tabCounts.all.questions}/${tabCounts.all.videos}`, activeClass: 'bg-primary/10 text-primary border-primary' },
             ].map(tab => (
               <button
                 key={tab.key}
@@ -471,7 +419,7 @@ export function VideosTable({
             </Button>
           )}
 
-          {/* Gear dropdown for bulk actions */}
+          {/* Gear dropdown */}
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button variant="outline" size="sm" className="h-7 w-7 p-0 relative">
@@ -484,62 +432,49 @@ export function VideosTable({
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
+              <DropdownMenuItem onClick={onImportVideos}>
+                <Upload className="w-3.5 h-3.5 mr-2" />
+                Импорт
+              </DropdownMenuItem>
               {selectedVideoIds.size > 0 && (
-                <div className="px-2 py-1.5 text-xs text-muted-foreground border-b mb-1">
-                  Выбрано: {selectedVideoIds.size} из {videos.length}
-                  <button className="ml-2 text-primary hover:underline" onClick={clearSelection}>Сбросить</button>
-                </div>
+                <>
+                  <div className="px-2 py-1.5 text-xs text-muted-foreground border-t mt-1 pt-1.5">
+                    Выбрано: {selectedVideoIds.size}
+                    <button className="ml-2 text-primary hover:underline" onClick={clearSelection}>Сбросить</button>
+                  </div>
+                  <DropdownMenuItem onClick={handleBulkGenerateCovers}>
+                    <ImageIcon className="w-3.5 h-3.5 mr-2" />
+                    Генерация обложек
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={handleBulkGenerateVideos}>
+                    <VideoIcon className="w-3.5 h-3.5 mr-2" />
+                    Генерация видео
+                  </DropdownMenuItem>
+                  <DropdownMenuItem
+                    onClick={() => {
+                      const selected = videos.filter(v => selectedVideoIds.has(v.id));
+                      const withoutDate = selected.filter(v => !v.publication_date);
+                      if (withoutDate.length > 0) {
+                        toast.error(`${withoutDate.length} ролик(ов) без плановой даты`);
+                        return;
+                      }
+                      onBulkPublish?.(Array.from(selectedVideoIds));
+                    }}
+                  >
+                    <Send className="w-3.5 h-3.5 mr-2" />
+                    На публикацию
+                  </DropdownMenuItem>
+                  <DropdownMenuItem
+                    className="text-destructive focus:text-destructive"
+                    onClick={handleBulkDelete}
+                  >
+                    <Trash2 className="w-3.5 h-3.5 mr-2" />
+                    Удалить
+                  </DropdownMenuItem>
+                </>
               )}
-              <DropdownMenuItem
-                disabled={selectedVideoIds.size === 0}
-                onClick={handleBulkGenerateCovers}
-              >
-                <ImageIcon className="w-3.5 h-3.5 mr-2" />
-                Генерация обложек
-              </DropdownMenuItem>
-              <DropdownMenuItem
-                disabled={selectedVideoIds.size === 0}
-                onClick={handleBulkGenerateVideos}
-              >
-                <VideoIcon className="w-3.5 h-3.5 mr-2" />
-                Генерация видео
-              </DropdownMenuItem>
-              <DropdownMenuItem
-                disabled={selectedVideoIds.size === 0}
-                onClick={() => {
-                  const selected = videos.filter(v => selectedVideoIds.has(v.id));
-                  const withoutDate = selected.filter(v => !v.publication_date);
-                  if (withoutDate.length > 0) {
-                    toast.error(`${withoutDate.length} ролик(ов) без плановой даты. Сначала укажите дату.`);
-                    return;
-                  }
-                  onBulkPublish?.(Array.from(selectedVideoIds));
-                }}
-              >
-                <Send className="w-3.5 h-3.5 mr-2" />
-                На публикацию
-              </DropdownMenuItem>
-              <DropdownMenuItem
-                disabled={selectedVideoIds.size === 0}
-                className="text-destructive focus:text-destructive"
-                onClick={handleBulkDelete}
-              >
-                <Trash2 className="w-3.5 h-3.5 mr-2" />
-                Удалить
-              </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
-        </div>
-
-        <div className="flex items-center gap-2">
-          <Button variant="outline" size="sm" className="h-7 text-xs" onClick={onImportVideos}>
-            <Upload className="w-3.5 h-3.5 mr-1" />
-            Импорт
-          </Button>
-          <Button variant="outline" size="sm" className="h-7 text-xs" onClick={handleExportXlsx}>
-            <Download className="w-3.5 h-3.5 mr-1" />
-            Выгрузка
-          </Button>
         </div>
       </div>
 
@@ -558,7 +493,6 @@ export function VideosTable({
                 open={isExpanded(uniqueKey)}
                 onOpenChange={() => toggleQuestion(uniqueKey)}
               >
-                {/* Question Header - new format: #ID, Question, Date */}
                 <CollapsibleTrigger asChild>
                   <div className="flex items-center gap-2 py-2 cursor-pointer hover:bg-muted/30 transition-colors px-2">
                     <Checkbox
@@ -583,58 +517,43 @@ export function VideosTable({
 
                 <CollapsibleContent>
                   {/* Table Header */}
-                  <div className="grid grid-cols-[40px_60px_150px_100px_100px_100px_70px_80px_80px_100px_80px_120px_40px] gap-2 px-4 py-2 text-xs text-muted-foreground bg-muted/20 border-y border-border/30">
+                  <div className={`grid ${COL_GRID} gap-2 px-4 py-2 text-xs text-muted-foreground bg-muted/20 border-y border-border/30`}>
                     <div></div>
-                    <button
-                      onClick={() => handleSort('id')}
-                      className="flex items-center gap-1 hover:text-foreground"
-                    >
+                    <button onClick={() => handleSort('id')} className="flex items-center gap-1 hover:text-foreground">
                       ID {getSortIcon('id')}
                     </button>
-                    <button
-                      onClick={() => handleSort('advisor')}
-                      className="flex items-center gap-1 hover:text-foreground"
-                    >
+                    <button onClick={() => handleSort('advisor')} className="flex items-center gap-1 hover:text-foreground">
                       Духовник {getSortIcon('advisor')}
                     </button>
-                    <button
-                      onClick={() => handleSort('cover_status')}
-                      className="flex items-center gap-1 hover:text-foreground"
-                    >
+                    <button onClick={() => handleSort('cover_status')} className="flex items-center gap-1 hover:text-foreground">
                       Cover {getSortIcon('cover_status')}
                     </button>
                     <div>Озвучка</div>
-                    <button
-                      onClick={() => handleSort('video_status')}
-                      className="flex items-center gap-1 hover:text-foreground"
-                    >
+                    <button onClick={() => handleSort('video_status')} className="flex items-center gap-1 hover:text-foreground">
                       Video {getSortIcon('video_status')}
                     </button>
-                    <button
-                      onClick={() => handleSort('duration')}
-                      className="flex items-center gap-1 hover:text-foreground"
-                    >
+                    <button onClick={() => handleSort('duration')} className="flex items-center gap-1 hover:text-foreground">
                       Длина {getSortIcon('duration')}
                     </button>
-                    <div>Превью</div>
-                    <div>Фон</div>
+                    <div>🔊</div>
+                    <div></div>
                     <div>Обложка</div>
-                    <div>Озвучка</div>
-                    <div>Video</div>
+                    <div>Звук</div>
+                    <div>Видео</div>
                     <div></div>
                   </div>
 
                   {/* Table Rows */}
                   {questionVideos.map((video) => {
-                    const videoPubs = getVideoPublications(video.id);
                     const coverUrl = video.front_cover_url || video.cover_url;
-                    const effectiveCoverStatus = video.cover_status === 'generating' && coverUrl ? 'ready' : (video.cover_status || 'pending');
-                    const isCoverGenerating = effectiveCoverStatus === 'generating';
+                    const effectiveCoverStatus = resolveStatus(video.cover_status, coverUrl);
+                    const effectiveVoiceoverStatus = resolveStatus(video.voiceover_status, video.voiceover_url);
+                    const effectiveVideoStatus = resolveStatus(video.generation_status, video.heygen_video_url);
                     
                     return (
                       <div
                         key={video.id}
-                        className="grid grid-cols-[40px_60px_150px_100px_100px_100px_70px_80px_80px_100px_80px_120px_40px] gap-2 px-4 py-2 text-sm hover:bg-muted/30 border-b border-border/20 items-center"
+                        className={`grid ${COL_GRID} gap-2 px-4 py-2 text-sm hover:bg-muted/30 border-b border-border/20 items-center`}
                       >
                         {/* Checkbox */}
                         <div onClick={(e) => e.stopPropagation()}>
@@ -644,7 +563,7 @@ export function VideosTable({
                           />
                         </div>
 
-                        {/* ID - clickable to open side panel */}
+                        {/* ID */}
                         <div 
                           className="font-mono text-xs text-primary cursor-pointer hover:underline"
                           onClick={() => onViewVideo(video)}
@@ -659,106 +578,35 @@ export function VideosTable({
                           </Badge>
                         </div>
 
-                        {/* Cover status - text only */}
+                        {/* Cover status */}
                         <div className="flex items-center gap-1.5">
-                          <div className={`w-2 h-2 rounded-full ${coverStatusConfig[effectiveCoverStatus] || coverStatusConfig.pending}`} />
-                          <span className="text-xs text-muted-foreground">{statusLabels[effectiveCoverStatus] || 'Pending'}</span>
+                          <div className={`w-2 h-2 rounded-full ${statusConfig[effectiveCoverStatus] || statusConfig.pending}`} />
+                          <span className="text-xs text-muted-foreground">{statusLabels[effectiveCoverStatus]}</span>
                         </div>
 
                         {/* Voiceover status */}
                         <div className="flex items-center gap-1.5">
-                          <div className={`w-2 h-2 rounded-full ${voiceoverStatusConfig[video.voiceover_status || 'pending'] || voiceoverStatusConfig.pending}`} />
-                          <span className="text-xs text-muted-foreground">{statusLabels[video.voiceover_status || 'pending'] || 'Pending'}</span>
+                          <div className={`w-2 h-2 rounded-full ${statusConfig[effectiveVoiceoverStatus] || statusConfig.pending}`} />
+                          <span className="text-xs text-muted-foreground">{statusLabels[effectiveVoiceoverStatus]}</span>
                         </div>
 
-                        {/* Video status - text only */}
+                        {/* Video status */}
                         <div className="flex items-center gap-1.5">
-                          <div className={`w-2 h-2 rounded-full ${videoStatusConfig[video.generation_status || 'pending'] || videoStatusConfig.pending}`} />
-                          <span className="text-xs text-muted-foreground">{statusLabels[video.generation_status || 'pending'] || 'Pending'}</span>
+                          <div className={`w-2 h-2 rounded-full ${statusConfig[effectiveVideoStatus] || statusConfig.pending}`} />
+                          <span className="text-xs text-muted-foreground">{statusLabels[effectiveVideoStatus]}</span>
                         </div>
 
-                        {/* Duration - text only */}
+                        {/* Duration */}
                         <div className="text-xs text-muted-foreground">
                           {video.video_duration ? `${video.video_duration}s` : '—'}
                         </div>
 
-                        {/* Cover preview (final cover) */}
+                        {/* Audio play/pause */}
                         <div>
-                          {coverUrl ? (
-                            <HoverCard>
-                              <HoverCardTrigger asChild>
-                                <div className="w-12 h-8 rounded overflow-hidden cursor-pointer border border-border">
-                                  <img src={coverUrl} alt="Cover" className="w-full h-full object-cover" />
-                                </div>
-                              </HoverCardTrigger>
-                              <HoverCardContent className="w-80 p-2">
-                                <img src={coverUrl} alt="Cover preview" className="w-full rounded" />
-                              </HoverCardContent>
-                            </HoverCard>
-                          ) : (
-                            <div className="w-12 h-8 rounded bg-muted flex items-center justify-center">
-                              <ImageIcon className="w-4 h-4 text-muted-foreground" />
-                            </div>
-                          )}
-                        </div>
-
-                        {/* Atmosphere (Step 1) button */}
-                        <div>
-                          {isCoverGenerating ? (
-                            <Button size="xs" variant="outline" disabled>
-                              <Loader2 className="w-3 h-3 animate-spin" />
-                            </Button>
-                          ) : (video as any).atmosphere_url ? (
-                            <HoverCard>
-                              <HoverCardTrigger asChild>
-                                <div className="w-12 h-8 rounded overflow-hidden cursor-pointer border border-border" onClick={() => onGenerateAtmosphere?.(video)}>
-                                  <img src={(video as any).atmosphere_url} alt="Фон" className="w-full h-full object-cover" />
-                                </div>
-                              </HoverCardTrigger>
-                              <HoverCardContent className="w-80 p-2">
-                                <img src={(video as any).atmosphere_url} alt="Atmosphere preview" className="w-full rounded" />
-                              </HoverCardContent>
-                            </HoverCard>
-                          ) : (
+                          {video.voiceover_url ? (
                             <Button
-                              size="xs"
-                              variant="outline"
-                              className="text-amber-700 border-amber-500/50"
-                              onClick={() => onGenerateAtmosphere?.(video)}
-                            >
-                              Фон
-                            </Button>
-                          )}
-                        </div>
-
-                        {/* Cover (Step 2) button */}
-                        <div>
-                          {isCoverGenerating ? (
-                            <Button size="xs" variant="outline" disabled>
-                              <Loader2 className="w-3 h-3 animate-spin" />
-                            </Button>
-                          ) : (
-                            <Button
-                              size="xs"
-                              variant="generate-cover"
-                              onClick={() => onGenerateCover(video)}
-                              disabled={!(video as any).atmosphere_url}
-                            >
-                              Обложка
-                            </Button>
-                          )}
-                        </div>
-
-                        {/* Voiceover button */}
-                        <div>
-                          {video.voiceover_status === 'generating' ? (
-                            <Button size="xs" variant="outline" disabled>
-                              <Loader2 className="w-3 h-3 animate-spin" />
-                            </Button>
-                          ) : video.voiceover_url ? (
-                            <Button
-                              size="xs"
-                              variant="outline"
+                              size="icon-xs"
+                              variant="ghost"
                               onClick={() => toggleAudio(video.id, video.voiceover_url!)}
                             >
                               {playingAudioId === video.id ? (
@@ -768,23 +616,72 @@ export function VideosTable({
                               )}
                             </Button>
                           ) : (
+                            <span className="text-muted-foreground/40 text-xs">—</span>
+                          )}
+                        </div>
+
+                        {/* Cover thumbnail - preview only */}
+                        <div>
+                          {coverUrl ? (
+                            <HoverCard>
+                              <HoverCardTrigger asChild>
+                                <div className="w-10 h-7 rounded overflow-hidden cursor-pointer border border-border">
+                                  <img src={coverUrl} alt="Cover" className="w-full h-full object-cover" />
+                                </div>
+                              </HoverCardTrigger>
+                              <HoverCardContent className="w-80 p-2">
+                                <img src={coverUrl} alt="Cover preview" className="w-full rounded" />
+                              </HoverCardContent>
+                            </HoverCard>
+                          ) : (
+                            <div className="w-10 h-7 rounded bg-muted flex items-center justify-center">
+                              <ImageIcon className="w-3 h-3 text-muted-foreground" />
+                            </div>
+                          )}
+                        </div>
+
+                        {/* Обложка button - regenerates cover */}
+                        <div>
+                          {effectiveCoverStatus === 'generating' ? (
+                            <Button size="xs" variant="outline" disabled>
+                              <Loader2 className="w-3 h-3 animate-spin" />
+                            </Button>
+                          ) : (
+                            <Button
+                              size="xs"
+                              variant="generate-cover"
+                              onClick={() => onGenerateCover(video)}
+                            >
+                              Обложка
+                            </Button>
+                          )}
+                        </div>
+
+                        {/* Звук button - regenerates voiceover */}
+                        <div>
+                          {effectiveVoiceoverStatus === 'generating' ? (
+                            <Button size="xs" variant="outline" disabled>
+                              <Loader2 className="w-3 h-3 animate-spin" />
+                            </Button>
+                          ) : (
                             <Button
                               size="xs"
                               variant="secondary"
                               onClick={() => onGenerateVoiceover?.(video)}
                               disabled={!video.advisor_answer}
+                              title={!video.advisor_answer ? 'Сначала нужен ответ духовника' : undefined}
                             >
-                              Озвучка
+                              Звук
                             </Button>
                           )}
                         </div>
 
-                        {/* Video: play + generate combined */}
+                        {/* Видео button - regenerates video */}
                         <div className="flex items-center gap-1">
-                          {video.heygen_video_url ? (
+                          {video.heygen_video_url && (
                             <Popover>
                               <PopoverTrigger asChild>
-                                <Button size="xs" variant="outline" title="Смотреть видео">
+                                <Button size="icon-xs" variant="ghost" title="Смотреть видео">
                                   <VideoIcon className="w-3 h-3" />
                                 </Button>
                               </PopoverTrigger>
@@ -799,8 +696,8 @@ export function VideosTable({
                                 />
                               </PopoverContent>
                             </Popover>
-                          ) : null}
-                          {video.generation_status === 'generating' ? (
+                          )}
+                          {effectiveVideoStatus === 'generating' ? (
                             <Button size="xs" variant="outline" disabled>
                               <Loader2 className="w-3 h-3 animate-spin" />
                             </Button>
@@ -812,12 +709,12 @@ export function VideosTable({
                               disabled={!video.voiceover_url}
                               title={!video.voiceover_url ? 'Сначала создайте озвучку' : undefined}
                             >
-                              Generate
+                              Видео
                             </Button>
                           )}
                         </div>
 
-                        {/* Channels count + hover */}
+                        {/* Channels */}
                         <div className="flex items-center gap-1">
                           {(() => {
                             const selectedCount = publishingChannels.filter(c => c.is_active && video.selected_channels?.includes(c.id)).length;
