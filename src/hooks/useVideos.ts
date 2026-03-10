@@ -48,6 +48,8 @@ export interface Video {
   word_timestamps: any;
   // Selected channels for publication
   selected_channels: string[] | null;
+  // Readiness flag
+  is_ready: boolean | null;
   // Joined data
   advisor?: {
     id: string;

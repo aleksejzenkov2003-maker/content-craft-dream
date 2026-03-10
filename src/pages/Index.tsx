@@ -191,12 +191,17 @@ export default function Index() {
 
       if (data?.status === 'ready') {
         stopVideoPolling(videoId);
-        toast.success('Видео готово!');
+        toast.success('Видео от HeyGen готово! Запуск постобработки...');
         refetchVideos();
-        refetchPublications();
         
-        // Auto-concat: find publications marked needs_concat for this video
-        triggerAutoConcat(videoId);
+        // Post-processing pipeline: bitrate reduction → subtitles
+        postProcessVideo(videoId).then(() => {
+          refetchPublications();
+          triggerAutoConcat(videoId);
+        }).catch(err => {
+          console.error('Post-processing failed:', err);
+          toast.error('Ошибка постобработки видео');
+        });
       } else if (data?.status === 'error' || data?.status === 'failed') {
         stopVideoPolling(videoId);
         toast.error(data?.errorMessage || 'Ошибка генерации видео');
