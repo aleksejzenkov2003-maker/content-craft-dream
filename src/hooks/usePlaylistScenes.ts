@@ -24,6 +24,15 @@ export interface PlaylistScene {
   };
 }
 
+export interface SceneVariant {
+  id: string;
+  scene_id: string;
+  image_url: string;
+  prompt_used: string | null;
+  is_selected: boolean;
+  created_at: string;
+}
+
 export function usePlaylistScenes() {
   const [scenes, setScenes] = useState<PlaylistScene[]>([]);
   const [loading, setLoading] = useState(true);
@@ -88,7 +97,6 @@ export function usePlaylistScenes() {
       if (error) throw error;
 
       await fetchScenes();
-      toast.success('Сцена обновлена');
     } catch (error: any) {
       console.error('Error updating scene:', error);
       toast.error('Ошибка обновления сцены');
@@ -138,6 +146,54 @@ export function usePlaylistScenes() {
     }
   };
 
+  const fetchVariants = async (sceneId: string): Promise<SceneVariant[]> => {
+    try {
+      const { data, error } = await supabase
+        .from('scene_variants')
+        .select('*')
+        .eq('scene_id', sceneId)
+        .order('created_at', { ascending: true });
+
+      if (error) throw error;
+      return (data || []) as SceneVariant[];
+    } catch (error: any) {
+      console.error('Error fetching variants:', error);
+      return [];
+    }
+  };
+
+  const selectVariant = async (variantId: string, sceneId: string) => {
+    try {
+      // Deselect all variants for this scene
+      await supabase
+        .from('scene_variants')
+        .update({ is_selected: false })
+        .eq('scene_id', sceneId);
+
+      // Select the chosen variant
+      const { data: variant, error: selectError } = await supabase
+        .from('scene_variants')
+        .update({ is_selected: true })
+        .eq('id', variantId)
+        .select()
+        .single();
+
+      if (selectError) throw selectError;
+
+      // Update scene_url on the main scene record
+      await supabase
+        .from('playlist_scenes')
+        .update({ scene_url: (variant as SceneVariant).image_url })
+        .eq('id', sceneId);
+
+      await fetchScenes();
+      toast.success('Вариант выбран');
+    } catch (error: any) {
+      console.error('Error selecting variant:', error);
+      toast.error('Ошибка выбора варианта');
+    }
+  };
+
   return {
     scenes,
     loading,
@@ -146,5 +202,7 @@ export function usePlaylistScenes() {
     updateScene,
     deleteScene,
     bulkImport,
+    fetchVariants,
+    selectVariant,
   };
 }

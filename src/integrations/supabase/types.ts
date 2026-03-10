@@ -769,6 +769,41 @@ export type Database = {
           },
         ]
       }
+      scene_variants: {
+        Row: {
+          created_at: string | null
+          id: string
+          image_url: string
+          is_selected: boolean | null
+          prompt_used: string | null
+          scene_id: string
+        }
+        Insert: {
+          created_at?: string | null
+          id?: string
+          image_url: string
+          is_selected?: boolean | null
+          prompt_used?: string | null
+          scene_id: string
+        }
+        Update: {
+          created_at?: string | null
+          id?: string
+          image_url?: string
+          is_selected?: boolean | null
+          prompt_used?: string | null
+          scene_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "scene_variants_scene_id_fkey"
+            columns: ["scene_id"]
+            isOneToOne: false
+            referencedRelation: "playlist_scenes"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       video_projects: {
         Row: {
           audio_source: string | null
