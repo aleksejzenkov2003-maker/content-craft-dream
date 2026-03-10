@@ -153,10 +153,10 @@ export function PublicationEditDialog({
       {/* Info fields */}
       <div className="space-y-3">
         <PanelField label="Название" labelWidth="160px">
-          <span className="text-sm">{publication.video?.video_title || publication.video?.question || '—'}</span>
+          <span className="text-sm truncate min-w-0">{publication.video?.video_title || publication.video?.question || '—'}</span>
         </PanelField>
         <PanelField label="Хук" labelWidth="160px">
-          <span className="text-sm">{hook || '—'}</span>
+          <span className="text-sm truncate min-w-0">{hook || '—'}</span>
         </PanelField>
         <PanelField label="Канал публикации" labelWidth="160px">
           <span className="text-sm font-medium">{channelName}{networkType ? ` (${networkType})` : ''}</span>

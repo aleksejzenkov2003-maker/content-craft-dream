@@ -84,7 +84,7 @@ export function UnifiedPanel({
 
         {/* Body */}
         <ScrollArea className="flex-1 overflow-auto">
-          <div className="p-4 space-y-4">{children}</div>
+          <div className="p-4 space-y-4 overflow-hidden">{children}</div>
         </ScrollArea>
 
         {/* Footer */}
