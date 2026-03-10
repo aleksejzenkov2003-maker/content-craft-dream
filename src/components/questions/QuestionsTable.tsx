@@ -430,7 +430,7 @@ export function QuestionsTable({
   const handleBulkStatusUpdate = async () => {
     if (!onBulkUpdateStatus || !bulkActionValue) return;
     
-    // Validate: can't bulk set "in_progress" if any selected question has no date
+    // Validate: can't bulk set "in_progress" if any selected question has no date or playlist
     if (bulkActionValue === 'in_progress') {
       const withoutDate = bulkDeleteIds.filter(key => {
         const q = questions.find(q => q.unique_key === key);
@@ -438,6 +438,14 @@ export function QuestionsTable({
       });
       if (withoutDate.length > 0) {
         toast.error(`${withoutDate.length} вопрос(ов) без плановой даты. Сначала укажите дату.`);
+        return;
+      }
+      const withoutPlaylist = bulkDeleteIds.filter(key => {
+        const q = questions.find(q => q.unique_key === key);
+        return !q?.playlist_id;
+      });
+      if (withoutPlaylist.length > 0) {
+        toast.error(`${withoutPlaylist.length} вопрос(ов) без плейлиста. Сначала назначьте плейлист.`);
         return;
       }
     }
