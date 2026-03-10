@@ -473,34 +473,30 @@ export function VideoSidePanel({
       {/* === 6. Links section === */}
       <div className="space-y-1.5 text-[11px]">
         <h4 className="font-medium text-xs">Ссылки</h4>
-        <div className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 items-center">
-          <span className="text-muted-foreground">Аудио</span>
-          {video.voiceover_url ? (
-            <a href={video.voiceover_url} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline truncate flex items-center gap-1">
-              <ExternalLink className="w-3 h-3 shrink-0" />Открыть
-            </a>
-          ) : <span className="text-muted-foreground">—</span>}
-
-          <span className="text-muted-foreground">Обложка</span>
-          {video.front_cover_url ? (
-            <a href={video.front_cover_url} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline truncate flex items-center gap-1">
-              <ExternalLink className="w-3 h-3 shrink-0" />Открыть
-            </a>
-          ) : <span className="text-muted-foreground">—</span>}
-
-          <span className="text-muted-foreground">Субтитры</span>
-          {video.video_path ? (
-            <a href={video.video_path} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline truncate flex items-center gap-1">
-              <ExternalLink className="w-3 h-3 shrink-0" />Открыть
-            </a>
-          ) : <span className="text-muted-foreground">—</span>}
-
-          <span className="text-muted-foreground">Видео</span>
-          {videoUrl ? (
-            <a href={videoUrl} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline truncate flex items-center gap-1">
-              <ExternalLink className="w-3 h-3 shrink-0" />Открыть
-            </a>
-          ) : <span className="text-muted-foreground">—</span>}
+        <div className="max-h-[120px] overflow-y-auto space-y-1">
+          {[
+            { label: 'Аудио', url: video.voiceover_url },
+            { label: 'Обложка', url: video.front_cover_url },
+            { label: 'Субтитры', url: video.video_path },
+            { label: 'Видео', url: videoUrl },
+          ].map(({ label, url }) => (
+            <div key={label} className="flex items-center justify-between gap-2">
+              <span className="text-muted-foreground shrink-0">{label}</span>
+              {url ? (
+                <div className="flex items-center gap-1">
+                  <a href={url} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline flex items-center gap-1">
+                    <ExternalLink className="w-3 h-3 shrink-0" />Открыть
+                  </a>
+                  <button
+                    className="p-0.5 hover:bg-muted rounded"
+                    onClick={() => { navigator.clipboard.writeText(url); toast.success('Ссылка скопирована'); }}
+                  >
+                    <Copy className="w-3 h-3 text-muted-foreground" />
+                  </button>
+                </div>
+              ) : <span className="text-muted-foreground">—</span>}
+            </div>
+          ))}
         </div>
       </div>
 
