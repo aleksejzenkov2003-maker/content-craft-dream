@@ -624,32 +624,32 @@ const minuteOptions = [0, 5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55];
                         onCheckedChange={handleSelectAll}
                       />
                     </TableHead>
-                    <TableHead className="w-[250px]">Заголовок</TableHead>
+                    <TableHead className="w-[250px] py-1">Заголовок</TableHead>
                     <TableHead 
-                      className="w-[60px] cursor-pointer hover:bg-accent/50"
+                      className="w-[60px] py-1 cursor-pointer hover:bg-accent/50"
                       onClick={() => handleSort('video_number')}
                     >
                       <div className="flex items-center">
                         ID {getSortIcon('video_number')}
                       </div>
                     </TableHead>
-                    <TableHead className="w-[120px]">Учетная запись</TableHead>
+                    <TableHead className="w-[100px] py-1">Учетная запись</TableHead>
                     <TableHead 
-                      className="w-[130px] cursor-pointer hover:bg-accent/50"
+                      className="w-[110px] py-1 cursor-pointer hover:bg-accent/50"
                       onClick={() => handleSort('post_date')}
                     >
                       <div className="flex items-center">
                         Дата {getSortIcon('post_date')}
                       </div>
                     </TableHead>
-                    <TableHead className="w-[60px]">Длина</TableHead>
-                    <TableHead className="w-[120px]">Ссылка на публикации</TableHead>
-                    <TableHead className="w-[70px]">Склейка</TableHead>
-                    <TableHead className="w-[70px]">Текст</TableHead>
-                    <TableHead className="w-[80px]">Проверка</TableHead>
-                    <TableHead className="w-[90px]">Склейка</TableHead>
-                    <TableHead className="w-[80px]">Текст</TableHead>
-                    <TableHead className="w-[100px]">Публикация</TableHead>
+                    <TableHead className="w-[50px] py-1">Длина</TableHead>
+                    <TableHead className="w-[100px] py-1">Ссылка</TableHead>
+                    <TableHead className="w-[50px] py-1">Склейка</TableHead>
+                    <TableHead className="w-[50px] py-1">Текст</TableHead>
+                    <TableHead className="w-[70px] py-1">Проверка</TableHead>
+                    <TableHead className="w-[80px] py-1">Склейка</TableHead>
+                    <TableHead className="w-[70px] py-1">Текст</TableHead>
+                    <TableHead className="w-[90px] py-1">Публикация</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
