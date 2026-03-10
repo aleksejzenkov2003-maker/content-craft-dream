@@ -678,7 +678,7 @@ export function VideosTable({
 
                         {/* Видео button - regenerates video */}
                         <div className="flex items-center gap-1">
-                          {video.heygen_video_url && (
+                          {(video.video_path || video.heygen_video_url) && (
                             <Popover>
                               <PopoverTrigger asChild>
                                 <Button size="icon-xs" variant="ghost" title="Смотреть видео">
@@ -687,7 +687,7 @@ export function VideosTable({
                               </PopoverTrigger>
                               <PopoverContent className="w-80 p-2" side="top">
                                 <video
-                                  src={video.heygen_video_url}
+                                  src={video.video_path || video.heygen_video_url!}
                                   controls
                                   playsInline
                                   preload="metadata"
