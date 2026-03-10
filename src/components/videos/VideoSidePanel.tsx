@@ -12,8 +12,9 @@ import { PublishingChannel } from '@/hooks/usePublishingChannels';
 import {
   Loader2, ChevronLeft, ChevronRight, Link as LinkIcon,
   Image as ImageIcon, Play, Check, Trash2,
-  Sun, Layers, Volume2, MessageSquare, Subtitles, X, ExternalLink,
+  Sun, Layers, Volume2, MessageSquare, Subtitles, X, ExternalLink, RefreshCw,
 } from 'lucide-react';
+import { Checkbox } from '@/components/ui/checkbox';
 import { Progress } from '@/components/ui/progress';
 import { cn } from '@/lib/utils';
 import { supabase } from '@/integrations/supabase/client';
