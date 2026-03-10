@@ -877,6 +877,7 @@ export type Database = {
           hook_rus: string | null
           id: string
           instagram_url: string | null
+          is_ready: boolean | null
           main_photo_url: string | null
           pinterest_url: string | null
           playlist_id: string | null
@@ -923,6 +924,7 @@ export type Database = {
           hook_rus?: string | null
           id?: string
           instagram_url?: string | null
+          is_ready?: boolean | null
           main_photo_url?: string | null
           pinterest_url?: string | null
           playlist_id?: string | null
@@ -969,6 +971,7 @@ export type Database = {
           hook_rus?: string | null
           id?: string
           instagram_url?: string | null
+          is_ready?: boolean | null
           main_photo_url?: string | null
           pinterest_url?: string | null
           playlist_id?: string | null
