@@ -54,7 +54,7 @@ export function PublicationEditDialog({
       setGeneratedText(publication.generated_text || '');
       setIsReady(publication.publication_status === 'checked' || publication.publication_status === 'scheduled' || publication.publication_status === 'published');
     }
-  }, [publication]);
+  }, [publication?.id]);
 
   useEffect(() => {
     const fetchPrompt = async () => {
@@ -159,7 +159,7 @@ export function PublicationEditDialog({
       {/* Info fields */}
       <div className="space-y-3">
         <PanelField label="Название" labelWidth="160px">
-          <span className="text-sm truncate min-w-0">{publication.video?.video_title || publication.video?.question || '—'}</span>
+          <span className="text-sm truncate min-w-0">{title || '—'}</span>
         </PanelField>
         <PanelField label="Хук" labelWidth="160px">
           <span className="text-sm truncate min-w-0">{hook || '—'}</span>
