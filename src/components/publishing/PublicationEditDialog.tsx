@@ -169,7 +169,7 @@ export function PublicationEditDialog({
       <Separator className="my-2" />
 
       {/* Tabs: Генерация текста / Промт / Финальное видео */}
-      <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+      <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full overflow-hidden">
         <TabsList className="grid w-full grid-cols-3 h-9">
           <TabsTrigger value="text" className="text-xs gap-1">
             Генерация Текста
