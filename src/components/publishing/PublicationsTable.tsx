@@ -604,18 +604,14 @@ const minuteOptions = [0, 5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55];
         Object.entries(groupedPublications).map(([groupName, { items: pubs, networkType }]) => (
           <Card key={groupName} className="glass-card">
             <CardContent className="p-0">
-              <div className="p-4 border-b border-border flex items-center justify-between">
-                <div>
-                  <div className="flex items-center gap-2">
-                    <h3 className="font-semibold capitalize">{groupName}</h3>
-                  </div>
-                  <p className="text-sm text-muted-foreground">{pubs.length} публикаций</p>
-                </div>
+              <div className="px-4 py-2 border-b border-border">
+                <h3 className="font-semibold text-sm capitalize">{groupName}</h3>
+                <p className="text-xs text-muted-foreground">{pubs.length} публикаций</p>
               </div>
-              <Table>
+              <Table className="text-xs">
                 <TableHeader>
-                  <TableRow>
-                    <TableHead className="w-[40px]">
+                  <TableRow className="h-8">
+                    <TableHead className="w-[40px] py-1">
                       <Checkbox
                         checked={allSelected}
                         ref={(el) => {
@@ -624,32 +620,32 @@ const minuteOptions = [0, 5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55];
                         onCheckedChange={handleSelectAll}
                       />
                     </TableHead>
-                    <TableHead className="w-[250px]">Заголовок</TableHead>
+                    <TableHead className="w-[250px] py-1">Заголовок</TableHead>
                     <TableHead 
-                      className="w-[60px] cursor-pointer hover:bg-accent/50"
+                      className="w-[60px] py-1 cursor-pointer hover:bg-accent/50"
                       onClick={() => handleSort('video_number')}
                     >
                       <div className="flex items-center">
                         ID {getSortIcon('video_number')}
                       </div>
                     </TableHead>
-                    <TableHead className="w-[120px]">Учетная запись</TableHead>
+                    <TableHead className="w-[100px] py-1">Учетная запись</TableHead>
                     <TableHead 
-                      className="w-[130px] cursor-pointer hover:bg-accent/50"
+                      className="w-[110px] py-1 cursor-pointer hover:bg-accent/50"
                       onClick={() => handleSort('post_date')}
                     >
                       <div className="flex items-center">
                         Дата {getSortIcon('post_date')}
                       </div>
                     </TableHead>
-                    <TableHead className="w-[60px]">Длина</TableHead>
-                    <TableHead className="w-[120px]">Ссылка на публикации</TableHead>
-                    <TableHead className="w-[70px]">Склейка</TableHead>
-                    <TableHead className="w-[70px]">Текст</TableHead>
-                    <TableHead className="w-[80px]">Проверка</TableHead>
-                    <TableHead className="w-[90px]">Склейка</TableHead>
-                    <TableHead className="w-[80px]">Текст</TableHead>
-                    <TableHead className="w-[100px]">Публикация</TableHead>
+                    <TableHead className="w-[50px] py-1">Длина</TableHead>
+                    <TableHead className="w-[100px] py-1">Ссылка</TableHead>
+                    <TableHead className="w-[50px] py-1">Склейка</TableHead>
+                    <TableHead className="w-[50px] py-1">Текст</TableHead>
+                    <TableHead className="w-[70px] py-1">Проверка</TableHead>
+                    <TableHead className="w-[80px] py-1">Склейка</TableHead>
+                    <TableHead className="w-[70px] py-1">Текст</TableHead>
+                    <TableHead className="w-[90px] py-1">Публикация</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -666,34 +662,32 @@ const minuteOptions = [0, 5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55];
                       key={pub.id}
                       className={cn(
                         selectedIds.has(pub.id) && 'bg-primary/5',
-                        'cursor-pointer hover:bg-muted/50'
+                        'cursor-pointer hover:bg-muted/50 h-10'
                       )}
                       onClick={() => setEditingPublication(pub)}
                     >
-                      <TableCell onClick={(e) => e.stopPropagation()}>
+                      <TableCell className="py-1" onClick={(e) => e.stopPropagation()}>
                         <Checkbox
                           checked={selectedIds.has(pub.id)}
                           onCheckedChange={(checked) => handleSelectOne(pub.id, !!checked)}
                         />
                       </TableCell>
                       {/* Заголовок */}
-                      <TableCell>
-                        <p className="font-medium truncate text-sm max-w-[250px]" title={getPublicationTitle(pub)}>
+                      <TableCell className="py-1">
+                        <span className="truncate block max-w-[250px]" title={getPublicationTitle(pub)}>
                           {getPublicationTitle(pub)}
-                        </p>
+                        </span>
                       </TableCell>
                       {/* ID */}
-                      <TableCell>
-                        <Badge variant="secondary" className="font-mono text-xs">
-                          {pub.video?.video_number || '—'}
-                        </Badge>
+                      <TableCell className="py-1 font-mono text-muted-foreground">
+                        {pub.video?.video_number || '—'}
                       </TableCell>
                       {/* Учетная запись */}
-                      <TableCell>
-                        <Badge variant="outline" className="text-xs">{pub.channel?.name || '—'}</Badge>
+                      <TableCell className="py-1">
+                        <Badge variant="outline" className="text-[10px] px-1.5 py-0">{pub.channel?.name || '—'}</Badge>
                       </TableCell>
                       {/* Дата */}
-                      <TableCell onClick={(e) => e.stopPropagation()}>
+                      <TableCell className="py-1" onClick={(e) => e.stopPropagation()}>
                         <InlineEdit
                           type="datetime"
                           value={pub.post_date}
@@ -701,27 +695,21 @@ const minuteOptions = [0, 5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55];
                             await updatePublication(pub.id, { post_date: value });
                           }}
                           placeholder="—"
-                          displayClassName="text-sm"
+                          displayClassName="text-xs"
                         />
                       </TableCell>
                       {/* Длина */}
-                      <TableCell>
+                      <TableCell className="py-1">
                         {pub.video?.video_duration ? (
-                          <span className="text-sm">{pub.video.video_duration}s</span>
+                          <span>{pub.video.video_duration}s</span>
                         ) : (
                           <span className="text-muted-foreground">—</span>
                         )}
                       </TableCell>
                       {/* Ссылка на публикации */}
-                      <TableCell onClick={(e) => e.stopPropagation()}>
+                      <TableCell className="py-1" onClick={(e) => e.stopPropagation()}>
                         {pub.post_url ? (
-                          <a
-                            href={pub.post_url}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="text-xs text-primary hover:underline truncate block max-w-[120px]"
-                            title={pub.post_url}
-                          >
+                          <a href={pub.post_url} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline truncate block max-w-[100px]" title={pub.post_url}>
                             {(() => { try { return new URL(pub.post_url).hostname; } catch { return pub.post_url; } })()}
                           </a>
                         ) : (
@@ -729,100 +717,86 @@ const minuteOptions = [0, 5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55];
                         )}
                       </TableCell>
                       {/* Склейка status — video preview icon */}
-                      <TableCell onClick={(e) => e.stopPropagation()}>
+                      <TableCell className="py-1" onClick={(e) => e.stopPropagation()}>
                         <div className="flex items-center gap-1">
                           {videoSrc ? (
-                            <button
-                              className="p-1 hover:bg-muted rounded"
-                              title="Превью видео"
-                              onClick={() => setPreviewVideoUrl(videoSrc)}
-                            >
-                              <VideoIcon className="w-4 h-4 text-muted-foreground hover:text-foreground" />
+                            <button className="p-0.5 hover:bg-muted rounded" title="Превью видео" onClick={() => setPreviewVideoUrl(videoSrc)}>
+                              <VideoIcon className="w-3.5 h-3.5 text-muted-foreground hover:text-foreground" />
                             </button>
                           ) : (
-                            <VideoIcon className="w-4 h-4 text-muted-foreground/30" />
+                            <VideoIcon className="w-3.5 h-3.5 text-muted-foreground/30" />
                           )}
                           {concatRequired && hasFinalVideo && (
-                            <button
-                              className="p-1 hover:bg-muted rounded"
-                              title="Превью склейки"
-                              onClick={() => setPreviewVideoUrl(pub.final_video_url!)}
-                            >
-                              <Clapperboard className="w-4 h-4 text-muted-foreground hover:text-foreground" />
+                            <button className="p-0.5 hover:bg-muted rounded" title="Превью склейки" onClick={() => setPreviewVideoUrl(pub.final_video_url!)}>
+                              <Clapperboard className="w-3.5 h-3.5 text-muted-foreground hover:text-foreground" />
                             </button>
                           )}
                         </div>
                       </TableCell>
                       {/* Текст status — text preview icon */}
-                      <TableCell onClick={(e) => e.stopPropagation()}>
+                      <TableCell className="py-1" onClick={(e) => e.stopPropagation()}>
                         {hasReadyText(pub) ? (
-                          <button
-                            className="p-1 hover:bg-muted rounded"
-                            title="Превью текста"
-                            onClick={() => setPreviewText(pub.generated_text!)}
-                          >
-                            <FileText className="w-4 h-4 text-muted-foreground hover:text-foreground" />
+                          <button className="p-0.5 hover:bg-muted rounded" title="Превью текста" onClick={() => setPreviewText(pub.generated_text!)}>
+                            <FileText className="w-3.5 h-3.5 text-muted-foreground hover:text-foreground" />
                           </button>
                         ) : (
-                          <FileText className="w-4 h-4 text-muted-foreground/30" />
+                          <FileText className="w-3.5 h-3.5 text-muted-foreground/30" />
                         )}
                       </TableCell>
                       {/* Проверка */}
-                      <TableCell>
+                      <TableCell className="py-1">
                         {isChecked ? (
-                          <span className="text-xs font-medium text-green-600">Готово</span>
+                          <span className="font-medium text-green-600">Готово</span>
                         ) : (
-                          <span className="text-xs text-muted-foreground">Проверено</span>
+                          <span className="text-muted-foreground">—</span>
                         )}
                       </TableCell>
                       {/* Склейка button */}
-                      <TableCell onClick={(e) => e.stopPropagation()}>
+                      <TableCell className="py-1" onClick={(e) => e.stopPropagation()}>
                         {(() => {
-                          if (!concatRequired) return <span className="text-muted-foreground text-xs">—</span>;
+                          if (!concatRequired) return <span className="text-muted-foreground">—</span>;
                           return (
                             <Button
                               size="xs"
                               className={hasFinalVideo
-                                ? "bg-green-500 text-white hover:bg-green-600"
-                                : "bg-orange-500 text-white hover:bg-orange-600"
+                                ? "bg-green-500 text-white hover:bg-green-600 h-6 text-[10px] px-2"
+                                : "bg-orange-500 text-white hover:bg-orange-600 h-6 text-[10px] px-2"
                               }
                               disabled={isBusyConcat}
                               onClick={() => handleConcat(pub)}
                             >
-                              {isBusyConcat ? (
-                                <Loader2 className="w-3 h-3 animate-spin mr-1" />
-                              ) : null}
+                              {isBusyConcat ? <Loader2 className="w-3 h-3 animate-spin mr-1" /> : null}
                               Склейка
                             </Button>
                           );
                         })()}
                       </TableCell>
                       {/* Текст button */}
-                      <TableCell onClick={(e) => e.stopPropagation()}>
+                      <TableCell className="py-1" onClick={(e) => e.stopPropagation()}>
                         <Button
                           size="xs"
                           className={hasReadyText(pub)
-                            ? "bg-green-500 text-white hover:bg-green-600"
-                            : "bg-orange-500 text-white hover:bg-orange-600"
+                            ? "bg-green-500 text-white hover:bg-green-600 h-6 text-[10px] px-2"
+                            : "bg-orange-500 text-white hover:bg-orange-600 h-6 text-[10px] px-2"
                           }
                           disabled={generatingIds.has(pub.id)}
                           onClick={() => handleGenerateText(pub)}
                         >
-                          {generatingIds.has(pub.id) ? (
-                            <Loader2 className="w-3 h-3 animate-spin mr-1" />
-                          ) : null}
+                          {generatingIds.has(pub.id) ? <Loader2 className="w-3 h-3 animate-spin mr-1" /> : null}
                           Текст
                         </Button>
                       </TableCell>
                       {/* Публикация button */}
-                      <TableCell onClick={(e) => e.stopPropagation()}>
+                      <TableCell className="py-1" onClick={(e) => e.stopPropagation()}>
                         <div className="flex items-center gap-1">
                           <Button
                             size="xs"
-                            className={pub.publication_status === 'published'
-                              ? "bg-green-500 text-white hover:bg-green-600"
-                              : "bg-orange-500 text-white hover:bg-orange-600"
-                            }
+                            className={cn(
+                              "h-6 text-[10px] px-2",
+                              pub.publication_status === 'published'
+                                ? "bg-green-500 text-white hover:bg-green-600"
+                                : "bg-orange-500 text-white hover:bg-orange-600"
+                            )}
                             disabled={
                               pub.publication_status === 'published' || 
                               !isChecked ||
