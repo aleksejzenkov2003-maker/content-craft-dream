@@ -313,16 +313,89 @@ export function QuestionsTable({
     );
   };
 
-  const handleSaveQuestion = (uniqueKey: string, updates: { question?: string; question_eng?: string; safety_score?: string; publication_date?: string; question_status?: string; playlist_id?: string }) => {
-    // Validate: can't set "in_progress" without a planned date
+  const handleSaveQuestion = async (uniqueKey: string, updates: { question?: string; question_eng?: string; safety_score?: string; publication_date?: string; question_status?: string; playlist_id?: string }) => {
+    // Validate: can't set "in_progress" without a planned date, playlist, and ready scene
     if (updates.question_status === 'in_progress') {
       const question = questions.find(q => q.unique_key === uniqueKey);
       if (!question?.planned_date && !updates.publication_date) {
         toast.error('Сначала укажите плановую дату публикации');
         return;
       }
+      if (!question?.playlist_id && !updates.playlist_id) {
+        toast.error('Сначала назначьте плейлист');
+        return;
+      }
+      // Check scene readiness
+      const playlistId = updates.playlist_id || question?.playlist_id;
+      if (playlistId) {
+        const { data: scenes } = await supabase
+          .from('playlist_scenes')
+          .select('id')
+          .eq('playlist_id', playlistId)
+          .not('scene_url', 'is', null)
+          .limit(1);
+        if (!scenes || scenes.length === 0) {
+          toast.error('Нет готовой сцены для плейлиста');
+          return;
+        }
+      }
     }
     onUpdateQuestion?.(uniqueKey, updates);
+  };
+
+  const handleStartProduction = async () => {
+    if (bulkDeleteIds.length === 0) return;
+    
+    // Validate all selected questions
+    const errors: string[] = [];
+    for (const key of bulkDeleteIds) {
+      const q = questions.find(q => q.unique_key === key);
+      if (!q) continue;
+      if (!q.planned_date) {
+        errors.push(`Вопрос ${q.question_id}: нет плановой даты`);
+      }
+      if (!q.playlist_id) {
+        errors.push(`Вопрос ${q.question_id}: не назначен плейлист`);
+      }
+    }
+    
+    if (errors.length > 0) {
+      toast.error(errors.slice(0, 3).join('\n'), { duration: 5000 });
+      return;
+    }
+    
+    // Check scenes for all unique playlists
+    const playlistIds = [...new Set(bulkDeleteIds.map(k => questions.find(q => q.unique_key === k)?.playlist_id).filter(Boolean))] as string[];
+    for (const plId of playlistIds) {
+      const { data: scenes } = await supabase
+        .from('playlist_scenes')
+        .select('id')
+        .eq('playlist_id', plId)
+        .not('scene_url', 'is', null)
+        .limit(1);
+      if (!scenes || scenes.length === 0) {
+        const pl = playlists.find(p => p.id === plId);
+        toast.error(`Нет готовой сцены для плейлиста "${pl?.name || plId}"`);
+        return;
+      }
+    }
+    
+    // Update status to in_progress
+    setIsBulkUpdating(true);
+    try {
+      if (onBulkUpdateStatus) {
+        await onBulkUpdateStatus(bulkDeleteIds, 'in_progress');
+      }
+      if (onStartProduction) {
+        await onStartProduction(bulkDeleteIds);
+      }
+      toast.success(`${bulkDeleteIds.length} вопрос(ов) взято в работу`);
+      setBulkDeleteIds([]);
+    } catch (e) {
+      toast.error('Ошибка запуска производства');
+    } finally {
+      setIsBulkUpdating(false);
+    }
   };
 
   const handleDeleteQuestion = async () => {
