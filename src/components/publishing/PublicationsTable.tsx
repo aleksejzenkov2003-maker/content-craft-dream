@@ -872,16 +872,16 @@ onClick={() => setEditingPublicationId(pub.id)}
       {/* Edit Dialog */}
       <PublicationEditDialog
         publication={editingPublication}
-        open={!!editingPublication}
-        onClose={() => setEditingPublication(null)}
+        open={!!editingPublicationId}
+        onClose={() => setEditingPublicationId(null)}
         onSave={handleEditPublication}
         onPrev={editingPublication ? (() => {
-          const idx = tabFilteredPublications.findIndex(p => p.id === editingPublication.id);
-          if (idx > 0) setEditingPublication(tabFilteredPublications[idx - 1]);
+          const idx = tabFilteredPublications.findIndex(p => p.id === editingPublicationId);
+          if (idx > 0) setEditingPublicationId(tabFilteredPublications[idx - 1].id);
         }) : undefined}
         onNext={editingPublication ? (() => {
-          const idx = tabFilteredPublications.findIndex(p => p.id === editingPublication.id);
-          if (idx < tabFilteredPublications.length - 1) setEditingPublication(tabFilteredPublications[idx + 1]);
+          const idx = tabFilteredPublications.findIndex(p => p.id === editingPublicationId);
+          if (idx < tabFilteredPublications.length - 1) setEditingPublicationId(tabFilteredPublications[idx + 1].id);
         }) : undefined}
       />
 
