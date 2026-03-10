@@ -6,6 +6,7 @@ import { ChevronUp, ChevronDown, X } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 const widthClasses = {
+  xs: 'max-w-sm w-[340px]',
   sm: 'max-w-md w-[480px]',
   md: 'max-w-2xl w-[640px]',
   lg: 'max-w-4xl w-[900px]',
@@ -16,7 +17,7 @@ interface UnifiedPanelProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   title: React.ReactNode;
-  width?: 'sm' | 'md' | 'lg' | 'xl';
+  width?: 'xs' | 'sm' | 'md' | 'lg' | 'xl';
   onPrev?: () => void;
   onNext?: () => void;
   footer?: React.ReactNode;
