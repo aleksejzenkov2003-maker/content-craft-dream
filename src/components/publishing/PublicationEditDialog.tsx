@@ -108,16 +108,16 @@ export function PublicationEditDialog({
     if (!publication) return;
     setSaving(true);
     try {
-      // Save publication fields
-      await onSave(publication.id, {
-        generated_text: generatedText || null,
-        publication_status: isReady ? 'checked' : 'pending',
-      });
-      // Save title to video if changed
+      // Save title to video first (before refetch)
       const originalTitle = publication.video?.video_title || publication.video?.question || '';
       if (title !== originalTitle && publication.video_id) {
         await supabase.from('videos').update({ video_title: title }).eq('id', publication.video_id);
       }
+      // Save publication fields (may trigger refetch)
+      await onSave(publication.id, {
+        generated_text: generatedText || null,
+        publication_status: isReady ? 'checked' : 'pending',
+      });
       toast.success('Сохранено');
     } finally {
       setSaving(false);
