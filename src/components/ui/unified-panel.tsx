@@ -41,7 +41,7 @@ export function UnifiedPanel({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent
         className={cn(
-          'max-h-[90vh] p-0 flex flex-col gap-0 overflow-hidden [&>button:last-child]:hidden',
+          'max-h-[95vh] p-0 flex flex-col gap-0 overflow-hidden [&>button:last-child]:hidden',
           widthClasses[width]
         )}
         onPointerDownOutside={preventOutsideClose ? (e) => e.preventDefault() : undefined}
