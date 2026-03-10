@@ -54,7 +54,7 @@ export function PublicationEditDialog({
       setGeneratedText(publication.generated_text || '');
       setIsReady(publication.publication_status === 'checked' || publication.publication_status === 'scheduled' || publication.publication_status === 'published');
     }
-  }, [publication]);
+  }, [publication?.id]);
 
   useEffect(() => {
     const fetchPrompt = async () => {
