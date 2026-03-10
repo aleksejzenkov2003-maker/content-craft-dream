@@ -624,9 +624,9 @@ const minuteOptions = [0, 5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55];
                         onCheckedChange={handleSelectAll}
                       />
                     </TableHead>
-                    <TableHead className="w-[280px]">Заголовок</TableHead>
+                    <TableHead className="w-[250px]">Заголовок</TableHead>
                     <TableHead 
-                      className="w-[80px] cursor-pointer hover:bg-accent/50"
+                      className="w-[60px] cursor-pointer hover:bg-accent/50"
                       onClick={() => handleSort('video_number')}
                     >
                       <div className="flex items-center">
@@ -634,26 +634,34 @@ const minuteOptions = [0, 5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55];
                       </div>
                     </TableHead>
                     <TableHead className="w-[120px]">Учетная запись</TableHead>
-                    <TableHead className="w-[40px]">Ссылка</TableHead>
                     <TableHead 
-                      className="w-[150px] cursor-pointer hover:bg-accent/50"
+                      className="w-[130px] cursor-pointer hover:bg-accent/50"
                       onClick={() => handleSort('post_date')}
                     >
                       <div className="flex items-center">
                         Дата {getSortIcon('post_date')}
                       </div>
                     </TableHead>
-                    <TableHead className="w-[80px]">Длина</TableHead>
-                    <TableHead className="w-[80px]">Склейка</TableHead>
-                    <TableHead className="w-[120px]">Текст</TableHead>
-                    <TableHead className="w-[120px]">Публикация</TableHead>
-                    <TableHead className="w-[100px]">Склейка</TableHead>
-                    <TableHead className="w-[100px]">Текст</TableHead>
+                    <TableHead className="w-[60px]">Длина</TableHead>
+                    <TableHead className="w-[120px]">Ссылка на публикации</TableHead>
+                    <TableHead className="w-[70px]">Склейка</TableHead>
+                    <TableHead className="w-[70px]">Текст</TableHead>
+                    <TableHead className="w-[80px]">Проверка</TableHead>
+                    <TableHead className="w-[90px]">Склейка</TableHead>
+                    <TableHead className="w-[80px]">Текст</TableHead>
                     <TableHead className="w-[100px]">Публикация</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {pubs.map((pub) => (
+                  {pubs.map((pub) => {
+                    const concatRequired = requiresConcat(pub);
+                    const isConcating = concatingId === pub.id;
+                    const hasFinalVideo = !!pub.final_video_url;
+                    const isBusyConcat = isConcating || (pub.publication_status === 'concatenating' && !isStaleConcatenating(pub));
+                    const isChecked = pub.publication_status === 'checked' || pub.publication_status === 'scheduled' || pub.publication_status === 'published';
+                    const videoSrc = pub.video?.video_path || pub.video?.heygen_video_url || pub.final_video_url;
+
+                    return (
                     <TableRow 
                       key={pub.id}
                       className={cn(
@@ -668,36 +676,23 @@ const minuteOptions = [0, 5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55];
                           onCheckedChange={(checked) => handleSelectOne(pub.id, !!checked)}
                         />
                       </TableCell>
+                      {/* Заголовок */}
                       <TableCell>
-                        <div className="max-w-[280px]">
-                          <p className="font-medium truncate text-sm" title={getPublicationTitle(pub)}>
-                            {getPublicationTitle(pub)}
-                          </p>
-                        </div>
+                        <p className="font-medium truncate text-sm max-w-[250px]" title={getPublicationTitle(pub)}>
+                          {getPublicationTitle(pub)}
+                        </p>
                       </TableCell>
+                      {/* ID */}
                       <TableCell>
                         <Badge variant="secondary" className="font-mono text-xs">
                           {pub.video?.video_number || '—'}
                         </Badge>
                       </TableCell>
+                      {/* Учетная запись */}
                       <TableCell>
-                          <Badge variant="outline" className="text-xs">{pub.channel?.name || '—'}</Badge>
-                        </TableCell>
-                      <TableCell onClick={(e) => e.stopPropagation()}>
-                        {pub.post_url ? (
-                          <a
-                            href={pub.post_url}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="p-1 hover:bg-muted rounded inline-flex"
-                            title="Открыть пост"
-                          >
-                            <ExternalLink className="w-3.5 h-3.5 text-primary" />
-                          </a>
-                        ) : (
-                          <span className="text-muted-foreground">—</span>
-                        )}
+                        <Badge variant="outline" className="text-xs">{pub.channel?.name || '—'}</Badge>
                       </TableCell>
+                      {/* Дата */}
                       <TableCell onClick={(e) => e.stopPropagation()}>
                         <InlineEdit
                           type="datetime"
@@ -709,6 +704,7 @@ const minuteOptions = [0, 5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55];
                           displayClassName="text-sm"
                         />
                       </TableCell>
+                      {/* Длина */}
                       <TableCell>
                         {pub.video?.video_duration ? (
                           <span className="text-sm">{pub.video.video_duration}s</span>
@@ -716,90 +712,92 @@ const minuteOptions = [0, 5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55];
                           <span className="text-muted-foreground">—</span>
                         )}
                       </TableCell>
-                      {/* Concat status */}
-                      <TableCell>
-                        {(() => {
-                          const concatRequired = requiresConcat(pub);
-                          if (!concatRequired) return <span className="text-muted-foreground">—</span>;
-                          if (pub.final_video_url) return <span className="text-xs font-medium text-green-600">Готово</span>;
-                          if (pub.publication_status === 'concatenating' && !isStaleConcatenating(pub)) {
-                            return <span className="text-xs text-muted-foreground">Склейка...</span>;
-                          }
-                          return <span className="text-xs text-muted-foreground">Ожидает</span>;
-                        })()}
-                      </TableCell>
-                      {/* Text status */}
-                      <TableCell>
-                        {hasReadyText(pub) ? (
-                          <span className="text-xs font-medium text-green-600">Готово</span>
+                      {/* Ссылка на публикации */}
+                      <TableCell onClick={(e) => e.stopPropagation()}>
+                        {pub.post_url ? (
+                          <a
+                            href={pub.post_url}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-xs text-primary hover:underline truncate block max-w-[120px]"
+                            title={pub.post_url}
+                          >
+                            {(() => { try { return new URL(pub.post_url).hostname; } catch { return pub.post_url; } })()}
+                          </a>
                         ) : (
                           <span className="text-muted-foreground">—</span>
                         )}
                       </TableCell>
-                      {/* Publication status */}
-                      <TableCell>
-                        {getStatusBadge(pub.publication_status)}
+                      {/* Склейка status — video preview icon */}
+                      <TableCell onClick={(e) => e.stopPropagation()}>
+                        <div className="flex items-center gap-1">
+                          {videoSrc ? (
+                            <button
+                              className="p-1 hover:bg-muted rounded"
+                              title="Превью видео"
+                              onClick={() => setPreviewVideoUrl(videoSrc)}
+                            >
+                              <VideoIcon className="w-4 h-4 text-muted-foreground hover:text-foreground" />
+                            </button>
+                          ) : (
+                            <VideoIcon className="w-4 h-4 text-muted-foreground/30" />
+                          )}
+                          {concatRequired && hasFinalVideo && (
+                            <button
+                              className="p-1 hover:bg-muted rounded"
+                              title="Превью склейки"
+                              onClick={() => setPreviewVideoUrl(pub.final_video_url!)}
+                            >
+                              <Clapperboard className="w-4 h-4 text-muted-foreground hover:text-foreground" />
+                            </button>
+                          )}
+                        </div>
                       </TableCell>
-                      {/* Concat action button */}
+                      {/* Текст status — text preview icon */}
+                      <TableCell onClick={(e) => e.stopPropagation()}>
+                        {hasReadyText(pub) ? (
+                          <button
+                            className="p-1 hover:bg-muted rounded"
+                            title="Превью текста"
+                            onClick={() => setPreviewText(pub.generated_text!)}
+                          >
+                            <FileText className="w-4 h-4 text-muted-foreground hover:text-foreground" />
+                          </button>
+                        ) : (
+                          <FileText className="w-4 h-4 text-muted-foreground/30" />
+                        )}
+                      </TableCell>
+                      {/* Проверка */}
+                      <TableCell>
+                        {isChecked ? (
+                          <span className="text-xs font-medium text-green-600">Готово</span>
+                        ) : (
+                          <span className="text-xs text-muted-foreground">Проверено</span>
+                        )}
+                      </TableCell>
+                      {/* Склейка button */}
                       <TableCell onClick={(e) => e.stopPropagation()}>
                         {(() => {
-                          const concatRequired = requiresConcat(pub);
-                          const isConcating = concatingId === pub.id;
-                          const hasFinalVideo = !!pub.final_video_url;
-                          const isBusyConcat = isConcating || (pub.publication_status === 'concatenating' && !isStaleConcatenating(pub));
                           if (!concatRequired) return <span className="text-muted-foreground text-xs">—</span>;
-                          if (hasFinalVideo) {
-                            return (
-                              <div className="flex items-center gap-1">
-                                <Button size="xs" variant="outline" className="bg-green-500 text-white hover:bg-green-600 border-green-500" asChild>
-                                  <a href={pub.final_video_url!} target="_blank" rel="noopener noreferrer">
-                                    Склейка
-                                  </a>
-                                </Button>
-                                <Button
-                                  size="xs"
-                                  variant="outline"
-                                  className="text-orange-600 border-orange-400 hover:bg-orange-50"
-                                  disabled={isBusyConcat}
-                                  onClick={() => handleConcat(pub)}
-                                  title="Переделать склейку"
-                                >
-                                  {isBusyConcat ? <Loader2 className="w-3 h-3 animate-spin" /> : <RefreshCw className="w-3 h-3" />}
-                                </Button>
-                              </div>
-                            );
-                          }
                           return (
-                            <div className="flex items-center gap-1">
-                              <Button
-                                size="xs"
-                                className="bg-orange-500 text-white hover:bg-orange-600"
-                                disabled={isBusyConcat}
-                                onClick={() => handleConcat(pub)}
-                              >
-                                {isBusyConcat ? (
-                                  <Loader2 className="w-3 h-3 animate-spin mr-1" />
-                                ) : null}
-                                Склейка
-                              </Button>
-                              {isConcating && concatProgress > 0 && (
-                                <div className="flex flex-col gap-0.5">
-                                  <Progress value={concatProgress} className="w-16 h-1.5" />
-                                  {concatPhase && (
-                                    <span className="text-[10px] text-muted-foreground leading-none">
-                                      {concatPhase === 'loading_ffmpeg' ? 'Загрузка…' :
-                                       concatPhase === 'downloading' ? 'Скачивание…' :
-                                       concatPhase === 'concatenating' ? 'Склейка…' :
-                                       'Готово'}
-                                    </span>
-                                  )}
-                                </div>
-                              )}
-                            </div>
+                            <Button
+                              size="xs"
+                              className={hasFinalVideo
+                                ? "bg-green-500 text-white hover:bg-green-600"
+                                : "bg-orange-500 text-white hover:bg-orange-600"
+                              }
+                              disabled={isBusyConcat}
+                              onClick={() => handleConcat(pub)}
+                            >
+                              {isBusyConcat ? (
+                                <Loader2 className="w-3 h-3 animate-spin mr-1" />
+                              ) : null}
+                              Склейка
+                            </Button>
                           );
                         })()}
                       </TableCell>
-                      {/* Text action button */}
+                      {/* Текст button */}
                       <TableCell onClick={(e) => e.stopPropagation()}>
                         <Button
                           size="xs"
@@ -816,7 +814,7 @@ const minuteOptions = [0, 5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55];
                           Текст
                         </Button>
                       </TableCell>
-                      {/* Publish action button */}
+                      {/* Публикация button */}
                       <TableCell onClick={(e) => e.stopPropagation()}>
                         <div className="flex items-center gap-1">
                           <Button
@@ -827,19 +825,15 @@ const minuteOptions = [0, 5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55];
                             }
                             disabled={
                               pub.publication_status === 'published' || 
-                              pub.publication_status === 'pending' || 
-                              !hasReadyText(pub) ||
-                              !isConcatReady(pub) ||
+                              !isChecked ||
                               publishingIds.has(pub.id)
                             }
                             title={
-                              !hasReadyText(pub)
-                                ? 'Сначала сгенерируйте текст'
-                                : !isConcatReady(pub)
-                                  ? 'Сначала выполните склейку'
-                                  : pub.publication_status === 'pending'
-                                    ? 'Сначала проверьте публикацию'
-                                    : ''
+                              !isChecked
+                                ? 'Сначала проверьте публикацию (статус «Проверено»)'
+                                : pub.publication_status === 'published'
+                                  ? 'Уже опубликовано'
+                                  : ''
                             }
                             onClick={() => handlePublish(pub)}
                           >
@@ -879,7 +873,8 @@ const minuteOptions = [0, 5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55];
                         </div>
                       </TableCell>
                     </TableRow>
-                  ))}
+                    );
+                  })}
                 </TableBody>
               </Table>
             </CardContent>
