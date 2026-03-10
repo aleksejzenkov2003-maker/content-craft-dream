@@ -795,10 +795,12 @@ const minuteOptions = [0, 5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55];
                         <div className="flex items-center gap-1">
                           <Button
                             size="xs"
-                            className={pub.publication_status === 'published'
-                              ? "bg-green-500 text-white hover:bg-green-600"
-                              : "bg-orange-500 text-white hover:bg-orange-600"
-                            }
+                            className={cn(
+                              "h-6 text-[10px] px-2",
+                              pub.publication_status === 'published'
+                                ? "bg-green-500 text-white hover:bg-green-600"
+                                : "bg-orange-500 text-white hover:bg-orange-600"
+                            )}
                             disabled={
                               pub.publication_status === 'published' || 
                               !isChecked ||
