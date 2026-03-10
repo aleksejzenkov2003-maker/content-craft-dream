@@ -963,6 +963,34 @@ const minuteOptions = [0, 5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55];
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* Video Preview Dialog */}
+      <Dialog open={!!previewVideoUrl} onOpenChange={(o) => !o && setPreviewVideoUrl(null)}>
+        <DialogContent className="max-w-lg p-0">
+          <DialogHeader className="p-4 pb-0">
+            <DialogTitle>Превью видео</DialogTitle>
+          </DialogHeader>
+          {previewVideoUrl && (
+            <div className="p-4 pt-2">
+              <video src={previewVideoUrl} controls className="w-full rounded-md" autoPlay />
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Text Preview Dialog */}
+      <Dialog open={!!previewText} onOpenChange={(o) => !o && setPreviewText(null)}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Превью текста</DialogTitle>
+          </DialogHeader>
+          {previewText && (
+            <div className="max-h-[400px] overflow-auto whitespace-pre-wrap text-sm">
+              {previewText}
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
