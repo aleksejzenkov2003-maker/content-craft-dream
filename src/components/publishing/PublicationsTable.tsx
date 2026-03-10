@@ -26,6 +26,12 @@ import {
   AlertDialogFooter,
   AlertDialogCancel,
 } from '@/components/ui/alert-dialog';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
 import { Calendar } from '@/components/ui/calendar';
 import {
   Select,
@@ -36,7 +42,8 @@ import {
 } from '@/components/ui/select';
 import { 
   MoreVertical, Trash2, ExternalLink, Send, Sparkles, Loader2, RefreshCw,
-  FileSpreadsheet, ArrowUpDown, ArrowUp, ArrowDown, CalendarIcon, Edit2, Clock, Clapperboard, Settings2
+  FileSpreadsheet, ArrowUpDown, ArrowUp, ArrowDown, CalendarIcon, Edit2, Clock, Clapperboard, Settings2,
+  Video as VideoIcon, FileText, Eye,
 } from 'lucide-react';
 import { Publication, usePublications } from '@/hooks/usePublications';
 import { toast } from 'sonner';
