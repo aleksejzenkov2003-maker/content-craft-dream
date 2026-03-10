@@ -206,7 +206,7 @@ export function SceneSidePanel({
       open={open}
       onOpenChange={onOpenChange}
       title="Редактирование сцены"
-      width="sm"
+      width="xs"
     >
       {/* Header fields */}
       <div className="space-y-3">
