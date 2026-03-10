@@ -17,7 +17,7 @@ interface UnifiedPanelProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   title: React.ReactNode;
-  width?: 'sm' | 'md' | 'lg' | 'xl';
+  width?: 'xs' | 'sm' | 'md' | 'lg' | 'xl';
   onPrev?: () => void;
   onNext?: () => void;
   footer?: React.ReactNode;
