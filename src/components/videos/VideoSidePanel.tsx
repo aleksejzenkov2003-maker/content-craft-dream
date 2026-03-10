@@ -61,6 +61,7 @@ export function VideoSidePanel({
   onUpdateVideo, onPublish, isGenerating, onPrev, onNext,
 }: VideoSidePanelProps) {
   const [selectedChannels, setSelectedChannels] = useState<string[]>([]);
+  const [isReady, setIsReady] = useState(false);
   const [advisorAnswer, setAdvisorAnswer] = useState('');
   const [atmosphereVariants, setAtmosphereVariants] = useState<CoverVariant[]>([]);
   const [coverVariants, setCoverVariants] = useState<CoverVariant[]>([]);
