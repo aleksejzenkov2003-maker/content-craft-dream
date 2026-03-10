@@ -183,19 +183,19 @@ export function PublicationEditDialog({
         </TabsList>
 
         {/* Text tab */}
-        <TabsContent value="text" className="space-y-3 mt-3">
+        <TabsContent value="text" className="space-y-3 mt-3 overflow-hidden">
           <Input
             value={title}
             onChange={(e) => setTitle(e.target.value)}
             placeholder="Заголовок"
-            className="text-sm font-medium"
+            className="text-sm font-medium min-w-0 w-full"
           />
           <Textarea
             value={generatedText}
             onChange={(e) => setGeneratedText(e.target.value)}
             placeholder="Сгенерированное текстовое описание..."
             rows={12}
-            className="resize-y text-sm border-primary/30"
+            className="resize-y text-sm border-primary/30 min-w-0 w-full"
           />
           <div className="flex items-center justify-between">
             <span className="text-xs text-muted-foreground">{generatedText.length} символов</span>
