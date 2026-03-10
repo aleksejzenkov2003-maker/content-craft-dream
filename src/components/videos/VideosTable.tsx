@@ -548,7 +548,7 @@ export function VideosTable({
                     const coverUrl = video.front_cover_url || video.cover_url;
                     const effectiveCoverStatus = resolveStatus(video.cover_status, coverUrl);
                     const effectiveVoiceoverStatus = resolveStatus(video.voiceover_status, video.voiceover_url);
-                    const effectiveVideoStatus = resolveStatus(video.generation_status, video.heygen_video_url);
+                    const effectiveVideoStatus = resolveStatus(video.generation_status, video.video_path || video.heygen_video_url);
                     
                     return (
                       <div
