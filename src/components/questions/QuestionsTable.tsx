@@ -536,10 +536,6 @@ export function QuestionsTable({
               className="h-7 w-40 pl-7 text-xs"
             />
           </div>
-          <Button variant="outline" size="sm" onClick={() => setShowImporter(true)}>
-            <FileSpreadsheet className="w-3 h-3 mr-1" />
-            Импорт
-          </Button>
           <QuestionFilters filters={filters} onFiltersChange={setFilters} />
 
           {/* Gear dropdown for bulk actions */}
@@ -555,12 +551,30 @@ export function QuestionsTable({
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
+              {/* Import — always available */}
+              <DropdownMenuItem onClick={() => setShowImporter(true)}>
+                <FileSpreadsheet className="w-3.5 h-3.5 mr-2" />
+                Импорт
+              </DropdownMenuItem>
+              
+              <DropdownMenuSeparator />
+              
               {bulkDeleteIds.length > 0 && (
                 <div className="px-2 py-1.5 text-xs text-muted-foreground border-b mb-1">
                   Выбрано: {bulkDeleteIds.length} из {tabFilteredQuestions.length}
                   <button className="ml-2 text-primary hover:underline" onClick={() => setBulkDeleteIds([])}>Сбросить</button>
                 </div>
               )}
+              
+              {/* Взять в работу */}
+              <DropdownMenuItem
+                disabled={bulkDeleteIds.length === 0 || isBulkUpdating}
+                onClick={handleStartProduction}
+              >
+                <Play className="w-3.5 h-3.5 mr-2" />
+                Взять в работу
+              </DropdownMenuItem>
+              
               {onBulkUpdateDate && (
                 <DropdownMenuItem
                   disabled={bulkDeleteIds.length === 0}
