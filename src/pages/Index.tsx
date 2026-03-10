@@ -950,6 +950,12 @@ export default function Index() {
                 await bulkImport(data);
                 await Promise.all([refetchAllVideos(), refetchVideos()]);
               }}
+              onStartProduction={async (uniqueKeys) => {
+                for (const uniqueKey of uniqueKeys) {
+                  await triggerAutoGeneration(uniqueKey);
+                }
+                await Promise.all([refetchAllVideos(), refetchVideos()]);
+              }}
             />
           )}
 
