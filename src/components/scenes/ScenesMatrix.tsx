@@ -420,6 +420,8 @@ export function ScenesMatrix() {
         open={showSidePanel}
         onOpenChange={setShowSidePanel}
         onUpdateScene={handleUpdateScene}
+        fetchVariants={fetchVariants}
+        selectVariant={selectVariant}
       />
 
       {/* CSV Importer */}
