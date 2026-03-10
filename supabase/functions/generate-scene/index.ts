@@ -121,7 +121,6 @@ serve(async (req) => {
         .single();
       advisorName = advisor?.display_name || advisor?.name || '';
 
-      // Get advisor's scene photo (or primary photo as fallback)
       if (advisor?.scene_photo_id) {
         const { data: photo } = await supabase
           .from('advisor_photos')
@@ -177,19 +176,16 @@ Ultra high resolution, 9:16 aspect ratio.`;
 
     console.log('Generating scene via Kie.ai, prompt:', scenePrompt, 'advisorPhoto:', advisorPhotoUrl || 'none');
 
-    // Build input with optional reference image
     const kieInput: Record<string, unknown> = {
       prompt: `${scenePrompt}\nUltra high resolution, professional quality.`,
       aspect_ratio: '9:16',
       output_format: 'png',
     };
 
-    // Pass advisor photo as reference for identity lock
     if (advisorPhotoUrl) {
       kieInput.image_input = [advisorPhotoUrl];
     }
 
-    // Create task via Kie.ai API
     const createRes = await fetch('https://api.kie.ai/api/v1/jobs/createTask', {
       method: 'POST',
       headers: {
@@ -217,7 +213,6 @@ Ultra high resolution, 9:16 aspect ratio.`;
 
     console.log('Kie.ai task created:', taskId);
 
-    // Poll for completion
     const generatedImageUrl = await pollTaskStatus(taskId, kieApiKey);
     console.log('Scene image generated, URL:', generatedImageUrl);
 
@@ -246,7 +241,23 @@ Ultra high resolution, 9:16 aspect ratio.`;
 
     const sceneUrl = urlData.publicUrl;
 
-    // Update scene with the new URL
+    // Deselect previous variants for this scene
+    await supabase
+      .from('scene_variants')
+      .update({ is_selected: false })
+      .eq('scene_id', targetSceneId);
+
+    // Insert new variant
+    await supabase
+      .from('scene_variants')
+      .insert({
+        scene_id: targetSceneId,
+        image_url: sceneUrl,
+        prompt_used: prompt || scenePrompt,
+        is_selected: true,
+      });
+
+    // Update scene with the new URL (backward compatibility)
     const { error: updateError } = await supabase
       .from('playlist_scenes')
       .update({
@@ -274,7 +285,6 @@ Ultra high resolution, 9:16 aspect ratio.`;
     const errorMessage = error instanceof Error ? error.message : 'Unknown error';
     console.error('Error generating scene:', errorMessage);
 
-    // Try to reset scene status
     if (targetSceneId) {
       try {
         const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
