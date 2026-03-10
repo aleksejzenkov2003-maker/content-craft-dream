@@ -213,12 +213,12 @@ export function PublicationEditDialog({
         </TabsContent>
 
         {/* Prompt tab */}
-        <TabsContent value="prompt" className="space-y-3 mt-3">
+        <TabsContent value="prompt" className="space-y-3 mt-3 overflow-hidden">
           <Textarea
             value={promptText}
             onChange={(e) => setPromptText(e.target.value)}
             placeholder="Промт для генерации текста публикации..."
-            className="min-h-[250px] text-xs font-mono resize-y"
+            className="min-h-[250px] text-xs font-mono resize-y min-w-0 w-full"
             rows={14}
           />
           <p className="text-[10px] text-muted-foreground">
