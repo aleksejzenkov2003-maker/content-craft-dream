@@ -677,23 +677,21 @@ const minuteOptions = [0, 5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55];
                         />
                       </TableCell>
                       {/* Заголовок */}
-                      <TableCell>
-                        <p className="font-medium truncate text-sm max-w-[250px]" title={getPublicationTitle(pub)}>
+                      <TableCell className="py-1">
+                        <span className="truncate block max-w-[250px]" title={getPublicationTitle(pub)}>
                           {getPublicationTitle(pub)}
-                        </p>
+                        </span>
                       </TableCell>
                       {/* ID */}
-                      <TableCell>
-                        <Badge variant="secondary" className="font-mono text-xs">
-                          {pub.video?.video_number || '—'}
-                        </Badge>
+                      <TableCell className="py-1 font-mono text-muted-foreground">
+                        {pub.video?.video_number || '—'}
                       </TableCell>
                       {/* Учетная запись */}
-                      <TableCell>
-                        <Badge variant="outline" className="text-xs">{pub.channel?.name || '—'}</Badge>
+                      <TableCell className="py-1">
+                        <Badge variant="outline" className="text-[10px] px-1.5 py-0">{pub.channel?.name || '—'}</Badge>
                       </TableCell>
                       {/* Дата */}
-                      <TableCell onClick={(e) => e.stopPropagation()}>
+                      <TableCell className="py-1" onClick={(e) => e.stopPropagation()}>
                         <InlineEdit
                           type="datetime"
                           value={pub.post_date}
@@ -701,13 +699,13 @@ const minuteOptions = [0, 5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55];
                             await updatePublication(pub.id, { post_date: value });
                           }}
                           placeholder="—"
-                          displayClassName="text-sm"
+                          displayClassName="text-xs"
                         />
                       </TableCell>
                       {/* Длина */}
-                      <TableCell>
+                      <TableCell className="py-1">
                         {pub.video?.video_duration ? (
-                          <span className="text-sm">{pub.video.video_duration}s</span>
+                          <span>{pub.video.video_duration}s</span>
                         ) : (
                           <span className="text-muted-foreground">—</span>
                         )}
