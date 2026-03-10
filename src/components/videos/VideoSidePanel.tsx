@@ -2,27 +2,19 @@ import { useState, useEffect, useCallback } from 'react';
 import { UnifiedPanel, PanelField, PanelSection } from '@/components/ui/unified-panel';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Separator } from '@/components/ui/separator';
 import { Textarea } from '@/components/ui/textarea';
-import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
-import { Calendar } from '@/components/ui/calendar';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
-import {
-  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
-} from '@/components/ui/select';
 import { Video } from '@/hooks/useVideos';
 import { Advisor } from '@/hooks/useAdvisors';
 import { PublishingChannel } from '@/hooks/usePublishingChannels';
 import {
   Loader2, ChevronLeft, ChevronRight, Link as LinkIcon,
-  Image as ImageIcon, Play, Check, Trash2, CalendarIcon,
-  Sun, Layers, Volume2, MessageSquare, Subtitles, X,
+  Image as ImageIcon, Play, Check, Trash2,
+  Sun, Layers, Volume2, MessageSquare, Subtitles, X, ExternalLink,
 } from 'lucide-react';
 import { Progress } from '@/components/ui/progress';
-import { format } from 'date-fns';
-import { ru } from 'date-fns/locale';
 import { cn } from '@/lib/utils';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
@@ -54,28 +46,13 @@ interface VideoSidePanelProps {
   onNext?: () => void;
 }
 
-const coverStatusOptions = [
-  { value: 'pending', label: 'Ожидает', color: 'text-muted-foreground' },
-  { value: 'generating', label: 'Генерация', color: 'text-yellow-600 dark:text-yellow-400' },
-  { value: 'atmosphere_ready', label: 'Атмосфера готова', color: 'text-blue-600 dark:text-blue-400' },
-  { value: 'ready', label: 'Готово', color: 'text-green-600 dark:text-green-400' },
-  { value: 'error', label: 'Ошибка', color: 'text-destructive' },
-];
-
-const videoStatusOptions = [
-  { value: 'pending', label: 'Ожидает', color: 'text-muted-foreground' },
-  { value: 'generating', label: 'Генерация', color: 'text-yellow-600 dark:text-yellow-400' },
-  { value: 'ready', label: 'Готово', color: 'text-green-600 dark:text-green-400' },
-  { value: 'published', label: 'Опубликован', color: 'text-primary' },
-  { value: 'error', label: 'Ошибка', color: 'text-destructive' },
-];
-
-const voiceoverStatusOptions = [
-  { value: 'pending', label: 'Ожидает', color: 'text-muted-foreground' },
-  { value: 'generating', label: 'Генерация', color: 'text-yellow-600 dark:text-yellow-400' },
-  { value: 'ready', label: 'Готово', color: 'text-green-600 dark:text-green-400' },
-  { value: 'error', label: 'Ошибка', color: 'text-destructive' },
-];
+/* Status resolution for asset badges */
+function resolveAssetStatus(url: string | null | undefined, statusField: string | null | undefined): { label: string; colorClass: string } {
+  if (url) return { label: 'Ready', colorClass: 'bg-green-500 text-white' };
+  if (statusField === 'generating') return { label: 'In progress', colorClass: 'bg-yellow-500 text-white' };
+  if (statusField === 'error' || statusField === 'failed') return { label: 'Error', colorClass: 'bg-destructive text-destructive-foreground' };
+  return { label: 'Pending', colorClass: 'bg-muted-foreground/60 text-white' };
+}
 
 export function VideoSidePanel({
   video, open, onOpenChange, advisors, publishingChannels,
@@ -84,7 +61,6 @@ export function VideoSidePanel({
 }: VideoSidePanelProps) {
   const [selectedChannels, setSelectedChannels] = useState<string[]>([]);
   const [advisorAnswer, setAdvisorAnswer] = useState('');
-  const [pubDateOpen, setPubDateOpen] = useState(false);
   const [atmosphereVariants, setAtmosphereVariants] = useState<CoverVariant[]>([]);
   const [coverVariants, setCoverVariants] = useState<CoverVariant[]>([]);
   const [atmosIndex, setAtmosIndex] = useState(0);
@@ -109,7 +85,6 @@ export function VideoSidePanel({
     }
   }, [video?.id]);
 
-  // Preload FFmpeg when panel opens and video has timestamps
   useEffect(() => {
     if (open && video?.word_timestamps) {
       import('@/lib/ffmpegLoader').then(({ preloadFFmpeg }) => preloadFFmpeg()).catch(() => {});
@@ -148,8 +123,6 @@ export function VideoSidePanel({
 
   if (!video) return null;
 
-  const handleCoverStatusChange = (value: string) => onUpdateVideo(video.id, { cover_status: value });
-  const handleVideoStatusChange = (value: string) => onUpdateVideo(video.id, { generation_status: value });
   const handleChannelToggle = (channelId: string) => {
     const newChannels = selectedChannels.includes(channelId) ? selectedChannels.filter((id) => id !== channelId) : [...selectedChannels, channelId];
     setSelectedChannels(newChannels);
@@ -157,7 +130,6 @@ export function VideoSidePanel({
   };
   const handlePublish = () => { if (selectedChannels.length > 0) onPublish(video, selectedChannels); };
   const handleAdvisorAnswerSave = () => onUpdateVideo(video.id, { advisor_answer: advisorAnswer } as any);
-  const handleDateChange = (date: Date | undefined) => { if (date) onUpdateVideo(video.id, { publication_date: date.toISOString() }); setPubDateOpen(false); };
 
   const handleSelectVariant = async (variant: CoverVariant, type: 'atmosphere' | 'cover') => {
     try {
@@ -178,362 +150,349 @@ export function VideoSidePanel({
     } catch (e) { toast.error('Ошибка удаления'); }
   };
 
-  const pubDate = video.publication_date ? new Date(video.publication_date) : undefined;
   const atmosphereUrl = (video as any).atmosphere_url;
   const normalizedCoverStatus = video.cover_status === 'generating' && !!video.front_cover_url ? 'ready' : video.cover_status || 'pending';
   const isGeneratingCover = normalizedCoverStatus === 'generating';
+
+  const atmosStatus = resolveAssetStatus(atmosphereUrl, video.cover_status);
+  const coverStatus = resolveAssetStatus(video.front_cover_url, video.cover_status);
+  const videoStatus = resolveAssetStatus(video.video_path || video.heygen_video_url, video.generation_status);
+
+  const videoUrl = video.video_path || video.heygen_video_url;
+  const durationFormatted = video.video_duration ? `${Math.floor(video.video_duration / 60)}:${String(video.video_duration % 60).padStart(2, '0')}` : '—';
 
   return (
     <UnifiedPanel
       open={open}
       onOpenChange={onOpenChange}
-      title={`${video.question} — ${advisorName}`}
-      width="xl"
+      title={`${video.question || ''} — ${advisorName}`}
+      width="lg"
       onPrev={onPrev}
       onNext={onNext}
-      headerActions={
-        <button className="p-1 hover:bg-muted rounded">
-          <LinkIcon className="w-4 h-4" />
-        </button>
-      }
     >
-      {/* Publication channels */}
+      {/* === 1. TABS: Generation / Prompt / Answer === */}
+      <Tabs defaultValue="generation">
+        <TabsList className="grid w-full grid-cols-3 h-7">
+          <TabsTrigger value="generation" className="text-[11px]">Генерация изображения</TabsTrigger>
+          <TabsTrigger value="prompt" className="text-[11px]">Промт</TabsTrigger>
+          <TabsTrigger value="answer" className="text-[11px] flex items-center gap-1"><MessageSquare className="w-3 h-3" />Ответ духовника</TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="generation" className="space-y-2 mt-2">
+          {/* Action buttons row */}
+          <div className="grid grid-cols-3 gap-2">
+            <Button size="xs" variant="outline" className="border-amber-500/50 text-amber-700 hover:bg-amber-50 dark:hover:bg-amber-950/20" onClick={() => onGenerateAtmosphere(video, atmospherePromptText || undefined)} disabled={isGeneratingCover}>
+              {isGeneratingCover ? <Loader2 className="w-3 h-3 mr-1 animate-spin" /> : <Sun className="w-3 h-3 mr-1" />}Шаг 1. ФОН
+            </Button>
+            <Button size="xs" variant="outline" className="border-orange-500/50 text-orange-700 hover:bg-orange-50 dark:hover:bg-orange-950/20" onClick={() => onGenerateCover(video)} disabled={isGeneratingCover || !atmosphereUrl}>
+              {isGeneratingCover ? <Loader2 className="w-3 h-3 mr-1 animate-spin" /> : <Layers className="w-3 h-3 mr-1" />}Шаг 2. Обложка
+            </Button>
+            <Button size="xs" variant="outline" className="border-green-500/50 text-green-700 hover:bg-green-50 dark:hover:bg-green-950/20" onClick={() => onGenerateVideo(video)} disabled={video.generation_status === 'generating' || isGenerating || !video.voiceover_url} title={!video.voiceover_url ? 'Сначала создайте озвучку' : undefined}>
+              {video.generation_status === 'generating' || isGenerating ? <Loader2 className="w-3 h-3 mr-1 animate-spin" /> : <Play className="w-3 h-3 mr-1" />}Шаг 3. Видео
+            </Button>
+          </div>
+
+          {/* 3-column pipeline with status badges */}
+          <div className="grid grid-cols-3 gap-2">
+            {/* Atmosphere */}
+            <div className="space-y-1">
+              <Label className="text-[10px] text-muted-foreground flex items-center gap-1"><Sun className="w-3 h-3" />Фон ({atmosphereVariants.length})</Label>
+              {atmosphereVariants.length > 0 ? (
+                <div className="relative">
+                  <div className="relative aspect-[9/16] rounded-md overflow-hidden border bg-muted group cursor-pointer" onClick={() => window.open(atmosphereVariants[atmosIndex]?.atmosphere_url || '', '_blank')}>
+                    <img src={atmosphereVariants[atmosIndex]?.atmosphere_url || ''} alt="Фон" className="w-full h-full object-cover" />
+                    <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-1">
+                      <Button size="icon" variant="ghost" className="h-5 w-5 text-white hover:text-white hover:bg-white/20" onClick={(e) => { e.stopPropagation(); handleSelectVariant(atmosphereVariants[atmosIndex], 'atmosphere'); }}><Check className="w-3 h-3" /></Button>
+                      <Button size="icon" variant="ghost" className="h-5 w-5 text-white hover:text-white hover:bg-white/20" onClick={(e) => { e.stopPropagation(); handleDeleteVariant(atmosphereVariants[atmosIndex], 'atmosphere'); }}><Trash2 className="w-3 h-3" /></Button>
+                    </div>
+                    {atmosphereVariants[atmosIndex]?.is_active && <div className="absolute top-1 right-1"><Badge className="text-[7px] px-1 py-0 bg-primary">Active</Badge></div>}
+                    {/* Status badge */}
+                    <div className={cn("absolute bottom-1 left-1 right-1 text-center text-[8px] font-medium py-0.5 rounded", atmosStatus.colorClass)}>{atmosStatus.label}</div>
+                  </div>
+                  {atmosphereVariants.length > 1 && (
+                    <div className="flex items-center justify-center gap-1 mt-0.5">
+                      <Button size="icon" variant="ghost" className="h-4 w-4" disabled={atmosIndex === 0} onClick={() => setAtmosIndex(i => i - 1)}><ChevronLeft className="w-3 h-3" /></Button>
+                      <span className="text-[8px] text-muted-foreground">{atmosIndex + 1}/{atmosphereVariants.length}</span>
+                      <Button size="icon" variant="ghost" className="h-4 w-4" disabled={atmosIndex === atmosphereVariants.length - 1} onClick={() => setAtmosIndex(i => i + 1)}><ChevronRight className="w-3 h-3" /></Button>
+                    </div>
+                  )}
+                </div>
+              ) : atmosphereUrl ? (
+                <div className="relative aspect-[9/16] rounded-md overflow-hidden border bg-muted group cursor-pointer" onClick={() => window.open(atmosphereUrl, '_blank')}>
+                  <img src={atmosphereUrl} alt="Фон" className="w-full h-full object-cover" />
+                  <div className={cn("absolute bottom-1 left-1 right-1 text-center text-[8px] font-medium py-0.5 rounded", atmosStatus.colorClass)}>{atmosStatus.label}</div>
+                </div>
+              ) : (
+                <div className="relative aspect-[9/16] rounded-md border-2 border-dashed border-muted-foreground/20 bg-muted/30 flex flex-col items-center justify-center gap-1">
+                  <Sun className="w-4 h-4 text-muted-foreground/30" /><span className="text-[8px] text-muted-foreground/40">Нет фона</span>
+                  <div className={cn("absolute bottom-1 left-1 right-1 text-center text-[8px] font-medium py-0.5 rounded", atmosStatus.colorClass)}>{atmosStatus.label}</div>
+                </div>
+              )}
+            </div>
+
+            {/* Cover */}
+            <div className="space-y-1">
+              <Label className="text-[10px] text-muted-foreground flex items-center gap-1"><Layers className="w-3 h-3" />Обложка ({coverVariants.length})</Label>
+              {coverVariants.length > 0 ? (
+                <div className="relative">
+                  <div className="relative aspect-[9/16] rounded-md overflow-hidden border-2 border-primary bg-muted group cursor-pointer" onClick={() => window.open(coverVariants[coverIndex]?.front_cover_url || '', '_blank')}>
+                    <img src={coverVariants[coverIndex]?.front_cover_url || ''} alt="Обложка" className="w-full h-full object-cover" />
+                    <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-1">
+                      <Button size="icon" variant="ghost" className="h-5 w-5 text-white hover:text-white hover:bg-white/20" onClick={(e) => { e.stopPropagation(); handleSelectVariant(coverVariants[coverIndex], 'cover'); }}><Check className="w-3 h-3" /></Button>
+                      <Button size="icon" variant="ghost" className="h-5 w-5 text-white hover:text-white hover:bg-white/20" onClick={(e) => { e.stopPropagation(); handleDeleteVariant(coverVariants[coverIndex], 'cover'); }}><Trash2 className="w-3 h-3" /></Button>
+                    </div>
+                    {coverVariants[coverIndex]?.is_active && <div className="absolute top-1 right-1"><Badge className="text-[7px] px-1 py-0 bg-primary">Active</Badge></div>}
+                    <div className={cn("absolute bottom-1 left-1 right-1 text-center text-[8px] font-medium py-0.5 rounded", coverStatus.colorClass)}>{coverStatus.label}</div>
+                  </div>
+                  {coverVariants.length > 1 && (
+                    <div className="flex items-center justify-center gap-1 mt-0.5">
+                      <Button size="icon" variant="ghost" className="h-4 w-4" disabled={coverIndex === 0} onClick={() => setCoverIndex(i => i - 1)}><ChevronLeft className="w-3 h-3" /></Button>
+                      <span className="text-[8px] text-muted-foreground">{coverIndex + 1}/{coverVariants.length}</span>
+                      <Button size="icon" variant="ghost" className="h-4 w-4" disabled={coverIndex === coverVariants.length - 1} onClick={() => setCoverIndex(i => i + 1)}><ChevronRight className="w-3 h-3" /></Button>
+                    </div>
+                  )}
+                </div>
+              ) : video.front_cover_url ? (
+                <div className="relative aspect-[9/16] rounded-md overflow-hidden border-2 border-primary bg-muted group cursor-pointer" onClick={() => window.open(video.front_cover_url!, '_blank')}>
+                  <img src={video.front_cover_url} alt="Обложка" className="w-full h-full object-cover" />
+                  <div className={cn("absolute bottom-1 left-1 right-1 text-center text-[8px] font-medium py-0.5 rounded", coverStatus.colorClass)}>{coverStatus.label}</div>
+                </div>
+              ) : (
+                <div className="relative aspect-[9/16] rounded-md border-2 border-dashed border-muted-foreground/20 bg-muted/30 flex flex-col items-center justify-center gap-1">
+                  <ImageIcon className="w-4 h-4 text-muted-foreground/30" /><span className="text-[8px] text-muted-foreground/40">Нет обложки</span>
+                  <div className={cn("absolute bottom-1 left-1 right-1 text-center text-[8px] font-medium py-0.5 rounded", coverStatus.colorClass)}>{coverStatus.label}</div>
+                </div>
+              )}
+            </div>
+
+            {/* Video */}
+            <div className="space-y-1">
+              <Label className="text-[10px] text-muted-foreground flex items-center gap-1"><Play className="w-3 h-3" />Видео</Label>
+              {videoUrl ? (
+                <div className="relative aspect-[9/16] rounded-md overflow-hidden bg-black">
+                  <video src={videoUrl} controls className="w-full h-full object-contain" poster={video.front_cover_url || undefined} />
+                  {video.video_path && <span className="absolute top-1 right-1 bg-black/60 text-white text-[7px] px-1 py-0.5 rounded">С субтитрами</span>}
+                  <div className={cn("absolute bottom-1 left-1 right-1 text-center text-[8px] font-medium py-0.5 rounded", videoStatus.colorClass)}>{videoStatus.label}</div>
+                </div>
+              ) : (
+                <div className="relative aspect-[9/16] rounded-md border-2 border-dashed border-muted-foreground/20 bg-muted/30 flex flex-col items-center justify-center gap-1">
+                  <div className="w-8 h-8 rounded-full bg-muted flex items-center justify-center"><Play className="w-4 h-4 text-muted-foreground/40" /></div>
+                  <span className="text-[8px] text-muted-foreground/40">Видео не сгенерировано</span>
+                  <div className={cn("absolute bottom-1 left-1 right-1 text-center text-[8px] font-medium py-0.5 rounded", videoStatus.colorClass)}>{videoStatus.label}</div>
+                </div>
+              )}
+            </div>
+          </div>
+        </TabsContent>
+
+        <TabsContent value="prompt" className="space-y-2 mt-2">
+          <Textarea value={atmospherePromptText} onChange={(e) => setAtmospherePromptText(e.target.value)} placeholder="Промт для генерации атмосферы..." className="min-h-[180px] text-xs font-mono" rows={8} />
+          <p className="text-[10px] text-muted-foreground">Отредактируйте промт перед генерацией. Промт подтянут из настроек.</p>
+        </TabsContent>
+
+        <TabsContent value="answer" className="space-y-2 mt-2">
+          <label className="text-xs font-medium">Ответ духовника</label>
+          <Textarea value={advisorAnswer} onChange={(e) => setAdvisorAnswer(e.target.value)} onBlur={handleAdvisorAnswerSave} placeholder="Введите ответ духовника..." className="min-h-[180px] text-xs" />
+          <p className="text-[10px] text-muted-foreground">Текст сохраняется автоматически при потере фокуса.</p>
+        </TabsContent>
+      </Tabs>
+
+      <Separator />
+
+      {/* === 2. Publication channels === */}
       <PanelSection title="Каналы публикации">
-        <div className="flex flex-wrap gap-2">
+        <div className="flex flex-wrap gap-1.5">
           {publishingChannels.filter((c) => c.is_active).map((channel) => {
             const isSelected = selectedChannels.includes(channel.id);
             return (
               <Badge key={channel.id} variant={isSelected ? "default" : "outline"}
-                className={cn("cursor-pointer transition-colors px-3 py-1.5", isSelected ? "bg-primary text-primary-foreground hover:bg-primary/90" : "hover:bg-muted")}
+                className={cn("cursor-pointer transition-colors px-2 py-1 text-[10px]", isSelected ? "bg-primary text-primary-foreground hover:bg-primary/90" : "hover:bg-muted")}
                 onClick={() => handleChannelToggle(channel.id)}>
                 {channel.name}
               </Badge>
             );
           })}
         </div>
-        {selectedChannels.length > 0 && <Button className="w-full mt-4" size="sm" onClick={handlePublish}>Публикация ({selectedChannels.length})</Button>}
       </PanelSection>
 
-      <Separator />
-
-      {/* Publication date */}
-      <PanelField label="Плановая публикация">
-        <Popover open={pubDateOpen} onOpenChange={setPubDateOpen}>
-          <PopoverTrigger asChild>
-            <Button variant="outline" size="sm" className={cn("justify-start text-left text-sm", !pubDate && "text-muted-foreground")}>
-              <CalendarIcon className="w-3 h-3 mr-2" />
-              {pubDate ? format(pubDate, 'dd.MM.yyyy HH:mm', { locale: ru }) : 'Выбрать дату'}
-            </Button>
-          </PopoverTrigger>
-          <PopoverContent className="w-auto p-0" align="start">
-            <Calendar mode="single" selected={pubDate} onSelect={handleDateChange} locale={ru} className="p-3 pointer-events-auto" />
-          </PopoverContent>
-        </Popover>
-      </PanelField>
+      {/* === 3. Publish button === */}
+      {selectedChannels.length > 0 && (
+        <Button className="w-full" size="sm" onClick={handlePublish}>
+          Отправить на подготовку к публикации ({selectedChannels.length})
+        </Button>
+      )}
 
       <Separator />
 
-      {/* Voiceover */}
+      {/* === 4. Voiceover === */}
       <PanelSection
         title="Озвучка"
-        icon={<Volume2 className="w-4 h-4" />}
+        icon={<Volume2 className="w-3.5 h-3.5" />}
         action={
-          <Button size="sm" variant="secondary" className="h-7 text-xs" onClick={() => onGenerateVoiceover?.(video)} disabled={video.voiceover_status === 'generating' || !video.advisor_answer}>
+          <Button size="xs" variant="secondary" onClick={() => onGenerateVoiceover?.(video)} disabled={video.voiceover_status === 'generating' || !video.advisor_answer}>
             {video.voiceover_status === 'generating' ? <><Loader2 className="w-3 h-3 mr-1 animate-spin" />Генерация...</> : video.voiceover_url ? 'Перегенерировать' : 'Сгенерировать'}
           </Button>
         }
       >
-        {video.voiceover_url && <audio controls className="w-full h-8" src={video.voiceover_url}>Your browser does not support the audio element.</audio>}
+        {video.voiceover_url && <audio controls className="w-full h-7" src={video.voiceover_url}>Your browser does not support the audio element.</audio>}
         {!video.voiceover_url && video.voiceover_status !== 'generating' && (
-          <div className="py-4 rounded-lg border-2 border-dashed border-muted-foreground/20 bg-muted/30 flex flex-col items-center justify-center gap-1">
-            <Volume2 className="w-5 h-5 text-muted-foreground/30" />
-            <span className="text-[10px] text-muted-foreground/40">Озвучка не сгенерирована</span>
+          <div className="py-3 rounded-md border-2 border-dashed border-muted-foreground/20 bg-muted/30 flex flex-col items-center justify-center gap-1">
+            <Volume2 className="w-4 h-4 text-muted-foreground/30" />
+            <span className="text-[9px] text-muted-foreground/40">Озвучка не сгенерирована</span>
           </div>
         )}
-        <PanelField label="Статус" labelWidth="100px">
-          <Select value={video.voiceover_status || 'pending'} onValueChange={(value) => onUpdateVideo(video.id, { voiceover_status: value } as any)}>
-            <SelectTrigger className="h-7 text-xs"><SelectValue /></SelectTrigger>
-            <SelectContent>
-              {voiceoverStatusOptions.map((o) => <SelectItem key={o.value} value={o.value}><span className={o.color}>{o.label}</span></SelectItem>)}
-            </SelectContent>
-          </Select>
-        </PanelField>
-        {/* Subtitles */}
-        {video.word_timestamps && (
-          <div className="space-y-2">
-            {(video.heygen_video_url || video.video_path) ? (
-              <>
-                <div className="flex gap-1">
-                <Button
-                  size="sm"
-                  variant="outline"
-                  className="flex-1 h-7 text-xs"
-                  disabled={subtitleProgress !== null}
-                  onClick={async () => {
-                    const ac = new AbortController();
-                    setSubtitleAbort(ac);
+
+        {/* === 5. Subtitles === */}
+        {video.word_timestamps && (video.heygen_video_url || video.video_path) && (
+          <div className="space-y-1.5">
+            <div className="flex gap-1">
+              <Button
+                size="xs"
+                variant="outline"
+                className="flex-1"
+                disabled={subtitleProgress !== null}
+                onClick={async () => {
+                  const ac = new AbortController();
+                  setSubtitleAbort(ac);
+                  try {
+                    const { burnSubtitlesHybrid, burnSubtitlesBrowser } = await import('@/lib/videoSubtitles');
+                    const { isBrowserFFmpegSupported: checkSupport } = await import('@/lib/ffmpegLoader');
+                    const watchdog = setTimeout(() => ac.abort(), 8 * 60 * 1000);
                     try {
-                      const { burnSubtitlesHybrid, burnSubtitlesBrowser, downloadSubtitleFile } = await import('@/lib/videoSubtitles');
-                      const { isBrowserFFmpegSupported: checkSupport } = await import('@/lib/ffmpegLoader');
-
-                      // Hybrid: server generates ASS → browser burns with FFmpeg
-                      const watchdog = setTimeout(() => ac.abort(), 8 * 60 * 1000);
-                      try {
-                        const result = await burnSubtitlesHybrid(
-                          video.id,
-                          (info) => setSubtitleProgress({ phase: info.phase, progress: info.progress }),
-                          ac.signal,
-                        );
-                        clearTimeout(watchdog);
-                        onUpdateVideo(video.id, { video_path: result.videoUrl } as any);
-                        toast.success('Субтитры вшиты');
-                        return;
-                      } catch (hybridErr) {
-                        clearTimeout(watchdog);
-                        if (ac.signal.aborted) throw hybridErr;
-                        console.warn('[subtitles] Hybrid failed, trying pure browser:', hybridErr);
-                      }
-
-                      // Fallback: pure browser (generate ASS locally)
-                      if (checkSupport()) {
-                        const videoUrl = video.heygen_video_url || video.video_path;
-                        if (!videoUrl) throw new Error('No video URL');
-                        setSubtitleProgress({ phase: 'loading_ffmpeg', progress: 3 });
-                        const watchdog2 = setTimeout(() => ac.abort(), 8 * 60 * 1000);
-                        const file = await burnSubtitlesBrowser(
-                          videoUrl,
-                          video.word_timestamps as any,
-                          { fontSize: 48 },
-                          (info) => setSubtitleProgress({ phase: info.phase, progress: info.progress }),
-                          ac.signal,
-                        );
-                        clearTimeout(watchdog2);
-                        setSubtitleProgress({ phase: 'uploading_result', progress: 95 });
-                        const fileName = `videos/${video.id}_subtitled_${Date.now()}.mp4`;
-                        const { error: uploadError } = await supabase.storage
-                          .from('media-files')
-                          .upload(fileName, file, { contentType: 'video/mp4', upsert: true });
-                        if (uploadError) throw uploadError;
-                        const { data: urlData } = supabase.storage.from('media-files').getPublicUrl(fileName);
-                        onUpdateVideo(video.id, { video_path: urlData.publicUrl } as any);
-                        toast.success('Субтитры добавлены');
-                        return;
-                      }
-
-                      // Tier 3: SRT download
-                      throw new Error('FFmpeg unavailable');
-                    } catch (err) {
-                      if ((err as Error)?.name === 'AbortError') {
-                        toast.info('Операция отменена');
-                      } else {
-                        console.error('Subtitle error:', err);
-                        toast.error('Не удалось вшить субтитры. Скачиваем SRT…');
-                        try {
-                          const { downloadSubtitleFile } = await import('@/lib/videoSubtitles');
-                          downloadSubtitleFile(video.word_timestamps as any, 'srt');
-                        } catch (_) {}
-                      }
-                    } finally {
-                      setSubtitleProgress(null);
-                      setSubtitleAbort(null);
+                      const result = await burnSubtitlesHybrid(
+                        video.id,
+                        (info) => setSubtitleProgress({ phase: info.phase, progress: info.progress }),
+                        ac.signal,
+                      );
+                      clearTimeout(watchdog);
+                      onUpdateVideo(video.id, { video_path: result.videoUrl } as any);
+                      toast.success('Субтитры вшиты');
+                      return;
+                    } catch (hybridErr) {
+                      clearTimeout(watchdog);
+                      if (ac.signal.aborted) throw hybridErr;
+                      console.warn('[subtitles] Hybrid failed, trying pure browser:', hybridErr);
                     }
-                  }}
-                >
-                  {subtitleProgress !== null ? (
-                    <><Loader2 className="w-3 h-3 mr-1 animate-spin" />{
-                      subtitleProgress.phase === 'server_processing' ? 'Обработка на сервере' :
-                      subtitleProgress.phase === 'loading_ffmpeg' ? 'Загрузка FFmpeg' :
-                      subtitleProgress.phase === 'downloading_video' ? 'Скачивание видео' :
-                      subtitleProgress.phase === 'burning_subtitles' ? 'Вшивка субтитров' :
-                      'Загрузка результата'
-                    } {subtitleProgress.progress}%</>
-                  ) : (
-                    <><Subtitles className="w-3 h-3 mr-1" />Вшить субтитры в видео</>
-                  )}
+                    if (checkSupport()) {
+                      const srcUrl = video.heygen_video_url || video.video_path;
+                      if (!srcUrl) throw new Error('No video URL');
+                      setSubtitleProgress({ phase: 'loading_ffmpeg', progress: 3 });
+                      const watchdog2 = setTimeout(() => ac.abort(), 8 * 60 * 1000);
+                      const file = await burnSubtitlesBrowser(
+                        srcUrl,
+                        video.word_timestamps as any,
+                        { fontSize: 48 },
+                        (info) => setSubtitleProgress({ phase: info.phase, progress: info.progress }),
+                        ac.signal,
+                      );
+                      clearTimeout(watchdog2);
+                      setSubtitleProgress({ phase: 'uploading_result', progress: 95 });
+                      const fileName = `videos/${video.id}_subtitled_${Date.now()}.mp4`;
+                      const { error: uploadError } = await supabase.storage
+                        .from('media-files')
+                        .upload(fileName, file, { contentType: 'video/mp4', upsert: true });
+                      if (uploadError) throw uploadError;
+                      const { data: urlData } = supabase.storage.from('media-files').getPublicUrl(fileName);
+                      onUpdateVideo(video.id, { video_path: urlData.publicUrl } as any);
+                      toast.success('Субтитры добавлены');
+                      return;
+                    }
+                    throw new Error('FFmpeg unavailable');
+                  } catch (err) {
+                    if ((err as Error)?.name === 'AbortError') {
+                      toast.info('Операция отменена');
+                    } else {
+                      console.error('Subtitle error:', err);
+                      toast.error('Не удалось вшить субтитры. Скачиваем SRT…');
+                      try {
+                        const { downloadSubtitleFile } = await import('@/lib/videoSubtitles');
+                        downloadSubtitleFile(video.word_timestamps as any, 'srt');
+                      } catch (_) {}
+                    }
+                  } finally {
+                    setSubtitleProgress(null);
+                    setSubtitleAbort(null);
+                  }
+                }}
+              >
+                {subtitleProgress !== null ? (
+                  <><Loader2 className="w-3 h-3 mr-1 animate-spin" />{
+                    subtitleProgress.phase === 'server_processing' ? 'Обработка на сервере' :
+                    subtitleProgress.phase === 'loading_ffmpeg' ? 'Загрузка FFmpeg' :
+                    subtitleProgress.phase === 'downloading_video' ? 'Скачивание видео' :
+                    subtitleProgress.phase === 'burning_subtitles' ? 'Вшивка субтитров' :
+                    'Загрузка результата'
+                  } {subtitleProgress.progress}%</>
+                ) : (
+                  <><Subtitles className="w-3 h-3 mr-1" />Вшить субтитры</>
+                )}
+              </Button>
+              {subtitleProgress !== null && subtitleAbort && (
+                <Button size="xs" variant="ghost" className="w-7 p-0 text-destructive hover:text-destructive" onClick={() => subtitleAbort.abort()} title="Отменить">
+                  <X className="w-3.5 h-3.5" />
                 </Button>
-                {subtitleProgress !== null && subtitleAbort && (
-                  <Button
-                    size="sm"
-                    variant="ghost"
-                    className="h-7 w-7 p-0 text-destructive hover:text-destructive"
-                    onClick={() => subtitleAbort.abort()}
-                    title="Отменить"
-                  >
-                    <X className="w-4 h-4" />
-                  </Button>
-                )}
-                </div>
-
-                {subtitleProgress !== null && (
-                  <div className="space-y-1">
-                    <Progress value={subtitleProgress.progress} className="h-1.5" />
-                    <p className="text-[10px] text-muted-foreground">
-                      {subtitleProgress.phase === 'server_processing' && 'Отправка на серверную обработку…'}
-                      {subtitleProgress.phase === 'loading_ffmpeg' && 'Загрузка FFmpeg в браузере…'}
-                      {subtitleProgress.phase === 'downloading_video' && 'Скачивание исходного видео…'}
-                      {subtitleProgress.phase === 'burning_subtitles' && 'Вшивка субтитров в видео…'}
-                      {subtitleProgress.phase === 'uploading_result' && 'Загрузка результата в хранилище…'}
-                    </p>
-                  </div>
-                )}
-              </>
-            ) : null}
+              )}
+            </div>
+            {subtitleProgress !== null && (
+              <div className="space-y-0.5">
+                <Progress value={subtitleProgress.progress} className="h-1" />
+                <p className="text-[9px] text-muted-foreground">
+                  {subtitleProgress.phase === 'server_processing' && 'Отправка на серверную обработку…'}
+                  {subtitleProgress.phase === 'loading_ffmpeg' && 'Загрузка FFmpeg в браузере…'}
+                  {subtitleProgress.phase === 'downloading_video' && 'Скачивание исходного видео…'}
+                  {subtitleProgress.phase === 'burning_subtitles' && 'Вшивка субтитров в видео…'}
+                  {subtitleProgress.phase === 'uploading_result' && 'Загрузка результата в хранилище…'}
+                </p>
+              </div>
+            )}
           </div>
         )}
       </PanelSection>
 
       <Separator />
 
-      {/* Generation tabs */}
-      <PanelSection title="Генерации обложки и видео">
-        <Tabs defaultValue="generation">
-          <TabsList className="grid w-full grid-cols-3 h-8">
-            <TabsTrigger value="generation" className="text-xs">Генерация изображения</TabsTrigger>
-            <TabsTrigger value="prompt" className="text-xs">Промт</TabsTrigger>
-            <TabsTrigger value="answer" className="text-xs flex items-center gap-1"><MessageSquare className="w-3 h-3" />Ответ духовника</TabsTrigger>
-          </TabsList>
+      {/* === 6. Links section === */}
+      <div className="space-y-1.5 text-[11px]">
+        <h4 className="font-medium text-xs">Ссылки</h4>
+        <div className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 items-center">
+          <span className="text-muted-foreground">Аудио</span>
+          {video.voiceover_url ? (
+            <a href={video.voiceover_url} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline truncate flex items-center gap-1">
+              <ExternalLink className="w-3 h-3 shrink-0" />Открыть
+            </a>
+          ) : <span className="text-muted-foreground">—</span>}
 
-          <TabsContent value="generation" className="space-y-3 mt-3">
-            <div className="grid grid-cols-3 gap-2">
-              <Button size="sm" variant="outline" className="h-8 text-xs border-amber-500/50 text-amber-700 hover:bg-amber-50 dark:hover:bg-amber-950/20" onClick={() => onGenerateAtmosphere(video, atmospherePromptText || undefined)} disabled={isGeneratingCover}>
-                {isGeneratingCover ? <Loader2 className="w-3 h-3 mr-1 animate-spin" /> : <Sun className="w-3 h-3 mr-1" />}Шаг 1: Фон
-              </Button>
-              <Button size="sm" variant="outline" className="h-8 text-xs border-orange-500/50 text-orange-700 hover:bg-orange-50 dark:hover:bg-orange-950/20" onClick={() => onGenerateCover(video)} disabled={isGeneratingCover || !atmosphereUrl}>
-                {isGeneratingCover ? <Loader2 className="w-3 h-3 mr-1 animate-spin" /> : <Layers className="w-3 h-3 mr-1" />}Шаг 2: Обложка
-              </Button>
-              <Button size="sm" variant="outline" className="h-8 text-xs border-green-500/50 text-green-700 hover:bg-green-50 dark:hover:bg-green-950/20" onClick={() => onGenerateVideo(video)} disabled={video.generation_status === 'generating' || isGenerating || !video.voiceover_url} title={!video.voiceover_url ? 'Сначала создайте озвучку' : undefined}>
-                {video.generation_status === 'generating' || isGenerating ? <Loader2 className="w-3 h-3 mr-1 animate-spin" /> : <Play className="w-3 h-3 mr-1" />}Шаг 3: Видео
-              </Button>
-            </div>
+          <span className="text-muted-foreground">Обложка</span>
+          {video.front_cover_url ? (
+            <a href={video.front_cover_url} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline truncate flex items-center gap-1">
+              <ExternalLink className="w-3 h-3 shrink-0" />Открыть
+            </a>
+          ) : <span className="text-muted-foreground">—</span>}
 
-            {/* 3-column pipeline */}
-            <div className="grid grid-cols-3 gap-3">
-              {/* Atmosphere */}
-              <div className="space-y-1.5">
-                <Label className="text-[11px] text-muted-foreground flex items-center gap-1"><Sun className="w-3 h-3" />Фон ({atmosphereVariants.length})</Label>
-                {atmosphereVariants.length > 0 ? (
-                  <div className="relative">
-                    <div className="relative aspect-[9/16] rounded-lg overflow-hidden border bg-muted group cursor-pointer" onClick={() => window.open(atmosphereVariants[atmosIndex]?.atmosphere_url || '', '_blank')}>
-                      <img src={atmosphereVariants[atmosIndex]?.atmosphere_url || ''} alt="Atmosphere" className="w-full h-full object-cover" />
-                      <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-1">
-                        <Button size="icon" variant="ghost" className="h-6 w-6 text-white hover:text-white hover:bg-white/20" onClick={(e) => { e.stopPropagation(); handleSelectVariant(atmosphereVariants[atmosIndex], 'atmosphere'); }}><Check className="w-3 h-3" /></Button>
-                        <Button size="icon" variant="ghost" className="h-6 w-6 text-white hover:text-white hover:bg-white/20" onClick={(e) => { e.stopPropagation(); handleDeleteVariant(atmosphereVariants[atmosIndex], 'atmosphere'); }}><Trash2 className="w-3 h-3" /></Button>
-                      </div>
-                      {atmosphereVariants[atmosIndex]?.is_active && <div className="absolute top-1 right-1"><Badge className="text-[8px] px-1 py-0 bg-primary">Active</Badge></div>}
-                    </div>
-                    {atmosphereVariants.length > 1 && (
-                      <div className="flex items-center justify-center gap-2 mt-1">
-                        <Button size="icon" variant="ghost" className="h-5 w-5" disabled={atmosIndex === 0} onClick={() => setAtmosIndex(i => i - 1)}><ChevronLeft className="w-3 h-3" /></Button>
-                        <span className="text-[9px] text-muted-foreground">{atmosIndex + 1}/{atmosphereVariants.length}</span>
-                        <Button size="icon" variant="ghost" className="h-5 w-5" disabled={atmosIndex === atmosphereVariants.length - 1} onClick={() => setAtmosIndex(i => i + 1)}><ChevronRight className="w-3 h-3" /></Button>
-                      </div>
-                    )}
-                    {atmosphereVariants[atmosIndex]?.prompt && <p className="text-[9px] text-muted-foreground/60 italic line-clamp-2">{atmosphereVariants[atmosIndex].prompt}</p>}
-                  </div>
-                ) : atmosphereUrl ? (
-                  <div className="relative aspect-[9/16] rounded-lg overflow-hidden border bg-muted group cursor-pointer" onClick={() => window.open(atmosphereUrl, '_blank')}>
-                    <img src={atmosphereUrl} alt="Atmosphere" className="w-full h-full object-cover" />
-                  </div>
-                ) : (
-                  <div className="aspect-[9/16] rounded-lg border-2 border-dashed border-muted-foreground/20 bg-muted/30 flex flex-col items-center justify-center gap-1">
-                    <Sun className="w-5 h-5 text-muted-foreground/30" /><span className="text-[9px] text-muted-foreground/40">Нет фона</span>
-                  </div>
-                )}
-              </div>
+          <span className="text-muted-foreground">Субтитры</span>
+          {video.video_path ? (
+            <a href={video.video_path} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline truncate flex items-center gap-1">
+              <ExternalLink className="w-3 h-3 shrink-0" />Открыть
+            </a>
+          ) : <span className="text-muted-foreground">—</span>}
 
-              {/* Cover */}
-              <div className="space-y-1.5">
-                <Label className="text-[11px] text-muted-foreground flex items-center gap-1"><Layers className="w-3 h-3" />Обложка ({coverVariants.length})</Label>
-                {coverVariants.length > 0 ? (
-                  <div className="relative">
-                    <div className="relative aspect-[9/16] rounded-lg overflow-hidden border-2 border-primary bg-muted group cursor-pointer" onClick={() => window.open(coverVariants[coverIndex]?.front_cover_url || '', '_blank')}>
-                      <img src={coverVariants[coverIndex]?.front_cover_url || ''} alt="Cover" className="w-full h-full object-cover" />
-                      <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-1">
-                        <Button size="icon" variant="ghost" className="h-6 w-6 text-white hover:text-white hover:bg-white/20" onClick={(e) => { e.stopPropagation(); handleSelectVariant(coverVariants[coverIndex], 'cover'); }}><Check className="w-3 h-3" /></Button>
-                        <Button size="icon" variant="ghost" className="h-6 w-6 text-white hover:text-white hover:bg-white/20" onClick={(e) => { e.stopPropagation(); handleDeleteVariant(coverVariants[coverIndex], 'cover'); }}><Trash2 className="w-3 h-3" /></Button>
-                      </div>
-                      {coverVariants[coverIndex]?.is_active && <div className="absolute top-1 right-1"><Badge className="text-[8px] px-1 py-0 bg-primary">Active</Badge></div>}
-                    </div>
-                    {coverVariants.length > 1 && (
-                      <div className="flex items-center justify-center gap-2 mt-1">
-                        <Button size="icon" variant="ghost" className="h-5 w-5" disabled={coverIndex === 0} onClick={() => setCoverIndex(i => i - 1)}><ChevronLeft className="w-3 h-3" /></Button>
-                        <span className="text-[9px] text-muted-foreground">{coverIndex + 1}/{coverVariants.length}</span>
-                        <Button size="icon" variant="ghost" className="h-5 w-5" disabled={coverIndex === coverVariants.length - 1} onClick={() => setCoverIndex(i => i + 1)}><ChevronRight className="w-3 h-3" /></Button>
-                      </div>
-                    )}
-                  </div>
-                ) : video.front_cover_url ? (
-                  <div className="relative aspect-[9/16] rounded-lg overflow-hidden border-2 border-primary bg-muted group cursor-pointer" onClick={() => window.open(video.front_cover_url!, '_blank')}>
-                    <img src={video.front_cover_url} alt="Cover" className="w-full h-full object-cover" />
-                    <div className="absolute top-1 right-1"><Badge className="text-[8px] px-1 py-0 bg-primary">Active</Badge></div>
-                  </div>
-                ) : (
-                  <div className="aspect-[9/16] rounded-lg border-2 border-dashed border-muted-foreground/20 bg-muted/30 flex flex-col items-center justify-center gap-1">
-                    <ImageIcon className="w-5 h-5 text-muted-foreground/30" /><span className="text-[9px] text-muted-foreground/40">Нет обложки</span>
-                  </div>
-                )}
-              </div>
-
-              {/* Video */}
-              <div className="space-y-1.5">
-                <Label className="text-[11px] text-muted-foreground flex items-center gap-1"><Play className="w-3 h-3" />Видео</Label>
-                {(video.video_path || video.heygen_video_url) ? (
-                  <div className="relative aspect-[9/16] rounded-lg overflow-hidden bg-black">
-                    <video src={video.video_path || video.heygen_video_url!} controls className="w-full h-full object-contain" poster={video.front_cover_url || undefined} />
-                    {video.video_path && <span className="absolute top-1 right-1 bg-black/60 text-white text-[8px] px-1.5 py-0.5 rounded">С субтитрами</span>}
-                  </div>
-                ) : (
-                  <div className="aspect-[9/16] rounded-lg border-2 border-dashed border-muted-foreground/20 bg-muted/30 flex flex-col items-center justify-center gap-2">
-                    <div className="w-10 h-10 rounded-full bg-muted flex items-center justify-center"><Play className="w-5 h-5 text-muted-foreground/40" /></div>
-                    <span className="text-[9px] text-muted-foreground/40">Видео не сгенерировано</span>
-                  </div>
-                )}
-              </div>
-            </div>
-
-            {/* Status selectors */}
-            <div className="grid grid-cols-2 gap-3">
-              <PanelField label="Обложка" labelWidth="60px">
-                <Select value={normalizedCoverStatus} onValueChange={handleCoverStatusChange}>
-                  <SelectTrigger className="h-7 text-xs"><SelectValue /></SelectTrigger>
-                  <SelectContent>{coverStatusOptions.map((o) => <SelectItem key={o.value} value={o.value}><span className={o.color}>{o.label}</span></SelectItem>)}</SelectContent>
-                </Select>
-              </PanelField>
-              <PanelField label="Видео" labelWidth="60px">
-                <Select value={video.generation_status || 'pending'} onValueChange={handleVideoStatusChange}>
-                  <SelectTrigger className="h-7 text-xs"><SelectValue /></SelectTrigger>
-                  <SelectContent>{videoStatusOptions.map((o) => <SelectItem key={o.value} value={o.value}><span className={o.color}>{o.label}</span></SelectItem>)}</SelectContent>
-                </Select>
-              </PanelField>
-            </div>
-          </TabsContent>
-
-          <TabsContent value="prompt" className="space-y-2 mt-3">
-            <Textarea value={atmospherePromptText} onChange={(e) => setAtmospherePromptText(e.target.value)} placeholder="Промт для генерации атмосферы..." className="min-h-[200px] text-xs font-mono" rows={10} />
-            <p className="text-[10px] text-muted-foreground">Отредактируйте промт перед генерацией. Промт подтянут из настроек.</p>
-          </TabsContent>
-
-          <TabsContent value="answer" className="space-y-3 mt-3">
-            <label className="text-sm font-medium">Ответ духовника</label>
-            <Textarea value={advisorAnswer} onChange={(e) => setAdvisorAnswer(e.target.value)} onBlur={handleAdvisorAnswerSave} placeholder="Введите ответ духовника..." className="min-h-[200px] text-sm" />
-            <p className="text-[10px] text-muted-foreground">Текст сохраняется автоматически при потере фокуса.</p>
-          </TabsContent>
-        </Tabs>
-      </PanelSection>
+          <span className="text-muted-foreground">Видео</span>
+          {videoUrl ? (
+            <a href={videoUrl} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline truncate flex items-center gap-1">
+              <ExternalLink className="w-3 h-3 shrink-0" />Открыть
+            </a>
+          ) : <span className="text-muted-foreground">—</span>}
+        </div>
+      </div>
 
       <Separator />
 
-      {/* Meta fields */}
-      <div className="space-y-2">
-        <PanelField label="Cover URL" labelWidth="100px">
-          <Input value={video.front_cover_url || ''} onChange={(e) => onUpdateVideo(video.id, { front_cover_url: e.target.value })} className="h-7 text-xs" />
-        </PanelField>
-        <PanelField label="Video URL" labelWidth="100px">
-          <div className="text-xs text-muted-foreground truncate">{video.heygen_video_url || '—'}</div>
-        </PanelField>
-        <PanelField label="Длительность" labelWidth="100px">
-          <div className="text-xs text-muted-foreground">{video.video_duration ? `${video.video_duration}s` : '—'}</div>
-        </PanelField>
+      {/* === 7. Meta === */}
+      <div className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 text-[11px] items-center">
+        <span className="text-muted-foreground">Длительность видео</span>
+        <span>{durationFormatted}</span>
+        <span className="text-muted-foreground">Размер видео</span>
+        <span>—</span>
       </div>
     </UnifiedPanel>
   );
