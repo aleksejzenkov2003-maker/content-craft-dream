@@ -1,57 +1,58 @@
 
 
-## Решение: бинарная MP4-конкатенация + нормализация аудио через ffmpeg.wasm
+## Changes to VideosTable
 
-### Что сделано
+Based on the screenshot reference, here are the modifications:
 
-1. **`supabase/functions/concat-video/index.ts`** — полная перезапись:
-   - Бинарный MP4-парсер: разбор боксов (moov/trak/stbl/stsz/stco/stsc/stts/stss/ctts)
-   - Извлечение сэмплов из обоих файлов, сборка нового mdat
-   - Объединение sample tables, пересчёт оффсетов, обновление duration
-   - Сохранение логики получения свежих HeyGen URL
-   - Загрузка результата в Storage
+### 1. Column layout to match screenshot
 
-2. **`src/lib/videoNormalizer.ts`** — утилита нормализации аудио через ffmpeg.wasm:
-   - Загружает ffmpeg WASM при первом использовании
-   - Перекодирует аудио в AAC-LC 48kHz mono 128kbps: `-c:v copy -c:a aac -ar 48000 -ac 1 -b:a 128k`
-   - Видео-поток копируется без потерь
+New column order (removing "Фон" and merging preview):
 
-3. **`src/components/covers/BackCoversGrid.tsx`** — интеграция нормализации:
-   - При загрузке видео-обложки автоматически нормализует аудио через ffmpeg.wasm
-   - Показывает прогресс нормализации
-   - Загружает нормализованный файл в Storage
-   - Fallback на оригинал при ошибке
+```text
+☐ | ID↕ | Духовник↕ | Cover● | Озвучка● | Video● | Длина↕ | 🔊 | [thumbnail] | Обложка btn | Звук btn | Видео btn | Каналы
+```
 
-### Зависимости
-- `@ffmpeg/ffmpeg@0.12.10`
-- `@ffmpeg/util@0.12.1`
+- Remove separate "Фон" (atmosphere) column — cover generation already includes atmosphere+overlay as one step
+- Single thumbnail column shows the final cover (front_cover_url). Clicking it opens a preview popover (no regeneration)
+- Remove the old "Превью" column header
 
----
+### 2. Remove "Выгрузка" button
 
-## Субтитры: ElevenLabs timestamps → SRT → FFmpeg
+Remove the export XLSX button and its `handleExportXlsx` function from the toolbar.
 
-### Что сделано
+### 3. Click on thumbnail = preview only
 
-1. **БД миграция** — добавлено поле `word_timestamps jsonb` в таблицу `videos`
+- Cover thumbnail click opens HoverCard/Popover preview (already works this way for cover)
+- Video thumbnail in the video column: clicking the video icon opens a video player popover (already works)
+- Neither triggers regeneration
 
-2. **Edge Functions** — обновлены оба voiceover-генератора:
-   - `supabase/functions/generate-voiceover-for-video/index.ts` → endpoint `/with-timestamps`
-   - `supabase/functions/generate-voiceover/index.ts` → endpoint `/with-timestamps`
-   - Ответ содержит `audio_base64` + `alignment` (character-level timestamps)
-   - Функция `buildWordTimestamps()` собирает word-level timestamps из character-level
-   - Timestamps сохраняются в `videos.word_timestamps`
+### 4. Buttons trigger regeneration
 
-3. **`src/lib/srtGenerator.ts`** — генерация субтитров:
-   - `generateSrt()` — SRT формат (группировка по N слов)
-   - `generateAss()` — ASS формат (со стилями: шрифт, размер, цвет, обводка)
-   - `generateSrtBlocks()` — промежуточная структура
+Three separate buttons in each row:
+- **Обложка** — calls `onGenerateCover(video)` (re-generates atmosphere + overlay)
+- **Звук** — calls `onGenerateVoiceover(video)` (re-generates voiceover)
+- **Видео** — calls `onGenerateVideo(video)` (re-generates HeyGen video)
 
-4. **`src/lib/videoSubtitles.ts`** — вшивание субтитров через ffmpeg.wasm:
-   - `burnSubtitles(videoUrl, timestamps, options, onProgress)` → File
-   - Использует ASS-фильтр для стилизованных субтитров
-   - Видео перекодируется libx264 (preset fast, crf 23), аудио копируется
+When asset already exists, button still shows but triggers RE-generation. When generating, show spinner.
 
-5. **UI** — кнопка «Добавить субтитры» в `VideoSidePanel`:
-   - Появляется когда есть `heygen_video_url` и `word_timestamps`
-   - Показывает прогресс через Progress bar
-   - Результат загружается в Storage и сохраняется в `video_path`
+### 5. Standardized statuses
+
+Replace current status configs with four unified statuses:
+- **Pending** — gray dot
+- **In progress** — yellow dot (maps from `generating`)
+- **Ready** — green dot
+- **Error** — red dot
+
+Remove `atmosphere_ready` and `published` from status configs. Update `statusLabels` accordingly.
+
+### File: `src/components/videos/VideosTable.tsx`
+
+- Update grid template: `grid-cols-[40px_60px_150px_100px_100px_100px_70px_40px_80px_80px_80px_80px_40px]`
+- Remove "Фон" column (atmosphere preview/button)
+- Remove "Выгрузка" button and `handleExportXlsx` function, remove `xlsx` import
+- Move "Импорт" into gear dropdown (consistent with Questions block)
+- Update status configs to use `pending/generating/ready/error` with labels `Pending/In progress/Ready/Error`
+- Cover thumbnail: click opens preview only (HoverCard, no onClick handler calling generation)
+- Three action buttons: Обложка, Звук, Видео — each triggers respective generation callback
+- Effective status resolution: if URL exists, show "Ready" regardless of backend status
+
