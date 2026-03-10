@@ -278,7 +278,7 @@ export default function Index() {
     } catch (err) {
       console.error('Video polling error:', err);
     }
-  }, [refetchVideos, refetchPublications, stopVideoPolling, triggerAutoConcat]);
+  }, [refetchVideos, refetchPublications, stopVideoPolling, triggerAutoConcat, postProcessVideo]);
 
   const startVideoPolling = useCallback((videoId: string) => {
     if (videoPollingRef.current[videoId]) return;
