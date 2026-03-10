@@ -612,10 +612,10 @@ const minuteOptions = [0, 5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55];
                   <p className="text-sm text-muted-foreground">{pubs.length} публикаций</p>
                 </div>
               </div>
-              <Table>
+              <Table className="text-xs">
                 <TableHeader>
-                  <TableRow>
-                    <TableHead className="w-[40px]">
+                  <TableRow className="h-8">
+                    <TableHead className="w-[40px] py-1">
                       <Checkbox
                         checked={allSelected}
                         ref={(el) => {
