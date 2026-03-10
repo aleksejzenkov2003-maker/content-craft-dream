@@ -360,7 +360,7 @@ export default function Index() {
       });
 
       if (!response.ok) throw new Error('Failed to generate atmosphere');
-      toast.success('Фон (атмосфера) сгенерирован!');
+      toast.success('Фон сгенерирован!');
       refetchVideos();
     } catch (error) {
       console.error('Error generating atmosphere:', error);
