@@ -966,13 +966,13 @@ const minuteOptions = [0, 5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55];
 
       {/* Video Preview Dialog */}
       <Dialog open={!!previewVideoUrl} onOpenChange={(o) => !o && setPreviewVideoUrl(null)}>
-        <DialogContent className="max-w-lg p-0">
-          <DialogHeader className="p-4 pb-0">
-            <DialogTitle>Превью видео</DialogTitle>
+        <DialogContent className="max-w-sm p-0">
+          <DialogHeader className="p-3 pb-0">
+            <DialogTitle className="text-sm">Превью видео</DialogTitle>
           </DialogHeader>
           {previewVideoUrl && (
-            <div className="p-4 pt-2">
-              <video src={previewVideoUrl} controls className="w-full rounded-md" autoPlay />
+            <div className="p-3 pt-2">
+              <video src={previewVideoUrl} controls playsInline preload="metadata" className="w-full max-h-[70vh] rounded-md object-contain" />
             </div>
           )}
         </DialogContent>
