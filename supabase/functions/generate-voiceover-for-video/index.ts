@@ -30,7 +30,7 @@ serve(async (req) => {
     // Get video with advisor info
     const { data: video, error: videoError } = await supabase
       .from('videos')
-      .select(`*, advisor:advisors (id, name, elevenlabs_voice_id)`)
+      .select(`*, advisor:advisors (id, name, elevenlabs_voice_id, speech_speed)`)
       .eq('id', videoId)
       .single();
 
