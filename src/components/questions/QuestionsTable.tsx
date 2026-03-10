@@ -59,6 +59,7 @@ interface QuestionsTableProps {
   advisors?: AdvisorLookup[];
   onBulkUpdateStatus?: (uniqueKeys: string[], status: string) => Promise<void>;
   onBulkUpdateDate?: (uniqueKeys: string[], date: string) => Promise<void>;
+  onStartProduction?: (uniqueKeys: string[]) => Promise<void>;
 }
 
 interface QuestionData {
