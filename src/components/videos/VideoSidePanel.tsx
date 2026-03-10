@@ -104,6 +104,7 @@ export function VideoSidePanel({
       if (video?.id) onUpdateVideo(video.id, { selected_channels: defaults } as any);
     } else setSelectedChannels([]);
     setAdvisorAnswer(video?.advisor_answer || '');
+    setIsReady((video as any)?.is_ready || false);
   }, [video?.id, video?.selected_channels, video?.advisor_answer, advisor]);
 
   useEffect(() => {
