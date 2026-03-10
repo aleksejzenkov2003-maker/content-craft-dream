@@ -279,7 +279,7 @@ export function PromptEditor({ prompts = [], onUpdatePrompt, onTestPrompt }: Pro
               <div className="relative">
                 <pre className={cn(
                   "min-h-[300px] max-h-[400px] overflow-auto p-3 rounded-lg",
-                  "bg-background border border-border font-mono text-xs whitespace-pre-wrap",
+                  "bg-background border border-border font-mono text-xs whitespace-pre-wrap break-words",
                   !testResult && "flex items-center justify-center text-muted-foreground"
                 )}>
                   {testResult || (
