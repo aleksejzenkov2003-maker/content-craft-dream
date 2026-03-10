@@ -7,7 +7,8 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Calendar } from '@/components/ui/calendar';
-import { Search, Loader2, FileSpreadsheet, Trash2, Check, ArrowUpDown, ArrowUp, ArrowDown, CalendarIcon, Clock, Settings2 } from 'lucide-react';
+import { Search, Loader2, FileSpreadsheet, Trash2, Check, ArrowUpDown, ArrowUp, ArrowDown, CalendarIcon, Clock, Settings2, Play } from 'lucide-react';
+import { DropdownMenuSeparator } from '@/components/ui/dropdown-menu';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { Video as VideoType } from '@/hooks/useVideos';
 import { Publication } from '@/hooks/usePublications';
