@@ -1,57 +1,24 @@
 
 
-## Решение: бинарная MP4-конкатенация + нормализация аудио через ffmpeg.wasm
+## Problem
 
-### Что сделано
+`editingPublication` stores a **snapshot** of the publication object. After save, `fetchPublications` updates the `publications` array, but `editingPublication` remains the old snapshot. The `useEffect` in the dialog depends on `publication?.id` which doesn't change, so local state never re-syncs with fresh data.
 
-1. **`supabase/functions/concat-video/index.ts`** — полная перезапись:
-   - Бинарный MP4-парсер: разбор боксов (moov/trak/stbl/stsz/stco/stsc/stts/stss/ctts)
-   - Извлечение сэмплов из обоих файлов, сборка нового mdat
-   - Объединение sample tables, пересчёт оффсетов, обновление duration
-   - Сохранение логики получения свежих HeyGen URL
-   - Загрузка результата в Storage
+This is a known pattern violation per the project architecture: state should be derived from IDs, not stored as object snapshots.
 
-2. **`src/lib/videoNormalizer.ts`** — утилита нормализации аудио через ffmpeg.wasm:
-   - Загружает ffmpeg WASM при первом использовании
-   - Перекодирует аудио в AAC-LC 48kHz mono 128kbps: `-c:v copy -c:a aac -ar 48000 -ac 1 -b:a 128k`
-   - Видео-поток копируется без потерь
+## Fix
 
-3. **`src/components/covers/BackCoversGrid.tsx`** — интеграция нормализации:
-   - При загрузке видео-обложки автоматически нормализует аудио через ffmpeg.wasm
-   - Показывает прогресс нормализации
-   - Загружает нормализованный файл в Storage
-   - Fallback на оригинал при ошибке
+**PublicationsTable.tsx**: Change `editingPublication` from storing a full `Publication` object to storing only the publication **ID** (`string | null`). Derive the live publication object from the `publications` array during render.
 
-### Зависимости
-- `@ffmpeg/ffmpeg@0.12.10`
-- `@ffmpeg/util@0.12.1`
+```text
+Before:  const [editingPublication, setEditingPublication] = useState<Publication | null>(null)
+After:   const [editingPublicationId, setEditingPublicationId] = useState<string | null>(null)
+         const editingPublication = publications.find(p => p.id === editingPublicationId) || null
+```
 
----
+All `setEditingPublication(pub)` calls become `setEditingPublicationId(pub.id)`, and `setEditingPublication(null)` becomes `setEditingPublicationId(null)`.
 
-## Субтитры: ElevenLabs timestamps → SRT → FFmpeg
+This way, when `fetchPublications` completes after save, `editingPublication` automatically points to the fresh object with updated `video_title`, `generated_text`, etc. The dialog renders the latest data immediately.
 
-### Что сделано
+No changes needed in `PublicationEditDialog.tsx` itself.
 
-1. **БД миграция** — добавлено поле `word_timestamps jsonb` в таблицу `videos`
-
-2. **Edge Functions** — обновлены оба voiceover-генератора:
-   - `supabase/functions/generate-voiceover-for-video/index.ts` → endpoint `/with-timestamps`
-   - `supabase/functions/generate-voiceover/index.ts` → endpoint `/with-timestamps`
-   - Ответ содержит `audio_base64` + `alignment` (character-level timestamps)
-   - Функция `buildWordTimestamps()` собирает word-level timestamps из character-level
-   - Timestamps сохраняются в `videos.word_timestamps`
-
-3. **`src/lib/srtGenerator.ts`** — генерация субтитров:
-   - `generateSrt()` — SRT формат (группировка по N слов)
-   - `generateAss()` — ASS формат (со стилями: шрифт, размер, цвет, обводка)
-   - `generateSrtBlocks()` — промежуточная структура
-
-4. **`src/lib/videoSubtitles.ts`** — вшивание субтитров через ffmpeg.wasm:
-   - `burnSubtitles(videoUrl, timestamps, options, onProgress)` → File
-   - Использует ASS-фильтр для стилизованных субтитров
-   - Видео перекодируется libx264 (preset fast, crf 23), аудио копируется
-
-5. **UI** — кнопка «Добавить субтитры» в `VideoSidePanel`:
-   - Появляется когда есть `heygen_video_url` и `word_timestamps`
-   - Показывает прогресс через Progress bar
-   - Результат загружается в Storage и сохраняется в `video_path`
