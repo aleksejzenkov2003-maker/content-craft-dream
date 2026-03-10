@@ -1,6 +1,5 @@
 import * as React from 'react';
 import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog';
-import { ScrollArea } from '@/components/ui/scroll-area';
 import { Button } from '@/components/ui/button';
 import { ChevronUp, ChevronDown, X } from 'lucide-react';
 import { cn } from '@/lib/utils';
@@ -83,10 +82,10 @@ export function UnifiedPanel({
           </div>
         </div>
 
-        {/* Body */}
-        <ScrollArea className="flex-1 min-h-0 min-w-0 overflow-hidden [&>div]:!block">
-          <div className="p-4 space-y-4 max-w-full overflow-hidden [&_textarea]:max-w-full [&_input]:max-w-full">{children}</div>
-        </ScrollArea>
+        {/* Body — native overflow scroll */}
+        <div className="flex-1 min-h-0 overflow-y-auto">
+          <div className="p-4 space-y-4 max-w-full [&_textarea]:max-w-full [&_input]:max-w-full">{children}</div>
+        </div>
 
         {/* Footer */}
         {footer && (
