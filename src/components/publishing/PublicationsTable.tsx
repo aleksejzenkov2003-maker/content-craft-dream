@@ -101,7 +101,8 @@ export function PublicationsTable({ groupBy = 'channel' }: PublicationsTableProp
   const [activeStatusTab, setActiveStatusTab] = useState<string | null>(null);
   
   // Edit dialog
-  const [editingPublication, setEditingPublication] = useState<Publication | null>(null);
+  const [editingPublicationId, setEditingPublicationId] = useState<string | null>(null);
+  const editingPublication = publications.find(p => p.id === editingPublicationId) || null;
   
   // Inline preview dialogs
   const [previewVideoUrl, setPreviewVideoUrl] = useState<string | null>(null);
