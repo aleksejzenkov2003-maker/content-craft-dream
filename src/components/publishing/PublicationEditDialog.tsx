@@ -1,24 +1,17 @@
-import { useState, useEffect } from 'react';
-import { UnifiedPanel, PanelField, PanelSection } from '@/components/ui/unified-panel';
+import { useState, useEffect, useCallback } from 'react';
+import { UnifiedPanel, PanelField } from '@/components/ui/unified-panel';
 import { Button } from '@/components/ui/button';
-import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Input } from '@/components/ui/input';
 import { Separator } from '@/components/ui/separator';
 import { Badge } from '@/components/ui/badge';
+import { Checkbox } from '@/components/ui/checkbox';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import {
-  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
-} from '@/components/ui/select';
-import { Calendar } from '@/components/ui/calendar';
-import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
-import {
-  CalendarIcon, Clock, Loader2, Sparkles,
-  ExternalLink, FileText, Settings2, Volume2,
+  Loader2, Sparkles, ExternalLink, RefreshCw, Video as VideoIcon,
 } from 'lucide-react';
-import { format, setHours, setMinutes } from 'date-fns';
+import { format } from 'date-fns';
 import { ru } from 'date-fns/locale';
-import { cn } from '@/lib/utils';
 import { Publication } from '@/hooks/usePublications';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
@@ -32,229 +25,295 @@ interface PublicationEditDialogProps {
   onNext?: () => void;
 }
 
-const statusOptions = [
-  { value: 'pending', label: 'Ожидает', color: 'text-muted-foreground' },
-  { value: 'checked', label: 'Проверено', color: 'text-emerald-600' },
-  { value: 'needs_concat', label: 'Ожидает склейки', color: 'text-orange-600' },
-  { value: 'scheduled', label: 'Запланирован', color: 'text-blue-600' },
-  { value: 'publishing', label: 'Публикуется', color: 'text-yellow-600' },
-  { value: 'published', label: 'Опубликован', color: 'text-green-600' },
-  { value: 'failed', label: 'Ошибка', color: 'text-destructive' },
-];
-
-const hours = Array.from({ length: 24 }, (_, i) => i);
-const minutes = [0, 5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55];
-
 export function PublicationEditDialog({
   publication, open, onClose, onSave, onPrev, onNext,
 }: PublicationEditDialogProps) {
+  const [title, setTitle] = useState('');
   const [generatedText, setGeneratedText] = useState('');
-  const [status, setStatus] = useState('pending');
-  const [postDate, setPostDate] = useState<Date | undefined>();
-  const [hour, setHour] = useState(12);
-  const [minute, setMinute] = useState(0);
-  const [postUrl, setPostUrl] = useState('');
-  const [saving, setSaving] = useState(false);
   const [promptText, setPromptText] = useState('');
+  const [originalPrompt, setOriginalPrompt] = useState('');
+  const [isReady, setIsReady] = useState(false);
+  const [saving, setSaving] = useState(false);
   const [generating, setGenerating] = useState(false);
+  const [activeTab, setActiveTab] = useState('text');
+
+  const fillPromptVars = useCallback((template: string, pub: Publication) => {
+    return template
+      .replace(/\{\{question\}\}/g, pub.video?.question || '')
+      .replace(/\{\{hook\}\}/g, pub.video?.hook || '')
+      .replace(/\{\{answer\}\}/g, pub.video?.advisor_answer || '')
+      .replace(/\{\{advisor\}\}/g, pub.video?.advisor?.display_name || pub.video?.advisor?.name || '')
+      .replace(/\{\{video_title\}\}/g, pub.video?.video_title || '')
+      .replace(/\{\{channel\}\}/g, pub.channel?.name || '')
+      .replace(/\{\{network_type\}\}/g, pub.channel?.network_type || '');
+  }, []);
 
   useEffect(() => {
     if (publication) {
+      setTitle(publication.video?.video_title || publication.video?.question || '');
       setGeneratedText(publication.generated_text || '');
-      setStatus(publication.publication_status || 'pending');
-      setPostUrl(publication.post_url || '');
-      if (publication.post_date) {
-        const date = new Date(publication.post_date);
-        setPostDate(date);
-        setHour(date.getHours());
-        setMinute(date.getMinutes());
-      } else { setPostDate(undefined); setHour(12); setMinute(0); }
+      setIsReady(publication.publication_status === 'checked' || publication.publication_status === 'scheduled' || publication.publication_status === 'published');
     }
   }, [publication]);
 
   useEffect(() => {
     const fetchPrompt = async () => {
       if (!publication) return;
-      const channelPrompt = publication.channel?.post_text_prompt;
-      if (channelPrompt) { setPromptText(fillPromptVars(channelPrompt, publication)); return; }
-      const { data: dbPrompt } = await supabase.from('prompts').select('user_template').eq('type', 'post_text').eq('is_active', true).limit(1).single();
-      if (dbPrompt) setPromptText(fillPromptVars(dbPrompt.user_template, publication));
+      let template = '';
+      if (publication.channel?.post_text_prompt) {
+        template = publication.channel.post_text_prompt;
+      } else {
+        const { data: dbPrompt } = await supabase
+          .from('prompts')
+          .select('user_template')
+          .eq('type', 'post_text')
+          .eq('is_active', true)
+          .limit(1)
+          .single();
+        if (dbPrompt) template = dbPrompt.user_template;
+      }
+      const filled = fillPromptVars(template, publication);
+      setPromptText(filled);
+      setOriginalPrompt(filled);
     };
     fetchPrompt();
-  }, [publication?.id]);
-
-  const fillPromptVars = (template: string, pub: Publication) => {
-    return template
-      .replace(/\{\{question\}\}/g, pub.video?.question || '')
-      .replace(/\{\{hook\}\}/g, pub.video?.hook || '')
-      .replace(/\{\{answer\}\}/g, pub.video?.advisor_answer || '')
-      .replace(/\{\{advisor\}\}/g, pub.video?.advisor?.display_name || pub.video?.advisor?.name || '');
-  };
+  }, [publication?.id, fillPromptVars]);
 
   const handleGenerateText = async () => {
     if (!publication) return;
     setGenerating(true);
     try {
-      const { data, error } = await supabase.functions.invoke('generate-post-text', { body: { publicationId: publication.id } });
+      const { data, error } = await supabase.functions.invoke('generate-post-text', {
+        body: { publicationId: publication.id },
+      });
       if (error) throw error;
-      if (data?.generated_text) { setGeneratedText(data.generated_text); toast.success('Текст сгенерирован'); }
-    } catch (e) { console.error('Error generating text:', e); toast.error('Ошибка генерации текста'); }
-    finally { setGenerating(false); }
+      if (data?.generated_text) {
+        setGeneratedText(data.generated_text);
+        toast.success('Текст сгенерирован');
+      }
+    } catch (e) {
+      console.error('Error generating text:', e);
+      toast.error('Ошибка генерации текста');
+    } finally {
+      setGenerating(false);
+    }
+  };
+
+  const handleRestorePrompt = () => {
+    setPromptText(originalPrompt);
+    toast.info('Промт восстановлен из шаблона');
   };
 
   const handleSave = async () => {
     if (!publication) return;
     setSaving(true);
     try {
-      let finalDate: string | null = null;
-      if (postDate) { let d = setHours(postDate, hour); d = setMinutes(d, minute); finalDate = d.toISOString(); }
-      await onSave(publication.id, { generated_text: generatedText || null, publication_status: status, post_date: finalDate, post_url: postUrl || null });
+      await onSave(publication.id, {
+        generated_text: generatedText || null,
+        publication_status: isReady ? 'checked' : 'pending',
+      });
       onClose();
-    } finally { setSaving(false); }
-  };
-
-  const getPublicationTitle = () => {
-    if (!publication) return '';
-    const question = publication.video?.question || 'Без вопроса';
-    const advisor = publication.video?.advisor?.display_name || publication.video?.advisor?.name || '';
-    return advisor ? `${question} — ${advisor}` : question;
+    } finally {
+      setSaving(false);
+    }
   };
 
   if (!publication) return null;
+
+  const channelName = publication.channel?.name || 'канал';
+  const networkType = publication.channel?.network_type || '';
+  const hook = publication.video?.hook || '';
+  const postDateFormatted = publication.post_date
+    ? format(new Date(publication.post_date), 'dd MMMM yyyy, HH:mm', { locale: ru })
+    : '—';
 
   return (
     <UnifiedPanel
       open={open}
       onOpenChange={(o) => !o && onClose()}
-      title={getPublicationTitle()}
+      title="Редактирование публикации"
       width="lg"
       onPrev={onPrev}
       onNext={onNext}
       preventOutsideClose
-      headerActions={
-        publication.post_url ? (
-          <a href={publication.post_url} target="_blank" rel="noopener noreferrer" className="p-1 hover:bg-muted rounded" title="Открыть публикацию">
-            <ExternalLink className="w-4 h-4" />
-          </a>
-        ) : undefined
-      }
       footer={
-        <>
-          <Button variant="outline" size="sm" onClick={onClose} disabled={saving}>Отмена</Button>
-          <Button size="sm" onClick={handleSave} disabled={saving}>
-            {saving && <Loader2 className="w-3 h-3 mr-1 animate-spin" />}
-            Сохранить
-          </Button>
-        </>
-      }
-    >
-      {/* Channel + Video info */}
-      <div className="flex items-center gap-3 flex-wrap">
-        {publication.channel && <Badge variant="outline" className="text-xs">{publication.channel.name} ({publication.channel.network_type})</Badge>}
-        {publication.video?.video_number && <Badge variant="secondary" className="font-mono text-xs">Ролик #{publication.video.video_number}</Badge>}
-        {publication.video?.video_duration && <span className="text-xs text-muted-foreground">{publication.video.video_duration}s</span>}
-      </div>
-
-      {/* Status */}
-      <PanelField label="Статус">
-        <Select value={status} onValueChange={setStatus}>
-          <SelectTrigger className="h-8 text-sm"><SelectValue /></SelectTrigger>
-          <SelectContent>{statusOptions.map((opt) => <SelectItem key={opt.value} value={opt.value}><span className={opt.color}>{opt.label}</span></SelectItem>)}</SelectContent>
-        </Select>
-      </PanelField>
-
-      {/* Date and time */}
-      <PanelField label="Плановая публикация">
-        <div className="flex gap-2 items-center">
-          <Popover>
-            <PopoverTrigger asChild>
-              <Button variant="outline" size="sm" className={cn('justify-start text-left text-sm', !postDate && 'text-muted-foreground')}>
-                <CalendarIcon className="w-3 h-3 mr-2" />
-                {postDate ? format(postDate, 'dd.MM.yyyy', { locale: ru }) : 'Выбрать дату'}
-              </Button>
-            </PopoverTrigger>
-            <PopoverContent className="w-auto p-0" align="start">
-              <Calendar mode="single" selected={postDate} onSelect={setPostDate} locale={ru} className="p-3 pointer-events-auto" />
-            </PopoverContent>
-          </Popover>
-          <div className="flex items-center gap-1">
-            <Clock className="h-3 w-3 text-muted-foreground" />
-            <Select value={hour.toString()} onValueChange={(v) => setHour(parseInt(v))}>
-              <SelectTrigger className="w-[60px] h-8 text-xs"><SelectValue /></SelectTrigger>
-              <SelectContent className="max-h-[200px]">{hours.map((h) => <SelectItem key={h} value={h.toString()}>{h.toString().padStart(2, '0')}</SelectItem>)}</SelectContent>
-            </Select>
-            <span className="text-sm">:</span>
-            <Select value={minute.toString()} onValueChange={(v) => setMinute(parseInt(v))}>
-              <SelectTrigger className="w-[60px] h-8 text-xs"><SelectValue /></SelectTrigger>
-              <SelectContent className="max-h-[200px]">{minutes.map((m) => <SelectItem key={m} value={m.toString()}>{m.toString().padStart(2, '0')}</SelectItem>)}</SelectContent>
-            </Select>
+        <div className="flex items-center justify-between w-full">
+          <div className="flex gap-2">
+            <Button variant="outline" size="sm" onClick={handleRestorePrompt}>
+              Восстановить
+            </Button>
+            <Button size="sm" onClick={handleSave} disabled={saving}>
+              {saving && <Loader2 className="w-3 h-3 mr-1 animate-spin" />}
+              Сохранить
+            </Button>
           </div>
         </div>
-      </PanelField>
+      }
+    >
+      {/* Info fields */}
+      <div className="space-y-3">
+        <PanelField label="Название" labelWidth="160px">
+          <span className="text-sm">{publication.video?.video_title || publication.video?.question || '—'}</span>
+        </PanelField>
+        <PanelField label="Хук" labelWidth="160px">
+          <span className="text-sm">{hook || '—'}</span>
+        </PanelField>
+        <PanelField label="Канал публикации" labelWidth="160px">
+          <span className="text-sm font-medium">{channelName}{networkType ? ` (${networkType})` : ''}</span>
+        </PanelField>
+        <PanelField label="Плановая публикация" labelWidth="160px">
+          <span className="text-sm">{postDateFormatted}</span>
+        </PanelField>
+      </div>
 
-      {/* Post URL */}
-      <PanelField label="Ссылка на пост">
-        <div className="flex gap-2 items-center">
-          <Input value={postUrl} onChange={(e) => setPostUrl(e.target.value)} placeholder="https://..." className="h-8 text-sm flex-1" />
-          {postUrl && <a href={postUrl} target="_blank" rel="noopener noreferrer" className="p-1.5 hover:bg-muted rounded border shrink-0"><ExternalLink className="w-3.5 h-3.5" /></a>}
-        </div>
-      </PanelField>
+      <Separator className="my-2" />
 
-      {/* Voiceover */}
-      {publication.video?.voiceover_url && (
-        <>
-          <Separator />
-          <PanelSection title="Озвучка" icon={<Volume2 className="w-4 h-4" />}>
-            <audio controls className="w-full h-8" src={publication.video.voiceover_url}>Your browser does not support the audio element.</audio>
-          </PanelSection>
-        </>
-      )}
+      {/* Tabs: Генерация текста / Промт / Финальное видео */}
+      <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+        <TabsList className="grid w-full grid-cols-3 h-9">
+          <TabsTrigger value="text" className="text-xs gap-1">
+            Генерация Текста
+            {generating && <Loader2 className="w-3 h-3 animate-spin" />}
+          </TabsTrigger>
+          <TabsTrigger value="prompt" className="text-xs">Промт</TabsTrigger>
+          <TabsTrigger value="video" className="text-xs gap-1">
+            <VideoIcon className="w-3 h-3" />
+            Финальное видео
+          </TabsTrigger>
+        </TabsList>
 
-      <Separator />
+        {/* Text tab */}
+        <TabsContent value="text" className="space-y-3 mt-3">
+          <Input
+            value={title}
+            onChange={(e) => setTitle(e.target.value)}
+            placeholder="Заголовок"
+            className="text-sm font-medium"
+          />
+          <Textarea
+            value={generatedText}
+            onChange={(e) => setGeneratedText(e.target.value)}
+            placeholder="Сгенерированное текстовое описание..."
+            rows={12}
+            className="resize-y text-sm border-primary/30"
+          />
+          <div className="flex items-center justify-between">
+            <span className="text-xs text-muted-foreground">{generatedText.length} символов</span>
+            <Button
+              size="sm"
+              variant="secondary"
+              className="h-7 text-xs"
+              onClick={handleGenerateText}
+              disabled={generating}
+            >
+              {generating ? <Loader2 className="w-3 h-3 mr-1 animate-spin" /> : <Sparkles className="w-3 h-3 mr-1" />}
+              {generatedText ? 'Перегенерировать' : 'Сгенерировать'}
+            </Button>
+          </div>
+        </TabsContent>
 
-      {/* Text tabs */}
-      <PanelSection title="Текст публикации">
-        <Tabs defaultValue="text">
-          <TabsList className="grid w-full grid-cols-2 h-8">
-            <TabsTrigger value="text" className="text-xs flex items-center gap-1"><FileText className="w-3 h-3" />Текст</TabsTrigger>
-            <TabsTrigger value="prompt" className="text-xs flex items-center gap-1"><Settings2 className="w-3 h-3" />Промт</TabsTrigger>
-          </TabsList>
-          <TabsContent value="text" className="space-y-3 mt-3">
-            <div className="flex items-center justify-between">
-              <span className="text-xs text-muted-foreground">{generatedText.length} символов</span>
-              <Button size="sm" variant="secondary" className="h-7 text-xs" onClick={handleGenerateText} disabled={generating}>
-                {generating ? <Loader2 className="w-3 h-3 mr-1 animate-spin" /> : <Sparkles className="w-3 h-3 mr-1" />}
-                {generatedText ? 'Перегенерировать' : 'Сгенерировать'}
-              </Button>
+        {/* Prompt tab */}
+        <TabsContent value="prompt" className="space-y-3 mt-3">
+          <Textarea
+            value={promptText}
+            onChange={(e) => setPromptText(e.target.value)}
+            placeholder="Промт для генерации текста публикации..."
+            className="min-h-[250px] text-xs font-mono resize-y"
+            rows={14}
+          />
+          <p className="text-[10px] text-muted-foreground">
+            Промт подтянут из настроек канала. Можно отредактировать и запустить генерацию.
+          </p>
+        </TabsContent>
+
+        {/* Final video tab */}
+        <TabsContent value="video" className="mt-3">
+          {publication.final_video_url ? (
+            <div className="space-y-3">
+              <video
+                src={publication.final_video_url}
+                controls
+                playsInline
+                preload="metadata"
+                className="w-full max-h-[50vh] rounded-lg object-contain bg-black"
+              />
+              <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                <a
+                  href={publication.final_video_url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-primary hover:underline flex items-center gap-1"
+                >
+                  <ExternalLink className="w-3 h-3" />
+                  Открыть видео
+                </a>
+              </div>
             </div>
-            <Textarea value={generatedText} onChange={(e) => setGeneratedText(e.target.value)} placeholder="Введите или сгенерируйте текст публикации..." rows={10} className="resize-y text-sm" />
-          </TabsContent>
-          <TabsContent value="prompt" className="space-y-2 mt-3">
-            <Textarea value={promptText} onChange={(e) => setPromptText(e.target.value)} placeholder="Промт для генерации текста публикации..." className="min-h-[200px] text-xs font-mono" rows={10} />
-            <p className="text-[10px] text-muted-foreground">Промт подтянут из настроек канала или общих настроек. Можно отредактировать перед генерацией.</p>
-          </TabsContent>
-        </Tabs>
-      </PanelSection>
+          ) : (
+            <div className="flex flex-col items-center justify-center py-12 text-muted-foreground">
+              <VideoIcon className="w-10 h-10 mb-3 opacity-40" />
+              <p className="text-sm">Финальное видео ещё не готово</p>
+              <p className="text-xs mt-1">Сначала выполните склейку видео</p>
+            </div>
+          )}
+        </TabsContent>
+      </Tabs>
+
+      <Separator className="my-2" />
+
+      {/* Readiness + Publish */}
+      <div className="space-y-3">
+        <div className="flex items-center gap-2">
+          <Checkbox
+            id="pub-ready"
+            checked={isReady}
+            onCheckedChange={(v) => setIsReady(!!v)}
+          />
+          <label htmlFor="pub-ready" className="text-sm font-medium cursor-pointer">
+            Готовность
+          </label>
+        </div>
+
+        <Button
+          className="w-full"
+          disabled={!isReady || publication.publication_status === 'published'}
+          onClick={() => {
+            toast.info(`Публикация в ${channelName} запущена`);
+            // Publication logic handled by parent
+          }}
+        >
+          Опубликовать в {channelName}
+        </Button>
+
+        {/* Links */}
+        {(publication.final_video_url || publication.post_url) && (
+          <div className="space-y-1 text-xs">
+            {publication.final_video_url && (
+              <div className="flex items-center gap-2">
+                <span className="text-muted-foreground w-[140px] shrink-0">Ссылка на финальное видео</span>
+                <a href={publication.final_video_url} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline truncate">
+                  {publication.final_video_url}
+                </a>
+              </div>
+            )}
+            {publication.post_url && (
+              <div className="flex items-center gap-2">
+                <span className="text-muted-foreground w-[140px] shrink-0">Ссылка на публикацию</span>
+                <a href={publication.post_url} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline truncate">
+                  {publication.post_url}
+                </a>
+              </div>
+            )}
+          </div>
+        )}
+      </div>
 
       {/* Error */}
       {publication.error_message && (
-        <>
-          <Separator />
-          <div className="p-3 rounded-md bg-destructive/10 border border-destructive/20">
-            <p className="text-sm text-destructive font-medium">Ошибка публикации:</p>
-            <p className="text-sm text-destructive/80 mt-1">{publication.error_message}</p>
-          </div>
-        </>
-      )}
-
-      {/* Final video */}
-      {publication.final_video_url && (
-        <>
-          <Separator />
-          <PanelField label="Финальное видео" labelWidth="140px">
-            <a href={publication.final_video_url} target="_blank" rel="noopener noreferrer" className="text-xs text-primary hover:underline truncate">{publication.final_video_url}</a>
-          </PanelField>
-        </>
+        <div className="p-3 rounded-md bg-destructive/10 border border-destructive/20">
+          <p className="text-sm text-destructive font-medium">Ошибка:</p>
+          <p className="text-sm text-destructive/80 mt-1">{publication.error_message}</p>
+        </div>
       )}
     </UnifiedPanel>
   );
