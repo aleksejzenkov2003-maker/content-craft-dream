@@ -101,7 +101,8 @@ export function PublicationsTable({ groupBy = 'channel' }: PublicationsTableProp
   const [activeStatusTab, setActiveStatusTab] = useState<string | null>(null);
   
   // Edit dialog
-  const [editingPublication, setEditingPublication] = useState<Publication | null>(null);
+  const [editingPublicationId, setEditingPublicationId] = useState<string | null>(null);
+  const editingPublication = publications.find(p => p.id === editingPublicationId) || null;
   
   // Inline preview dialogs
   const [previewVideoUrl, setPreviewVideoUrl] = useState<string | null>(null);
@@ -664,7 +665,7 @@ const minuteOptions = [0, 5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55];
                         selectedIds.has(pub.id) && 'bg-primary/5',
                         'cursor-pointer hover:bg-muted/50 h-10'
                       )}
-                      onClick={() => setEditingPublication(pub)}
+onClick={() => setEditingPublicationId(pub.id)}
                     >
                       <TableCell className="py-1" onClick={(e) => e.stopPropagation()}>
                         <Checkbox
@@ -823,7 +824,7 @@ const minuteOptions = [0, 5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55];
                               </Button>
                             </DropdownMenuTrigger>
                             <DropdownMenuContent align="end">
-                              <DropdownMenuItem onClick={() => setEditingPublication(pub)}>
+                              <DropdownMenuItem onClick={() => setEditingPublicationId(pub.id)}>
                                 <Edit2 className="w-4 h-4 mr-2" />
                                 Редактировать
                               </DropdownMenuItem>
@@ -871,16 +872,16 @@ const minuteOptions = [0, 5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55];
       {/* Edit Dialog */}
       <PublicationEditDialog
         publication={editingPublication}
-        open={!!editingPublication}
-        onClose={() => setEditingPublication(null)}
+        open={!!editingPublicationId}
+        onClose={() => setEditingPublicationId(null)}
         onSave={handleEditPublication}
         onPrev={editingPublication ? (() => {
-          const idx = tabFilteredPublications.findIndex(p => p.id === editingPublication.id);
-          if (idx > 0) setEditingPublication(tabFilteredPublications[idx - 1]);
+          const idx = tabFilteredPublications.findIndex(p => p.id === editingPublicationId);
+          if (idx > 0) setEditingPublicationId(tabFilteredPublications[idx - 1].id);
         }) : undefined}
         onNext={editingPublication ? (() => {
-          const idx = tabFilteredPublications.findIndex(p => p.id === editingPublication.id);
-          if (idx < tabFilteredPublications.length - 1) setEditingPublication(tabFilteredPublications[idx + 1]);
+          const idx = tabFilteredPublications.findIndex(p => p.id === editingPublicationId);
+          if (idx < tabFilteredPublications.length - 1) setEditingPublicationId(tabFilteredPublications[idx + 1].id);
         }) : undefined}
       />
 
