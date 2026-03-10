@@ -110,6 +110,7 @@ export function QuestionsTable({
   advisors = [],
   onBulkUpdateStatus,
   onBulkUpdateDate,
+  onStartProduction,
 }: QuestionsTableProps) {
   const [searchInput, setSearchInput] = useState('');
   const [showImporter, setShowImporter] = useState(false);
