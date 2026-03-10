@@ -290,11 +290,10 @@ export function AdvisorsGrid({
                 {/* Thumbnail photo */}
                 <div className="space-y-1">
                   <div className="text-sm font-medium text-center">Миниатюра</div>
-                  <div className="text-xs text-muted-foreground text-center">Обложка видео</div>
-                  <div className="relative w-44 aspect-[9/16] bg-muted rounded-xl overflow-hidden border-2 border-border">
-                    {getThumbnailPhoto(selectedAdvisor) ? (
+                  <div className="relative w-48 aspect-[9/16] bg-muted rounded-xl overflow-hidden border-2 border-border">
+                    {getThumbnailPhoto(selectedAdvisorLive!) ? (
                       <>
-                        <img src={getThumbnailPhoto(selectedAdvisor)!.photo_url} alt="" className="w-full h-full object-cover" />
+                        <img src={getThumbnailPhoto(selectedAdvisorLive!)!.photo_url} alt="" className="w-full h-full object-cover" />
                         <div className="absolute bottom-0 inset-x-0 bg-gradient-to-t from-black/70 to-transparent pt-6 pb-2 px-2">
                           <span className="text-white text-xs font-medium">
                             {selectedAdvisor.display_name || selectedAdvisor.name}
