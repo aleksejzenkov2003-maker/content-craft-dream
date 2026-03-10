@@ -80,7 +80,7 @@ export function Sidebar({
           <img src="/favicon.png" alt="ArtPatent" className="w-6 h-6 object-contain" />
         </div>
         {!isCollapsed && <div className="flex flex-col">
-            <span className="text-lg font-bold gradient-text">WisdomDialogue AI </span>
+            <span className="text-sm font-bold gradient-text">WisdomDialogue AI </span>
             <span className="text-xs text-muted-foreground">Генерация видео</span>
           </div>}
       </div>
