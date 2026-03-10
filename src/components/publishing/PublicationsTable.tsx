@@ -604,13 +604,9 @@ const minuteOptions = [0, 5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55];
         Object.entries(groupedPublications).map(([groupName, { items: pubs, networkType }]) => (
           <Card key={groupName} className="glass-card">
             <CardContent className="p-0">
-              <div className="p-4 border-b border-border flex items-center justify-between">
-                <div>
-                  <div className="flex items-center gap-2">
-                    <h3 className="font-semibold capitalize">{groupName}</h3>
-                  </div>
-                  <p className="text-sm text-muted-foreground">{pubs.length} публикаций</p>
-                </div>
+              <div className="px-4 py-2 border-b border-border">
+                <h3 className="font-semibold text-sm capitalize">{groupName}</h3>
+                <p className="text-xs text-muted-foreground">{pubs.length} публикаций</p>
               </div>
               <Table className="text-xs">
                 <TableHeader>
