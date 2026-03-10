@@ -30,7 +30,7 @@ serve(async (req) => {
     // Get video with advisor info
     const { data: video, error: videoError } = await supabase
       .from('videos')
-      .select(`*, advisor:advisors (id, name, elevenlabs_voice_id)`)
+      .select(`*, advisor:advisors (id, name, elevenlabs_voice_id, speech_speed)`)
       .eq('id', videoId)
       .single();
 
@@ -56,7 +56,7 @@ serve(async (req) => {
         body: JSON.stringify({
           text,
           model_id: 'eleven_multilingual_v2',
-          voice_settings: { stability: 0.5, similarity_boost: 0.75, style: 0.5, use_speaker_boost: true },
+          voice_settings: { stability: 0.5, similarity_boost: 0.75, style: 0.5, use_speaker_boost: true, speed: video.advisor?.speech_speed || 1.0 },
         }),
       }
     );

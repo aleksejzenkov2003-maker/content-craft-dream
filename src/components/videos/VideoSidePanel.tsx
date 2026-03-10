@@ -12,8 +12,9 @@ import { PublishingChannel } from '@/hooks/usePublishingChannels';
 import {
   Loader2, ChevronLeft, ChevronRight, Link as LinkIcon,
   Image as ImageIcon, Play, Check, Trash2,
-  Sun, Layers, Volume2, MessageSquare, Subtitles, X, ExternalLink,
+  Sun, Layers, Volume2, MessageSquare, Subtitles, X, ExternalLink, RefreshCw,
 } from 'lucide-react';
+import { Checkbox } from '@/components/ui/checkbox';
 import { Progress } from '@/components/ui/progress';
 import { cn } from '@/lib/utils';
 import { supabase } from '@/integrations/supabase/client';
@@ -60,6 +61,7 @@ export function VideoSidePanel({
   onUpdateVideo, onPublish, isGenerating, onPrev, onNext,
 }: VideoSidePanelProps) {
   const [selectedChannels, setSelectedChannels] = useState<string[]>([]);
+  const [isReady, setIsReady] = useState(false);
   const [advisorAnswer, setAdvisorAnswer] = useState('');
   const [atmosphereVariants, setAtmosphereVariants] = useState<CoverVariant[]>([]);
   const [coverVariants, setCoverVariants] = useState<CoverVariant[]>([]);
@@ -102,6 +104,7 @@ export function VideoSidePanel({
       if (video?.id) onUpdateVideo(video.id, { selected_channels: defaults } as any);
     } else setSelectedChannels([]);
     setAdvisorAnswer(video?.advisor_answer || '');
+    setIsReady((video as any)?.is_ready || false);
   }, [video?.id, video?.selected_channels, video?.advisor_answer, advisor]);
 
   useEffect(() => {
@@ -181,15 +184,15 @@ export function VideoSidePanel({
         <TabsContent value="generation" className="space-y-2 mt-2">
           {/* Action buttons row */}
           <div className="grid grid-cols-3 gap-2">
-            <Button size="xs" variant="outline" className="border-amber-500/50 text-amber-700 hover:bg-amber-50 dark:hover:bg-amber-950/20" onClick={() => onGenerateAtmosphere(video, atmospherePromptText || undefined)} disabled={isGeneratingCover}>
-              {isGeneratingCover ? <Loader2 className="w-3 h-3 mr-1 animate-spin" /> : <Sun className="w-3 h-3 mr-1" />}Шаг 1. ФОН
-            </Button>
-            <Button size="xs" variant="outline" className="border-orange-500/50 text-orange-700 hover:bg-orange-50 dark:hover:bg-orange-950/20" onClick={() => onGenerateCover(video)} disabled={isGeneratingCover || !atmosphereUrl}>
-              {isGeneratingCover ? <Loader2 className="w-3 h-3 mr-1 animate-spin" /> : <Layers className="w-3 h-3 mr-1" />}Шаг 2. Обложка
-            </Button>
-            <Button size="xs" variant="outline" className="border-green-500/50 text-green-700 hover:bg-green-50 dark:hover:bg-green-950/20" onClick={() => onGenerateVideo(video)} disabled={video.generation_status === 'generating' || isGenerating || !video.voiceover_url} title={!video.voiceover_url ? 'Сначала создайте озвучку' : undefined}>
-              {video.generation_status === 'generating' || isGenerating ? <Loader2 className="w-3 h-3 mr-1 animate-spin" /> : <Play className="w-3 h-3 mr-1" />}Шаг 3. Видео
-            </Button>
+             <Button size="xs" variant="outline" className="border-amber-500/50 text-amber-700 hover:bg-amber-50 dark:hover:bg-amber-950/20" onClick={() => onGenerateAtmosphere(video, atmospherePromptText || undefined)} disabled={isGeneratingCover}>
+               {isGeneratingCover ? <Loader2 className="w-3 h-3 mr-1 animate-spin" /> : atmosphereUrl ? <RefreshCw className="w-3 h-3 mr-1" /> : <Sun className="w-3 h-3 mr-1" />}Шаг 1. ФОН
+             </Button>
+             <Button size="xs" variant="outline" className="border-orange-500/50 text-orange-700 hover:bg-orange-50 dark:hover:bg-orange-950/20" onClick={() => onGenerateCover(video)} disabled={isGeneratingCover || !atmosphereUrl}>
+               {isGeneratingCover ? <Loader2 className="w-3 h-3 mr-1 animate-spin" /> : video.front_cover_url ? <RefreshCw className="w-3 h-3 mr-1" /> : <Layers className="w-3 h-3 mr-1" />}Шаг 2. Обложка
+             </Button>
+             <Button size="xs" variant="outline" className="border-green-500/50 text-green-700 hover:bg-green-50 dark:hover:bg-green-950/20" onClick={() => onGenerateVideo(video)} disabled={video.generation_status === 'generating' || isGenerating || !video.voiceover_url} title={!video.voiceover_url ? 'Сначала создайте озвучку' : undefined}>
+               {video.generation_status === 'generating' || isGenerating ? <Loader2 className="w-3 h-3 mr-1 animate-spin" /> : <Play className="w-3 h-3 mr-1" />}Шаг 3. Видео
+             </Button>
           </div>
 
           {/* 3-column pipeline with status badges */}
@@ -299,7 +302,7 @@ export function VideoSidePanel({
 
       <Separator />
 
-      {/* === 2. Publication channels === */}
+      {/* === 2. Publication channels + Readiness === */}
       <PanelSection title="Каналы публикации">
         <div className="flex flex-wrap gap-1.5">
           {publishingChannels.filter((c) => c.is_active).map((channel) => {
@@ -313,14 +316,30 @@ export function VideoSidePanel({
             );
           })}
         </div>
+        <div className="flex items-center gap-2 mt-2">
+          <Checkbox
+            id="is-ready"
+            checked={isReady}
+            onCheckedChange={(checked) => {
+              const val = !!checked;
+              setIsReady(val);
+              onUpdateVideo(video.id, { is_ready: val } as any);
+            }}
+          />
+          <Label htmlFor="is-ready" className="text-xs cursor-pointer">Готовность</Label>
+        </div>
       </PanelSection>
 
       {/* === 3. Publish button === */}
-      {selectedChannels.length > 0 && (
-        <Button className="w-full" size="sm" onClick={handlePublish}>
-          Отправить на подготовку к публикации ({selectedChannels.length})
-        </Button>
-      )}
+      <Button
+        className="w-full"
+        size="sm"
+        onClick={handlePublish}
+        disabled={!isReady || selectedChannels.length === 0}
+        title={!isReady ? 'Поставьте галочку «Готовность»' : selectedChannels.length === 0 ? 'Выберите каналы' : undefined}
+      >
+        Отправить на подготовку к публикации ({selectedChannels.length})
+      </Button>
 
       <Separator />
 

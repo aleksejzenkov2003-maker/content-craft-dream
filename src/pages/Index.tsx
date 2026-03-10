@@ -172,6 +172,74 @@ export default function Index() {
     }
   }, [concatVideos, refetchPublications]);
 
+  /**
+   * Post-processing pipeline after HeyGen video is ready:
+   * 1. Reduce bitrate (FFmpeg CRF 28)
+   * 2. Burn subtitles (if word_timestamps exist)
+   * 3. Upload final result as video_path
+   */
+  const postProcessVideo = useCallback(async (videoId: string) => {
+    try {
+      // Fetch fresh video data
+      const { data: vid } = await supabase
+        .from('videos')
+        .select('heygen_video_url, video_path, word_timestamps')
+        .eq('id', videoId)
+        .single();
+
+      const sourceUrl = vid?.heygen_video_url;
+      if (!sourceUrl) {
+        console.warn('No HeyGen URL for post-processing');
+        return;
+      }
+
+      toast.info('Уменьшение битрейта видео...');
+      const { reduceVideoBitrate } = await import('@/lib/videoNormalizer');
+      const reducedFile = await reduceVideoBitrate(sourceUrl);
+
+      // Upload reduced video
+      const reducedFileName = `videos/${videoId}_reduced_${Date.now()}.mp4`;
+      const { error: uploadErr } = await supabase.storage
+        .from('media-files')
+        .upload(reducedFileName, reducedFile, { contentType: 'video/mp4', upsert: true });
+      if (uploadErr) throw uploadErr;
+
+      const { data: urlData } = supabase.storage.from('media-files').getPublicUrl(reducedFileName);
+      let finalUrl = urlData.publicUrl;
+
+      // Burn subtitles if word_timestamps exist
+      if (vid?.word_timestamps) {
+        toast.info('Вшивка субтитров...');
+        try {
+          const { burnSubtitlesBrowser } = await import('@/lib/videoSubtitles');
+          const subtitledFile = await burnSubtitlesBrowser(
+            finalUrl,
+            vid.word_timestamps as any,
+            { fontSize: 48 },
+          );
+          const subtitledFileName = `videos/${videoId}_subtitled_${Date.now()}.mp4`;
+          const { error: subUpErr } = await supabase.storage
+            .from('media-files')
+            .upload(subtitledFileName, subtitledFile, { contentType: 'video/mp4', upsert: true });
+          if (subUpErr) throw subUpErr;
+          const { data: subUrlData } = supabase.storage.from('media-files').getPublicUrl(subtitledFileName);
+          finalUrl = subUrlData.publicUrl;
+        } catch (subErr) {
+          console.error('Subtitle burn failed, using reduced video:', subErr);
+          toast.warning('Не удалось вшить субтитры, используется видео без субтитров');
+        }
+      }
+
+      // Update video_path with final URL
+      await supabase.from('videos').update({ video_path: finalUrl }).eq('id', videoId);
+      toast.success('Постобработка видео завершена!');
+      refetchVideos();
+    } catch (err) {
+      console.error('Post-processing error:', err);
+      throw err;
+    }
+  }, [refetchVideos]);
+
   const pollVideoStatus = useCallback(async (videoId: string) => {
     try {
       const { data, error } = await supabase.functions.invoke('check-video-status', {
@@ -191,12 +259,17 @@ export default function Index() {
 
       if (data?.status === 'ready') {
         stopVideoPolling(videoId);
-        toast.success('Видео готово!');
+        toast.success('Видео от HeyGen готово! Запуск постобработки...');
         refetchVideos();
-        refetchPublications();
         
-        // Auto-concat: find publications marked needs_concat for this video
-        triggerAutoConcat(videoId);
+        // Post-processing pipeline: bitrate reduction → subtitles
+        postProcessVideo(videoId).then(() => {
+          refetchPublications();
+          triggerAutoConcat(videoId);
+        }).catch(err => {
+          console.error('Post-processing failed:', err);
+          toast.error('Ошибка постобработки видео');
+        });
       } else if (data?.status === 'error' || data?.status === 'failed') {
         stopVideoPolling(videoId);
         toast.error(data?.errorMessage || 'Ошибка генерации видео');
@@ -205,7 +278,7 @@ export default function Index() {
     } catch (err) {
       console.error('Video polling error:', err);
     }
-  }, [refetchVideos, refetchPublications, stopVideoPolling, triggerAutoConcat]);
+  }, [refetchVideos, refetchPublications, stopVideoPolling, triggerAutoConcat, postProcessVideo]);
 
   const startVideoPolling = useCallback((videoId: string) => {
     if (videoPollingRef.current[videoId]) return;
@@ -287,7 +360,7 @@ export default function Index() {
       });
 
       if (!response.ok) throw new Error('Failed to generate atmosphere');
-      toast.success('Фон (атмосфера) сгенерирован!');
+      toast.success('Фон сгенерирован!');
       refetchVideos();
     } catch (error) {
       console.error('Error generating atmosphere:', error);
