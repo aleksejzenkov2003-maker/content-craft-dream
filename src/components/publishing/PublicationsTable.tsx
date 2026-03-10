@@ -103,6 +103,10 @@ export function PublicationsTable({ groupBy = 'channel' }: PublicationsTableProp
   // Edit dialog
   const [editingPublication, setEditingPublication] = useState<Publication | null>(null);
   
+  // Inline preview dialogs
+  const [previewVideoUrl, setPreviewVideoUrl] = useState<string | null>(null);
+  const [previewText, setPreviewText] = useState<string | null>(null);
+  
   // Bulk date dialog
   const [showBulkDateDialog, setShowBulkDateDialog] = useState(false);
   const [bulkDate, setBulkDate] = useState<Date | undefined>();
