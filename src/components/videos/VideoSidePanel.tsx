@@ -302,7 +302,7 @@ export function VideoSidePanel({
 
       <Separator />
 
-      {/* === 2. Publication channels === */}
+      {/* === 2. Publication channels + Readiness === */}
       <PanelSection title="Каналы публикации">
         <div className="flex flex-wrap gap-1.5">
           {publishingChannels.filter((c) => c.is_active).map((channel) => {
@@ -316,14 +316,30 @@ export function VideoSidePanel({
             );
           })}
         </div>
+        <div className="flex items-center gap-2 mt-2">
+          <Checkbox
+            id="is-ready"
+            checked={isReady}
+            onCheckedChange={(checked) => {
+              const val = !!checked;
+              setIsReady(val);
+              onUpdateVideo(video.id, { is_ready: val } as any);
+            }}
+          />
+          <Label htmlFor="is-ready" className="text-xs cursor-pointer">Готовность</Label>
+        </div>
       </PanelSection>
 
       {/* === 3. Publish button === */}
-      {selectedChannels.length > 0 && (
-        <Button className="w-full" size="sm" onClick={handlePublish}>
-          Отправить на подготовку к публикации ({selectedChannels.length})
-        </Button>
-      )}
+      <Button
+        className="w-full"
+        size="sm"
+        onClick={handlePublish}
+        disabled={!isReady || selectedChannels.length === 0}
+        title={!isReady ? 'Поставьте галочку «Готовность»' : selectedChannels.length === 0 ? 'Выберите каналы' : undefined}
+      >
+        Отправить на подготовку к публикации ({selectedChannels.length})
+      </Button>
 
       <Separator />
 
