@@ -227,7 +227,7 @@ export function PublicationEditDialog({
         </TabsContent>
 
         {/* Final video tab */}
-        <TabsContent value="video" className="mt-3">
+        <TabsContent value="video" className="mt-3 overflow-hidden">
           {publication.final_video_url ? (
             <div className="space-y-3">
               <video
