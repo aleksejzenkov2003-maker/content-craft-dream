@@ -824,7 +824,7 @@ onClick={() => setEditingPublicationId(pub.id)}
                               </Button>
                             </DropdownMenuTrigger>
                             <DropdownMenuContent align="end">
-                              <DropdownMenuItem onClick={() => setEditingPublication(pub)}>
+                              <DropdownMenuItem onClick={() => setEditingPublicationId(pub.id)}>
                                 <Edit2 className="w-4 h-4 mr-2" />
                                 Редактировать
                               </DropdownMenuItem>
