@@ -39,7 +39,7 @@ const reviewStatusLabels: Record<string, { label: string; variant: 'default' | '
 };
 
 export function ScenesMatrix() {
-  const { scenes, loading: scenesLoading, addScene, updateScene, refetch, bulkImport } = usePlaylistScenes();
+  const { scenes, loading: scenesLoading, addScene, updateScene, refetch, bulkImport, fetchVariants, selectVariant } = usePlaylistScenes();
   const { advisors, loading: advisorsLoading } = useAdvisors();
   const { playlists, loading: playlistsLoading } = usePlaylists();
   
