@@ -153,10 +153,10 @@ export function PublicationEditDialog({
       {/* Info fields */}
       <div className="space-y-3">
         <PanelField label="Название" labelWidth="160px">
-          <span className="text-sm">{publication.video?.video_title || publication.video?.question || '—'}</span>
+          <span className="text-sm truncate min-w-0">{publication.video?.video_title || publication.video?.question || '—'}</span>
         </PanelField>
         <PanelField label="Хук" labelWidth="160px">
-          <span className="text-sm">{hook || '—'}</span>
+          <span className="text-sm truncate min-w-0">{hook || '—'}</span>
         </PanelField>
         <PanelField label="Канал публикации" labelWidth="160px">
           <span className="text-sm font-medium">{channelName}{networkType ? ` (${networkType})` : ''}</span>
@@ -169,7 +169,7 @@ export function PublicationEditDialog({
       <Separator className="my-2" />
 
       {/* Tabs: Генерация текста / Промт / Финальное видео */}
-      <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+      <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full overflow-hidden">
         <TabsList className="grid w-full grid-cols-3 h-9">
           <TabsTrigger value="text" className="text-xs gap-1">
             Генерация Текста
@@ -183,19 +183,19 @@ export function PublicationEditDialog({
         </TabsList>
 
         {/* Text tab */}
-        <TabsContent value="text" className="space-y-3 mt-3">
+        <TabsContent value="text" className="space-y-3 mt-3 overflow-hidden">
           <Input
             value={title}
             onChange={(e) => setTitle(e.target.value)}
             placeholder="Заголовок"
-            className="text-sm font-medium"
+            className="text-sm font-medium min-w-0 w-full"
           />
           <Textarea
             value={generatedText}
             onChange={(e) => setGeneratedText(e.target.value)}
             placeholder="Сгенерированное текстовое описание..."
             rows={12}
-            className="resize-y text-sm border-primary/30"
+            className="resize-y text-sm border-primary/30 min-w-0 w-full"
           />
           <div className="flex items-center justify-between">
             <span className="text-xs text-muted-foreground">{generatedText.length} символов</span>
@@ -213,12 +213,12 @@ export function PublicationEditDialog({
         </TabsContent>
 
         {/* Prompt tab */}
-        <TabsContent value="prompt" className="space-y-3 mt-3">
+        <TabsContent value="prompt" className="space-y-3 mt-3 overflow-hidden">
           <Textarea
             value={promptText}
             onChange={(e) => setPromptText(e.target.value)}
             placeholder="Промт для генерации текста публикации..."
-            className="min-h-[250px] text-xs font-mono resize-y"
+            className="min-h-[250px] text-xs font-mono resize-y min-w-0 w-full"
             rows={14}
           />
           <p className="text-[10px] text-muted-foreground">
@@ -227,7 +227,7 @@ export function PublicationEditDialog({
         </TabsContent>
 
         {/* Final video tab */}
-        <TabsContent value="video" className="mt-3">
+        <TabsContent value="video" className="mt-3 overflow-hidden">
           {publication.final_video_url ? (
             <div className="space-y-3">
               <video
