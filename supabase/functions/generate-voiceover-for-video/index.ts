@@ -42,7 +42,12 @@ serve(async (req) => {
     // Set status to generating
     await supabase.from('videos').update({ voiceover_status: 'generating' }).eq('id', videoId);
 
-    const voiceId = video.advisor?.elevenlabs_voice_id || 'JBFqnCBsd6RMkjVDRZzb';
+    const voiceId = video.advisor?.elevenlabs_voice_id;
+    if (!voiceId) {
+      // Reset status and return error — voice ID is required
+      await supabase.from('videos').update({ voiceover_status: 'error' }).eq('id', videoId);
+      throw new Error('У духовника не настроен ElevenLabs Voice ID. Укажите его в настройках духовника.');
+    }
 
     console.log(`Calling ElevenLabs TTS with-timestamps, voice: ${voiceId}`);
     const response = await fetch(

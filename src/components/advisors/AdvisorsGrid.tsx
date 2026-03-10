@@ -365,7 +365,7 @@ export function AdvisorsGrid({
                         </select>
                       </div>
                       <div className="space-y-1">
-                        <Label className="text-xs">Фото для миниатюры</Label>
+                        <Label className="text-xs">Миниатюра</Label>
                         <select
                           className="w-full text-xs border rounded px-2 py-1 bg-background"
                           value={selectedAdvisor.thumbnail_photo_id || ''}
