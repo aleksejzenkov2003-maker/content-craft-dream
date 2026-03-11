@@ -130,14 +130,19 @@ export function VideoSidePanel({
   if (!video) return null;
 
   const handleChannelToggle = (channelId: string) => {
+    if (!video) return;
     const newChannels = selectedChannels.includes(channelId) ? selectedChannels.filter((id) => id !== channelId) : [...selectedChannels, channelId];
     setSelectedChannels(newChannels);
     onUpdateVideo(video.id, { selected_channels: newChannels } as any);
   };
-  const handlePublish = () => { if (selectedChannels.length > 0) onPublish(video, selectedChannels); };
-  const handleAdvisorAnswerSave = () => onUpdateVideo(video.id, { advisor_answer: advisorAnswer } as any);
+  const handlePublish = () => { if (video && selectedChannels.length > 0) onPublish(video, selectedChannels); };
+  const handleAdvisorAnswerSave = () => {
+    if (!video) return;
+    onUpdateVideo(video.id, { advisor_answer: advisorAnswer } as any);
+  };
 
   const handleSelectVariant = async (variant: CoverVariant, type: 'atmosphere' | 'cover') => {
+    if (!video) return;
     try {
       await supabase.from('cover_thumbnails').update({ is_active: false }).eq('video_id', video.id).eq('variant_type', type);
       await supabase.from('cover_thumbnails').update({ is_active: true }).eq('id', variant.id);
@@ -149,6 +154,7 @@ export function VideoSidePanel({
   };
 
   const handleDeleteVariant = async (variant: CoverVariant, type: 'atmosphere' | 'cover') => {
+    if (!video) return;
     try {
       await supabase.from('cover_thumbnails').delete().eq('id', variant.id);
       fetchVariants();
@@ -156,13 +162,13 @@ export function VideoSidePanel({
     } catch (e) { toast.error('Ошибка удаления'); }
   };
 
-  const atmosphereUrl = (video as any).atmosphere_url;
-  const normalizedCoverStatus = video.cover_status === 'generating' && !!video.front_cover_url ? 'ready' : video.cover_status || 'pending';
+  const atmosphereUrl = (video as any)?.atmosphere_url;
+  const normalizedCoverStatus = video?.cover_status === 'generating' && !!video?.front_cover_url ? 'ready' : video?.cover_status || 'pending';
   const isGeneratingCover = normalizedCoverStatus === 'generating';
 
-  const atmosStatus = resolveAssetStatus(atmosphereUrl, video.cover_status);
-  const coverStatus = resolveAssetStatus(video.front_cover_url, video.cover_status);
-  const videoStatus = resolveAssetStatus(video.video_path || video.heygen_video_url, video.generation_status);
+  const atmosStatus = resolveAssetStatus(atmosphereUrl, video?.cover_status);
+  const coverStatus = resolveAssetStatus(video?.front_cover_url, video?.cover_status);
+  const videoStatus = resolveAssetStatus(video?.video_path || video?.heygen_video_url, video?.generation_status);
 
   const videoUrl = video?.video_path || video?.heygen_video_url || null;
   const effectiveDuration = video?.video_duration || detectedDuration;
