@@ -71,6 +71,7 @@ export function VideoSidePanel({
   const [atmospherePromptText, setAtmospherePromptText] = useState('');
   const [subtitleProgress, setSubtitleProgress] = useState<{ phase: string; progress: number } | null>(null);
   const [subtitleAbort, setSubtitleAbort] = useState<AbortController | null>(null);
+  const [detectedDuration, setDetectedDuration] = useState<number | null>(null);
 
   const advisor = advisors.find((a) => a.id === video?.advisor_id);
   const advisorName = advisor?.display_name || advisor?.name || 'Духовник';
@@ -163,7 +164,17 @@ export function VideoSidePanel({
   const videoStatus = resolveAssetStatus(video.video_path || video.heygen_video_url, video.generation_status);
 
   const videoUrl = video.video_path || video.heygen_video_url;
-  const durationFormatted = video.video_duration ? `${Math.floor(video.video_duration / 60)}:${String(video.video_duration % 60).padStart(2, '0')}` : '—';
+  const effectiveDuration = video.video_duration || detectedDuration;
+  const durationFormatted = effectiveDuration ? `${Math.floor(effectiveDuration / 60)}:${String(Math.round(effectiveDuration % 60)).padStart(2, '0')}` : '—';
+
+  const handleVideoLoadedMetadata = (e: React.SyntheticEvent<HTMLVideoElement>) => {
+    const dur = e.currentTarget.duration;
+    if (dur && isFinite(dur) && !video.video_duration) {
+      setDetectedDuration(dur);
+      // Save to DB silently
+      supabase.from('videos').update({ video_duration: Math.round(dur) }).eq('id', video.id).then();
+    }
+  };
 
   return (
     <UnifiedPanel
@@ -275,7 +286,7 @@ export function VideoSidePanel({
               <Label className="text-[10px] text-muted-foreground flex items-center gap-1"><Play className="w-3 h-3" />Видео</Label>
               {videoUrl ? (
                 <div className="relative aspect-[9/16] rounded-md overflow-hidden bg-black">
-                  <video src={videoUrl} controls className="w-full h-full object-contain" poster={video.front_cover_url || undefined} />
+                  <video src={videoUrl} controls className="w-full h-full object-contain" poster={video.front_cover_url || undefined} onLoadedMetadata={handleVideoLoadedMetadata} />
                   {video.video_path && <span className="absolute top-1 right-1 bg-black/60 text-white text-[7px] px-1 py-0.5 rounded">С субтитрами</span>}
                   <div className={cn("absolute bottom-1 left-1 right-1 text-center text-[8px] font-medium py-0.5 rounded", videoStatus.colorClass)}>{videoStatus.label}</div>
                 </div>
