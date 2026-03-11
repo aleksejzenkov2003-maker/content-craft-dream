@@ -715,20 +715,24 @@ onClick={() => setEditingPublicationId(pub.id)}
                           <span className="text-muted-foreground">—</span>
                         )}
                       </TableCell>
-                      {/* Склейка status — video preview icon */}
+                      {/* Склейка — concat action + result */}
                       <TableCell className="py-1" onClick={(e) => e.stopPropagation()}>
                         <div className="flex items-center gap-1">
-                          {videoSrc ? (
-                            <button className="p-0.5 hover:bg-muted rounded" title="Превью видео" onClick={() => setPreviewVideoUrl(videoSrc)}>
-                              <VideoIcon className="w-3.5 h-3.5 text-muted-foreground hover:text-foreground" />
-                            </button>
-                          ) : (
-                            <VideoIcon className="w-3.5 h-3.5 text-muted-foreground/30" />
-                          )}
                           {concatRequired && hasFinalVideo && (
                             <button className="p-0.5 hover:bg-muted rounded" title="Превью склейки" onClick={() => setPreviewVideoUrl(pub.final_video_url!)}>
-                              <Clapperboard className="w-3.5 h-3.5 text-muted-foreground hover:text-foreground" />
+                              <Clapperboard className="w-3.5 h-3.5 text-green-600 hover:text-foreground" />
                             </button>
+                          )}
+                          {concatRequired && !hasFinalVideo && !isBusyConcat && (
+                            <button className="p-0.5 hover:bg-muted rounded" title="Склеить видео" onClick={() => handleConcat(pub)}>
+                              <RefreshCw className="w-3.5 h-3.5 text-muted-foreground hover:text-foreground" />
+                            </button>
+                          )}
+                          {isBusyConcat && (
+                            <Loader2 className="w-3.5 h-3.5 animate-spin text-primary" />
+                          )}
+                          {!concatRequired && (
+                            <span className="text-muted-foreground text-xs">—</span>
                           )}
                         </div>
                       </TableCell>
