@@ -1120,7 +1120,7 @@ export default function Index() {
 
           {activeTab === 'settings' && <SettingsPage />}
 
-          {activeTab === 'automation' && <AutomationPage />}
+          
         </div>
       </main>
     </div>
