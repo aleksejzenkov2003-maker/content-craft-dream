@@ -356,9 +356,6 @@ export function PublishingKanban() {
           <span className="text-sm font-medium">Канбан публикаций</span>
           <Badge variant="secondary">{publications.length} публикаций</Badge>
         </div>
-        <span className="text-sm text-muted-foreground">
-          Перетащите карточку в нужную колонку для смены статуса
-        </span>
       </div>
 
       <DndContext
