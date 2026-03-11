@@ -18,6 +18,7 @@ const buttonVariants = cva(
         // Action variants for generation/publishing
         "generate-cover": "bg-[hsl(var(--generate-cover))] text-[hsl(var(--generate-cover-foreground))] hover:bg-[hsl(var(--generate-cover))]/90",
         "generate-video": "bg-[hsl(var(--generate-video))] text-[hsl(var(--generate-video-foreground))] hover:bg-[hsl(var(--generate-video))]/90",
+        "generate-voiceover": "bg-[hsl(var(--generate-voiceover))] text-[hsl(var(--generate-voiceover-foreground))] hover:bg-[hsl(var(--generate-voiceover))]/90",
         publish: "bg-[hsl(var(--publish))] text-[hsl(var(--publish-foreground))] hover:bg-[hsl(var(--publish))]/90",
         "delete-inline": "text-destructive hover:bg-destructive/10 hover:text-destructive",
         "icon-action": "text-muted-foreground hover:bg-accent hover:text-foreground",
