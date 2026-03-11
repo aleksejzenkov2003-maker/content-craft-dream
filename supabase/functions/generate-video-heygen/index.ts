@@ -70,35 +70,7 @@ async function uploadAssetToHeygen(imageUrl: string, heygenKey: string): Promise
   return imageKey;
 }
 
-async function uploadAudioToHeygen(audioUrl: string, heygenKey: string): Promise<string> {
-  console.log('Downloading audio for HeyGen upload...');
-  const audioRes = await fetch(audioUrl);
-  if (!audioRes.ok) throw new Error(`Failed to download audio: ${audioRes.status}`);
-  const audioBlob = await audioRes.blob();
-
-  console.log('Uploading audio to HeyGen assets (raw binary)...');
-  const uploadRes = await fetch('https://upload.heygen.com/v1/asset', {
-    method: 'POST',
-    headers: {
-      'X-Api-Key': heygenKey,
-      'Content-Type': audioBlob.type || 'audio/mpeg',
-    },
-    body: audioBlob,
-  });
-
-  if (!uploadRes.ok) {
-    const errText = await uploadRes.text();
-    throw new Error(`HeyGen audio upload failed: ${uploadRes.status} - ${errText}`);
-  }
-
-  const uploadData = await uploadRes.json();
-  console.log('HeyGen audio upload response:', JSON.stringify(uploadData));
-  const audioAssetId = uploadData.data?.id || uploadData.data?.audio_asset_id || uploadData.data?.asset_id;
-  if (!audioAssetId) throw new Error('No audio_asset_id returned from HeyGen: ' + JSON.stringify(uploadData));
-
-  console.log('HeyGen audio uploaded, asset_id:', audioAssetId);
-  return audioAssetId;
-}
+// uploadAudioToHeygen removed — v2 API accepts audio_url directly
 
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
