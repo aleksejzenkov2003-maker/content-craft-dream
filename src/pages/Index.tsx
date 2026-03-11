@@ -28,6 +28,7 @@ import { useVideoConcat } from '@/hooks/useVideoConcat';
 import { usePublishingChannels } from '@/hooks/usePublishingChannels';
 import { useAutomationSettings } from '@/hooks/useAutomationSettings';
 import { SettingsPage } from '@/components/settings/SettingsPage';
+import { AutomationPage } from '@/pages/AutomationPage';
 import { Users, ListVideo, Video as VideoIcon, CheckCircle, Loader2, Send, HelpCircle } from 'lucide-react';
 import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
