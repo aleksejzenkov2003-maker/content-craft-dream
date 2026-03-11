@@ -98,9 +98,11 @@ function formatVideoDuration(duration: number | null | undefined) {
 function PublicationDurationCell({
   duration,
   videoUrl,
+  videoId,
 }: {
   duration: number | null | undefined;
   videoUrl?: string | null;
+  videoId?: string | null;
 }) {
   const [resolvedDuration, setResolvedDuration] = useState<number | null>(duration ?? null);
 
@@ -118,11 +120,17 @@ function PublicationDurationCell({
           key={videoUrl}
           src={videoUrl}
           preload="metadata"
-          className="hidden"
+          playsInline
+          muted
+          className="absolute h-0 w-0 overflow-hidden opacity-0 pointer-events-none"
           onLoadedMetadata={(e) => {
             const nextDuration = e.currentTarget.duration;
             if (Number.isFinite(nextDuration) && nextDuration > 0) {
-              setResolvedDuration(nextDuration);
+              const roundedDuration = Math.round(nextDuration);
+              setResolvedDuration(roundedDuration);
+              if (videoId) {
+                supabase.from('videos').update({ video_duration: roundedDuration }).eq('id', videoId).then();
+              }
             }
           }}
         />
