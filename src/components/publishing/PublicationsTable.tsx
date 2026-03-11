@@ -43,7 +43,7 @@ import {
 import {
   MoreVertical, Trash2, ExternalLink, Send, Sparkles, Loader2, RefreshCw,
   FileSpreadsheet, ArrowUpDown, ArrowUp, ArrowDown, CalendarIcon, Edit2, Clock, Clapperboard, Settings2,
-  Video as VideoIcon, FileText, Eye,
+  Video as VideoIcon, FileText, Eye, Square,
 } from 'lucide-react';
 import { Publication, usePublications } from '@/hooks/usePublications';
 import { toast } from 'sonner';
