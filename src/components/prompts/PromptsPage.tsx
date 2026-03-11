@@ -391,7 +391,22 @@ export function PromptsPage() {
                     <Badge
                       key={v.name} variant="outline"
                       className="font-mono text-[10px] cursor-pointer hover:bg-muted"
-                      onClick={() => setForm({ ...form, user_template: form.user_template + v.name })}
+                      onClick={() => {
+                        const textarea = userTemplateRef.current;
+                        if (textarea) {
+                          const start = textarea.selectionStart ?? form.user_template.length;
+                          const end = textarea.selectionEnd ?? start;
+                          const newText = form.user_template.substring(0, start) + v.name + form.user_template.substring(end);
+                          setForm({ ...form, user_template: newText });
+                          // Restore cursor position after React re-render
+                          setTimeout(() => {
+                            textarea.focus();
+                            textarea.setSelectionRange(start + v.name.length, start + v.name.length);
+                          }, 0);
+                        } else {
+                          setForm({ ...form, user_template: form.user_template + v.name });
+                        }
+                      }}
                       title={v.desc}
                     >
                       {v.name}
