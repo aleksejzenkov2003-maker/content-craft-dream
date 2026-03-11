@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useCallback } from 'react';
 import {
   DndContext,
   DragOverlay,
@@ -26,6 +26,7 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { Loader2, User, Calendar, ExternalLink, Eye, AlertCircle, Send, RotateCcw } from 'lucide-react';
 import { usePublications, Publication } from '@/hooks/usePublications';
+import { PublicationEditDialog } from './PublicationEditDialog';
 import { usePublishingChannels } from '@/hooks/usePublishingChannels';
 import { format } from 'date-fns';
 import { ru } from 'date-fns/locale';
@@ -57,9 +58,10 @@ interface KanbanCardProps {
   publication: Publication;
   onPublish?: () => void;
   onRetry?: () => void;
+  onEdit?: () => void;
 }
 
-function KanbanCard({ publication, onPublish, onRetry }: KanbanCardProps) {
+function KanbanCard({ publication, onPublish, onRetry, onEdit }: KanbanCardProps) {
   const {
     attributes,
     listeners,
@@ -86,8 +88,9 @@ function KanbanCard({ publication, onPublish, onRetry }: KanbanCardProps) {
       {...attributes}
       {...listeners}
       className="cursor-grab active:cursor-grabbing"
+      onDoubleClick={onEdit}
     >
-      <Card className="glass-card hover:border-primary/30 transition-colors mb-2">
+      <Card className="glass-card hover:border-primary/30 transition-colors mb-2 select-none">
         <CardContent className="p-3 space-y-2">
           {/* Channel and title */}
           <div className="flex items-start justify-between gap-2">
@@ -98,14 +101,9 @@ function KanbanCard({ publication, onPublish, onRetry }: KanbanCardProps) {
                   {publication.channel?.name || 'Без канала'}
                 </span>
               </div>
-              <p className="text-sm font-medium truncate">
+              <p className="text-sm font-medium line-clamp-2">
                 {publication.video?.video_title || publication.video?.question || 'Без названия'}
               </p>
-              {publication.video?.video_number && (
-                <p className="text-xs text-muted-foreground">
-                  Ролик #{publication.video.video_number}
-                </p>
-              )}
             </div>
             {publication.post_url && (
               <a
@@ -134,9 +132,7 @@ function KanbanCard({ publication, onPublish, onRetry }: KanbanCardProps) {
           {publication.post_date && (
             <div className="flex items-center gap-2 text-xs text-muted-foreground">
               <Calendar className="w-3 h-3" />
-              <span>
-                {format(new Date(publication.post_date), 'dd MMM, HH:mm', { locale: ru })}
-              </span>
+              <span>Дата публикации: {format(new Date(publication.post_date), 'dd MMM, HH:mm', { locale: ru })}</span>
             </div>
           )}
 
@@ -201,9 +197,10 @@ interface StatusColumnProps {
   publications: Publication[];
   onPublish: (id: string) => void;
   onRetry: (id: string) => void;
+  onEdit: (id: string) => void;
 }
 
-function StatusColumn({ status, publications, onPublish, onRetry }: StatusColumnProps) {
+function StatusColumn({ status, publications, onPublish, onRetry, onEdit }: StatusColumnProps) {
   const { setNodeRef, isOver } = useDroppable({
     id: status.id,
   });
@@ -236,6 +233,7 @@ function StatusColumn({ status, publications, onPublish, onRetry }: StatusColumn
                     publication={pub}
                     onPublish={() => onPublish(pub.id)}
                     onRetry={() => onRetry(pub.id)}
+                    onEdit={() => onEdit(pub.id)}
                   />
                 ))
               )}
@@ -251,6 +249,7 @@ export function PublishingKanban() {
   const { publications, loading, updatePublication } = usePublications();
   const { channels, loading: channelsLoading } = usePublishingChannels();
   const [activeId, setActiveId] = useState<string | null>(null);
+  const [editingPubId, setEditingPubId] = useState<string | null>(null);
 
   const sensors = useSensors(
     useSensor(PointerSensor, {
@@ -344,6 +343,12 @@ export function PublishingKanban() {
     }
   };
 
+  const handleEditPublication = useCallback(async (id: string, updates: Partial<Publication>) => {
+    await updatePublication(id, updates);
+  }, [updatePublication]);
+
+  const editingPublication = editingPubId ? publications.find(p => p.id === editingPubId) || null : null;
+
   const activePublication = activeId
     ? publications.find((p) => p.id === activeId)
     : null;
@@ -363,9 +368,6 @@ export function PublishingKanban() {
           <span className="text-sm font-medium">Канбан публикаций</span>
           <Badge variant="secondary">{publications.length} публикаций</Badge>
         </div>
-        <span className="text-sm text-muted-foreground">
-          Перетащите карточку в нужную колонку для смены статуса
-        </span>
       </div>
 
       <DndContext
@@ -382,6 +384,7 @@ export function PublishingKanban() {
               publications={publicationsByStatus.get(status.id) || []}
               onPublish={handlePublish}
               onRetry={handleRetry}
+              onEdit={setEditingPubId}
             />
           ))}
         </div>
@@ -408,6 +411,13 @@ export function PublishingKanban() {
           ) : null}
         </DragOverlay>
       </DndContext>
+
+      <PublicationEditDialog
+        publication={editingPublication}
+        open={!!editingPubId}
+        onClose={() => setEditingPubId(null)}
+        onSave={handleEditPublication}
+      />
     </div>
   );
 }

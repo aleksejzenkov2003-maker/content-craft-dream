@@ -154,16 +154,15 @@ export function AdvisorsGrid({
     <div className="space-y-6">
       <input type="file" ref={fileInputRef} className="hidden" accept="image/*" onChange={handleFileChange} />
 
-      <div className="flex items-center justify-between">
-        <h2 className="text-xl font-semibold">Духовники ({advisors.length})</h2>
+      <div className="flex items-center justify-end">
         <div className="flex gap-2">
-          <Button variant="outline" onClick={() => setShowImporter(true)}>
+          <Button variant="outline" size="sm" onClick={() => setShowImporter(true)}>
             <FileSpreadsheet className="w-4 h-4 mr-2" />
             Импорт CSV
           </Button>
           <Dialog open={showAddDialog} onOpenChange={setShowAddDialog}>
             <DialogTrigger asChild>
-              <Button>
+              <Button size="sm">
                 <Plus className="w-4 h-4 mr-2" />
                 Добавить
               </Button>
