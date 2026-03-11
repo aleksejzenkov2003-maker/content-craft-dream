@@ -167,7 +167,7 @@ export function PublicationsTable({ groupBy = 'channel' }: PublicationsTableProp
   const { publications, loading, deletePublication, generateText, updatePublication, bulkImport, refetch } = usePublications();
   const { channels } = usePublishingChannels();
   const { videos } = useVideos();
-  const { concatVideos, loading: concatLoading, progress: concatProgress, phase: concatPhase } = useVideoConcat();
+  const { concatVideos, cancelConcat } = useVideoConcat();
   const [concatingId, setConcatingId] = useState<string | null>(null);
   
   const [showImporter, setShowImporter] = useState(false);
