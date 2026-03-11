@@ -451,7 +451,7 @@ serve(async (req) => {
     }
 
     const advisorName = video.advisor?.display_name || video.advisor?.name || '';
-    const hookText = video.hook_rus || video.hook || video.question || '';
+    const hookText = video.question_eng || video.hook || video.question || '';
 
     console.log('Step 2: Compositing cover programmatically...');
     console.log('  Atmosphere:', atmosphereStorageUrl);
