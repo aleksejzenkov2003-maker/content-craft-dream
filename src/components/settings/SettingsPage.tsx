@@ -119,16 +119,6 @@ export function SettingsPage() {
     <div className="space-y-6">
       <h2 className="text-2xl font-bold">Настройки</h2>
 
-      {/* Automation Settings */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-lg">Управление действиями кнопок</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <ButtonActionsSettings />
-        </CardContent>
-      </Card>
-
       {/* API Status */}
       <Card>
         <CardHeader>
