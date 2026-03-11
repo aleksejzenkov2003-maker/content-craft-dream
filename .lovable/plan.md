@@ -1,32 +1,57 @@
 
 
-## Plan: Remove yellow subtitle box + add re-burn subtitles button
+## Решение: бинарная MP4-конкатенация + нормализация аудио через ffmpeg.wasm
 
-### Problem
-1. Subtitles currently have a yellow box background (`box=1:boxcolor=yellow@0.65:boxborderw=10`) — need to remove it and use only a highlight color `#FFCC00`
-2. The "re-burn subtitles" button in VideoSidePanel uses `heygen_video_url || video_path` as source — but `video_path` already contains subtitles after first burn, causing double-overlay
-3. Need a way to store the bitrate-reduced (clean) URL separately so re-burning works on clean video
+### Что сделано
 
-### Changes
+1. **`supabase/functions/concat-video/index.ts`** — полная перезапись:
+   - Бинарный MP4-парсер: разбор боксов (moov/trak/stbl/stsz/stco/stsc/stts/stss/ctts)
+   - Извлечение сэмплов из обоих файлов, сборка нового mdat
+   - Объединение sample tables, пересчёт оффсетов, обновление duration
+   - Сохранение логики получения свежих HeyGen URL
+   - Загрузка результата в Storage
 
-**1. Add `reduced_video_url` column to `videos` table**
-- DB migration: `ALTER TABLE videos ADD COLUMN reduced_video_url text;`
-- This stores the bitrate-reduced video WITHOUT subtitles, so subtitle re-burns use this clean source
+2. **`src/lib/videoNormalizer.ts`** — утилита нормализации аудио через ffmpeg.wasm:
+   - Загружает ffmpeg WASM при первом использовании
+   - Перекодирует аудио в AAC-LC 48kHz mono 128kbps: `-c:v copy -c:a aac -ar 48000 -ac 1 -b:a 128k`
+   - Видео-поток копируется без потерь
 
-**2. Update `postProcessVideo` in `src/pages/Index.tsx`**
-- After bitrate reduction upload, save URL to both `reduced_video_url` (permanent clean copy) and continue pipeline
-- Final subtitled result still goes to `video_path`
+3. **`src/components/covers/BackCoversGrid.tsx`** — интеграция нормализации:
+   - При загрузке видео-обложки автоматически нормализует аудио через ffmpeg.wasm
+   - Показывает прогресс нормализации
+   - Загружает нормализованный файл в Storage
+   - Fallback на оригинал при ошибке
 
-**3. Update subtitle styling in `src/lib/videoSubtitles.ts`**
-- Remove `box=1:boxcolor=yellow@0.65:boxborderw=10` from `buildDrawtextFilter`
-- Change `fontcolor=white` to `fontcolor=#FFCC00` (the highlight color)
-- Keep `borderw=2:bordercolor=black` for readability
+### Зависимости
+- `@ffmpeg/ffmpeg@0.12.10`
+- `@ffmpeg/util@0.12.1`
 
-**4. Update "Вшить субтитры" button in `src/components/videos/VideoSidePanel.tsx`**
-- Change source URL priority: use `video.reduced_video_url` first (clean bitrate-reduced), then fall back to `heygen_video_url`
-- Never use `video_path` as source (it may contain old subtitles)
-- Add a second button "Переналожить субтитры" that appears when `video_path` exists and `reduced_video_url` or `heygen_video_url` is available — same logic but clearly re-burns on clean source
+---
 
-**5. Update `src/hooks/useVideos.ts`**
-- Add `reduced_video_url` to the Video type and fetch query
+## Субтитры: ElevenLabs timestamps → SRT → FFmpeg
 
+### Что сделано
+
+1. **БД миграция** — добавлено поле `word_timestamps jsonb` в таблицу `videos`
+
+2. **Edge Functions** — обновлены оба voiceover-генератора:
+   - `supabase/functions/generate-voiceover-for-video/index.ts` → endpoint `/with-timestamps`
+   - `supabase/functions/generate-voiceover/index.ts` → endpoint `/with-timestamps`
+   - Ответ содержит `audio_base64` + `alignment` (character-level timestamps)
+   - Функция `buildWordTimestamps()` собирает word-level timestamps из character-level
+   - Timestamps сохраняются в `videos.word_timestamps`
+
+3. **`src/lib/srtGenerator.ts`** — генерация субтитров:
+   - `generateSrt()` — SRT формат (группировка по N слов)
+   - `generateAss()` — ASS формат (со стилями: шрифт, размер, цвет, обводка)
+   - `generateSrtBlocks()` — промежуточная структура
+
+4. **`src/lib/videoSubtitles.ts`** — вшивание субтитров через ffmpeg.wasm:
+   - `burnSubtitles(videoUrl, timestamps, options, onProgress)` → File
+   - Использует ASS-фильтр для стилизованных субтитров
+   - Видео перекодируется libx264 (preset fast, crf 23), аудио копируется
+
+5. **UI** — кнопка «Добавить субтитры» в `VideoSidePanel`:
+   - Появляется когда есть `heygen_video_url` и `word_timestamps`
+   - Показывает прогресс через Progress bar
+   - Результат загружается в Storage и сохраняется в `video_path`
