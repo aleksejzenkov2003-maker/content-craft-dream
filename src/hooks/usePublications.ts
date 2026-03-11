@@ -126,6 +126,24 @@ export function usePublications(filters?: PublicationFilters) {
     fetchPublications();
   }, [fetchPublications]);
 
+  // Realtime subscription for cross-device sync
+  useEffect(() => {
+    const channel = supabase
+      .channel('publications-realtime')
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'publications' },
+        () => {
+          fetchPublications();
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [fetchPublications]);
+
   const addPublication = async (data: Partial<Publication>, autoGenerateText = true) => {
     try {
       // Дедубликация: проверяем существование пары video_id + channel_id
