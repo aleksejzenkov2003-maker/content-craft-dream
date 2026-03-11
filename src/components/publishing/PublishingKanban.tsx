@@ -88,8 +88,9 @@ function KanbanCard({ publication, onPublish, onRetry, onEdit }: KanbanCardProps
       {...attributes}
       {...listeners}
       className="cursor-grab active:cursor-grabbing"
+      onDoubleClick={onEdit}
     >
-      <Card className="glass-card hover:border-primary/30 transition-colors mb-2">
+      <Card className="glass-card hover:border-primary/30 transition-colors mb-2 select-none">
         <CardContent className="p-3 space-y-2">
           {/* Channel and title */}
           <div className="flex items-start justify-between gap-2">
