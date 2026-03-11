@@ -591,7 +591,7 @@ export function VideosTable({
 
                         {/* Duration */}
                         <div className="text-xs text-muted-foreground">
-                          {video.video_duration ? `${video.video_duration}s` : '—'}
+                          {video.video_duration ? `${Math.floor(video.video_duration / 60)}:${String(Math.round(video.video_duration % 60)).padStart(2, '0')}` : '—'}
                         </div>
 
 
