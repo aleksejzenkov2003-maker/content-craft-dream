@@ -632,8 +632,8 @@ export function VideosTable({
                               </PopoverContent>
                             </Popover>
                           ) : (
-                            <div className="w-8 h-8 rounded border border-border/30 flex items-center justify-center">
-                              <ImageIcon className="w-3 h-3 text-muted-foreground/30" />
+                             <div className="w-10 h-10 rounded border border-border/30 flex items-center justify-center">
+                               <ImageIcon className="w-4 h-4 text-muted-foreground/30" />
                             </div>
                           )}
                         </div>
