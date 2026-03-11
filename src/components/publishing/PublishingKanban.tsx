@@ -233,6 +233,7 @@ function StatusColumn({ status, publications, onPublish, onRetry, onEdit }: Stat
                     publication={pub}
                     onPublish={() => onPublish(pub.id)}
                     onRetry={() => onRetry(pub.id)}
+                    onEdit={() => onEdit(pub.id)}
                   />
                 ))
               )}
