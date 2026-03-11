@@ -173,6 +173,7 @@ export function VideoSidePanel({
       width="lg"
       onPrev={onPrev}
       onNext={onNext}
+      fixedHeight
     >
       {/* === 1. TABS: Generation / Prompt / Answer === */}
       <Tabs defaultValue="generation">
