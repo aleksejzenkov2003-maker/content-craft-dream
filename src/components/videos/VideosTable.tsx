@@ -296,8 +296,8 @@ export function VideosTable({
         acc[uniqueKey] = { questionId: video.question_id, questionText, videos: [], plannedDate: video.publication_date };
       } else {
         const group = acc[uniqueKey];
-        if (video.question_rus && (!group.questionText || group.questionText === (video.question_eng || video.question))) {
-          group.questionText = video.question_rus;
+      if (video.question_eng && (!group.questionText || group.questionText === (video.question_rus || video.question))) {
+          group.questionText = video.question_eng;
         }
       }
       acc[uniqueKey].videos.push(video);
