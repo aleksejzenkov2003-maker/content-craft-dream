@@ -38,7 +38,9 @@ function loadMediaDuration(url: string, tagName: 'video' | 'audio'): Promise<num
     media.preload = 'metadata';
     media.crossOrigin = 'anonymous';
     media.muted = true;
-    media.playsInline = true;
+    if (tagName === 'video') {
+      (media as HTMLVideoElement).playsInline = true;
+    }
     media.addEventListener('loadedmetadata', handleLoadedMetadata, { once: true });
     media.addEventListener('error', handleError, { once: true });
     media.src = url;
