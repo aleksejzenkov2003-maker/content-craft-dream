@@ -154,40 +154,6 @@ export function AdvisorsGrid({
     <div className="space-y-6">
       <input type="file" ref={fileInputRef} className="hidden" accept="image/*" onChange={handleFileChange} />
 
-      <div className="flex items-center justify-end">
-        <div className="flex gap-2">
-          <Dialog open={showAddDialog} onOpenChange={setShowAddDialog}>
-            <DialogTrigger asChild>
-              <Button size="sm">
-                <Plus className="w-4 h-4 mr-2" />
-                Добавить
-              </Button>
-            </DialogTrigger>
-            <DialogContent>
-              <DialogHeader>
-                <DialogTitle>Новый духовник</DialogTitle>
-              </DialogHeader>
-              <div className="space-y-4 py-4">
-                <div className="space-y-2">
-                  <Label>Имя (ID)</Label>
-                  <Input value={newName} onChange={(e) => setNewName(e.target.value)} placeholder="Orthodox, Rabbi, etc." />
-                </div>
-                <div className="space-y-2">
-                  <Label>Отображаемое имя</Label>
-                  <Input value={newDisplayName} onChange={(e) => setNewDisplayName(e.target.value)} placeholder="Православный старец" />
-                </div>
-              </div>
-              <DialogFooter>
-                <Button variant="outline" onClick={() => setShowAddDialog(false)}>Отмена</Button>
-                <Button onClick={handleAddAdvisor} disabled={isSubmitting || !newName.trim()}>
-                  {isSubmitting && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
-                  Добавить
-                </Button>
-              </DialogFooter>
-            </DialogContent>
-          </Dialog>
-        </div>
-      </div>
 
       {/* Cards grid — portrait style */}
       <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
