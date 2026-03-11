@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { cn } from '@/lib/utils';
-import { LayoutDashboard, Video, Settings, ChevronLeft, ChevronRight, Users, ListVideo, Send, Globe, Image, HelpCircle, Server, FileText, Zap } from 'lucide-react';
+import { LayoutDashboard, Video, Settings, ChevronLeft, ChevronRight, Users, ListVideo, Send, Globe, Image, HelpCircle, Server, FileText } from 'lucide-react';
 interface NavItem {
   id: string;
   label: string;
