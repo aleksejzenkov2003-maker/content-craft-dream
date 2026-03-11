@@ -482,11 +482,11 @@ export function PromptsPage() {
 
           <DialogFooter className="mt-4">
             <Button variant="outline" onClick={() => setIsDialogOpen(false)}>
-              Отмена
+              Закрыть
             </Button>
-            <Button onClick={handleSave} disabled={saving || !form.name.trim()}>
-              {saving && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
-              Сохранить
+            <Button onClick={handleSave} disabled={saving || !form.name.trim()} variant={saveSuccess ? 'outline' : 'default'} className={saveSuccess ? 'border-emerald-500 text-emerald-600' : ''}>
+              {saving ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : saveSuccess ? <Check className="h-4 w-4 mr-2" /> : null}
+              {saveSuccess ? 'Сохранено' : 'Сохранить'}
             </Button>
           </DialogFooter>
         </DialogContent>
