@@ -267,7 +267,7 @@ export default function Index() {
         });
       }, 2000);
     }
-  }, [refetchVideos]);
+  }, [refetchVideos, isEnabled]);
 
   const pollVideoStatus = useCallback(async (videoId: string) => {
     try {
