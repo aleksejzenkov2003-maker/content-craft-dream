@@ -286,7 +286,7 @@ export function VideoSidePanel({
               <Label className="text-[10px] text-muted-foreground flex items-center gap-1"><Play className="w-3 h-3" />Видео</Label>
               {videoUrl ? (
                 <div className="relative aspect-[9/16] rounded-md overflow-hidden bg-black">
-                  <video src={videoUrl} controls className="w-full h-full object-contain" poster={video.front_cover_url || undefined} />
+                  <video src={videoUrl} controls className="w-full h-full object-contain" poster={video.front_cover_url || undefined} onLoadedMetadata={handleVideoLoadedMetadata} />
                   {video.video_path && <span className="absolute top-1 right-1 bg-black/60 text-white text-[7px] px-1 py-0.5 rounded">С субтитрами</span>}
                   <div className={cn("absolute bottom-1 left-1 right-1 text-center text-[8px] font-medium py-0.5 rounded", videoStatus.colorClass)}>{videoStatus.label}</div>
                 </div>
