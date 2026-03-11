@@ -816,7 +816,20 @@ onClick={() => setEditingPublicationId(pub.id)}
                             </button>
                           )}
                           {isBusyConcat && (
-                            <Loader2 className="w-3.5 h-3.5 animate-spin text-primary" />
+                            <>
+                              <Loader2 className="w-3.5 h-3.5 animate-spin text-primary" />
+                              <button
+                                className="p-0.5 hover:bg-muted rounded"
+                                title="Остановить склейку"
+                                onClick={async () => {
+                                  await cancelConcat(pub.id);
+                                  setConcatingId(null);
+                                  await refetch();
+                                }}
+                              >
+                                <Square className="w-3 h-3 text-destructive hover:text-foreground" />
+                              </button>
+                            </>
                           )}
                           {!concatRequired && (
                             <span className="text-muted-foreground text-xs">—</span>

@@ -23,6 +23,21 @@ function cleanup() {
   ffmpeg = null;
 }
 
+export function terminateSharedFFmpeg(): void {
+  if (!ffmpeg) {
+    cleanup();
+    return;
+  }
+
+  try {
+    ffmpeg.terminate();
+  } catch (error) {
+    console.warn('[ffmpegLoader] Failed to terminate FFmpeg worker:', error);
+  } finally {
+    cleanup();
+  }
+}
+
 /**
  * Check if the browser environment supports FFmpeg WASM.
  */
