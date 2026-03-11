@@ -305,39 +305,41 @@ export function PromptsPage() {
           <div className="grid gap-6 lg:grid-cols-2">
             {/* Left column: form */}
             <div className="space-y-4">
-              <div className="grid gap-3 sm:grid-cols-2">
+              <div className={`grid gap-3 ${form.type === 'post_text' ? 'sm:grid-cols-2' : ''}`}>
                 <div className="space-y-1.5">
                   <Label className="text-xs">Название</Label>
                   <Input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} placeholder="Мой промт" />
                 </div>
-                <div className="space-y-1.5">
-                  <Label className="text-xs">Привязка к каналам</Label>
-                  <div className="border rounded-md p-2 max-h-[200px] overflow-y-auto space-y-0.5">
-                    {Object.entries(channelsByType).map(([type, chs]) => (
-                      chs.map(ch => {
-                        const checked = linkedChannelIds.includes(ch.id);
-                        return (
-                          <label key={ch.id} className="flex items-center gap-2 px-2 py-1.5 rounded hover:bg-muted/50 cursor-pointer text-sm">
-                            <input
-                              type="checkbox"
-                              checked={checked}
-                              onChange={() => {
-                                setLinkedChannelIds(prev =>
-                                  checked ? prev.filter(id => id !== ch.id) : [...prev, ch.id]
-                                );
-                              }}
-                              className="rounded border-input"
-                            />
-                            <span>{type.charAt(0).toUpperCase() + type.slice(1)} — {ch.name}</span>
-                          </label>
-                        );
-                      })
-                    ))}
-                    {channels.length === 0 && (
-                      <p className="text-xs text-muted-foreground p-2">Нет каналов</p>
-                    )}
+                {form.type === 'post_text' && (
+                  <div className="space-y-1.5">
+                    <Label className="text-xs">Привязка к каналам</Label>
+                    <div className="border rounded-md p-2 max-h-[200px] overflow-y-auto space-y-0.5">
+                      {Object.entries(channelsByType).map(([type, chs]) => (
+                        chs.map(ch => {
+                          const checked = linkedChannelIds.includes(ch.id);
+                          return (
+                            <label key={ch.id} className="flex items-center gap-2 px-2 py-1.5 rounded hover:bg-muted/50 cursor-pointer text-sm">
+                              <input
+                                type="checkbox"
+                                checked={checked}
+                                onChange={() => {
+                                  setLinkedChannelIds(prev =>
+                                    checked ? prev.filter(id => id !== ch.id) : [...prev, ch.id]
+                                  );
+                                }}
+                                className="rounded border-input"
+                              />
+                              <span>{type.charAt(0).toUpperCase() + type.slice(1)} — {ch.name}</span>
+                            </label>
+                          );
+                        })
+                      ))}
+                      {channels.length === 0 && (
+                        <p className="text-xs text-muted-foreground p-2">Нет каналов</p>
+                      )}
+                    </div>
                   </div>
-                </div>
+                )}
               </div>
 
               <div className="grid gap-3 sm:grid-cols-2">
