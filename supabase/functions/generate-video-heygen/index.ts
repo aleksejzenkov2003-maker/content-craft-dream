@@ -165,49 +165,40 @@ serve(async (req) => {
         if (video.advisor?.scene_photo_id) {
           const { data: scenePhoto } = await supabase
             .from('advisor_photos')
-            .select('photo_url, heygen_asset_id')
+            .select('photo_url')
             .eq('id', video.advisor.scene_photo_id)
             .single();
           imageUrl = scenePhoto?.photo_url || null;
-          imageKey = scenePhoto?.heygen_asset_id || null;
           console.log('Using scene_photo_id photo:', imageUrl ? 'found' : 'not found');
         }
 
         if (!imageUrl) {
           const { data: photos } = await supabase
             .from('advisor_photos')
-            .select('photo_url, is_primary, heygen_asset_id, created_at')
+            .select('photo_url, is_primary, created_at')
             .eq('advisor_id', video.advisor_id)
             .not('photo_url', 'is', null)
             .order('is_primary', { ascending: false })
             .order('created_at', { ascending: true })
-            .limit(10);
+            .limit(1);
 
-          const photoWithAsset = photos?.find((p: { heygen_asset_id: string | null }) => !!p.heygen_asset_id);
-          if (photoWithAsset) {
-            imageUrl = photoWithAsset.photo_url;
-            imageKey = photoWithAsset.heygen_asset_id;
-            console.log('Using advisor photo with existing heygen image_key');
-          } else {
-            imageUrl = photos?.find((p: { is_primary: boolean | null }) => p.is_primary)?.photo_url
-              || photos?.[0]?.photo_url
-              || null;
-            if (imageUrl) console.log('Using advisor photo (primary/first)');
-          }
+          imageUrl = photos?.[0]?.photo_url || null;
+          if (imageUrl) console.log('Using advisor photo');
         }
       }
 
-      if (!imageUrl && !imageKey) {
+      if (!imageUrl) {
         imageUrl = video.front_cover_url || video.atmosphere_url || null;
         if (imageUrl) console.log('WARNING: Using cover/atmosphere as fallback — may lack face');
       }
     }
 
-    if (!imageUrl && !imageKey) {
+    if (!imageUrl) {
       throw new Error('No image found. Upload advisor photo or generate a cover first.');
     }
 
-    const talkingPhotoId = imageKey || await uploadAssetToHeygen(imageUrl!, heygenKey);
+    // Always upload as talking_photo (cached heygen_asset_id from /v1/asset won't work here)
+    const talkingPhotoId = await uploadTalkingPhoto(imageUrl, heygenKey);
     console.log('talking_photo_id:', talkingPhotoId);
 
     // --- Call HeyGen v2/video/generate (Avatar III) ---
