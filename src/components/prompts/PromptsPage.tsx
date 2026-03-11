@@ -16,7 +16,8 @@ import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
-import { Plus, Trash2, Pencil, Play, Loader2, FileText, X } from 'lucide-react';
+import { Plus, Trash2, Pencil, Play, Loader2, FileText, X, Check } from 'lucide-react';
+import { useRef } from 'react';
 import { DbPrompt, usePrompts } from '@/hooks/usePrompts';
 import { usePublishingChannels, PublishingChannel } from '@/hooks/usePublishingChannels';
 import { useAdvisors } from '@/hooks/useAdvisors';
