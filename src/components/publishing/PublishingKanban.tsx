@@ -61,7 +61,7 @@ interface KanbanCardProps {
   onEdit?: () => void;
 }
 
-function KanbanCard({ publication, onPublish, onRetry }: KanbanCardProps) {
+function KanbanCard({ publication, onPublish, onRetry, onEdit }: KanbanCardProps) {
   const {
     attributes,
     listeners,
