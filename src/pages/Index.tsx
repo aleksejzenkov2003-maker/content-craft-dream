@@ -58,6 +58,7 @@ export default function Index() {
   const [showSidePanel, setShowSidePanel] = useState(false);
   const [showImportDialog, setShowImportDialog] = useState(false);
   const [publicationsTab, setPublicationsTab] = useState('by-channel');
+  const [autoSubtitleProgress, setAutoSubtitleProgress] = useState<Record<string, { phase: string; progress: number }>>({});
   const { advisors, loading: advisorsLoading, addAdvisor, updateAdvisor, deleteAdvisor, addPhoto, deletePhoto, setPrimaryPhoto, updatePhotoAssetId, bulkImport: bulkImportAdvisors } = useAdvisors();
   const { playlists, loading: playlistsLoading, addPlaylist, updatePlaylist, deletePlaylist } = usePlaylists();
   const { videos: allVideos, loading: allVideosLoading, refetch: refetchAllVideos, bulkUpdate: bulkUpdateAll } = useVideos();
