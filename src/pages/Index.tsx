@@ -265,7 +265,7 @@ export default function Index() {
     } catch (err) {
       console.error('Post-processing error:', err);
       // Set error status so UI reflects the failure
-      await supabase.from('videos').update({ reel_status: 'error' }).eq('id', videoId).catch(() => {});
+      try { await supabase.from('videos').update({ reel_status: 'error' }).eq('id', videoId); } catch (_) { /* ignore */ }
       refetchVideos();
       throw err;
     } finally {
