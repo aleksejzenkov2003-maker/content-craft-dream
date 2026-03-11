@@ -64,9 +64,12 @@ export async function concatVideosClient(
   await ff.writeFile(backName, new Uint8Array(backBuf));
   onProgress?.({ phase: 'downloading', progress: 50 });
 
-  // 4. Run concat filter (50-95%)
+  // 4. Write concat list for demuxer
+  await ff.writeFile('list.txt', `file '${mainName}'\nfile '${backName}'`);
+  onProgress?.({ phase: 'concatenating', progress: 52 });
+
   const progressHandler = ({ progress }: { progress: number }) => {
-    const mapped = 50 + Math.round(progress * 45); // 50-95
+    const mapped = 50 + Math.round(progress * 45);
     onProgress?.({ phase: 'concatenating', progress: Math.max(50, Math.min(95, mapped)) });
   };
 
@@ -74,25 +77,15 @@ export async function concatVideosClient(
 
   try {
     signal?.throwIfAborted();
-    onProgress?.({ phase: 'concatenating', progress: 52 });
 
-    // First try concat with both audio streams (fast path — no re-scale)
+    // Primary: stream copy via concat demuxer (instant, no re-encoding)
     await ff.exec([
-      '-i', mainName,
-      '-i', backName,
-      '-filter_complex', '[0:v][0:a][1:v][1:a]concat=n=2:v=1:a=1[v][a]',
-      '-map', '[v]',
-      '-map', '[a]',
-      '-c:v', 'libx264',
-      '-preset', 'fast',
-      '-crf', '23',
-      '-c:a', 'aac',
-      '-ar', '48000',
-      '-b:a', '128k',
+      '-f', 'concat', '-safe', '0',
+      '-i', 'list.txt',
+      '-c', 'copy',
       '-y', outputName,
     ]);
 
-    // Check if output exists and has reasonable size
     let outputData: Uint8Array | null = null;
     try {
       const raw = await ff.readFile(outputName);
@@ -101,20 +94,18 @@ export async function concatVideosClient(
       outputData = null;
     }
 
-    // If output is empty or tiny (<10KB), retry video-only concat (no scale, no audio — fast)
+    // Fallback: re-encode with ultrafast preset if stream copy failed
     if (!outputData || outputData.length < 10000) {
-      console.warn('Concat with audio failed, retrying video-only (no scale)...');
+      console.warn('Stream copy failed, falling back to re-encode (ultrafast)...');
       await ff.deleteFile(outputName).catch(() => undefined);
 
       await ff.exec([
         '-i', mainName,
         '-i', backName,
-        '-filter_complex', '[0:v][1:v]concat=n=2:v=1:a=0[v]',
-        '-map', '[v]',
-        '-c:v', 'libx264',
-        '-preset', 'fast',
-        '-crf', '23',
-        '-an',
+        '-filter_complex', '[0:v][0:a][1:v][1:a]concat=n=2:v=1:a=1[v][a]',
+        '-map', '[v]', '-map', '[a]',
+        '-c:v', 'libx264', '-preset', 'ultrafast', '-crf', '23',
+        '-c:a', 'aac', '-ar', '48000', '-b:a', '128k',
         '-y', outputName,
       ]);
 

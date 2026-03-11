@@ -1,36 +1,57 @@
 
 
-## Проблема склейки с новыми роликами HeyGen
+## Решение: бинарная MP4-конкатенация + нормализация аудио через ffmpeg.wasm
 
-### Диагноз
+### Что сделано
 
-Текущий код в `src/lib/videoConcat.ts` использует **concat filter с перекодированием** (`-c:v libx264`). Это означает, что ffmpeg.wasm в браузере полностью декодирует оба видео и кодирует заново — крайне медленная операция в WebAssembly.
+1. **`supabase/functions/concat-video/index.ts`** — полная перезапись:
+   - Бинарный MP4-парсер: разбор боксов (moov/trak/stbl/stsz/stco/stsc/stts/stss/ctts)
+   - Извлечение сэмплов из обоих файлов, сборка нового mdat
+   - Объединение sample tables, пересчёт оффсетов, обновление duration
+   - Сохранение логики получения свежих HeyGen URL
+   - Загрузка результата в Storage
 
-Новые ролики из HeyGen Avatar III (v2 API) могут иметь другие параметры кодирования (другой профиль H.264, другой timescale, другое разрешение), из-за чего concat filter работает ещё медленнее или зависает.
+2. **`src/lib/videoNormalizer.ts`** — утилита нормализации аудио через ffmpeg.wasm:
+   - Загружает ffmpeg WASM при первом использовании
+   - Перекодирует аудио в AAC-LC 48kHz mono 128kbps: `-c:v copy -c:a aac -ar 48000 -ac 1 -b:a 128k`
+   - Видео-поток копируется без потерь
 
-### Решение
+3. **`src/components/covers/BackCoversGrid.tsx`** — интеграция нормализации:
+   - При загрузке видео-обложки автоматически нормализует аудио через ffmpeg.wasm
+   - Показывает прогресс нормализации
+   - Загружает нормализованный файл в Storage
+   - Fallback на оригинал при ошибке
 
-Заменить concat filter на **concat demuxer** с `-c copy` (побитовое копирование без перекодирования). Если потоки совместимы — склейка занимает 1-3 секунды. Если `-c copy` не удался — fallback на `-c:v libx264 -preset ultrafast` (быстрее текущего `fast`).
+### Зависимости
+- `@ffmpeg/ffmpeg@0.12.10`
+- `@ffmpeg/util@0.12.1`
 
-### Изменения
+---
 
-**`src/lib/videoConcat.ts`** — переписать метод склейки:
+## Субтитры: ElevenLabs timestamps → SRT → FFmpeg
 
-```text
-Было:
-  ffmpeg -filter_complex "[0:v][0:a][1:v][1:a]concat=n=2:v=1:a=1" -c:v libx264 -preset fast
+### Что сделано
 
-Станет (приоритет):
-  1. ffmpeg -f concat -safe 0 -i list.txt -c copy output.mp4        ← мгновенно
-  2. Fallback: ffmpeg -i a -i b -filter_complex concat -c:v libx264 -preset ultrafast  ← если -c copy не сработал
-```
+1. **БД миграция** — добавлено поле `word_timestamps jsonb` в таблицу `videos`
 
-Конкретные шаги:
-1. Записать файл-список `list.txt` с путями к двум видео в виртуальной FS
-2. Выполнить `ffmpeg -f concat -safe 0 -i list.txt -c copy -y output.mp4`
-3. Проверить размер результата (>10KB)
-4. Если пустой — fallback с `-preset ultrafast` вместо `fast`
-5. Убрать промежуточный retry с video-only (упростить логику)
+2. **Edge Functions** — обновлены оба voiceover-генератора:
+   - `supabase/functions/generate-voiceover-for-video/index.ts` → endpoint `/with-timestamps`
+   - `supabase/functions/generate-voiceover/index.ts` → endpoint `/with-timestamps`
+   - Ответ содержит `audio_base64` + `alignment` (character-level timestamps)
+   - Функция `buildWordTimestamps()` собирает word-level timestamps из character-level
+   - Timestamps сохраняются в `videos.word_timestamps`
 
-Ожидаемый результат: склейка за секунды вместо минут.
+3. **`src/lib/srtGenerator.ts`** — генерация субтитров:
+   - `generateSrt()` — SRT формат (группировка по N слов)
+   - `generateAss()` — ASS формат (со стилями: шрифт, размер, цвет, обводка)
+   - `generateSrtBlocks()` — промежуточная структура
 
+4. **`src/lib/videoSubtitles.ts`** — вшивание субтитров через ffmpeg.wasm:
+   - `burnSubtitles(videoUrl, timestamps, options, onProgress)` → File
+   - Использует ASS-фильтр для стилизованных субтитров
+   - Видео перекодируется libx264 (preset fast, crf 23), аудио копируется
+
+5. **UI** — кнопка «Добавить субтитры» в `VideoSidePanel`:
+   - Появляется когда есть `heygen_video_url` и `word_timestamps`
+   - Показывает прогресс через Progress bar
+   - Результат загружается в Storage и сохраняется в `video_path`
