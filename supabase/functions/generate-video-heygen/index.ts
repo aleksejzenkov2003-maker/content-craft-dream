@@ -39,15 +39,15 @@ async function generateVoiceover(text: string, voiceId: string, elevenLabsKey: s
   return await response.arrayBuffer();
 }
 
-async function uploadAssetToHeygen(imageUrl: string, heygenKey: string): Promise<string> {
-  console.log('Downloading scene image for HeyGen upload...');
+async function uploadTalkingPhoto(imageUrl: string, heygenKey: string): Promise<string> {
+  console.log('Downloading image for HeyGen talking_photo upload...');
   const imgRes = await fetch(imageUrl);
-  if (!imgRes.ok) throw new Error(`Failed to download scene image: ${imgRes.status}`);
+  if (!imgRes.ok) throw new Error(`Failed to download image: ${imgRes.status}`);
   const imgBlob = await imgRes.blob();
 
-  // Upload as raw binary (matching n8n workflow contentType: "binaryData")
-  console.log('Uploading scene to HeyGen assets (raw binary)...');
-  const uploadRes = await fetch('https://upload.heygen.com/v1/asset', {
+  // Upload via /v1/talking_photo endpoint (required for v2/video/generate)
+  console.log('Uploading to HeyGen as talking_photo...');
+  const uploadRes = await fetch('https://upload.heygen.com/v1/talking_photo', {
     method: 'POST',
     headers: {
       'X-Api-Key': heygenKey,
@@ -58,16 +58,16 @@ async function uploadAssetToHeygen(imageUrl: string, heygenKey: string): Promise
 
   if (!uploadRes.ok) {
     const errText = await uploadRes.text();
-    throw new Error(`HeyGen asset upload failed: ${uploadRes.status} - ${errText}`);
+    throw new Error(`HeyGen talking_photo upload failed: ${uploadRes.status} - ${errText}`);
   }
 
   const uploadData = await uploadRes.json();
-  console.log('HeyGen upload response:', JSON.stringify(uploadData));
-  const imageKey = uploadData.data?.image_key || uploadData.data?.asset_id || uploadData.data?.id;
-  if (!imageKey) throw new Error('No image_key returned from HeyGen: ' + JSON.stringify(uploadData));
+  console.log('HeyGen talking_photo upload response:', JSON.stringify(uploadData));
+  const talkingPhotoId = uploadData.data?.talking_photo_id || uploadData.data?.id;
+  if (!talkingPhotoId) throw new Error('No talking_photo_id returned: ' + JSON.stringify(uploadData));
   
-  console.log('HeyGen asset uploaded, image_key:', imageKey);
-  return imageKey;
+  console.log('HeyGen talking_photo uploaded, id:', talkingPhotoId);
+  return talkingPhotoId;
 }
 
 // uploadAudioToHeygen removed — v2 API accepts audio_url directly
