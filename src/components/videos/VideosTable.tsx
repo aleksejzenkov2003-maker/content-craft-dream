@@ -292,12 +292,12 @@ export function VideosTable({
     return sortedVideos.reduce((acc, video) => {
       const uniqueKey = `${video.question_id ?? 'none'}`;
       if (!acc[uniqueKey]) {
-        const questionText = video.question_rus || video.question_eng || video.question || 'Без вопроса';
+        const questionText = video.question_eng || video.question || video.question_rus || 'No question';
         acc[uniqueKey] = { questionId: video.question_id, questionText, videos: [], plannedDate: video.publication_date };
       } else {
         const group = acc[uniqueKey];
-        if (video.question_rus && (!group.questionText || group.questionText === (video.question_eng || video.question))) {
-          group.questionText = video.question_rus;
+      if (video.question_eng && (!group.questionText || group.questionText === (video.question_rus || video.question))) {
+          group.questionText = video.question_eng;
         }
       }
       acc[uniqueKey].videos.push(video);
@@ -377,7 +377,7 @@ export function VideosTable({
     );
   }
 
-  const COL_GRID = 'grid-cols-[40px_130px_80px_80px_80px_55px_40px_50px_40px_70px_40px]';
+  const COL_GRID = 'grid-cols-[40px_130px_80px_80px_80px_55px_44px_52px_44px_70px_40px]';
 
   return (
     <div className="flex flex-col h-full">
@@ -532,9 +532,9 @@ export function VideosTable({
                     <button onClick={() => handleSort('duration')} className="flex items-center gap-1 hover:text-foreground">
                       Длина {getSortIcon('duration')}
                     </button>
-                    <div>🎬</div>
-                    <div>🖼</div>
-                    <div>🔊</div>
+                    <div className="text-base">🎬</div>
+                    <div className="text-base">🖼</div>
+                    <div className="text-base">🔊</div>
                     <div>Видео</div>
                     <div></div>
                   </div>
@@ -598,8 +598,8 @@ export function VideosTable({
                           {(video.video_path || video.heygen_video_url) ? (
                             <Popover>
                               <PopoverTrigger asChild>
-                                <Button size="icon-xs" variant="ghost" title="Смотреть видео">
-                                  <VideoIcon className="w-3 h-3" />
+                                 <Button size="icon-xs" variant="ghost" title="Смотреть видео">
+                                   <VideoIcon className="w-4 h-4" />
                                 </Button>
                               </PopoverTrigger>
                               <PopoverContent className="w-80 p-2" side="top">
@@ -623,8 +623,8 @@ export function VideosTable({
                           {coverUrl ? (
                             <Popover>
                               <PopoverTrigger asChild>
-                                <button className="w-8 h-8 rounded border border-border/50 overflow-hidden hover:border-primary/50 transition-colors">
-                                  <img src={coverUrl} alt="Cover" className="w-full h-full object-cover" />
+                                 <button className="w-10 h-10 rounded border border-border/50 overflow-hidden hover:border-primary/50 transition-colors">
+                                   <img src={coverUrl} alt="Cover" className="w-full h-full object-cover" />
                                 </button>
                               </PopoverTrigger>
                               <PopoverContent className="w-48 p-2" side="top">
@@ -632,8 +632,8 @@ export function VideosTable({
                               </PopoverContent>
                             </Popover>
                           ) : (
-                            <div className="w-8 h-8 rounded border border-border/30 flex items-center justify-center">
-                              <ImageIcon className="w-3 h-3 text-muted-foreground/30" />
+                             <div className="w-10 h-10 rounded border border-border/30 flex items-center justify-center">
+                               <ImageIcon className="w-4 h-4 text-muted-foreground/30" />
                             </div>
                           )}
                         </div>
@@ -647,11 +647,11 @@ export function VideosTable({
                               onClick={() => toggleAudio(video.id, video.voiceover_url!)}
                               title="Прослушать озвучку"
                             >
-                              {playingAudioId === video.id ? (
-                                <Pause className="w-3 h-3" />
-                              ) : (
-                                <Play className="w-3 h-3" />
-                              )}
+                               {playingAudioId === video.id ? (
+                                 <Pause className="w-4 h-4" />
+                               ) : (
+                                 <Play className="w-4 h-4" />
+                               )}
                             </Button>
                           ) : (
                             <span className="text-muted-foreground/30 text-xs flex items-center justify-center w-6 h-6">—</span>
