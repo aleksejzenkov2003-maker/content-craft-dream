@@ -415,9 +415,8 @@ export function PublishingKanban() {
       <PublicationEditDialog
         publication={editingPublication}
         open={!!editingPubId}
-        onOpenChange={(open) => { if (!open) setEditingPubId(null); }}
+        onClose={() => setEditingPubId(null)}
         onSave={handleEditPublication}
-        channels={channels}
       />
     </div>
   );
