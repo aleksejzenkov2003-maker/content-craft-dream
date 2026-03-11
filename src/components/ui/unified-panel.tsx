@@ -23,6 +23,7 @@ interface UnifiedPanelProps {
   headerActions?: React.ReactNode;
   children: React.ReactNode;
   preventOutsideClose?: boolean;
+  fixedHeight?: boolean;
 }
 
 export function UnifiedPanel({
