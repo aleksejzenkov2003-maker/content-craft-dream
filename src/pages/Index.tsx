@@ -188,6 +188,9 @@ export default function Index() {
       setAutoSubtitleProgress(prev => ({ ...prev, [videoId]: { phase, progress } }));
     };
     try {
+      // Mark reel_status as processing
+      await supabase.from('videos').update({ reel_status: 'generating' }).eq('id', videoId);
+
       // Fetch fresh video data
       const { data: vid } = await supabase
         .from('videos')
@@ -198,6 +201,7 @@ export default function Index() {
       const sourceUrl = vid?.heygen_video_url;
       if (!sourceUrl) {
         console.warn('No HeyGen URL for post-processing');
+        await supabase.from('videos').update({ reel_status: 'error' }).eq('id', videoId);
         return;
       }
 
@@ -247,17 +251,22 @@ export default function Index() {
         } catch (subErr) {
           console.error('Subtitle burn failed, using reduced video:', subErr);
           toast.warning('Не удалось вшить субтитры, используется видео без субтитров');
+          // Still continue with reduced video, but mark reel_status accordingly
+          await supabase.from('videos').update({ reel_status: 'error' }).eq('id', videoId);
         }
       } else if (!vid?.word_timestamps) {
         toast.success('✅ Постобработка завершена (субтитры не требуются)');
       }
 
-      // Update video_path with final URL
-      await supabase.from('videos').update({ video_path: finalUrl }).eq('id', videoId);
+      // Update video_path with final URL and mark as ready
+      await supabase.from('videos').update({ video_path: finalUrl, reel_status: 'ready' }).eq('id', videoId);
       updateProgress('done', 100);
       refetchVideos();
     } catch (err) {
       console.error('Post-processing error:', err);
+      // Set error status so UI reflects the failure
+      try { await supabase.from('videos').update({ reel_status: 'error' }).eq('id', videoId); } catch (_) { /* ignore */ }
+      refetchVideos();
       throw err;
     } finally {
       // Clear progress after a brief delay so user sees 100%
