@@ -58,6 +58,7 @@ interface KanbanCardProps {
   publication: Publication;
   onPublish?: () => void;
   onRetry?: () => void;
+  onEdit?: () => void;
 }
 
 function KanbanCard({ publication, onPublish, onRetry }: KanbanCardProps) {
