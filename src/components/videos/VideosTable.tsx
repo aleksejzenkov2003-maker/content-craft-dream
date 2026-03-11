@@ -598,8 +598,8 @@ export function VideosTable({
                           {(video.video_path || video.heygen_video_url) ? (
                             <Popover>
                               <PopoverTrigger asChild>
-                                <Button size="icon-xs" variant="ghost" title="Смотреть видео">
-                                  <VideoIcon className="w-3 h-3" />
+                                 <Button size="icon-xs" variant="ghost" title="Смотреть видео">
+                                   <VideoIcon className="w-4 h-4" />
                                 </Button>
                               </PopoverTrigger>
                               <PopoverContent className="w-80 p-2" side="top">
