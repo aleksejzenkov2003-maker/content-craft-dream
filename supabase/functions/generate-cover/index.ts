@@ -190,7 +190,7 @@ async function composeCover(
   // Load Montserrat font
   let fonts: any[] = [];
   try {
-    const fontUrl = 'https://cdn.jsdelivr.net/fontsource/fonts/montserrat@latest/latin-900-normal.woff2';
+    const fontUrl = 'https://cdn.jsdelivr.net/fontsource/fonts/montserrat@latest/latin-900-normal.ttf';
     const fontResp = await fetch(fontUrl, { redirect: 'follow' });
     if (!fontResp.ok) throw new Error(`Font fetch failed: ${fontResp.status}`);
     const contentType = fontResp.headers.get('content-type') || '';
