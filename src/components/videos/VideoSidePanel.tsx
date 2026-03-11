@@ -127,8 +127,6 @@ export function VideoSidePanel({
     fetchAtmospherePrompt();
   }, [video?.id, video?.question, video?.hook, video?.advisor_answer, advisor]);
 
-  if (!video) return null;
-
   const handleChannelToggle = (channelId: string) => {
     if (!video) return;
     const newChannels = selectedChannels.includes(channelId) ? selectedChannels.filter((id) => id !== channelId) : [...selectedChannels, channelId];
