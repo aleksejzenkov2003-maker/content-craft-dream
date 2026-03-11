@@ -43,7 +43,7 @@ import {
 import {
   MoreVertical, Trash2, ExternalLink, Send, Sparkles, Loader2, RefreshCw,
   FileSpreadsheet, ArrowUpDown, ArrowUp, ArrowDown, CalendarIcon, Edit2, Clock, Clapperboard, Settings2,
-  Video as VideoIcon, FileText, Eye,
+  Video as VideoIcon, FileText, Eye, Square,
 } from 'lucide-react';
 import { Publication, usePublications } from '@/hooks/usePublications';
 import { toast } from 'sonner';
@@ -167,7 +167,7 @@ export function PublicationsTable({ groupBy = 'channel' }: PublicationsTableProp
   const { publications, loading, deletePublication, generateText, updatePublication, bulkImport, refetch } = usePublications();
   const { channels } = usePublishingChannels();
   const { videos } = useVideos();
-  const { concatVideos, loading: concatLoading, progress: concatProgress, phase: concatPhase } = useVideoConcat();
+  const { concatVideos, cancelConcat } = useVideoConcat();
   const [concatingId, setConcatingId] = useState<string | null>(null);
   
   const [showImporter, setShowImporter] = useState(false);
@@ -816,7 +816,20 @@ onClick={() => setEditingPublicationId(pub.id)}
                             </button>
                           )}
                           {isBusyConcat && (
-                            <Loader2 className="w-3.5 h-3.5 animate-spin text-primary" />
+                            <>
+                              <Loader2 className="w-3.5 h-3.5 animate-spin text-primary" />
+                              <button
+                                className="p-0.5 hover:bg-muted rounded"
+                                title="Остановить склейку"
+                                onClick={async () => {
+                                  await cancelConcat(pub.id);
+                                  setConcatingId(null);
+                                  await refetch();
+                                }}
+                              >
+                                <Square className="w-3 h-3 text-destructive hover:text-foreground" />
+                              </button>
+                            </>
                           )}
                           {!concatRequired && (
                             <span className="text-muted-foreground text-xs">—</span>
