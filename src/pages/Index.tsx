@@ -402,6 +402,23 @@ export default function Index() {
           toast.warning('У духовника не назначено фото для миниатюры. Обложка будет без портрета. Назначьте фото (М) в разделе Духовники.');
         }
       }
+
+      // Auto-generate atmosphere if missing
+      const atmosphereUrl = (video as any).atmosphere_url;
+      if (!atmosphereUrl) {
+        toast.info('Фон отсутствует — запускаем генерацию фона (шаг 1)...');
+        const atmosResp = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/generate-cover`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
+          },
+          body: JSON.stringify({ videoId: video.id, step: 'atmosphere' }),
+        });
+        if (!atmosResp.ok) throw new Error('Failed to generate atmosphere');
+        toast.success('Фон сгенерирован! Запускаем обложку (шаг 2)...');
+        refetchVideos();
+      }
       
       toast.info('Генерация обложки...');
       
