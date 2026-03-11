@@ -159,7 +159,7 @@ async function composeCover(
       {
         style: {
           position: 'absolute',
-          top: 750,
+          top: 1050,
           left: 0,
           width: '100%',
           display: 'flex',
@@ -174,7 +174,7 @@ async function composeCover(
         {
           style: {
             color: 'white',
-            fontSize: hookText.length > 80 ? 64 : hookText.length > 40 ? 72 : 80,
+            fontSize: hookText.length > 80 ? 48 : hookText.length > 40 ? 56 : 64,
             fontWeight: 900,
             textAlign: 'center',
             lineHeight: 1.25,
