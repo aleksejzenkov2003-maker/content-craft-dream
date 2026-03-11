@@ -142,19 +142,7 @@ export function PublicationEditDialog({
       onPrev={onPrev}
       onNext={onNext}
       preventOutsideClose
-      footer={
-        <div className="flex items-center justify-between w-full">
-          <div className="flex gap-2">
-            <Button variant="outline" size="sm" onClick={handleRestorePrompt}>
-              Восстановить
-            </Button>
-            <Button size="sm" onClick={handleSave} disabled={saving}>
-              {saving && <Loader2 className="w-3 h-3 mr-1 animate-spin" />}
-              Сохранить
-            </Button>
-          </div>
-        </div>
-      }
+      footer={null}
     >
       {/* Info fields */}
       <div className="space-y-3">
