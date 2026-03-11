@@ -1,30 +1,57 @@
 
 
-## Plan: Show Channel Binding Only for "Текст публикации" + Audit Prompt Flow
+## Решение: бинарная MP4-конкатенация + нормализация аудио через ffmpeg.wasm
 
-### Analysis of Current Prompt Flow
+### Что сделано
 
-The prompt system works across 3 scenarios:
+1. **`supabase/functions/concat-video/index.ts`** — полная перезапись:
+   - Бинарный MP4-парсер: разбор боксов (moov/trak/stbl/stsz/stco/stsc/stts/stss/ctts)
+   - Извлечение сэмплов из обоих файлов, сборка нового mdat
+   - Объединение sample tables, пересчёт оффсетов, обновление duration
+   - Сохранение логики получения свежих HeyGen URL
+   - Загрузка результата в Storage
 
-1. **Фон обложки (atmosphere)** — `generate-cover` edge function fetches active `atmosphere` prompt from DB (`is_active=true`), uses `system_prompt` + `user_template` with variables `{{question}}`, `{{hook}}`, `{{answer}}`, `{{advisor}}`, `{{playlist}}`. No channel binding needed — works correctly.
+2. **`src/lib/videoNormalizer.ts`** — утилита нормализации аудио через ffmpeg.wasm:
+   - Загружает ffmpeg WASM при первом использовании
+   - Перекодирует аудио в AAC-LC 48kHz mono 128kbps: `-c:v copy -c:a aac -ar 48000 -ac 1 -b:a 128k`
+   - Видео-поток копируется без потерь
 
-2. **Сцена монологов (scene)** — `generate-scene` edge function + `SceneSidePanel` fetches active `scene` prompt (`is_active=true`), uses `user_template` with `{{playlist}}`, `{{advisor}}`. No channel binding needed — works correctly.
+3. **`src/components/covers/BackCoversGrid.tsx`** — интеграция нормализации:
+   - При загрузке видео-обложки автоматически нормализует аудио через ffmpeg.wasm
+   - Показывает прогресс нормализации
+   - Загружает нормализованный файл в Storage
+   - Fallback на оригинал при ошибке
 
-3. **Текст публикации (post_text)** — `generate-post-text` edge function resolves prompt via: channel's `prompt_id` → channel's `post_text_prompt` → active DB prompt → hardcoded fallback. Channel binding IS needed here and is the only type that uses it.
+### Зависимости
+- `@ffmpeg/ffmpeg@0.12.10`
+- `@ffmpeg/util@0.12.1`
 
-### Problem
+---
 
-The "Привязка к каналам" checkbox panel currently shows for ALL prompt types in `PromptsPage.tsx`. It should only appear when type = `post_text`, since atmosphere and scene prompts use `is_active` flag (not channel binding).
+## Субтитры: ElevenLabs timestamps → SRT → FFmpeg
 
-### Changes
+### Что сделано
 
-**1. `src/components/prompts/PromptsPage.tsx`** (lines 313-340)
-- Wrap the "Привязка к каналам" block in a conditional: only render when `form.type === 'post_text'`
-- When type is not `post_text`, show the Name field full-width instead of half-width
+1. **БД миграция** — добавлено поле `word_timestamps jsonb` в таблицу `videos`
 
-**2. No edge function changes needed** — all three prompt flows already work correctly:
-- `atmosphere` + `scene`: use `is_active=true` lookup
-- `post_text`: uses `prompt_id` on `publishing_channels` table
+2. **Edge Functions** — обновлены оба voiceover-генератора:
+   - `supabase/functions/generate-voiceover-for-video/index.ts` → endpoint `/with-timestamps`
+   - `supabase/functions/generate-voiceover/index.ts` → endpoint `/with-timestamps`
+   - Ответ содержит `audio_base64` + `alignment` (character-level timestamps)
+   - Функция `buildWordTimestamps()` собирает word-level timestamps из character-level
+   - Timestamps сохраняются в `videos.word_timestamps`
 
-This is a single UI change — hide the channel binding panel for non-post-text prompt types.
+3. **`src/lib/srtGenerator.ts`** — генерация субтитров:
+   - `generateSrt()` — SRT формат (группировка по N слов)
+   - `generateAss()` — ASS формат (со стилями: шрифт, размер, цвет, обводка)
+   - `generateSrtBlocks()` — промежуточная структура
 
+4. **`src/lib/videoSubtitles.ts`** — вшивание субтитров через ffmpeg.wasm:
+   - `burnSubtitles(videoUrl, timestamps, options, onProgress)` → File
+   - Использует ASS-фильтр для стилизованных субтитров
+   - Видео перекодируется libx264 (preset fast, crf 23), аудио копируется
+
+5. **UI** — кнопка «Добавить субтитры» в `VideoSidePanel`:
+   - Появляется когда есть `heygen_video_url` и `word_timestamps`
+   - Показывает прогресс через Progress bar
+   - Результат загружается в Storage и сохраняется в `video_path`
