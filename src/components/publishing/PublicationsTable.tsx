@@ -934,13 +934,21 @@ onClick={() => setEditingPublicationId(pub.id)}
 
       {/* Video Preview Dialog */}
       <Dialog open={!!previewVideoUrl} onOpenChange={(o) => !o && setPreviewVideoUrl(null)}>
-        <DialogContent className="max-w-sm p-0">
+        <DialogContent className="max-w-md p-0">
           <DialogHeader className="p-3 pb-0">
             <DialogTitle className="text-sm">Превью видео</DialogTitle>
           </DialogHeader>
           {previewVideoUrl && (
             <div className="p-3 pt-2">
-              <video src={previewVideoUrl} controls playsInline preload="metadata" className="w-full max-h-[70vh] rounded-md object-contain" />
+              <video
+                src={previewVideoUrl}
+                controls
+                autoPlay
+                playsInline
+                preload="auto"
+                className="w-full max-h-[70vh] rounded-md object-contain bg-black"
+                crossOrigin="anonymous"
+              />
             </div>
           )}
         </DialogContent>
