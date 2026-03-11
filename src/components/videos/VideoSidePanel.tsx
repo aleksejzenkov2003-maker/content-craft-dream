@@ -438,61 +438,43 @@ export function VideoSidePanel({
             <Progress value={autoSubtitleProgress.progress} className="h-1" />
           </div>
         )}
-        {video.word_timestamps && (video.heygen_video_url || video.video_path) && !autoSubtitleProgress && (
+        {video.word_timestamps && (video.reduced_video_url || video.heygen_video_url) && !autoSubtitleProgress && (
           <div className="space-y-1.5">
             <div className="flex gap-1">
               <Button
                 size="xs"
-                variant="outline"
+                variant={video.video_path ? 'ghost' : 'outline'}
                 className="flex-1"
                 disabled={subtitleProgress !== null}
                 onClick={async () => {
+                  // Always use clean source: reduced_video_url (no subtitles) or heygen_video_url
+                  const cleanSrc = (video as any).reduced_video_url || video.heygen_video_url;
+                  if (!cleanSrc) { toast.error('Нет исходного видео'); return; }
                   const ac = new AbortController();
                   setSubtitleAbort(ac);
                   try {
-                    const { burnSubtitlesHybrid, burnSubtitlesBrowser } = await import('@/lib/videoSubtitles');
+                    const { burnSubtitlesBrowser } = await import('@/lib/videoSubtitles');
                     const { isBrowserFFmpegSupported: checkSupport } = await import('@/lib/ffmpegLoader');
+                    if (!checkSupport()) throw new Error('FFmpeg unavailable');
+                    setSubtitleProgress({ phase: 'loading_ffmpeg', progress: 3 });
                     const watchdog = setTimeout(() => ac.abort(), 8 * 60 * 1000);
-                    try {
-                      const result = await burnSubtitlesHybrid(
-                        video.id,
-                        (info) => setSubtitleProgress({ phase: info.phase, progress: info.progress }),
-                        ac.signal,
-                      );
-                      clearTimeout(watchdog);
-                      onUpdateVideo(video.id, { video_path: result.videoUrl } as any);
-                      toast.success('Субтитры вшиты');
-                      return;
-                    } catch (hybridErr) {
-                      clearTimeout(watchdog);
-                      if (ac.signal.aborted) throw hybridErr;
-                      console.warn('[subtitles] Hybrid failed, trying pure browser:', hybridErr);
-                    }
-                    if (checkSupport()) {
-                      const srcUrl = video.heygen_video_url || video.video_path;
-                      if (!srcUrl) throw new Error('No video URL');
-                      setSubtitleProgress({ phase: 'loading_ffmpeg', progress: 3 });
-                      const watchdog2 = setTimeout(() => ac.abort(), 8 * 60 * 1000);
-                      const file = await burnSubtitlesBrowser(
-                        srcUrl,
-                        video.word_timestamps as any,
-                        { fontSize: 48 },
-                        (info) => setSubtitleProgress({ phase: info.phase, progress: info.progress }),
-                        ac.signal,
-                      );
-                      clearTimeout(watchdog2);
-                      setSubtitleProgress({ phase: 'uploading_result', progress: 95 });
-                      const fileName = `videos/${video.id}_subtitled_${Date.now()}.mp4`;
-                      const { error: uploadError } = await supabase.storage
-                        .from('media-files')
-                        .upload(fileName, file, { contentType: 'video/mp4', upsert: true });
-                      if (uploadError) throw uploadError;
-                      const { data: urlData } = supabase.storage.from('media-files').getPublicUrl(fileName);
-                      onUpdateVideo(video.id, { video_path: urlData.publicUrl } as any);
-                      toast.success('Субтитры добавлены');
-                      return;
-                    }
-                    throw new Error('FFmpeg unavailable');
+                    const file = await burnSubtitlesBrowser(
+                      cleanSrc,
+                      video.word_timestamps as any,
+                      { fontSize: 48 },
+                      (info) => setSubtitleProgress({ phase: info.phase, progress: info.progress }),
+                      ac.signal,
+                    );
+                    clearTimeout(watchdog);
+                    setSubtitleProgress({ phase: 'uploading_result', progress: 95 });
+                    const fileName = `videos/${video.id}_subtitled_${Date.now()}.mp4`;
+                    const { error: uploadError } = await supabase.storage
+                      .from('media-files')
+                      .upload(fileName, file, { contentType: 'video/mp4', upsert: true });
+                    if (uploadError) throw uploadError;
+                    const { data: urlData } = supabase.storage.from('media-files').getPublicUrl(fileName);
+                    onUpdateVideo(video.id, { video_path: urlData.publicUrl } as any);
+                    toast.success(video.video_path ? 'Субтитры переналожены' : 'Субтитры вшиты');
                   } catch (err) {
                     if ((err as Error)?.name === 'AbortError') {
                       toast.info('Операция отменена');
@@ -518,6 +500,8 @@ export function VideoSidePanel({
                     subtitleProgress.phase === 'burning_subtitles' ? 'Вшивка субтитров' :
                     'Загрузка результата'
                   } {subtitleProgress.progress}%</>
+                ) : video.video_path ? (
+                  <><Subtitles className="w-3 h-3 mr-1" />Переналожить субтитры</>
                 ) : (
                   <><Subtitles className="w-3 h-3 mr-1" />Вшить субтитры</>
                 )}

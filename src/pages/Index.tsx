@@ -223,8 +223,10 @@ export default function Index() {
           .upload(reducedFileName, reducedFile, { contentType: 'video/mp4', upsert: true });
         if (uploadErr) throw uploadErr;
 
-        const { data: urlData } = supabase.storage.from('media-files').getPublicUrl(reducedFileName);
+      const { data: urlData } = supabase.storage.from('media-files').getPublicUrl(reducedFileName);
         finalUrl = urlData.publicUrl;
+        // Save reduced URL as clean source (no subtitles) for future re-burns
+        await supabase.from('videos').update({ reduced_video_url: finalUrl }).eq('id', videoId);
         toast.success('✅ Шаг 1/2: Битрейт уменьшен!');
       }
 

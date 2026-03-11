@@ -46,6 +46,8 @@ export interface Video {
   voiceover_url: string | null;
   voiceover_status: string | null;
   word_timestamps: any;
+  // Reduced bitrate video (clean, no subtitles)
+  reduced_video_url: string | null;
   // Selected channels for publication
   selected_channels: string[] | null;
   // Readiness flag
