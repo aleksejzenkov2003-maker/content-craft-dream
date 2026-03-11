@@ -66,6 +66,7 @@ export default function Index() {
   const { publications, loading: publicationsLoading, addPublication, refetch: refetchPublications } = usePublications();
   const { channels: publishingChannels } = usePublishingChannels();
   const { concatVideos } = useVideoConcat();
+  const { isEnabled } = useAutomationSettings();
 
   // Preload FFmpeg only on videos tab and only when browser is idle
   useEffect(() => {
