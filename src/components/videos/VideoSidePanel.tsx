@@ -169,7 +169,7 @@ export function VideoSidePanel({
     <UnifiedPanel
       open={open}
       onOpenChange={onOpenChange}
-      title={`${video.question || ''} — ${advisorName}`}
+      title={`#${video.video_number || '—'} ${video.question || ''} — ${advisorName}`}
       width="lg"
       onPrev={onPrev}
       onNext={onNext}
