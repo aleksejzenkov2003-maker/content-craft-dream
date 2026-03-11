@@ -49,6 +49,8 @@
     --generate-cover-foreground: 0 0% 100%;
     --generate-video: 271 81% 56%;
     --generate-video-foreground: 0 0% 100%;
+    --generate-voiceover: 199 89% 48%;
+    --generate-voiceover-foreground: 0 0% 100%;
     --publish: 217 91% 60%;
     --publish-foreground: 0 0% 100%;
 
