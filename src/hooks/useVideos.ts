@@ -122,6 +122,24 @@ export function useVideos(filters?: VideoFilters) {
     fetchVideos();
   }, [fetchVideos]);
 
+  // Realtime subscription for cross-device sync
+  useEffect(() => {
+    const channel = supabase
+      .channel('videos-realtime')
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'videos' },
+        () => {
+          fetchVideos();
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [fetchVideos]);
+
   const addVideo = async (data: Partial<Video>) => {
     try {
       const { data: newVideo, error } = await supabase
