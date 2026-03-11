@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -85,6 +85,65 @@ type SortDirection = 'asc' | 'desc';
 
 interface PublicationsTableProps {
   groupBy?: 'channel' | 'question';
+}
+
+function formatVideoDuration(duration: number | null | undefined) {
+  if (!duration || !Number.isFinite(duration)) return '—';
+  const totalSeconds = Math.round(duration);
+  const minutes = Math.floor(totalSeconds / 60);
+  const seconds = totalSeconds % 60;
+  return `${minutes}:${String(seconds).padStart(2, '0')}`;
+}
+
+function PublicationDurationCell({
+  duration,
+  videoUrl,
+}: {
+  duration: number | null | undefined;
+  videoUrl?: string | null;
+}) {
+  const [resolvedDuration, setResolvedDuration] = useState<number | null>(duration ?? null);
+
+  useEffect(() => {
+    if (duration) {
+      setResolvedDuration(duration);
+      return;
+    }
+
+    if (!videoUrl) {
+      setResolvedDuration(null);
+      return;
+    }
+
+    let isCancelled = false;
+    const probeVideo = document.createElement('video');
+    probeVideo.preload = 'metadata';
+    probeVideo.src = videoUrl;
+
+    const handleLoadedMetadata = () => {
+      if (!isCancelled && Number.isFinite(probeVideo.duration)) {
+        setResolvedDuration(probeVideo.duration);
+      }
+    };
+
+    const handleError = () => {
+      if (!isCancelled) {
+        setResolvedDuration(null);
+      }
+    };
+
+    probeVideo.addEventListener('loadedmetadata', handleLoadedMetadata);
+    probeVideo.addEventListener('error', handleError);
+
+    return () => {
+      isCancelled = true;
+      probeVideo.removeEventListener('loadedmetadata', handleLoadedMetadata);
+      probeVideo.removeEventListener('error', handleError);
+      probeVideo.src = '';
+    };
+  }, [duration, videoUrl]);
+
+  return <span className={resolvedDuration ? '' : 'text-muted-foreground'}>{formatVideoDuration(resolvedDuration)}</span>;
 }
 
 export function PublicationsTable({ groupBy = 'channel' }: PublicationsTableProps) {
@@ -699,11 +758,10 @@ onClick={() => setEditingPublicationId(pub.id)}
                       </TableCell>
                       {/* Длина */}
                       <TableCell className="py-1">
-                        {pub.video?.video_duration ? (
-                          <span>{pub.video.video_duration}s</span>
-                        ) : (
-                          <span className="text-muted-foreground">—</span>
-                        )}
+                        <PublicationDurationCell
+                          duration={pub.video?.video_duration}
+                          videoUrl={pub.final_video_url || pub.video?.video_path || pub.video?.heygen_video_url}
+                        />
                       </TableCell>
                       {/* Ссылка на публикации */}
                       <TableCell className="py-1" onClick={(e) => e.stopPropagation()}>
