@@ -179,7 +179,7 @@ async function composeCover(
             textAlign: 'center',
             lineHeight: 1.25,
             maxWidth: '100%',
-            textShadow: '0 0 8px rgba(0,0,0,0.9), 0 0 16px rgba(0,0,0,0.7), 2px 2px 0 rgba(0,0,0,0.8), -2px -2px 0 rgba(0,0,0,0.8), 2px -2px 0 rgba(0,0,0,0.8), -2px 2px 0 rgba(0,0,0,0.8)',
+            textShadow: '0 0 12px rgba(0,0,0,0.9)',
           },
         },
         hookText
