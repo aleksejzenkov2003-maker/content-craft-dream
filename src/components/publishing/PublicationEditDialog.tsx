@@ -224,9 +224,20 @@ export function PublicationEditDialog({
             className="min-h-[250px] text-xs font-mono resize-y min-w-0 w-full"
             rows={14}
           />
-          <p className="text-[10px] text-muted-foreground">
-            Промт подтянут из настроек канала. Можно отредактировать и запустить генерацию.
-          </p>
+          <div className="flex items-center justify-between">
+            <p className="text-[10px] text-muted-foreground">
+              Промт подтянут из настроек канала.
+            </p>
+            <div className="flex items-center gap-2">
+              <Button variant="outline" size="sm" className="h-7 text-xs" onClick={handleRestorePrompt}>
+                Восстановить
+              </Button>
+              <Button size="sm" className="h-7 text-xs" onClick={handleSave} disabled={saving}>
+                {saving && <Loader2 className="w-3 h-3 mr-1 animate-spin" />}
+                Сохранить
+              </Button>
+            </div>
+          </div>
         </TabsContent>
 
         {/* Final video tab */}
