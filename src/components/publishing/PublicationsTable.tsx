@@ -758,11 +758,10 @@ onClick={() => setEditingPublicationId(pub.id)}
                       </TableCell>
                       {/* Длина */}
                       <TableCell className="py-1">
-                        {pub.video?.video_duration ? (
-                          <span>{pub.video.video_duration}s</span>
-                        ) : (
-                          <span className="text-muted-foreground">—</span>
-                        )}
+                        <PublicationDurationCell
+                          duration={pub.video?.video_duration}
+                          videoUrl={pub.final_video_url || pub.video?.video_path || pub.video?.heygen_video_url}
+                        />
                       </TableCell>
                       {/* Ссылка на публикации */}
                       <TableCell className="py-1" onClick={(e) => e.stopPropagation()}>
