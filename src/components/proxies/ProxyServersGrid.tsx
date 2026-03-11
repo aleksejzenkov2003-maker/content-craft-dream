@@ -4,6 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
+import { Checkbox } from '@/components/ui/checkbox';
 import { Switch } from '@/components/ui/switch';
 import {
   Dialog,
@@ -12,13 +13,6 @@ import {
   DialogTitle,
   DialogFooter,
 } from '@/components/ui/dialog';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -277,15 +271,27 @@ export function ProxyServersGrid() {
               </div>
             </div>
             <div className="space-y-2">
-              <Label>Протокол</Label>
-              <Select value={formData.protocol} onValueChange={(v) => setFormData({ ...formData, protocol: v })}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="HTTP">HTTP</SelectItem>
-                  <SelectItem value="HTTPS">HTTPS</SelectItem>
-                  <SelectItem value="SOCKS5">SOCKS5</SelectItem>
-                </SelectContent>
-              </Select>
+              <Label>Протоколы</Label>
+              <div className="flex gap-4">
+                {['HTTP', 'HTTPS', 'SOCKS5'].map(proto => {
+                  const protocols = formData.protocol.split(',').map(p => p.trim()).filter(Boolean);
+                  const checked = protocols.includes(proto);
+                  return (
+                    <label key={proto} className="flex items-center gap-2 cursor-pointer text-sm">
+                      <Checkbox
+                        checked={checked}
+                        onCheckedChange={(val) => {
+                          const updated = val
+                            ? [...protocols, proto]
+                            : protocols.filter(p => p !== proto);
+                          setFormData({ ...formData, protocol: updated.join(', ') || 'HTTP' });
+                        }}
+                      />
+                      {proto}
+                    </label>
+                  );
+                })}
+              </div>
             </div>
             <div className="flex items-center justify-between">
               <span className="text-sm">{formData.is_active ? 'Активен' : 'Неактивен'}</span>
