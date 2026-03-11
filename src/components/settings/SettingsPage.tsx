@@ -6,7 +6,7 @@ import { Progress } from '@/components/ui/progress';
 import { Loader2, CheckCircle, XCircle, RefreshCw } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
-
+import { ButtonActionsSettings } from './ButtonActionsSettings';
 
 interface ApiBalances {
   elevenlabs?: { used: number; limit: number; resetUnix: number | null; tier: string | null; error?: string };
@@ -118,6 +118,16 @@ export function SettingsPage() {
   return (
     <div className="space-y-6">
       <h2 className="text-2xl font-bold">Настройки</h2>
+
+      {/* Automation Settings */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-lg">Управление действиями кнопок</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <ButtonActionsSettings />
+        </CardContent>
+      </Card>
 
       {/* API Status */}
       <Card>
