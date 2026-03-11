@@ -1,22 +1,57 @@
 
 
-## Fix: Prompt not loading in Publication Edit Dialog
+## Решение: бинарная MP4-конкатенация + нормализация аудио через ffmpeg.wasm
 
-### Root Cause
-The `PublicationEditDialog` fetches the prompt template by checking `publication.channel?.post_text_prompt` (a legacy raw text field). However, channels now use a relational `prompt_id` field linking to the `prompts` table. The dialog never reads `prompt_id`, so it finds nothing.
+### Что сделано
 
-Additionally, the `Publication` interface in `usePublications.ts` doesn't include `prompt_id` in the channel join, so even if the dialog tried to use it, the data wouldn't be available.
+1. **`supabase/functions/concat-video/index.ts`** — полная перезапись:
+   - Бинарный MP4-парсер: разбор боксов (moov/trak/stbl/stsz/stco/stsc/stts/stss/ctts)
+   - Извлечение сэмплов из обоих файлов, сборка нового mdat
+   - Объединение sample tables, пересчёт оффсетов, обновление duration
+   - Сохранение логики получения свежих HeyGen URL
+   - Загрузка результата в Storage
 
-### Changes
+2. **`src/lib/videoNormalizer.ts`** — утилита нормализации аудио через ffmpeg.wasm:
+   - Загружает ffmpeg WASM при первом использовании
+   - Перекодирует аудио в AAC-LC 48kHz mono 128kbps: `-c:v copy -c:a aac -ar 48000 -ac 1 -b:a 128k`
+   - Видео-поток копируется без потерь
 
-**1. `src/hooks/usePublications.ts`**
-- Add `prompt_id` to the `channel` interface in `Publication`
-- Add `prompt_id` to the Supabase select query for `channel:publishing_channels`
+3. **`src/components/covers/BackCoversGrid.tsx`** — интеграция нормализации:
+   - При загрузке видео-обложки автоматически нормализует аудио через ffmpeg.wasm
+   - Показывает прогресс нормализации
+   - Загружает нормализованный файл в Storage
+   - Fallback на оригинал при ошибке
 
-**2. `src/components/publishing/PublicationEditDialog.tsx`**
-- Update `fetchPrompt` to mirror the priority chain from `generate-post-text` edge function:
-  1. If `channel.prompt_id` exists → fetch `system_prompt` + `user_template` from `prompts` table
-  2. Else if `channel.post_text_prompt` exists → use that raw text
-  3. Else → fetch active `post_text` prompt from DB
-- Display both system prompt and filled user template in the Prompt tab so the user sees the full context
+### Зависимости
+- `@ffmpeg/ffmpeg@0.12.10`
+- `@ffmpeg/util@0.12.1`
 
+---
+
+## Субтитры: ElevenLabs timestamps → SRT → FFmpeg
+
+### Что сделано
+
+1. **БД миграция** — добавлено поле `word_timestamps jsonb` в таблицу `videos`
+
+2. **Edge Functions** — обновлены оба voiceover-генератора:
+   - `supabase/functions/generate-voiceover-for-video/index.ts` → endpoint `/with-timestamps`
+   - `supabase/functions/generate-voiceover/index.ts` → endpoint `/with-timestamps`
+   - Ответ содержит `audio_base64` + `alignment` (character-level timestamps)
+   - Функция `buildWordTimestamps()` собирает word-level timestamps из character-level
+   - Timestamps сохраняются в `videos.word_timestamps`
+
+3. **`src/lib/srtGenerator.ts`** — генерация субтитров:
+   - `generateSrt()` — SRT формат (группировка по N слов)
+   - `generateAss()` — ASS формат (со стилями: шрифт, размер, цвет, обводка)
+   - `generateSrtBlocks()` — промежуточная структура
+
+4. **`src/lib/videoSubtitles.ts`** — вшивание субтитров через ffmpeg.wasm:
+   - `burnSubtitles(videoUrl, timestamps, options, onProgress)` → File
+   - Использует ASS-фильтр для стилизованных субтитров
+   - Видео перекодируется libx264 (preset fast, crf 23), аудио копируется
+
+5. **UI** — кнопка «Добавить субтитры» в `VideoSidePanel`:
+   - Появляется когда есть `heygen_video_url` и `word_timestamps`
+   - Показывает прогресс через Progress bar
+   - Результат загружается в Storage и сохраняется в `video_path`

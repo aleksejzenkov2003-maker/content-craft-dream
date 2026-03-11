@@ -44,6 +44,7 @@ export interface Publication {
     network_type: string;
     post_text_prompt: string | null;
     back_cover_video_url: string | null;
+    prompt_id: string | null;
   };
 }
 
@@ -78,7 +79,7 @@ export function usePublications(filters?: PublicationFilters) {
             video_path,
             advisor:advisors (id, name, display_name)
           ),
-          channel:publishing_channels (id, name, network_type, post_text_prompt, back_cover_video_url)
+          channel:publishing_channels (id, name, network_type, post_text_prompt, back_cover_video_url, prompt_id)
         `)
         .order('post_date', { ascending: false, nullsFirst: false });
 

@@ -59,22 +59,47 @@ export function PublicationEditDialog({
   useEffect(() => {
     const fetchPrompt = async () => {
       if (!publication) return;
-      let template = '';
-      if (publication.channel?.post_text_prompt) {
-        template = publication.channel.post_text_prompt;
-      } else {
+      let systemPrompt = '';
+      let userTemplate = '';
+
+      // Priority 1: channel.prompt_id → fetch from prompts table
+      if (publication.channel?.prompt_id) {
+        const { data: promptData } = await supabase
+          .from('prompts')
+          .select('system_prompt, user_template')
+          .eq('id', publication.channel.prompt_id)
+          .single();
+        if (promptData) {
+          systemPrompt = promptData.system_prompt || '';
+          userTemplate = promptData.user_template || '';
+        }
+      }
+      // Priority 2: legacy post_text_prompt on channel
+      if (!userTemplate && publication.channel?.post_text_prompt) {
+        userTemplate = publication.channel.post_text_prompt;
+      }
+      // Priority 3: global active post_text prompt
+      if (!userTemplate) {
         const { data: dbPrompt } = await supabase
           .from('prompts')
-          .select('user_template')
+          .select('system_prompt, user_template')
           .eq('type', 'post_text')
           .eq('is_active', true)
           .limit(1)
           .single();
-        if (dbPrompt) template = dbPrompt.user_template;
+        if (dbPrompt) {
+          systemPrompt = dbPrompt.system_prompt || '';
+          userTemplate = dbPrompt.user_template || '';
+        }
       }
-      const filled = fillPromptVars(template, publication);
-      setPromptText(filled);
-      setOriginalPrompt(filled);
+
+      const filledUser = fillPromptVars(userTemplate, publication);
+      const filledSystem = fillPromptVars(systemPrompt, publication);
+      const combined = filledSystem
+        ? `--- Системный промт ---\n${filledSystem}\n\n--- Шаблон пользователя ---\n${filledUser}`
+        : filledUser;
+      setPromptText(combined);
+      setOriginalPrompt(combined);
     };
     fetchPrompt();
   }, [publication?.id, fillPromptVars]);
