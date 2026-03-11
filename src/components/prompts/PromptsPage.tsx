@@ -153,7 +153,13 @@ export function PromptsPage() {
         }
       }
 
-      // Dialog stays open after save
+      // Show success feedback
+      setSaveSuccess(true);
+      setTimeout(() => setSaveSuccess(false), 2000);
+      // If new prompt, switch to edit mode
+      if (!editingPrompt && promptId) {
+        setEditingPrompt({ ...form, id: promptId, created_at: new Date().toISOString(), is_active: true });
+      }
     } finally {
       setSaving(false);
     }
