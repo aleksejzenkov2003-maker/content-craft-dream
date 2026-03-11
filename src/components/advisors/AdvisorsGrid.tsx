@@ -156,10 +156,6 @@ export function AdvisorsGrid({
 
       <div className="flex items-center justify-end">
         <div className="flex gap-2">
-          <Button variant="outline" size="sm" onClick={() => setShowImporter(true)}>
-            <FileSpreadsheet className="w-4 h-4 mr-2" />
-            Импорт CSV
-          </Button>
           <Dialog open={showAddDialog} onOpenChange={setShowAddDialog}>
             <DialogTrigger asChild>
               <Button size="sm">
