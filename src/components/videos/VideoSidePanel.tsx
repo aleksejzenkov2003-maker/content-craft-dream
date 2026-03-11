@@ -568,7 +568,7 @@ export function VideoSidePanel({
         <span className="text-muted-foreground">Длительность видео</span>
         <span>{durationFormatted}</span>
         <span className="text-muted-foreground">Размер видео</span>
-        <span>—</span>
+        <span>{sizeFormatted}</span>
       </div>
     </UnifiedPanel>
   );
