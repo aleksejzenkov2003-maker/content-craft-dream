@@ -98,8 +98,8 @@ function escapeDrawtext(text: string): string {
 
 function buildDrawtextFilter(
   blocks: TimedBlock[],
-  fontSize = 48,
-  marginV = 80,
+  fontSize = 36,
+  marginV = 160,
 ): string {
   if (blocks.length === 0) return 'null';
 
