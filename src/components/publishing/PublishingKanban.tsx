@@ -26,6 +26,7 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { Loader2, User, Calendar, ExternalLink, Eye, AlertCircle, Send, RotateCcw } from 'lucide-react';
 import { usePublications, Publication } from '@/hooks/usePublications';
+import { PublicationEditDialog } from './PublicationEditDialog';
 import { usePublishingChannels } from '@/hooks/usePublishingChannels';
 import { format } from 'date-fns';
 import { ru } from 'date-fns/locale';
