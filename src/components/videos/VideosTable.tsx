@@ -533,9 +533,6 @@ export function VideosTable({
                       Длина {getSortIcon('duration')}
                     </button>
                     <div>🎬</div>
-                    <div>Обложка</div>
-                    <div>Звук</div>
-                    <div>Видео</div>
                     <div></div>
                   </div>
 
