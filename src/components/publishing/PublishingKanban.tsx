@@ -343,6 +343,12 @@ export function PublishingKanban() {
     }
   };
 
+  const handleEditPublication = useCallback(async (id: string, updates: Partial<Publication>) => {
+    await updatePublication(id, updates);
+  }, [updatePublication]);
+
+  const editingPublication = editingPubId ? publications.find(p => p.id === editingPubId) || null : null;
+
   const activePublication = activeId
     ? publications.find((p) => p.id === activeId)
     : null;
