@@ -167,13 +167,41 @@ export function VideoSidePanel({
   const videoUrl = video.video_path || video.heygen_video_url;
   const effectiveDuration = video.video_duration || detectedDuration;
   const durationFormatted = effectiveDuration ? `${Math.floor(effectiveDuration / 60)}:${String(Math.round(effectiveDuration % 60)).padStart(2, '0')}` : '—';
+  const sizeFormatted = videoSizeBytes ? `${(videoSizeBytes / (1024 * 1024)).toFixed(1)} MB` : '—';
+
+  useEffect(() => {
+    if (!videoUrl) {
+      setVideoSizeBytes(null);
+      return;
+    }
+
+    let cancelled = false;
+
+    fetch(videoUrl, { method: 'HEAD' })
+      .then((response) => {
+        const contentLength = response.headers.get('content-length');
+        if (!cancelled && contentLength) {
+          setVideoSizeBytes(Number(contentLength));
+        }
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setVideoSizeBytes(null);
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [videoUrl]);
 
   const handleVideoLoadedMetadata = (e: React.SyntheticEvent<HTMLVideoElement>) => {
     const dur = e.currentTarget.duration;
-    if (dur && isFinite(dur) && !video.video_duration) {
+    if (dur && isFinite(dur)) {
       setDetectedDuration(dur);
-      // Save to DB silently
-      supabase.from('videos').update({ video_duration: Math.round(dur) }).eq('id', video.id).then();
+      if (!video.video_duration) {
+        supabase.from('videos').update({ video_duration: Math.round(dur) }).eq('id', video.id).then();
+      }
     }
   };
 
