@@ -950,6 +950,7 @@ export type Database = {
           question_rus: string | null
           question_status: string | null
           reddit_url: string | null
+          reduced_video_url: string | null
           reel_status: string | null
           relevance_score: number | null
           safety_score: string | null
@@ -997,6 +998,7 @@ export type Database = {
           question_rus?: string | null
           question_status?: string | null
           reddit_url?: string | null
+          reduced_video_url?: string | null
           reel_status?: string | null
           relevance_score?: number | null
           safety_score?: string | null
@@ -1044,6 +1046,7 @@ export type Database = {
           question_rus?: string | null
           question_status?: string | null
           reddit_url?: string | null
+          reduced_video_url?: string | null
           reel_status?: string | null
           relevance_score?: number | null
           safety_score?: string | null

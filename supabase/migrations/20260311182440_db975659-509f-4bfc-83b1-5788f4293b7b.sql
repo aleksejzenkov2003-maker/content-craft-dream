@@ -1,0 +1,1 @@
+ALTER TABLE public.videos ADD COLUMN reduced_video_url text;
