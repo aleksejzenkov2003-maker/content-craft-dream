@@ -37,6 +37,7 @@ export function UnifiedPanel({
   headerActions,
   children,
   preventOutsideClose,
+  fixedHeight,
 }: UnifiedPanelProps) {
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
