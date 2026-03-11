@@ -647,11 +647,11 @@ export function VideosTable({
                               onClick={() => toggleAudio(video.id, video.voiceover_url!)}
                               title="Прослушать озвучку"
                             >
-                              {playingAudioId === video.id ? (
-                                <Pause className="w-3 h-3" />
-                              ) : (
-                                <Play className="w-3 h-3" />
-                              )}
+                               {playingAudioId === video.id ? (
+                                 <Pause className="w-4 h-4" />
+                               ) : (
+                                 <Play className="w-4 h-4" />
+                               )}
                             </Button>
                           ) : (
                             <span className="text-muted-foreground/30 text-xs flex items-center justify-center w-6 h-6">—</span>
