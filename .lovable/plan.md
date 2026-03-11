@@ -1,57 +1,28 @@
 
 
-## Решение: бинарная MP4-конкатенация + нормализация аудио через ffmpeg.wasm
+## Problem
 
-### Что сделано
+Currently `postProcessVideo` runs silently in the background after HeyGen completes. It uses simple `toast.info` messages but there is no progress indication in the UI panel. The manual subtitle burning in VideoSidePanel has a detailed progress bar with phases, but the automatic pipeline does not.
 
-1. **`supabase/functions/concat-video/index.ts`** — полная перезапись:
-   - Бинарный MP4-парсер: разбор боксов (moov/trak/stbl/stsz/stco/stsc/stts/stss/ctts)
-   - Извлечение сэмплов из обоих файлов, сборка нового mdat
-   - Объединение sample tables, пересчёт оффсетов, обновление duration
-   - Сохранение логики получения свежих HeyGen URL
-   - Загрузка результата в Storage
+## Plan
 
-2. **`src/lib/videoNormalizer.ts`** — утилита нормализации аудио через ffmpeg.wasm:
-   - Загружает ffmpeg WASM при первом использовании
-   - Перекодирует аудио в AAC-LC 48kHz mono 128kbps: `-c:v copy -c:a aac -ar 48000 -ac 1 -b:a 128k`
-   - Видео-поток копируется без потерь
+**Enhance `postProcessVideo` in `src/pages/Index.tsx`** to show clear phase-separated toast notifications:
 
-3. **`src/components/covers/BackCoversGrid.tsx`** — интеграция нормализации:
-   - При загрузке видео-обложки автоматически нормализует аудио через ffmpeg.wasm
-   - Показывает прогресс нормализации
-   - Загружает нормализованный файл в Storage
-   - Fallback на оригинал при ошибке
+1. **Phase 1 complete**: When HeyGen video is ready, show a persistent toast: "✅ Видео создано! Запуск наложения субтитров..."
+2. **Phase 2 progress**: During bitrate reduction and subtitle burning, show updating toasts with phase info
+3. **Phase 2 complete**: Show success toast: "✅ Субтитры наложены! Видео готово."
 
-### Зависимости
-- `@ffmpeg/ffmpeg@0.12.10`
-- `@ffmpeg/util@0.12.1`
+**Connect automatic subtitle progress to VideoSidePanel** — when post-processing runs for the currently viewed video, the side panel should reflect subtitle progress:
 
----
+1. Add a shared state (via a ref or context) in `Index.tsx` for `postProcessingStatus: Record<string, { phase: string; progress: number }>`
+2. Pass progress callback to `burnSubtitlesBrowser` in `postProcessVideo` (same as manual flow)
+3. Pass `postProcessingStatus` to `VideoSidePanel` so it shows the progress bar during automatic processing
+4. Add distinct toasts between phases:
+   - After bitrate reduction: `toast.success('Шаг 1: Битрейт уменьшен. Начинаем вшивку субтитров...')`
+   - After subtitles: `toast.success('Шаг 2: Субтитры вшиты! Видео полностью готово.')`
+   - On subtitle failure: keep existing fallback behavior
 
-## Субтитры: ElevenLabs timestamps → SRT → FFmpeg
+### Files to modify
+- `src/pages/Index.tsx` — enhance `postProcessVideo` with clearer toast notifications and pass subtitle progress state
+- `src/components/videos/VideoSidePanel.tsx` — accept optional `autoSubtitleProgress` prop to show progress bar during automatic processing
 
-### Что сделано
-
-1. **БД миграция** — добавлено поле `word_timestamps jsonb` в таблицу `videos`
-
-2. **Edge Functions** — обновлены оба voiceover-генератора:
-   - `supabase/functions/generate-voiceover-for-video/index.ts` → endpoint `/with-timestamps`
-   - `supabase/functions/generate-voiceover/index.ts` → endpoint `/with-timestamps`
-   - Ответ содержит `audio_base64` + `alignment` (character-level timestamps)
-   - Функция `buildWordTimestamps()` собирает word-level timestamps из character-level
-   - Timestamps сохраняются в `videos.word_timestamps`
-
-3. **`src/lib/srtGenerator.ts`** — генерация субтитров:
-   - `generateSrt()` — SRT формат (группировка по N слов)
-   - `generateAss()` — ASS формат (со стилями: шрифт, размер, цвет, обводка)
-   - `generateSrtBlocks()` — промежуточная структура
-
-4. **`src/lib/videoSubtitles.ts`** — вшивание субтитров через ffmpeg.wasm:
-   - `burnSubtitles(videoUrl, timestamps, options, onProgress)` → File
-   - Использует ASS-фильтр для стилизованных субтитров
-   - Видео перекодируется libx264 (preset fast, crf 23), аудио копируется
-
-5. **UI** — кнопка «Добавить субтитры» в `VideoSidePanel`:
-   - Появляется когда есть `heygen_video_url` и `word_timestamps`
-   - Показывает прогресс через Progress bar
-   - Результат загружается в Storage и сохраняется в `video_path`
