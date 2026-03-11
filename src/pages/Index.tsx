@@ -604,41 +604,45 @@ export default function Index() {
     }
     
     // Step b) Generate atmosphere background (Kie.ai / Nano Banana) for videos without it
-    for (const video of questionVideos) {
-      if (!video.atmosphere_url && video.cover_status !== 'generating') {
-        try {
+    if (isEnabled('take_in_work', 'atmosphere')) {
+      for (const video of questionVideos) {
+        if (!video.atmosphere_url && video.cover_status !== 'generating') {
+          try {
+            fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/generate-cover`, {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
+              },
+              body: JSON.stringify({ videoId: video.id, step: 'atmosphere' }),
+            }).then(async () => {
+              // Step c) After atmosphere, generate cover overlay (Image Magic)
+              if (isEnabled('take_in_work', 'cover_overlay')) {
+                await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/generate-cover`, {
+                  method: 'POST',
+                  headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
+                  },
+                  body: JSON.stringify({ videoId: video.id, step: 'overlay' }),
+                });
+              }
+              refetchVideos();
+            }).catch(e => console.error('Auto atmosphere/cover error:', e));
+          } catch (e) {
+            console.error('Auto atmosphere error:', e);
+          }
+        } else if (video.atmosphere_url && video.cover_status !== 'ready' && video.cover_status !== 'generating' && isEnabled('take_in_work', 'cover_overlay')) {
+          // Has atmosphere but no cover overlay yet
           fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/generate-cover`, {
             method: 'POST',
             headers: {
               'Content-Type': 'application/json',
               'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
             },
-            body: JSON.stringify({ videoId: video.id, step: 'atmosphere' }),
-          }).then(async () => {
-            // Step c) After atmosphere, generate cover overlay (Image Magic)
-            await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/generate-cover`, {
-              method: 'POST',
-              headers: {
-                'Content-Type': 'application/json',
-                'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
-              },
-              body: JSON.stringify({ videoId: video.id, step: 'overlay' }),
-            });
-            refetchVideos();
-          }).catch(e => console.error('Auto atmosphere/cover error:', e));
-        } catch (e) {
-          console.error('Auto atmosphere error:', e);
+            body: JSON.stringify({ videoId: video.id, step: 'overlay' }),
+          }).catch(e => console.error('Auto cover error:', e));
         }
-      } else if (video.atmosphere_url && video.cover_status !== 'ready' && video.cover_status !== 'generating') {
-        // Has atmosphere but no cover overlay yet
-        fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/generate-cover`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
-          },
-          body: JSON.stringify({ videoId: video.id, step: 'overlay' }),
-        }).catch(e => console.error('Auto cover error:', e));
       }
     }
     
