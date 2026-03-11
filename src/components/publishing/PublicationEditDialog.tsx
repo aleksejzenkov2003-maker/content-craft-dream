@@ -142,19 +142,7 @@ export function PublicationEditDialog({
       onPrev={onPrev}
       onNext={onNext}
       preventOutsideClose
-      footer={
-        <div className="flex items-center justify-between w-full">
-          <div className="flex gap-2">
-            <Button variant="outline" size="sm" onClick={handleRestorePrompt}>
-              Восстановить
-            </Button>
-            <Button size="sm" onClick={handleSave} disabled={saving}>
-              {saving && <Loader2 className="w-3 h-3 mr-1 animate-spin" />}
-              Сохранить
-            </Button>
-          </div>
-        </div>
-      }
+      footer={null}
     >
       {/* Info fields */}
       <div className="space-y-3">
@@ -205,16 +193,25 @@ export function PublicationEditDialog({
           />
           <div className="flex items-center justify-between">
             <span className="text-xs text-muted-foreground">{generatedText.length} символов</span>
-            <Button
-              size="sm"
-              variant="secondary"
-              className="h-7 text-xs"
-              onClick={handleGenerateText}
-              disabled={generating}
-            >
-              {generating ? <Loader2 className="w-3 h-3 mr-1 animate-spin" /> : <Sparkles className="w-3 h-3 mr-1" />}
-              {generatedText ? 'Перегенерировать' : 'Сгенерировать'}
-            </Button>
+            <div className="flex items-center gap-2">
+              <Button
+                size="sm"
+                variant="secondary"
+                className="h-7 text-xs"
+                onClick={handleGenerateText}
+                disabled={generating}
+              >
+                {generating ? <Loader2 className="w-3 h-3 mr-1 animate-spin" /> : <Sparkles className="w-3 h-3 mr-1" />}
+                {generatedText ? 'Перегенерировать' : 'Сгенерировать'}
+              </Button>
+              <Button variant="outline" size="sm" className="h-7 text-xs" onClick={handleRestorePrompt}>
+                Восстановить
+              </Button>
+              <Button size="sm" className="h-7 text-xs" onClick={handleSave} disabled={saving}>
+                {saving && <Loader2 className="w-3 h-3 mr-1 animate-spin" />}
+                Сохранить
+              </Button>
+            </div>
           </div>
         </TabsContent>
 
@@ -227,9 +224,20 @@ export function PublicationEditDialog({
             className="min-h-[250px] text-xs font-mono resize-y min-w-0 w-full"
             rows={14}
           />
-          <p className="text-[10px] text-muted-foreground">
-            Промт подтянут из настроек канала. Можно отредактировать и запустить генерацию.
-          </p>
+          <div className="flex items-center justify-between">
+            <p className="text-[10px] text-muted-foreground">
+              Промт подтянут из настроек канала.
+            </p>
+            <div className="flex items-center gap-2">
+              <Button variant="outline" size="sm" className="h-7 text-xs" onClick={handleRestorePrompt}>
+                Восстановить
+              </Button>
+              <Button size="sm" className="h-7 text-xs" onClick={handleSave} disabled={saving}>
+                {saving && <Loader2 className="w-3 h-3 mr-1 animate-spin" />}
+                Сохранить
+              </Button>
+            </div>
+          </div>
         </TabsContent>
 
         {/* Final video tab */}
