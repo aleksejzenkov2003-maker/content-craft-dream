@@ -72,6 +72,7 @@ export function VideoSidePanel({
   const [subtitleProgress, setSubtitleProgress] = useState<{ phase: string; progress: number } | null>(null);
   const [subtitleAbort, setSubtitleAbort] = useState<AbortController | null>(null);
   const [detectedDuration, setDetectedDuration] = useState<number | null>(null);
+  const [videoSizeBytes, setVideoSizeBytes] = useState<number | null>(null);
 
   const advisor = advisors.find((a) => a.id === video?.advisor_id);
   const advisorName = advisor?.display_name || advisor?.name || 'Духовник';
@@ -126,17 +127,20 @@ export function VideoSidePanel({
     fetchAtmospherePrompt();
   }, [video?.id, video?.question, video?.hook, video?.advisor_answer, advisor]);
 
-  if (!video) return null;
-
   const handleChannelToggle = (channelId: string) => {
+    if (!video) return;
     const newChannels = selectedChannels.includes(channelId) ? selectedChannels.filter((id) => id !== channelId) : [...selectedChannels, channelId];
     setSelectedChannels(newChannels);
     onUpdateVideo(video.id, { selected_channels: newChannels } as any);
   };
-  const handlePublish = () => { if (selectedChannels.length > 0) onPublish(video, selectedChannels); };
-  const handleAdvisorAnswerSave = () => onUpdateVideo(video.id, { advisor_answer: advisorAnswer } as any);
+  const handlePublish = () => { if (video && selectedChannels.length > 0) onPublish(video, selectedChannels); };
+  const handleAdvisorAnswerSave = () => {
+    if (!video) return;
+    onUpdateVideo(video.id, { advisor_answer: advisorAnswer } as any);
+  };
 
   const handleSelectVariant = async (variant: CoverVariant, type: 'atmosphere' | 'cover') => {
+    if (!video) return;
     try {
       await supabase.from('cover_thumbnails').update({ is_active: false }).eq('video_id', video.id).eq('variant_type', type);
       await supabase.from('cover_thumbnails').update({ is_active: true }).eq('id', variant.id);
@@ -148,6 +152,7 @@ export function VideoSidePanel({
   };
 
   const handleDeleteVariant = async (variant: CoverVariant, type: 'atmosphere' | 'cover') => {
+    if (!video) return;
     try {
       await supabase.from('cover_thumbnails').delete().eq('id', variant.id);
       fetchVariants();
@@ -155,26 +160,72 @@ export function VideoSidePanel({
     } catch (e) { toast.error('Ошибка удаления'); }
   };
 
-  const atmosphereUrl = (video as any).atmosphere_url;
-  const normalizedCoverStatus = video.cover_status === 'generating' && !!video.front_cover_url ? 'ready' : video.cover_status || 'pending';
+  const atmosphereUrl = (video as any)?.atmosphere_url;
+  const normalizedCoverStatus = video?.cover_status === 'generating' && !!video?.front_cover_url ? 'ready' : video?.cover_status || 'pending';
   const isGeneratingCover = normalizedCoverStatus === 'generating';
 
-  const atmosStatus = resolveAssetStatus(atmosphereUrl, video.cover_status);
-  const coverStatus = resolveAssetStatus(video.front_cover_url, video.cover_status);
-  const videoStatus = resolveAssetStatus(video.video_path || video.heygen_video_url, video.generation_status);
+  const atmosStatus = resolveAssetStatus(atmosphereUrl, video?.cover_status);
+  const coverStatus = resolveAssetStatus(video?.front_cover_url, video?.cover_status);
+  const videoStatus = resolveAssetStatus(video?.video_path || video?.heygen_video_url, video?.generation_status);
 
-  const videoUrl = video.video_path || video.heygen_video_url;
-  const effectiveDuration = video.video_duration || detectedDuration;
+  const videoUrl = video?.video_path || video?.heygen_video_url || null;
+  const effectiveDuration = video?.video_duration || detectedDuration;
   const durationFormatted = effectiveDuration ? `${Math.floor(effectiveDuration / 60)}:${String(Math.round(effectiveDuration % 60)).padStart(2, '0')}` : '—';
+  const sizeFormatted = videoSizeBytes ? `${(videoSizeBytes / (1024 * 1024)).toFixed(1)} MB` : '—';
+
+  useEffect(() => {
+    if (!videoUrl) {
+      setVideoSizeBytes(null);
+      return;
+    }
+
+    let cancelled = false;
+
+    const resolveVideoSize = async () => {
+      try {
+        let response = await fetch(videoUrl, { method: 'HEAD' });
+        let contentLength = response.headers.get('content-length');
+
+        if (!contentLength) {
+          response = await fetch(videoUrl, { method: 'GET', headers: { Range: 'bytes=0-0' } });
+          const contentRange = response.headers.get('content-range');
+          const totalFromRange = contentRange?.split('/')[1];
+          contentLength = totalFromRange || response.headers.get('content-length');
+        }
+
+        if (!cancelled && contentLength) {
+          setVideoSizeBytes(Number(contentLength));
+        } else if (!cancelled) {
+          setVideoSizeBytes(null);
+        }
+      } catch {
+        if (!cancelled) {
+          setVideoSizeBytes(null);
+        }
+      }
+    };
+
+    resolveVideoSize();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [videoUrl]);
 
   const handleVideoLoadedMetadata = (e: React.SyntheticEvent<HTMLVideoElement>) => {
+    if (!video) return;
+
     const dur = e.currentTarget.duration;
-    if (dur && isFinite(dur) && !video.video_duration) {
-      setDetectedDuration(dur);
-      // Save to DB silently
-      supabase.from('videos').update({ video_duration: Math.round(dur) }).eq('id', video.id).then();
+    if (dur && isFinite(dur)) {
+      const roundedDuration = Math.round(dur);
+      setDetectedDuration(roundedDuration);
+      if (!video.video_duration) {
+        supabase.from('videos').update({ video_duration: roundedDuration }).eq('id', video.id).then();
+      }
     }
   };
+
+  if (!video) return null;
 
   return (
     <UnifiedPanel
@@ -539,7 +590,7 @@ export function VideoSidePanel({
         <span className="text-muted-foreground">Длительность видео</span>
         <span>{durationFormatted}</span>
         <span className="text-muted-foreground">Размер видео</span>
-        <span>—</span>
+        <span>{sizeFormatted}</span>
       </div>
     </UnifiedPanel>
   );

@@ -98,52 +98,43 @@ function formatVideoDuration(duration: number | null | undefined) {
 function PublicationDurationCell({
   duration,
   videoUrl,
+  videoId,
 }: {
   duration: number | null | undefined;
   videoUrl?: string | null;
+  videoId?: string | null;
 }) {
   const [resolvedDuration, setResolvedDuration] = useState<number | null>(duration ?? null);
 
   useEffect(() => {
-    if (duration) {
-      setResolvedDuration(duration);
-      return;
-    }
-
-    if (!videoUrl) {
-      setResolvedDuration(null);
-      return;
-    }
-
-    let isCancelled = false;
-    const probeVideo = document.createElement('video');
-    probeVideo.preload = 'metadata';
-    probeVideo.src = videoUrl;
-
-    const handleLoadedMetadata = () => {
-      if (!isCancelled && Number.isFinite(probeVideo.duration)) {
-        setResolvedDuration(probeVideo.duration);
-      }
-    };
-
-    const handleError = () => {
-      if (!isCancelled) {
-        setResolvedDuration(null);
-      }
-    };
-
-    probeVideo.addEventListener('loadedmetadata', handleLoadedMetadata);
-    probeVideo.addEventListener('error', handleError);
-
-    return () => {
-      isCancelled = true;
-      probeVideo.removeEventListener('loadedmetadata', handleLoadedMetadata);
-      probeVideo.removeEventListener('error', handleError);
-      probeVideo.src = '';
-    };
+    setResolvedDuration(duration ?? null);
   }, [duration, videoUrl]);
 
-  return <span className={resolvedDuration ? '' : 'text-muted-foreground'}>{formatVideoDuration(resolvedDuration)}</span>;
+  return (
+    <>
+      <span className={resolvedDuration ? '' : 'text-muted-foreground'}>{formatVideoDuration(resolvedDuration)}</span>
+      {!duration && videoUrl ? (
+        <video
+          key={videoUrl}
+          src={videoUrl}
+          preload="metadata"
+          playsInline
+          muted
+          className="absolute h-0 w-0 overflow-hidden opacity-0 pointer-events-none"
+          onLoadedMetadata={(e) => {
+            const nextDuration = e.currentTarget.duration;
+            if (Number.isFinite(nextDuration) && nextDuration > 0) {
+              const roundedDuration = Math.round(nextDuration);
+              setResolvedDuration(roundedDuration);
+              if (videoId) {
+                supabase.from('videos').update({ video_duration: roundedDuration }).eq('id', videoId).then();
+              }
+            }
+          }}
+        />
+      ) : null}
+    </>
+  );
 }
 
 export function PublicationsTable({ groupBy = 'channel' }: PublicationsTableProps) {
@@ -761,6 +752,7 @@ onClick={() => setEditingPublicationId(pub.id)}
                         <PublicationDurationCell
                           duration={pub.video?.video_duration}
                           videoUrl={pub.final_video_url || pub.video?.video_path || pub.video?.heygen_video_url}
+                          videoId={pub.video?.id}
                         />
                       </TableCell>
                       {/* Ссылка на публикации */}
