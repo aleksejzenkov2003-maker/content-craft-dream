@@ -716,6 +716,7 @@ const minuteOptions = [0, 5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55];
                       </div>
                     </TableHead>
                     <TableHead className="w-[50px] py-1">Длина</TableHead>
+                    <TableHead className="w-[80px] py-1">Размер</TableHead>
                     <TableHead className="w-[100px] py-1">Ссылка</TableHead>
                     <TableHead className="w-[50px] py-1">Склейка</TableHead>
                     <TableHead className="w-[50px] py-1">Текст</TableHead>
@@ -730,7 +731,7 @@ const minuteOptions = [0, 5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55];
                     const hasFinalVideo = !!pub.final_video_url;
                     const isBusyConcat = isConcating || (pub.publication_status === 'concatenating' && !isStaleConcatenating(pub));
                     const isChecked = pub.publication_status === 'checked' || pub.publication_status === 'scheduled' || pub.publication_status === 'published';
-                    const videoSrc = pub.video?.video_path || pub.video?.heygen_video_url || pub.final_video_url;
+                    const videoSrc = pub.final_video_url || pub.video?.video_path || pub.video?.heygen_video_url;
 
                     return (
                     <TableRow 
@@ -777,9 +778,14 @@ onClick={() => setEditingPublicationId(pub.id)}
                       <TableCell className="py-1">
                         <PublicationDurationCell
                           duration={pub.video?.video_duration}
-                          videoUrl={pub.final_video_url || pub.video?.video_path || pub.video?.heygen_video_url}
+                          videoUrl={videoSrc}
+                          audioUrl={pub.video?.voiceover_url}
                           videoId={pub.video?.id}
                         />
+                      </TableCell>
+                      {/* Размер */}
+                      <TableCell className="py-1">
+                        <PublicationSizeCell videoUrl={videoSrc} />
                       </TableCell>
                       {/* Ссылка на публикации */}
                       <TableCell className="py-1" onClick={(e) => e.stopPropagation()}>
