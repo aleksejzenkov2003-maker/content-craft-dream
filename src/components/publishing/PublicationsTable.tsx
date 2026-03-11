@@ -800,10 +800,15 @@ onClick={() => setEditingPublicationId(pub.id)}
                       {/* Склейка — concat action + result */}
                       <TableCell className="py-1" onClick={(e) => e.stopPropagation()}>
                         <div className="flex items-center gap-1">
-                          {concatRequired && hasFinalVideo && (
-                            <button className="p-0.5 hover:bg-muted rounded" title="Превью склейки" onClick={() => setPreviewVideoUrl(pub.final_video_url!)}>
-                              <Clapperboard className="w-3.5 h-3.5 text-green-600 hover:text-foreground" />
-                            </button>
+                          {concatRequired && hasFinalVideo && !isBusyConcat && (
+                            <>
+                              <button className="p-0.5 hover:bg-muted rounded" title="Превью склейки" onClick={() => setPreviewVideoUrl(pub.final_video_url!)}>
+                                <Clapperboard className="w-3.5 h-3.5 text-green-600 hover:text-foreground" />
+                              </button>
+                              <button className="p-0.5 hover:bg-muted rounded" title="Пересклеить видео" onClick={() => handleConcat(pub)}>
+                                <RefreshCw className="w-3.5 h-3.5 text-muted-foreground hover:text-foreground" />
+                              </button>
+                            </>
                           )}
                           {concatRequired && !hasFinalVideo && !isBusyConcat && (
                             <button className="p-0.5 hover:bg-muted rounded" title="Склеить видео" onClick={() => handleConcat(pub)}>
