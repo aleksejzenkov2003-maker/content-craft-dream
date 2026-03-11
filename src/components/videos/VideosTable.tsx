@@ -560,13 +560,7 @@ export function VideosTable({
                           />
                         </div>
 
-                        {/* ID */}
-                        <div 
-                          className="font-mono text-xs text-primary cursor-pointer hover:underline"
-                          onClick={() => onViewVideo(video)}
-                        >
-                          {video.video_number || '—'}
-                        </div>
+                        {/* Духовник */}
 
                         {/* Духовник */}
                         <div>
