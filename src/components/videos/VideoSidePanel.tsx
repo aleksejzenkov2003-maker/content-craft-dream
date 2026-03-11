@@ -164,8 +164,8 @@ export function VideoSidePanel({
   const coverStatus = resolveAssetStatus(video.front_cover_url, video.cover_status);
   const videoStatus = resolveAssetStatus(video.video_path || video.heygen_video_url, video.generation_status);
 
-  const videoUrl = video.video_path || video.heygen_video_url;
-  const effectiveDuration = video.video_duration || detectedDuration;
+  const videoUrl = video?.video_path || video?.heygen_video_url || null;
+  const effectiveDuration = video?.video_duration || detectedDuration;
   const durationFormatted = effectiveDuration ? `${Math.floor(effectiveDuration / 60)}:${String(Math.round(effectiveDuration % 60)).padStart(2, '0')}` : '—';
   const sizeFormatted = videoSizeBytes ? `${(videoSizeBytes / (1024 * 1024)).toFixed(1)} MB` : '—';
 
@@ -177,18 +177,31 @@ export function VideoSidePanel({
 
     let cancelled = false;
 
-    fetch(videoUrl, { method: 'HEAD' })
-      .then((response) => {
-        const contentLength = response.headers.get('content-length');
+    const resolveVideoSize = async () => {
+      try {
+        let response = await fetch(videoUrl, { method: 'HEAD' });
+        let contentLength = response.headers.get('content-length');
+
+        if (!contentLength) {
+          response = await fetch(videoUrl, { method: 'GET', headers: { Range: 'bytes=0-0' } });
+          const contentRange = response.headers.get('content-range');
+          const totalFromRange = contentRange?.split('/')[1];
+          contentLength = totalFromRange || response.headers.get('content-length');
+        }
+
         if (!cancelled && contentLength) {
           setVideoSizeBytes(Number(contentLength));
+        } else if (!cancelled) {
+          setVideoSizeBytes(null);
         }
-      })
-      .catch(() => {
+      } catch {
         if (!cancelled) {
           setVideoSizeBytes(null);
         }
-      });
+      }
+    };
+
+    resolveVideoSize();
 
     return () => {
       cancelled = true;
@@ -196,16 +209,19 @@ export function VideoSidePanel({
   }, [videoUrl]);
 
   const handleVideoLoadedMetadata = (e: React.SyntheticEvent<HTMLVideoElement>) => {
+    if (!video) return;
+
     const dur = e.currentTarget.duration;
     if (dur && isFinite(dur)) {
-      setDetectedDuration(dur);
+      const roundedDuration = Math.round(dur);
+      setDetectedDuration(roundedDuration);
       if (!video.video_duration) {
-        supabase.from('videos').update({ video_duration: Math.round(dur) }).eq('id', video.id).then();
+        supabase.from('videos').update({ video_duration: roundedDuration }).eq('id', video.id).then();
       }
     }
   };
 
-  return (
+  if (!video) return null;
     <UnifiedPanel
       open={open}
       onOpenChange={onOpenChange}

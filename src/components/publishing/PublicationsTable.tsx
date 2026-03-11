@@ -754,6 +754,7 @@ onClick={() => setEditingPublicationId(pub.id)}
                         <PublicationDurationCell
                           duration={pub.video?.video_duration}
                           videoUrl={pub.final_video_url || pub.video?.video_path || pub.video?.heygen_video_url}
+                          videoId={pub.video?.id}
                         />
                       </TableCell>
                       {/* Ссылка на публикации */}
