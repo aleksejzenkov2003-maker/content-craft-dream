@@ -522,29 +522,32 @@ export default function Index() {
       toast.success(`Добавлено ${newChannelIds.length} публикаций`);
 
       // Fire-and-forget text generation — no per-item toasts
-      for (const pub of (inserted || [])) {
-        supabase.functions.invoke('generate-post-text', {
-          body: { publicationId: pub.id },
-        }).catch(console.error);
+      if (isEnabled('prepare_publish', 'generate_text')) {
+        for (const pub of (inserted || [])) {
+          supabase.functions.invoke('generate-post-text', {
+            body: { publicationId: pub.id },
+          }).catch(console.error);
+        }
       }
 
       // Auto-concat for channels with back covers if video is ready
-      // Fetch fresh video data to check for video URL
-      const { data: freshVideo } = await supabase
-        .from('videos')
-        .select('heygen_video_url, video_path')
-        .eq('id', video.id)
-        .single();
-      
-      const videoUrl = freshVideo?.video_path || freshVideo?.heygen_video_url;
-      if (videoUrl) {
-        for (const pub of (inserted || [])) {
-          if (channelsWithBackCover.has(pub.channel_id)) {
-            const backCoverUrl = channelDetails?.find(c => c.id === pub.channel_id)?.back_cover_video_url;
-            if (backCoverUrl) {
-              concatVideos(pub.id, videoUrl, backCoverUrl).then(() => {
-                refetchPublications();
-              }).catch(console.error);
+      if (isEnabled('prepare_publish', 'concat')) {
+        const { data: freshVideo } = await supabase
+          .from('videos')
+          .select('heygen_video_url, video_path')
+          .eq('id', video.id)
+          .single();
+        
+        const videoUrl = freshVideo?.video_path || freshVideo?.heygen_video_url;
+        if (videoUrl) {
+          for (const pub of (inserted || [])) {
+            if (channelsWithBackCover.has(pub.channel_id)) {
+              const backCoverUrl = channelDetails?.find(c => c.id === pub.channel_id)?.back_cover_video_url;
+              if (backCoverUrl) {
+                concatVideos(pub.id, videoUrl, backCoverUrl).then(() => {
+                  refetchPublications();
+                }).catch(console.error);
+              }
             }
           }
         }
