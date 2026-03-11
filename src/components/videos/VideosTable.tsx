@@ -592,44 +592,6 @@ export function VideosTable({
                           {video.video_duration ? `${video.video_duration}s` : '—'}
                         </div>
 
-                        {/* Cover thumbnail - preview only */}
-                        <div>
-                          {coverUrl ? (
-                            <HoverCard>
-                              <HoverCardTrigger asChild>
-                                <div className="w-10 h-7 rounded overflow-hidden cursor-pointer border border-border">
-                                  <img src={coverUrl} alt="Cover" className="w-full h-full object-cover" />
-                                </div>
-                              </HoverCardTrigger>
-                              <HoverCardContent className="w-80 p-2">
-                                <img src={coverUrl} alt="Cover preview" className="w-full rounded" />
-                              </HoverCardContent>
-                            </HoverCard>
-                          ) : (
-                            <div className="w-10 h-7 rounded bg-muted flex items-center justify-center">
-                              <ImageIcon className="w-3 h-3 text-muted-foreground" />
-                            </div>
-                          )}
-                        </div>
-
-                        {/* Audio play/pause */}
-                        <div onClick={(e) => e.stopPropagation()}>
-                          {video.voiceover_url ? (
-                            <Button
-                              size="icon-xs"
-                              variant="ghost"
-                              onClick={() => toggleAudio(video.id, video.voiceover_url!)}
-                            >
-                              {playingAudioId === video.id ? (
-                                <Pause className="w-3 h-3" />
-                              ) : (
-                                <Play className="w-3 h-3" />
-                              )}
-                            </Button>
-                          ) : (
-                            <span className="text-muted-foreground/40 text-xs">—</span>
-                          )}
-                        </div>
 
                         {/* Video preview */}
                         <div onClick={(e) => e.stopPropagation()}>
