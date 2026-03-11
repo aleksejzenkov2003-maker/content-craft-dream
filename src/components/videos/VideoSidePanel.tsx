@@ -71,6 +71,7 @@ export function VideoSidePanel({
   const [atmospherePromptText, setAtmospherePromptText] = useState('');
   const [subtitleProgress, setSubtitleProgress] = useState<{ phase: string; progress: number } | null>(null);
   const [subtitleAbort, setSubtitleAbort] = useState<AbortController | null>(null);
+  const [detectedDuration, setDetectedDuration] = useState<number | null>(null);
 
   const advisor = advisors.find((a) => a.id === video?.advisor_id);
   const advisorName = advisor?.display_name || advisor?.name || 'Духовник';
