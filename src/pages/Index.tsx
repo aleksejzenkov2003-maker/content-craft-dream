@@ -1119,6 +1119,8 @@ export default function Index() {
           {activeTab === 'prompts' && <PromptsPage />}
 
           {activeTab === 'settings' && <SettingsPage />}
+
+          {activeTab === 'automation' && <AutomationPage />}
         </div>
       </main>
     </div>
