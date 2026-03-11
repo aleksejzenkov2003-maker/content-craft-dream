@@ -928,6 +928,7 @@ export default function Index() {
                 onUpdateVideo={updateVideo}
                 onPublish={handlePublishVideo}
                 isGenerating={isGenerating}
+                autoSubtitleProgress={viewingVideoId ? autoSubtitleProgress[viewingVideoId] || null : null}
                 onPrev={viewingVideo ? (() => {
                   const idx = videos.findIndex(v => v.id === viewingVideo.id);
                   if (idx > 0) setViewingVideoId(videos[idx - 1].id);
