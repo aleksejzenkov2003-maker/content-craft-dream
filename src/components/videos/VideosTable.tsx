@@ -550,7 +550,8 @@ export function VideosTable({
                     return (
                       <div
                         key={video.id}
-                        className={`grid ${COL_GRID} gap-2 px-4 py-2 text-sm hover:bg-muted/30 border-b border-border/20 items-center`}
+                        className={`grid ${COL_GRID} gap-2 px-4 py-2 text-sm hover:bg-muted/30 border-b border-border/20 items-center cursor-pointer`}
+                        onClick={() => onViewVideo(video)}
                       >
                         {/* Checkbox */}
                         <div onClick={(e) => e.stopPropagation()}>
@@ -593,7 +594,7 @@ export function VideosTable({
                         </div>
 
                         {/* Audio play/pause */}
-                        <div>
+                        <div onClick={(e) => e.stopPropagation()}>
                           {video.voiceover_url ? (
                             <Button
                               size="icon-xs"
@@ -632,7 +633,7 @@ export function VideosTable({
                         </div>
 
                         {/* Обложка button - regenerates cover */}
-                        <div>
+                        <div onClick={(e) => e.stopPropagation()}>
                           {effectiveCoverStatus === 'generating' ? (
                             <Button size="xs" variant="outline" disabled>
                               <Loader2 className="w-3 h-3 animate-spin" />
@@ -649,7 +650,7 @@ export function VideosTable({
                         </div>
 
                         {/* Звук button - regenerates voiceover */}
-                        <div>
+                        <div onClick={(e) => e.stopPropagation()}>
                           {effectiveVoiceoverStatus === 'generating' ? (
                             <Button size="xs" variant="outline" disabled>
                               <Loader2 className="w-3 h-3 animate-spin" />
@@ -668,7 +669,7 @@ export function VideosTable({
                         </div>
 
                         {/* Видео button - regenerates video */}
-                        <div className="flex items-center gap-1">
+                        <div className="flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
                           {(video.video_path || video.heygen_video_url) && (
                             <Popover>
                               <PopoverTrigger asChild>
@@ -706,7 +707,7 @@ export function VideosTable({
                         </div>
 
                         {/* Channels */}
-                        <div className="flex items-center gap-1">
+                        <div className="flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
                           {(() => {
                             const selectedCount = publishingChannels.filter(c => c.is_active && video.selected_channels?.includes(c.id)).length;
                             const selectedNames = publishingChannels
