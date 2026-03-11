@@ -377,7 +377,7 @@ export function VideosTable({
     );
   }
 
-  const COL_GRID = 'grid-cols-[40px_130px_80px_80px_80px_55px_32px_60px_70px_70px_70px_40px]';
+  const COL_GRID = 'grid-cols-[40px_130px_80px_80px_80px_55px_60px_32px_40px_70px_70px_70px_40px]';
 
   return (
     <div className="flex flex-col h-full">
@@ -532,8 +532,9 @@ export function VideosTable({
                     <button onClick={() => handleSort('duration')} className="flex items-center gap-1 hover:text-foreground">
                       Длина {getSortIcon('duration')}
                     </button>
+                    <div>Обложка</div>
                     <div>🔊</div>
-                    <div></div>
+                    <div>🎬</div>
                     <div>Обложка</div>
                     <div>Звук</div>
                     <div>Видео</div>
@@ -593,25 +594,6 @@ export function VideosTable({
                           {video.video_duration ? `${video.video_duration}s` : '—'}
                         </div>
 
-                        {/* Audio play/pause */}
-                        <div onClick={(e) => e.stopPropagation()}>
-                          {video.voiceover_url ? (
-                            <Button
-                              size="icon-xs"
-                              variant="ghost"
-                              onClick={() => toggleAudio(video.id, video.voiceover_url!)}
-                            >
-                              {playingAudioId === video.id ? (
-                                <Pause className="w-3 h-3" />
-                              ) : (
-                                <Play className="w-3 h-3" />
-                              )}
-                            </Button>
-                          ) : (
-                            <span className="text-muted-foreground/40 text-xs">—</span>
-                          )}
-                        </div>
-
                         {/* Cover thumbnail - preview only */}
                         <div>
                           {coverUrl ? (
@@ -632,7 +614,51 @@ export function VideosTable({
                           )}
                         </div>
 
-                        {/* Обложка button - regenerates cover */}
+                        {/* Audio play/pause */}
+                        <div onClick={(e) => e.stopPropagation()}>
+                          {video.voiceover_url ? (
+                            <Button
+                              size="icon-xs"
+                              variant="ghost"
+                              onClick={() => toggleAudio(video.id, video.voiceover_url!)}
+                            >
+                              {playingAudioId === video.id ? (
+                                <Pause className="w-3 h-3" />
+                              ) : (
+                                <Play className="w-3 h-3" />
+                              )}
+                            </Button>
+                          ) : (
+                            <span className="text-muted-foreground/40 text-xs">—</span>
+                          )}
+                        </div>
+
+                        {/* Video preview */}
+                        <div onClick={(e) => e.stopPropagation()}>
+                          {(video.video_path || video.heygen_video_url) ? (
+                            <Popover>
+                              <PopoverTrigger asChild>
+                                <Button size="icon-xs" variant="ghost" title="Смотреть видео">
+                                  <VideoIcon className="w-3 h-3" />
+                                </Button>
+                              </PopoverTrigger>
+                              <PopoverContent className="w-80 p-2" side="top">
+                                <video
+                                  src={video.video_path || video.heygen_video_url!}
+                                  controls
+                                  playsInline
+                                  preload="metadata"
+                                  className="w-full rounded-md"
+                                  poster={video.front_cover_url || undefined}
+                                />
+                              </PopoverContent>
+                            </Popover>
+                          ) : (
+                            <span className="text-muted-foreground/40 text-xs">—</span>
+                          )}
+                        </div>
+
+                        {/* Обложка button */}
                         <div onClick={(e) => e.stopPropagation()}>
                           {effectiveCoverStatus === 'generating' ? (
                             <Button size="xs" variant="outline" disabled>
@@ -649,7 +675,7 @@ export function VideosTable({
                           )}
                         </div>
 
-                        {/* Звук button - regenerates voiceover */}
+                        {/* Звук button */}
                         <div onClick={(e) => e.stopPropagation()}>
                           {effectiveVoiceoverStatus === 'generating' ? (
                             <Button size="xs" variant="outline" disabled>
@@ -668,27 +694,8 @@ export function VideosTable({
                           )}
                         </div>
 
-                        {/* Видео button - regenerates video */}
-                        <div className="flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
-                          {(video.video_path || video.heygen_video_url) && (
-                            <Popover>
-                              <PopoverTrigger asChild>
-                                <Button size="icon-xs" variant="ghost" title="Смотреть видео">
-                                  <VideoIcon className="w-3 h-3" />
-                                </Button>
-                              </PopoverTrigger>
-                              <PopoverContent className="w-80 p-2" side="top">
-                                <video
-                                  src={video.video_path || video.heygen_video_url!}
-                                  controls
-                                  playsInline
-                                  preload="metadata"
-                                  className="w-full rounded-md"
-                                  poster={video.front_cover_url || undefined}
-                                />
-                              </PopoverContent>
-                            </Popover>
-                          )}
+                        {/* Видео button */}
+                        <div onClick={(e) => e.stopPropagation()}>
                           {effectiveVideoStatus === 'generating' ? (
                             <Button size="xs" variant="outline" disabled>
                               <Loader2 className="w-3 h-3 animate-spin" />
