@@ -377,7 +377,7 @@ export function VideosTable({
     );
   }
 
-  const COL_GRID = 'grid-cols-[40px_130px_80px_80px_80px_55px_40px_70px_70px_70px_40px]';
+  const COL_GRID = 'grid-cols-[40px_130px_80px_80px_80px_55px_40px_50px_40px_40px]';
 
   return (
     <div className="flex flex-col h-full">
@@ -533,9 +533,8 @@ export function VideosTable({
                       Длина {getSortIcon('duration')}
                     </button>
                     <div>🎬</div>
-                    <div>Обложка</div>
-                    <div>Звук</div>
-                    <div>Видео</div>
+                    <div>🖼</div>
+                    <div>🔊</div>
                     <div></div>
                   </div>
 
@@ -618,58 +617,43 @@ export function VideosTable({
                           )}
                         </div>
 
-                        {/* Обложка button */}
+                        {/* Cover preview */}
                         <div onClick={(e) => e.stopPropagation()}>
-                          {effectiveCoverStatus === 'generating' ? (
-                            <Button size="xs" variant="outline" disabled>
-                              <Loader2 className="w-3 h-3 animate-spin" />
-                            </Button>
+                          {coverUrl ? (
+                            <Popover>
+                              <PopoverTrigger asChild>
+                                <button className="w-8 h-8 rounded border border-border/50 overflow-hidden hover:border-primary/50 transition-colors">
+                                  <img src={coverUrl} alt="Cover" className="w-full h-full object-cover" />
+                                </button>
+                              </PopoverTrigger>
+                              <PopoverContent className="w-48 p-2" side="top">
+                                <img src={coverUrl} alt="Cover" className="w-full rounded-md" />
+                              </PopoverContent>
+                            </Popover>
                           ) : (
-                            <Button
-                              size="xs"
-                              variant="generate-cover"
-                              onClick={() => onGenerateCover(video)}
-                            >
-                              Обложка
-                            </Button>
+                            <div className="w-8 h-8 rounded border border-border/30 flex items-center justify-center">
+                              <ImageIcon className="w-3 h-3 text-muted-foreground/30" />
+                            </div>
                           )}
                         </div>
 
-                        {/* Звук button */}
+                        {/* Audio preview */}
                         <div onClick={(e) => e.stopPropagation()}>
-                          {effectiveVoiceoverStatus === 'generating' ? (
-                            <Button size="xs" variant="outline" disabled>
-                              <Loader2 className="w-3 h-3 animate-spin" />
+                          {video.voiceover_url ? (
+                            <Button
+                              size="icon-xs"
+                              variant="ghost"
+                              onClick={() => toggleAudio(video.id, video.voiceover_url!)}
+                              title="Прослушать озвучку"
+                            >
+                              {playingAudioId === video.id ? (
+                                <Pause className="w-3 h-3" />
+                              ) : (
+                                <Play className="w-3 h-3" />
+                              )}
                             </Button>
                           ) : (
-                            <Button
-                              size="xs"
-                              variant="secondary"
-                              onClick={() => onGenerateVoiceover?.(video)}
-                              disabled={!video.advisor_answer}
-                              title={!video.advisor_answer ? 'Сначала нужен ответ духовника' : undefined}
-                            >
-                              Звук
-                            </Button>
-                          )}
-                        </div>
-
-                        {/* Видео button */}
-                        <div onClick={(e) => e.stopPropagation()}>
-                          {effectiveVideoStatus === 'generating' ? (
-                            <Button size="xs" variant="outline" disabled>
-                              <Loader2 className="w-3 h-3 animate-spin" />
-                            </Button>
-                          ) : (
-                            <Button
-                              size="xs"
-                              variant="generate-video"
-                              onClick={() => onGenerateVideo(video)}
-                              disabled={!video.voiceover_url}
-                              title={!video.voiceover_url ? 'Сначала создайте озвучку' : undefined}
-                            >
-                              Видео
-                            </Button>
+                            <span className="text-muted-foreground/30 text-xs flex items-center justify-center w-6 h-6">—</span>
                           )}
                         </div>
 
