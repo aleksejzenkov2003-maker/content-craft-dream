@@ -411,6 +411,14 @@ export function PublishingKanban() {
           ) : null}
         </DragOverlay>
       </DndContext>
+
+      <PublicationEditDialog
+        publication={editingPublication}
+        open={!!editingPubId}
+        onOpenChange={(open) => { if (!open) setEditingPubId(null); }}
+        onSave={handleEditPublication}
+        channels={channels}
+      />
     </div>
   );
 }
