@@ -45,6 +45,7 @@ interface VideoSidePanelProps {
   isGenerating: boolean;
   onPrev?: () => void;
   onNext?: () => void;
+  autoSubtitleProgress?: { phase: string; progress: number } | null;
 }
 
 /* Status resolution for asset badges */
@@ -58,7 +59,7 @@ function resolveAssetStatus(url: string | null | undefined, statusField: string 
 export function VideoSidePanel({
   video, open, onOpenChange, advisors, publishingChannels,
   onGenerateAtmosphere, onGenerateCover, onGenerateVideo, onGenerateVoiceover,
-  onUpdateVideo, onPublish, isGenerating, onPrev, onNext,
+  onUpdateVideo, onPublish, isGenerating, onPrev, onNext, autoSubtitleProgress,
 }: VideoSidePanelProps) {
   const [selectedChannels, setSelectedChannels] = useState<string[]>([]);
   const [isReady, setIsReady] = useState(false);
@@ -362,7 +363,26 @@ export function VideoSidePanel({
         )}
 
         {/* === 5. Subtitles === */}
-        {video.word_timestamps && (video.heygen_video_url || video.video_path) && (
+        {/* Auto-processing progress (from postProcessVideo) */}
+        {autoSubtitleProgress && !subtitleProgress && (
+          <div className="space-y-1.5">
+            <div className="flex items-center gap-1.5">
+              <Loader2 className="w-3 h-3 animate-spin text-primary" />
+              <span className="text-[10px] font-medium">
+                {autoSubtitleProgress.phase === 'reducing_bitrate' ? 'Уменьшение битрейта...' :
+                 autoSubtitleProgress.phase === 'loading_ffmpeg' ? 'Загрузка FFmpeg...' :
+                 autoSubtitleProgress.phase === 'downloading_video' ? 'Скачивание видео...' :
+                 autoSubtitleProgress.phase === 'burning_subtitles' ? 'Вшивка субтитров...' :
+                 autoSubtitleProgress.phase === 'uploading_result' ? 'Загрузка результата...' :
+                 autoSubtitleProgress.phase === 'done' ? 'Готово!' :
+                 'Постобработка...'}
+              </span>
+              <span className="text-[9px] text-muted-foreground ml-auto">{autoSubtitleProgress.progress}%</span>
+            </div>
+            <Progress value={autoSubtitleProgress.progress} className="h-1" />
+          </div>
+        )}
+        {video.word_timestamps && (video.heygen_video_url || video.video_path) && !autoSubtitleProgress && (
           <div className="space-y-1.5">
             <div className="flex gap-1">
               <Button

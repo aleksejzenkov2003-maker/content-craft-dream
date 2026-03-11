@@ -58,6 +58,7 @@ export default function Index() {
   const [showSidePanel, setShowSidePanel] = useState(false);
   const [showImportDialog, setShowImportDialog] = useState(false);
   const [publicationsTab, setPublicationsTab] = useState('by-channel');
+  const [autoSubtitleProgress, setAutoSubtitleProgress] = useState<Record<string, { phase: string; progress: number }>>({});
   const { advisors, loading: advisorsLoading, addAdvisor, updateAdvisor, deleteAdvisor, addPhoto, deletePhoto, setPrimaryPhoto, updatePhotoAssetId, bulkImport: bulkImportAdvisors } = useAdvisors();
   const { playlists, loading: playlistsLoading, addPlaylist, updatePlaylist, deletePlaylist } = usePlaylists();
   const { videos: allVideos, loading: allVideosLoading, refetch: refetchAllVideos, bulkUpdate: bulkUpdateAll } = useVideos();
@@ -179,6 +180,9 @@ export default function Index() {
    * 3. Upload final result as video_path
    */
   const postProcessVideo = useCallback(async (videoId: string) => {
+    const updateProgress = (phase: string, progress: number) => {
+      setAutoSubtitleProgress(prev => ({ ...prev, [videoId]: { phase, progress } }));
+    };
     try {
       // Fetch fresh video data
       const { data: vid } = await supabase
@@ -193,11 +197,16 @@ export default function Index() {
         return;
       }
 
-      toast.info('Уменьшение битрейта видео...');
+      // Phase 1: Bitrate reduction
+      updateProgress('reducing_bitrate', 5);
+      toast.info('Шаг 1/2: Уменьшение битрейта видео...');
       const { reduceVideoBitrate } = await import('@/lib/videoNormalizer');
-      const reducedFile = await reduceVideoBitrate(sourceUrl);
+      const reducedFile = await reduceVideoBitrate(sourceUrl, (pct) => {
+        updateProgress('reducing_bitrate', Math.round(5 + pct * 40));
+      });
 
       // Upload reduced video
+      updateProgress('reducing_bitrate', 45);
       const reducedFileName = `videos/${videoId}_reduced_${Date.now()}.mp4`;
       const { error: uploadErr } = await supabase.storage
         .from('media-files')
@@ -206,17 +215,20 @@ export default function Index() {
 
       const { data: urlData } = supabase.storage.from('media-files').getPublicUrl(reducedFileName);
       let finalUrl = urlData.publicUrl;
+      toast.success('✅ Шаг 1/2: Битрейт уменьшен!');
 
-      // Burn subtitles if word_timestamps exist
+      // Phase 2: Burn subtitles if word_timestamps exist
       if (vid?.word_timestamps) {
-        toast.info('Вшивка субтитров...');
+        toast.info('Шаг 2/2: Начинаем вшивку субтитров...');
         try {
           const { burnSubtitlesBrowser } = await import('@/lib/videoSubtitles');
           const subtitledFile = await burnSubtitlesBrowser(
             finalUrl,
             vid.word_timestamps as any,
             { fontSize: 48 },
+            (info) => updateProgress(info.phase, Math.round(50 + info.progress * 0.45)),
           );
+          updateProgress('uploading_result', 95);
           const subtitledFileName = `videos/${videoId}_subtitled_${Date.now()}.mp4`;
           const { error: subUpErr } = await supabase.storage
             .from('media-files')
@@ -224,19 +236,31 @@ export default function Index() {
           if (subUpErr) throw subUpErr;
           const { data: subUrlData } = supabase.storage.from('media-files').getPublicUrl(subtitledFileName);
           finalUrl = subUrlData.publicUrl;
+          toast.success('✅ Шаг 2/2: Субтитры вшиты! Видео полностью готово.');
         } catch (subErr) {
           console.error('Subtitle burn failed, using reduced video:', subErr);
           toast.warning('Не удалось вшить субтитры, используется видео без субтитров');
         }
+      } else {
+        toast.success('✅ Постобработка завершена (субтитры не требуются)');
       }
 
       // Update video_path with final URL
       await supabase.from('videos').update({ video_path: finalUrl }).eq('id', videoId);
-      toast.success('Постобработка видео завершена!');
+      updateProgress('done', 100);
       refetchVideos();
     } catch (err) {
       console.error('Post-processing error:', err);
       throw err;
+    } finally {
+      // Clear progress after a brief delay so user sees 100%
+      setTimeout(() => {
+        setAutoSubtitleProgress(prev => {
+          const next = { ...prev };
+          delete next[videoId];
+          return next;
+        });
+      }, 2000);
     }
   }, [refetchVideos]);
 
@@ -904,6 +928,7 @@ export default function Index() {
                 onUpdateVideo={updateVideo}
                 onPublish={handlePublishVideo}
                 isGenerating={isGenerating}
+                autoSubtitleProgress={viewingVideoId ? autoSubtitleProgress[viewingVideoId] || null : null}
                 onPrev={viewingVideo ? (() => {
                   const idx = videos.findIndex(v => v.id === viewingVideo.id);
                   if (idx > 0) setViewingVideoId(videos[idx - 1].id);
