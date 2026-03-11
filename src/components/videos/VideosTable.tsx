@@ -618,60 +618,6 @@ export function VideosTable({
                           )}
                         </div>
 
-                        {/* Обложка button */}
-                        <div onClick={(e) => e.stopPropagation()}>
-                          {effectiveCoverStatus === 'generating' ? (
-                            <Button size="xs" variant="outline" disabled>
-                              <Loader2 className="w-3 h-3 animate-spin" />
-                            </Button>
-                          ) : (
-                            <Button
-                              size="xs"
-                              variant="generate-cover"
-                              onClick={() => onGenerateCover(video)}
-                            >
-                              Обложка
-                            </Button>
-                          )}
-                        </div>
-
-                        {/* Звук button */}
-                        <div onClick={(e) => e.stopPropagation()}>
-                          {effectiveVoiceoverStatus === 'generating' ? (
-                            <Button size="xs" variant="outline" disabled>
-                              <Loader2 className="w-3 h-3 animate-spin" />
-                            </Button>
-                          ) : (
-                            <Button
-                              size="xs"
-                              variant="secondary"
-                              onClick={() => onGenerateVoiceover?.(video)}
-                              disabled={!video.advisor_answer}
-                              title={!video.advisor_answer ? 'Сначала нужен ответ духовника' : undefined}
-                            >
-                              Звук
-                            </Button>
-                          )}
-                        </div>
-
-                        {/* Видео button */}
-                        <div onClick={(e) => e.stopPropagation()}>
-                          {effectiveVideoStatus === 'generating' ? (
-                            <Button size="xs" variant="outline" disabled>
-                              <Loader2 className="w-3 h-3 animate-spin" />
-                            </Button>
-                          ) : (
-                            <Button
-                              size="xs"
-                              variant="generate-video"
-                              onClick={() => onGenerateVideo(video)}
-                              disabled={!video.voiceover_url}
-                              title={!video.voiceover_url ? 'Сначала создайте озвучку' : undefined}
-                            >
-                              Видео
-                            </Button>
-                          )}
-                        </div>
 
                         {/* Channels */}
                         <div className="flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
