@@ -377,7 +377,7 @@ export function VideosTable({
     );
   }
 
-  const COL_GRID = 'grid-cols-[40px_60px_130px_80px_80px_80px_55px_32px_60px_70px_70px_70px_40px]';
+  const COL_GRID = 'grid-cols-[40px_130px_80px_80px_80px_55px_32px_60px_70px_70px_70px_40px]';
 
   return (
     <div className="flex flex-col h-full">
@@ -519,9 +519,6 @@ export function VideosTable({
                   {/* Table Header */}
                   <div className={`grid ${COL_GRID} gap-2 px-4 py-2 text-xs text-muted-foreground bg-muted/20 border-y border-border/30`}>
                     <div></div>
-                    <button onClick={() => handleSort('id')} className="flex items-center gap-1 hover:text-foreground">
-                      ID {getSortIcon('id')}
-                    </button>
                     <button onClick={() => handleSort('advisor')} className="flex items-center gap-1 hover:text-foreground">
                       Духовник {getSortIcon('advisor')}
                     </button>
@@ -563,13 +560,7 @@ export function VideosTable({
                           />
                         </div>
 
-                        {/* ID */}
-                        <div 
-                          className="font-mono text-xs text-primary cursor-pointer hover:underline"
-                          onClick={() => onViewVideo(video)}
-                        >
-                          {video.video_number || '—'}
-                        </div>
+                        {/* Духовник */}
 
                         {/* Духовник */}
                         <div>
