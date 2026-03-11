@@ -157,6 +157,33 @@ export type Database = {
           },
         ]
       }
+      automation_settings: {
+        Row: {
+          button_key: string
+          created_at: string | null
+          id: string
+          is_enabled: boolean
+          process_key: string
+          process_label: string
+        }
+        Insert: {
+          button_key: string
+          created_at?: string | null
+          id?: string
+          is_enabled?: boolean
+          process_key: string
+          process_label?: string
+        }
+        Update: {
+          button_key?: string
+          created_at?: string | null
+          id?: string
+          is_enabled?: boolean
+          process_key?: string
+          process_label?: string
+        }
+        Relationships: []
+      }
       channels: {
         Row: {
           created_at: string
