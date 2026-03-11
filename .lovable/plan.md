@@ -1,48 +1,57 @@
 
 
-## Переход с Avatar IV (av4) на Avatar III (v2/video/generate)
+## Решение: бинарная MP4-конкатенация + нормализация аудио через ffmpeg.wasm
 
-### Суть изменения
+### Что сделано
 
-Сейчас `generate-video-heygen` использует эндпоинт `v2/video/av4/generate` — это Avatar IV (1 кредит / 10 сек, ~6 кредитов/мин). Нужно переключить на `v2/video/generate` — Avatar III (1 кредит / минута, в 6 раз дешевле).
+1. **`supabase/functions/concat-video/index.ts`** — полная перезапись:
+   - Бинарный MP4-парсер: разбор боксов (moov/trak/stbl/stsz/stco/stsc/stts/stss/ctts)
+   - Извлечение сэмплов из обоих файлов, сборка нового mdat
+   - Объединение sample tables, пересчёт оффсетов, обновление duration
+   - Сохранение логики получения свежих HeyGen URL
+   - Загрузка результата в Storage
 
-### Разница в API
+2. **`src/lib/videoNormalizer.ts`** — утилита нормализации аудио через ffmpeg.wasm:
+   - Загружает ffmpeg WASM при первом использовании
+   - Перекодирует аудио в AAC-LC 48kHz mono 128kbps: `-c:v copy -c:a aac -ar 48000 -ac 1 -b:a 128k`
+   - Видео-поток копируется без потерь
 
-```text
-Avatar IV (av4):                         Avatar III (v2):
-POST /v2/video/av4/generate              POST /v2/video/generate
-{                                        {
-  image_key: "...",                        video_inputs: [{
-  audio_asset_id: "...",                     character: {
-  video_orientation: "portrait",               type: "talking_photo",
-  fit: "cover",                                talking_photo_id: "<image_key>"
-  custom_motion_prompt: "..."                },
-}                                            voice: {
-                                               type: "audio",
-                                               audio_url: "<voiceover_url>"
-                                             }
-                                           }],
-                                           dimension: { width: 1080, height: 1920 }
-                                         }
-```
+3. **`src/components/covers/BackCoversGrid.tsx`** — интеграция нормализации:
+   - При загрузке видео-обложки автоматически нормализует аудио через ffmpeg.wasm
+   - Показывает прогресс нормализации
+   - Загружает нормализованный файл в Storage
+   - Fallback на оригинал при ошибке
 
-Avatar III использует `talking_photo` с `talking_photo_id` (тот же image_key от upload) и принимает `audio_url` напрямую — **не нужно отдельно загружать аудио как asset**.
+### Зависимости
+- `@ffmpeg/ffmpeg@0.12.10`
+- `@ffmpeg/util@0.12.1`
 
-### Что меняется
+---
 
-**1. `supabase/functions/generate-video-heygen/index.ts`**
-- Оба вызова av4 (scene-based и fallback) заменяются на один формат `v2/video/generate`
-- Убираем `uploadAudioToHeygen` — v2 принимает `audio_url` напрямую
-- Используем `character.type = "talking_photo"` + `talking_photo_id = imageKey`
-- Убираем `custom_motion_prompt` (не поддерживается в v3)
-- Добавляем `dimension` вместо `video_orientation`
+## Субтитры: ElevenLabs timestamps → SRT → FFmpeg
 
-**2. `supabase/functions/create-heygen-video/index.ts`** — уже использует v2 API, трогать не нужно.
+### Что сделано
 
-### Что сохраняется
-- Логика выбора фото (scene → advisor photo → cover fallback)
-- Загрузка фото через `uploadAssetToHeygen` (image_key нужен и для v3)
-- Генерация voiceover через ElevenLabs
-- Polling статуса через `check-video-status`
-- Все остальные функции без изменений
+1. **БД миграция** — добавлено поле `word_timestamps jsonb` в таблицу `videos`
 
+2. **Edge Functions** — обновлены оба voiceover-генератора:
+   - `supabase/functions/generate-voiceover-for-video/index.ts` → endpoint `/with-timestamps`
+   - `supabase/functions/generate-voiceover/index.ts` → endpoint `/with-timestamps`
+   - Ответ содержит `audio_base64` + `alignment` (character-level timestamps)
+   - Функция `buildWordTimestamps()` собирает word-level timestamps из character-level
+   - Timestamps сохраняются в `videos.word_timestamps`
+
+3. **`src/lib/srtGenerator.ts`** — генерация субтитров:
+   - `generateSrt()` — SRT формат (группировка по N слов)
+   - `generateAss()` — ASS формат (со стилями: шрифт, размер, цвет, обводка)
+   - `generateSrtBlocks()` — промежуточная структура
+
+4. **`src/lib/videoSubtitles.ts`** — вшивание субтитров через ffmpeg.wasm:
+   - `burnSubtitles(videoUrl, timestamps, options, onProgress)` → File
+   - Использует ASS-фильтр для стилизованных субтитров
+   - Видео перекодируется libx264 (preset fast, crf 23), аудио копируется
+
+5. **UI** — кнопка «Добавить субтитры» в `VideoSidePanel`:
+   - Появляется когда есть `heygen_video_url` и `word_timestamps`
+   - Показывает прогресс через Progress bar
+   - Результат загружается в Storage и сохраняется в `video_path`
