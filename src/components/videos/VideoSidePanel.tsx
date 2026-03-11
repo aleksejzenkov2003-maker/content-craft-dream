@@ -127,51 +127,7 @@ export function VideoSidePanel({
     fetchAtmospherePrompt();
   }, [video?.id, video?.question, video?.hook, video?.advisor_answer, advisor]);
 
-  const handleChannelToggle = (channelId: string) => {
-    if (!video) return;
-    const newChannels = selectedChannels.includes(channelId) ? selectedChannels.filter((id) => id !== channelId) : [...selectedChannels, channelId];
-    setSelectedChannels(newChannels);
-    onUpdateVideo(video.id, { selected_channels: newChannels } as any);
-  };
-  const handlePublish = () => { if (video && selectedChannels.length > 0) onPublish(video, selectedChannels); };
-  const handleAdvisorAnswerSave = () => {
-    if (!video) return;
-    onUpdateVideo(video.id, { advisor_answer: advisorAnswer } as any);
-  };
-
-  const handleSelectVariant = async (variant: CoverVariant, type: 'atmosphere' | 'cover') => {
-    if (!video) return;
-    try {
-      await supabase.from('cover_thumbnails').update({ is_active: false }).eq('video_id', video.id).eq('variant_type', type);
-      await supabase.from('cover_thumbnails').update({ is_active: true }).eq('id', variant.id);
-      if (type === 'atmosphere') onUpdateVideo(video.id, { atmosphere_url: variant.atmosphere_url } as any);
-      else onUpdateVideo(video.id, { front_cover_url: variant.front_cover_url } as any);
-      fetchVariants();
-      toast.success('Вариант выбран');
-    } catch (e) { toast.error('Ошибка выбора варианта'); }
-  };
-
-  const handleDeleteVariant = async (variant: CoverVariant, type: 'atmosphere' | 'cover') => {
-    if (!video) return;
-    try {
-      await supabase.from('cover_thumbnails').delete().eq('id', variant.id);
-      fetchVariants();
-      toast.success('Вариант удалён');
-    } catch (e) { toast.error('Ошибка удаления'); }
-  };
-
-  const atmosphereUrl = (video as any)?.atmosphere_url;
-  const normalizedCoverStatus = video?.cover_status === 'generating' && !!video?.front_cover_url ? 'ready' : video?.cover_status || 'pending';
-  const isGeneratingCover = normalizedCoverStatus === 'generating';
-
-  const atmosStatus = resolveAssetStatus(atmosphereUrl, video?.cover_status);
-  const coverStatus = resolveAssetStatus(video?.front_cover_url, video?.cover_status);
-  const videoStatus = resolveAssetStatus(video?.video_path || video?.heygen_video_url, video?.generation_status);
-
   const videoUrl = video?.video_path || video?.heygen_video_url || null;
-  const effectiveDuration = video?.video_duration || detectedDuration;
-  const durationFormatted = effectiveDuration ? `${Math.floor(effectiveDuration / 60)}:${String(Math.round(effectiveDuration % 60)).padStart(2, '0')}` : '—';
-  const sizeFormatted = videoSizeBytes ? `${(videoSizeBytes / (1024 * 1024)).toFixed(1)} MB` : '—';
 
   useEffect(() => {
     if (!videoUrl) {
@@ -212,9 +168,48 @@ export function VideoSidePanel({
     };
   }, [videoUrl]);
 
-  const handleVideoLoadedMetadata = (e: React.SyntheticEvent<HTMLVideoElement>) => {
-    if (!video) return;
+  if (!video) return null;
 
+  const handleChannelToggle = (channelId: string) => {
+    const newChannels = selectedChannels.includes(channelId) ? selectedChannels.filter((id) => id !== channelId) : [...selectedChannels, channelId];
+    setSelectedChannels(newChannels);
+    onUpdateVideo(video.id, { selected_channels: newChannels } as any);
+  };
+  const handlePublish = () => { if (selectedChannels.length > 0) onPublish(video, selectedChannels); };
+  const handleAdvisorAnswerSave = () => onUpdateVideo(video.id, { advisor_answer: advisorAnswer } as any);
+
+  const handleSelectVariant = async (variant: CoverVariant, type: 'atmosphere' | 'cover') => {
+    try {
+      await supabase.from('cover_thumbnails').update({ is_active: false }).eq('video_id', video.id).eq('variant_type', type);
+      await supabase.from('cover_thumbnails').update({ is_active: true }).eq('id', variant.id);
+      if (type === 'atmosphere') onUpdateVideo(video.id, { atmosphere_url: variant.atmosphere_url } as any);
+      else onUpdateVideo(video.id, { front_cover_url: variant.front_cover_url } as any);
+      fetchVariants();
+      toast.success('Вариант выбран');
+    } catch (e) { toast.error('Ошибка выбора варианта'); }
+  };
+
+  const handleDeleteVariant = async (variant: CoverVariant, type: 'atmosphere' | 'cover') => {
+    try {
+      await supabase.from('cover_thumbnails').delete().eq('id', variant.id);
+      fetchVariants();
+      toast.success('Вариант удалён');
+    } catch (e) { toast.error('Ошибка удаления'); }
+  };
+
+  const atmosphereUrl = (video as any).atmosphere_url;
+  const normalizedCoverStatus = video.cover_status === 'generating' && !!video.front_cover_url ? 'ready' : video.cover_status || 'pending';
+  const isGeneratingCover = normalizedCoverStatus === 'generating';
+
+  const atmosStatus = resolveAssetStatus(atmosphereUrl, video.cover_status);
+  const coverStatus = resolveAssetStatus(video.front_cover_url, video.cover_status);
+  const videoStatus = resolveAssetStatus(video.video_path || video.heygen_video_url, video.generation_status);
+
+  const effectiveDuration = video.video_duration || detectedDuration;
+  const durationFormatted = effectiveDuration ? `${Math.floor(effectiveDuration / 60)}:${String(Math.round(effectiveDuration % 60)).padStart(2, '0')}` : '—';
+  const sizeFormatted = videoSizeBytes ? `${(videoSizeBytes / (1024 * 1024)).toFixed(1)} MB` : '—';
+
+  const handleVideoLoadedMetadata = (e: React.SyntheticEvent<HTMLVideoElement>) => {
     const dur = e.currentTarget.duration;
     if (dur && isFinite(dur)) {
       const roundedDuration = Math.round(dur);
@@ -224,8 +219,6 @@ export function VideoSidePanel({
       }
     }
   };
-
-  if (!video) return null;
 
   return (
     <UnifiedPanel
