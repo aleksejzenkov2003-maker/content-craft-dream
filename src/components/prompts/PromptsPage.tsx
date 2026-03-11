@@ -151,7 +151,7 @@ export function PromptsPage() {
         }
       }
 
-      setIsDialogOpen(false);
+      // Dialog stays open after save
     } finally {
       setSaving(false);
     }
