@@ -39,15 +39,15 @@ async function generateVoiceover(text: string, voiceId: string, elevenLabsKey: s
   return await response.arrayBuffer();
 }
 
-async function uploadAssetToHeygen(imageUrl: string, heygenKey: string): Promise<string> {
-  console.log('Downloading scene image for HeyGen upload...');
+async function uploadTalkingPhoto(imageUrl: string, heygenKey: string): Promise<string> {
+  console.log('Downloading image for HeyGen talking_photo upload...');
   const imgRes = await fetch(imageUrl);
-  if (!imgRes.ok) throw new Error(`Failed to download scene image: ${imgRes.status}`);
+  if (!imgRes.ok) throw new Error(`Failed to download image: ${imgRes.status}`);
   const imgBlob = await imgRes.blob();
 
-  // Upload as raw binary (matching n8n workflow contentType: "binaryData")
-  console.log('Uploading scene to HeyGen assets (raw binary)...');
-  const uploadRes = await fetch('https://upload.heygen.com/v1/asset', {
+  // Upload via /v1/talking_photo endpoint (required for v2/video/generate)
+  console.log('Uploading to HeyGen as talking_photo...');
+  const uploadRes = await fetch('https://upload.heygen.com/v1/talking_photo', {
     method: 'POST',
     headers: {
       'X-Api-Key': heygenKey,
@@ -58,16 +58,16 @@ async function uploadAssetToHeygen(imageUrl: string, heygenKey: string): Promise
 
   if (!uploadRes.ok) {
     const errText = await uploadRes.text();
-    throw new Error(`HeyGen asset upload failed: ${uploadRes.status} - ${errText}`);
+    throw new Error(`HeyGen talking_photo upload failed: ${uploadRes.status} - ${errText}`);
   }
 
   const uploadData = await uploadRes.json();
-  console.log('HeyGen upload response:', JSON.stringify(uploadData));
-  const imageKey = uploadData.data?.image_key || uploadData.data?.asset_id || uploadData.data?.id;
-  if (!imageKey) throw new Error('No image_key returned from HeyGen: ' + JSON.stringify(uploadData));
+  console.log('HeyGen talking_photo upload response:', JSON.stringify(uploadData));
+  const talkingPhotoId = uploadData.data?.talking_photo_id || uploadData.data?.id;
+  if (!talkingPhotoId) throw new Error('No talking_photo_id returned: ' + JSON.stringify(uploadData));
   
-  console.log('HeyGen asset uploaded, image_key:', imageKey);
-  return imageKey;
+  console.log('HeyGen talking_photo uploaded, id:', talkingPhotoId);
+  return talkingPhotoId;
 }
 
 // uploadAudioToHeygen removed — v2 API accepts audio_url directly
@@ -157,7 +157,6 @@ serve(async (req) => {
 
     // --- Resolve image for talking_photo ---
     let imageUrl: string | null = sceneUrl;
-    let imageKey: string | null = null;
 
     if (!imageUrl) {
       // Fallback: advisor photo → cover
@@ -165,49 +164,40 @@ serve(async (req) => {
         if (video.advisor?.scene_photo_id) {
           const { data: scenePhoto } = await supabase
             .from('advisor_photos')
-            .select('photo_url, heygen_asset_id')
+            .select('photo_url')
             .eq('id', video.advisor.scene_photo_id)
             .single();
           imageUrl = scenePhoto?.photo_url || null;
-          imageKey = scenePhoto?.heygen_asset_id || null;
           console.log('Using scene_photo_id photo:', imageUrl ? 'found' : 'not found');
         }
 
         if (!imageUrl) {
           const { data: photos } = await supabase
             .from('advisor_photos')
-            .select('photo_url, is_primary, heygen_asset_id, created_at')
+            .select('photo_url, is_primary, created_at')
             .eq('advisor_id', video.advisor_id)
             .not('photo_url', 'is', null)
             .order('is_primary', { ascending: false })
             .order('created_at', { ascending: true })
-            .limit(10);
+            .limit(1);
 
-          const photoWithAsset = photos?.find((p: { heygen_asset_id: string | null }) => !!p.heygen_asset_id);
-          if (photoWithAsset) {
-            imageUrl = photoWithAsset.photo_url;
-            imageKey = photoWithAsset.heygen_asset_id;
-            console.log('Using advisor photo with existing heygen image_key');
-          } else {
-            imageUrl = photos?.find((p: { is_primary: boolean | null }) => p.is_primary)?.photo_url
-              || photos?.[0]?.photo_url
-              || null;
-            if (imageUrl) console.log('Using advisor photo (primary/first)');
-          }
+          imageUrl = photos?.[0]?.photo_url || null;
+          if (imageUrl) console.log('Using advisor photo');
         }
       }
 
-      if (!imageUrl && !imageKey) {
+      if (!imageUrl) {
         imageUrl = video.front_cover_url || video.atmosphere_url || null;
         if (imageUrl) console.log('WARNING: Using cover/atmosphere as fallback — may lack face');
       }
     }
 
-    if (!imageUrl && !imageKey) {
+    if (!imageUrl) {
       throw new Error('No image found. Upload advisor photo or generate a cover first.');
     }
 
-    const talkingPhotoId = imageKey || await uploadAssetToHeygen(imageUrl!, heygenKey);
+    // Always upload as talking_photo (cached heygen_asset_id from /v1/asset won't work here)
+    const talkingPhotoId = await uploadTalkingPhoto(imageUrl, heygenKey);
     console.log('talking_photo_id:', talkingPhotoId);
 
     // --- Call HeyGen v2/video/generate (Avatar III) ---
