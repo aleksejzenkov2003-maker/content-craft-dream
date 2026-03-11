@@ -410,9 +410,9 @@ export default function Index() {
         }
       }
 
-      // Auto-generate atmosphere if missing
+      // Auto-generate atmosphere if missing (controlled by automation settings)
       const atmosphereUrl = (video as any).atmosphere_url;
-      if (!atmosphereUrl) {
+      if (!atmosphereUrl && isEnabled('side_cover', 'auto_atmosphere')) {
         toast.info('Фон отсутствует — запускаем генерацию фона (шаг 1)...');
         const atmosResp = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/generate-cover`, {
           method: 'POST',
