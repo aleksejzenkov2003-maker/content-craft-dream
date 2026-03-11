@@ -2,21 +2,17 @@ import { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Loader2, CheckCircle, XCircle, Play, Volume2 } from 'lucide-react';
+import { Progress } from '@/components/ui/progress';
+import { Loader2, CheckCircle, XCircle, RefreshCw } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 
-interface Voice {
-  voice_id: string;
-  name: string;
-  category: string;
-  labels: Record<string, string>;
-  preview_url: string | null;
+interface ApiBalances {
+  elevenlabs?: { used: number; limit: number; resetUnix: number | null; tier: string | null; error?: string };
+  heygen?: { remainingSeconds: number; remainingCredits: number; error?: string };
 }
 
 export function SettingsPage() {
-  const [voices, setVoices] = useState<Voice[]>([]);
-  const [loadingVoices, setLoadingVoices] = useState(false);
   const [testingApi, setTestingApi] = useState<string | null>(null);
   const [apiStatuses, setApiStatuses] = useState<Record<string, 'ok' | 'error' | 'unknown'>>({
     anthropic: 'unknown',
@@ -24,27 +20,32 @@ export function SettingsPage() {
     heygen: 'unknown',
     kie: 'unknown',
   });
-  const [playingVoice, setPlayingVoice] = useState<string | null>(null);
+  const [balances, setBalances] = useState<ApiBalances | null>(null);
+  const [loadingBalances, setLoadingBalances] = useState(false);
 
-  const fetchVoices = async () => {
-    setLoadingVoices(true);
+  const fetchBalances = async () => {
+    setLoadingBalances(true);
     try {
-      const { data, error } = await supabase.functions.invoke('get-elevenlabs-voices');
+      const { data, error } = await supabase.functions.invoke('check-api-balances');
       if (error) throw error;
-      if (data?.voices) {
-        setVoices(data.voices);
-        setApiStatuses(prev => ({ ...prev, elevenlabs: 'ok' }));
+      if (data?.balances) {
+        setBalances(data.balances);
+        if (data.balances.elevenlabs && !data.balances.elevenlabs.error) {
+          setApiStatuses(prev => ({ ...prev, elevenlabs: 'ok' }));
+        }
+        if (data.balances.heygen && !data.balances.heygen.error) {
+          setApiStatuses(prev => ({ ...prev, heygen: 'ok' }));
+        }
       }
     } catch (error) {
-      console.error('Error fetching voices:', error);
-      setApiStatuses(prev => ({ ...prev, elevenlabs: 'error' }));
+      console.error('Error fetching balances:', error);
     } finally {
-      setLoadingVoices(false);
+      setLoadingBalances(false);
     }
   };
 
   useEffect(() => {
-    fetchVoices();
+    fetchBalances();
   }, []);
 
   const testApi = async (apiName: string) => {
@@ -52,7 +53,8 @@ export function SettingsPage() {
     try {
       switch (apiName) {
         case 'elevenlabs':
-          await fetchVoices();
+        case 'heygen':
+          await fetchBalances();
           break;
         case 'anthropic': {
           const { data, error } = await supabase.functions.invoke('test-prompt', {
@@ -67,24 +69,6 @@ export function SettingsPage() {
           if (!data?.success) throw new Error(data?.error || 'Test failed');
           setApiStatuses(prev => ({ ...prev, anthropic: 'ok' }));
           toast.success('Anthropic API работает');
-          break;
-        }
-        case 'heygen': {
-          const { data, error } = await supabase.functions.invoke('get-heygen-avatars', {
-            body: { forceRefresh: true },
-          });
-          if (error) {
-            if (error.message?.includes('non-2xx') || error.message?.includes('timed out')) {
-              setApiStatuses(prev => ({ ...prev, heygen: 'ok' }));
-              toast.success('HeyGen API работает (обновление кеша может занять время)');
-              break;
-            }
-            throw error;
-          }
-          if (data?.apiError) throw new Error(data.apiError);
-          if (!data?.success) throw new Error('HeyGen test failed');
-          setApiStatuses(prev => ({ ...prev, heygen: 'ok' }));
-          toast.success(`HeyGen API работает (${data?.avatars?.length || 0} аватаров)`);
           break;
         }
         case 'kie': {
@@ -105,19 +89,6 @@ export function SettingsPage() {
     }
   };
 
-  const playVoicePreview = (voice: Voice) => {
-    if (!voice.preview_url) return;
-    if (playingVoice === voice.voice_id) {
-      setPlayingVoice(null);
-      return;
-    }
-    setPlayingVoice(voice.voice_id);
-    const audio = new Audio(voice.preview_url);
-    audio.onended = () => setPlayingVoice(null);
-    audio.onerror = () => setPlayingVoice(null);
-    audio.play();
-  };
-
   const apis = [
     { key: 'anthropic', name: 'Anthropic (Claude)', desc: 'Генерация текстов для соц. сетей' },
     { key: 'elevenlabs', name: 'ElevenLabs', desc: 'Озвучка роликов' },
@@ -133,6 +104,15 @@ export function SettingsPage() {
     }
   };
 
+  const formatResetDate = (unix: number | null) => {
+    if (!unix) return null;
+    const date = new Date(unix * 1000);
+    return date.toLocaleDateString('ru-RU', { day: 'numeric', month: 'short' });
+  };
+
+  const elUsed = balances?.elevenlabs?.used ?? 0;
+  const elLimit = balances?.elevenlabs?.limit ?? 1;
+  const elPercent = Math.round((elUsed / elLimit) * 100);
 
   return (
     <div className="space-y-6">
@@ -171,72 +151,70 @@ export function SettingsPage() {
         </CardContent>
       </Card>
 
-      {/* Voices */}
+      {/* API Balances */}
       <Card>
-        <CardHeader>
-          <CardTitle className="text-lg">
-            Голоса ElevenLabs
-            <Badge variant="secondary" className="ml-2">{voices.length}</Badge>
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          {loadingVoices ? (
-            <div className="flex items-center justify-center py-8">
-              <Loader2 className="w-6 h-6 animate-spin text-primary" />
-            </div>
-          ) : voices.length === 0 ? (
-            <p className="text-muted-foreground text-sm py-4">
-              Нет доступных голосов. Проверьте API ключ ElevenLabs.
-            </p>
-          ) : (
-            <div className="grid gap-2 max-h-[400px] overflow-auto">
-              {voices.map(voice => (
-                <div key={voice.voice_id} className="flex items-center justify-between p-2 rounded border text-sm">
-                  <div className="flex items-center gap-2">
-                    <span className="font-medium">{voice.name}</span>
-                    <Badge variant="outline" className="text-[10px]">{voice.category}</Badge>
-                    {Object.entries(voice.labels || {}).slice(0, 2).map(([k, v]) => (
-                      <Badge key={k} variant="secondary" className="text-[10px]">{v}</Badge>
-                    ))}
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <code className="text-[10px] text-muted-foreground">{voice.voice_id}</code>
-                    {voice.preview_url && (
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="h-7 w-7"
-                        onClick={() => playVoicePreview(voice)}
-                      >
-                        {playingVoice === voice.voice_id ? (
-                          <Volume2 className="w-4 h-4 text-primary" />
-                        ) : (
-                          <Play className="w-4 h-4" />
-                        )}
-                      </Button>
-                    )}
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-          <Button variant="outline" className="mt-3" onClick={fetchVoices} disabled={loadingVoices}>
-            Обновить список
+        <CardHeader className="flex flex-row items-center justify-between">
+          <CardTitle className="text-lg">Баланс API</CardTitle>
+          <Button variant="ghost" size="icon" onClick={fetchBalances} disabled={loadingBalances}>
+            <RefreshCw className={`w-4 h-4 ${loadingBalances ? 'animate-spin' : ''}`} />
           </Button>
-        </CardContent>
-      </Card>
-
-      {/* Info */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-lg">Как настроить голос духовника</CardTitle>
         </CardHeader>
-        <CardContent className="text-sm text-muted-foreground space-y-2">
-          <p>1. Найдите нужный голос в списке выше и скопируйте его Voice ID</p>
-          <p>2. Перейдите в раздел «Духовники»</p>
-          <p>3. Нажмите ⚙️ на карточке духовника</p>
-          <p>4. Вставьте Voice ID в поле «ElevenLabs Voice ID»</p>
-          <p>При генерации видео будет использован голос, привязанный к духовнику.</p>
+        <CardContent className="space-y-4">
+          {loadingBalances && !balances ? (
+            <div className="flex items-center justify-center py-6">
+              <Loader2 className="w-5 h-5 animate-spin text-muted-foreground" />
+            </div>
+          ) : (
+            <>
+              {/* ElevenLabs */}
+              <div className="space-y-2 p-3 rounded-lg border">
+                <div className="flex items-center justify-between">
+                  <p className="font-medium text-sm">ElevenLabs — символы</p>
+                  {balances?.elevenlabs?.tier && (
+                    <Badge variant="secondary" className="text-[10px]">{balances.elevenlabs.tier}</Badge>
+                  )}
+                </div>
+                {balances?.elevenlabs?.error ? (
+                  <p className="text-xs text-destructive">{balances.elevenlabs.error}</p>
+                ) : (
+                  <>
+                    <Progress value={elPercent} className="h-2" />
+                    <div className="flex items-center justify-between text-xs text-muted-foreground">
+                      <span>{elUsed.toLocaleString('ru-RU')} / {(balances?.elevenlabs?.limit ?? 0).toLocaleString('ru-RU')}</span>
+                      {balances?.elevenlabs?.resetUnix && (
+                        <span>Сброс: {formatResetDate(balances.elevenlabs.resetUnix)}</span>
+                      )}
+                    </div>
+                  </>
+                )}
+              </div>
+
+              {/* HeyGen */}
+              <div className="space-y-1 p-3 rounded-lg border">
+                <p className="font-medium text-sm">HeyGen — кредиты</p>
+                {balances?.heygen?.error ? (
+                  <p className="text-xs text-destructive">{balances.heygen.error}</p>
+                ) : (
+                  <p className="text-2xl font-bold text-primary">
+                    {balances?.heygen?.remainingCredits ?? '—'}
+                    <span className="text-xs font-normal text-muted-foreground ml-1">мин</span>
+                  </p>
+                )}
+              </div>
+
+              {/* Anthropic */}
+              <div className="p-3 rounded-lg border">
+                <p className="font-medium text-sm">Anthropic</p>
+                <p className="text-xs text-muted-foreground">Баланс недоступен через API</p>
+              </div>
+
+              {/* Kie.ai */}
+              <div className="p-3 rounded-lg border">
+                <p className="font-medium text-sm">Kie.ai</p>
+                <p className="text-xs text-muted-foreground">Баланс недоступен через API</p>
+              </div>
+            </>
+          )}
         </CardContent>
       </Card>
     </div>
