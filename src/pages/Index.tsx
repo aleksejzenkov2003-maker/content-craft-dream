@@ -26,6 +26,7 @@ import { useVideoGeneration } from '@/hooks/useVideoGeneration';
 import { usePublications } from '@/hooks/usePublications';
 import { useVideoConcat } from '@/hooks/useVideoConcat';
 import { usePublishingChannels } from '@/hooks/usePublishingChannels';
+import { useAutomationSettings } from '@/hooks/useAutomationSettings';
 import { SettingsPage } from '@/components/settings/SettingsPage';
 import { Users, ListVideo, Video as VideoIcon, CheckCircle, Loader2, Send, HelpCircle } from 'lucide-react';
 import { toast } from 'sonner';
