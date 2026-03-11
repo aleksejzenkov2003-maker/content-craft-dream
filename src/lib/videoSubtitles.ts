@@ -310,8 +310,8 @@ export async function burnSubtitlesBrowser(
     // Build drawtext filter
     const vf = buildDrawtextFilter(
       blocks,
-      options.fontSize ?? 48,
-      options.marginV ?? 80,
+      options.fontSize ?? 36,
+      options.marginV ?? 160,
     );
 
     onProgress?.({ phase: 'burning_subtitles', progress: 40 });
