@@ -28,6 +28,7 @@ import { useVideoConcat } from '@/hooks/useVideoConcat';
 import { usePublishingChannels } from '@/hooks/usePublishingChannels';
 import { useAutomationSettings } from '@/hooks/useAutomationSettings';
 import { SettingsPage } from '@/components/settings/SettingsPage';
+import { AutomationPage } from '@/pages/AutomationPage';
 import { Users, ListVideo, Video as VideoIcon, CheckCircle, Loader2, Send, HelpCircle } from 'lucide-react';
 import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
@@ -47,6 +48,7 @@ const headerTitles: Record<string, { title: string; subtitle: string }> = {
   proxies: { title: 'Прокси-сервера', subtitle: 'Управление прокси для публикации' },
   prompts: { title: 'Промты', subtitle: 'Управление промтами генерации' },
   settings: { title: 'Настройки', subtitle: 'Конфигурация системы' },
+  automation: { title: 'Автоматизация', subtitle: 'Управление действиями кнопок' },
 };
 
 export default function Index() {
@@ -408,9 +410,9 @@ export default function Index() {
         }
       }
 
-      // Auto-generate atmosphere if missing
+      // Auto-generate atmosphere if missing (controlled by automation settings)
       const atmosphereUrl = (video as any).atmosphere_url;
-      if (!atmosphereUrl) {
+      if (!atmosphereUrl && isEnabled('side_cover', 'auto_atmosphere')) {
         toast.info('Фон отсутствует — запускаем генерацию фона (шаг 1)...');
         const atmosResp = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/generate-cover`, {
           method: 'POST',
@@ -1117,6 +1119,8 @@ export default function Index() {
           {activeTab === 'prompts' && <PromptsPage />}
 
           {activeTab === 'settings' && <SettingsPage />}
+
+          {activeTab === 'automation' && <AutomationPage />}
         </div>
       </main>
     </div>
