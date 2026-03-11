@@ -98,8 +98,8 @@ function escapeDrawtext(text: string): string {
 
 function buildDrawtextFilter(
   blocks: TimedBlock[],
-  fontSize = 48,
-  marginV = 80,
+  fontSize = 36,
+  marginV = 160,
 ): string {
   if (blocks.length === 0) return 'null';
 
@@ -310,8 +310,8 @@ export async function burnSubtitlesBrowser(
     // Build drawtext filter
     const vf = buildDrawtextFilter(
       blocks,
-      options.fontSize ?? 48,
-      options.marginV ?? 80,
+      options.fontSize ?? 36,
+      options.marginV ?? 160,
     );
 
     onProgress?.({ phase: 'burning_subtitles', progress: 40 });
