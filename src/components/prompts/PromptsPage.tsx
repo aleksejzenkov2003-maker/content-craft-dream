@@ -78,6 +78,7 @@ export function PromptsPage() {
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingPrompt, setEditingPrompt] = useState<DbPrompt | null>(null);
   const [deleteId, setDeleteId] = useState<string | null>(null);
+  const [saveSuccess, setSaveSuccess] = useState(false);
 
   // Form state
   const [form, setForm] = useState({
@@ -93,6 +94,7 @@ export function PromptsPage() {
   const [testResult, setTestResult] = useState('');
   const [selectedAdvisorId, setSelectedAdvisorId] = useState('');
 
+  const userTemplateRef = useRef<HTMLTextAreaElement>(null);
   const isImageType = IMAGE_TYPES.includes(form.type);
   const currentModels = isImageType ? IMAGE_MODELS : TEXT_MODELS;
 
