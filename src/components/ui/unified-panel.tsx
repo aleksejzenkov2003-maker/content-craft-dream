@@ -5,7 +5,7 @@ import { ChevronUp, ChevronDown, X } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 const widthClasses = {
-  xs: 'max-w-sm w-[340px]',
+  xs: 'max-w-sm w-[420px]',
   sm: 'max-w-md w-[480px]',
   md: 'max-w-2xl w-[640px]',
   lg: 'max-w-4xl w-[900px]',
@@ -23,6 +23,7 @@ interface UnifiedPanelProps {
   headerActions?: React.ReactNode;
   children: React.ReactNode;
   preventOutsideClose?: boolean;
+  fixedHeight?: boolean;
 }
 
 export function UnifiedPanel({
@@ -36,13 +37,15 @@ export function UnifiedPanel({
   headerActions,
   children,
   preventOutsideClose,
+  fixedHeight,
 }: UnifiedPanelProps) {
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent
         className={cn(
           'max-h-[95vh] !max-w-none !grid-rows-none !grid-cols-none p-0 !flex !flex-col gap-0 overflow-hidden [&>button:last-child]:hidden',
-          widthClasses[width]
+          widthClasses[width],
+          fixedHeight && 'h-[80vh]'
         )}
         onPointerDownOutside={preventOutsideClose ? (e) => e.preventDefault() : undefined}
       >

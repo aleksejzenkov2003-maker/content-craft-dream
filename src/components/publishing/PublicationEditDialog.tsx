@@ -142,6 +142,7 @@ export function PublicationEditDialog({
       onPrev={onPrev}
       onNext={onNext}
       preventOutsideClose
+      fixedHeight
       footer={null}
     >
       {/* Info fields */}
