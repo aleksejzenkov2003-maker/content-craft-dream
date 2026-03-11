@@ -193,16 +193,25 @@ export function PublicationEditDialog({
           />
           <div className="flex items-center justify-between">
             <span className="text-xs text-muted-foreground">{generatedText.length} символов</span>
-            <Button
-              size="sm"
-              variant="secondary"
-              className="h-7 text-xs"
-              onClick={handleGenerateText}
-              disabled={generating}
-            >
-              {generating ? <Loader2 className="w-3 h-3 mr-1 animate-spin" /> : <Sparkles className="w-3 h-3 mr-1" />}
-              {generatedText ? 'Перегенерировать' : 'Сгенерировать'}
-            </Button>
+            <div className="flex items-center gap-2">
+              <Button
+                size="sm"
+                variant="secondary"
+                className="h-7 text-xs"
+                onClick={handleGenerateText}
+                disabled={generating}
+              >
+                {generating ? <Loader2 className="w-3 h-3 mr-1 animate-spin" /> : <Sparkles className="w-3 h-3 mr-1" />}
+                {generatedText ? 'Перегенерировать' : 'Сгенерировать'}
+              </Button>
+              <Button variant="outline" size="sm" className="h-7 text-xs" onClick={handleRestorePrompt}>
+                Восстановить
+              </Button>
+              <Button size="sm" className="h-7 text-xs" onClick={handleSave} disabled={saving}>
+                {saving && <Loader2 className="w-3 h-3 mr-1 animate-spin" />}
+                Сохранить
+              </Button>
+            </div>
           </div>
         </TabsContent>
 
