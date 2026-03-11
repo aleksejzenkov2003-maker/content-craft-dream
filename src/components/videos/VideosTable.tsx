@@ -292,7 +292,7 @@ export function VideosTable({
     return sortedVideos.reduce((acc, video) => {
       const uniqueKey = `${video.question_id ?? 'none'}`;
       if (!acc[uniqueKey]) {
-        const questionText = video.question_rus || video.question_eng || video.question || 'Без вопроса';
+        const questionText = video.question_eng || video.question || video.question_rus || 'No question';
         acc[uniqueKey] = { questionId: video.question_id, questionText, videos: [], plannedDate: video.publication_date };
       } else {
         const group = acc[uniqueKey];
