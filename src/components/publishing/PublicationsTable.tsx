@@ -40,7 +40,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { 
+import {
   MoreVertical, Trash2, ExternalLink, Send, Sparkles, Loader2, RefreshCw,
   FileSpreadsheet, ArrowUpDown, ArrowUp, ArrowDown, CalendarIcon, Edit2, Clock, Clapperboard, Settings2,
   Video as VideoIcon, FileText, Eye,
@@ -60,6 +60,7 @@ import { PublicationEditDialog } from './PublicationEditDialog';
 import { useVideoConcat } from '@/hooks/useVideoConcat';
 import { Progress } from '@/components/ui/progress';
 import { cn } from '@/lib/utils';
+import { formatFileSize, resolvePublicationVideoMetadata } from './videoMetadata';
 
 const statusLabels: Record<string, { label: string; variant: 'default' | 'secondary' | 'destructive' | 'outline' }> = {
   pending: { label: 'Ожидает', variant: 'secondary' },
@@ -80,6 +81,8 @@ const statusOptions = [
   { value: 'failed', label: 'Ошибка' },
 ];
 
+const syncedVideoDurationIds = new Set<string>();
+
 type SortColumn = 'post_date' | 'views' | 'likes' | 'video_number';
 type SortDirection = 'asc' | 'desc';
 
@@ -98,43 +101,66 @@ function formatVideoDuration(duration: number | null | undefined) {
 function PublicationDurationCell({
   duration,
   videoUrl,
+  audioUrl,
   videoId,
 }: {
   duration: number | null | undefined;
   videoUrl?: string | null;
+  audioUrl?: string | null;
   videoId?: string | null;
 }) {
   const [resolvedDuration, setResolvedDuration] = useState<number | null>(duration ?? null);
 
   useEffect(() => {
+    let cancelled = false;
     setResolvedDuration(duration ?? null);
-  }, [duration, videoUrl]);
 
-  return (
-    <>
-      <span className={resolvedDuration ? '' : 'text-muted-foreground'}>{formatVideoDuration(resolvedDuration)}</span>
-      {!duration && videoUrl ? (
-        <video
-          key={videoUrl}
-          src={videoUrl}
-          preload="metadata"
-          playsInline
-          muted
-          className="absolute h-0 w-0 overflow-hidden opacity-0 pointer-events-none"
-          onLoadedMetadata={(e) => {
-            const nextDuration = e.currentTarget.duration;
-            if (Number.isFinite(nextDuration) && nextDuration > 0) {
-              const roundedDuration = Math.round(nextDuration);
-              setResolvedDuration(roundedDuration);
-              if (videoId) {
-                supabase.from('videos').update({ video_duration: roundedDuration }).eq('id', videoId).then();
-              }
-            }
-          }}
-        />
-      ) : null}
-    </>
-  );
+    if (duration || (!videoUrl && !audioUrl)) return;
+
+    void resolvePublicationVideoMetadata({ videoUrl, audioUrl }).then(({ durationSeconds }) => {
+      if (cancelled || !durationSeconds || durationSeconds <= 0) return;
+
+      const roundedDuration = Math.round(durationSeconds);
+      setResolvedDuration(roundedDuration);
+
+      if (videoId && !syncedVideoDurationIds.has(videoId)) {
+        syncedVideoDurationIds.add(videoId);
+        void supabase.from('videos').update({ video_duration: roundedDuration }).eq('id', videoId);
+      }
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [duration, videoUrl, audioUrl, videoId]);
+
+  return <span className={resolvedDuration ? '' : 'text-muted-foreground'}>{formatVideoDuration(resolvedDuration)}</span>;
+}
+
+function PublicationSizeCell({
+  videoUrl,
+}: {
+  videoUrl?: string | null;
+}) {
+  const [sizeBytes, setSizeBytes] = useState<number | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    setSizeBytes(null);
+
+    if (!videoUrl) return;
+
+    void resolvePublicationVideoMetadata({ videoUrl }).then(({ sizeBytes: nextSizeBytes }) => {
+      if (cancelled) return;
+      setSizeBytes(nextSizeBytes ?? null);
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [videoUrl]);
+
+  return <span className={sizeBytes ? '' : 'text-muted-foreground'}>{formatFileSize(sizeBytes)}</span>;
 }
 
 export function PublicationsTable({ groupBy = 'channel' }: PublicationsTableProps) {
