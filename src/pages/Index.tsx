@@ -113,7 +113,7 @@ export default function Index() {
     publications: publications.length,
   };
 
-  const videoPollingRef = useRef<Record<string, NodeJS.Timeout>>({});
+  const videoPollingRef = useRef<Record<string, ReturnType<typeof setInterval>>>({});
   const pollingErrorsRef = useRef<Record<string, number>>({});
   const POLL_INTERVAL_MS = 12000;
   const MAX_POLL_ERRORS = 8;

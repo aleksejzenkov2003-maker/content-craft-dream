@@ -12,7 +12,7 @@ export function useVideoGeneration(options?: UseVideoGenerationOptions) {
   const [isGenerating, setIsGenerating] = useState(false);
   const [isUploadingPhoto, setIsUploadingPhoto] = useState(false);
   const [generatingVideoId, setGeneratingVideoId] = useState<string | null>(null);
-  const pollingRef = useRef<NodeJS.Timeout | null>(null);
+  const pollingRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const stopPolling = useCallback(() => {
     if (pollingRef.current) {
