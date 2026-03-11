@@ -129,9 +129,7 @@ function KanbanCard({ publication, onPublish, onRetry }: KanbanCardProps) {
           {publication.post_date && (
             <div className="flex items-center gap-2 text-xs text-muted-foreground">
               <Calendar className="w-3 h-3" />
-              <span>
-                {format(new Date(publication.post_date), 'dd MMM, HH:mm', { locale: ru })}
-              </span>
+              <span>Дата публикации: {format(new Date(publication.post_date), 'dd MMM, HH:mm', { locale: ru })}</span>
             </div>
           )}
 
