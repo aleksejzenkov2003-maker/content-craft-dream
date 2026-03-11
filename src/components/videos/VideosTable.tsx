@@ -519,8 +519,7 @@ export function VideosTable({
                   {/* Table Header */}
                   <div className={`grid ${COL_GRID} gap-2 px-4 py-2 text-xs text-muted-foreground bg-muted/20 border-y border-border/30`}>
                     <div></div>
-                    <button onClick={() => handleSort('id')} className="flex items-center gap-1 hover:text-foreground">
-                      ID {getSortIcon('id')}
+                    <button onClick={() => handleSort('advisor')} className="flex items-center gap-1 hover:text-foreground">
                     </button>
                     <button onClick={() => handleSort('advisor')} className="flex items-center gap-1 hover:text-foreground">
                       Духовник {getSortIcon('advisor')}
