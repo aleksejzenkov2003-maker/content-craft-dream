@@ -200,7 +200,7 @@ interface StatusColumnProps {
   onEdit: (id: string) => void;
 }
 
-function StatusColumn({ status, publications, onPublish, onRetry }: StatusColumnProps) {
+function StatusColumn({ status, publications, onPublish, onRetry, onEdit }: StatusColumnProps) {
   const { setNodeRef, isOver } = useDroppable({
     id: status.id,
   });
