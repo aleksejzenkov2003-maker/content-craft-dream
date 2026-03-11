@@ -98,14 +98,9 @@ function KanbanCard({ publication, onPublish, onRetry }: KanbanCardProps) {
                   {publication.channel?.name || 'Без канала'}
                 </span>
               </div>
-              <p className="text-sm font-medium truncate">
+              <p className="text-sm font-medium line-clamp-2">
                 {publication.video?.video_title || publication.video?.question || 'Без названия'}
               </p>
-              {publication.video?.video_number && (
-                <p className="text-xs text-muted-foreground">
-                  Ролик #{publication.video.video_number}
-                </p>
-              )}
             </div>
             {publication.post_url && (
               <a
