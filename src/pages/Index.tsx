@@ -48,6 +48,7 @@ const headerTitles: Record<string, { title: string; subtitle: string }> = {
   proxies: { title: 'Прокси-сервера', subtitle: 'Управление прокси для публикации' },
   prompts: { title: 'Промты', subtitle: 'Управление промтами генерации' },
   settings: { title: 'Настройки', subtitle: 'Конфигурация системы' },
+  automation: { title: 'Автоматизация', subtitle: 'Управление действиями кнопок' },
 };
 
 export default function Index() {
