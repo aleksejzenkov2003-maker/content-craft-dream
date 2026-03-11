@@ -157,7 +157,6 @@ serve(async (req) => {
 
     // --- Resolve image for talking_photo ---
     let imageUrl: string | null = sceneUrl;
-    let imageKey: string | null = null;
 
     if (!imageUrl) {
       // Fallback: advisor photo → cover
