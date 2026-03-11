@@ -44,6 +44,7 @@ export interface Publication {
     network_type: string;
     post_text_prompt: string | null;
     back_cover_video_url: string | null;
+    prompt_id: string | null;
   };
 }
 
