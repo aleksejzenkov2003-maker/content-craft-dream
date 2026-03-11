@@ -98,14 +98,14 @@ function escapeDrawtext(text: string): string {
 
 function buildDrawtextFilter(
   blocks: TimedBlock[],
-  fontSize = 36,
+  fontSize = 44,
   marginV = 160,
 ): string {
   if (blocks.length === 0) return 'null';
 
   const filters = blocks.map((b) => {
     const escapedText = escapeDrawtext(b.text);
-    return `drawtext=fontfile=${FONT_PATH}:text='${escapedText}':fontsize=${fontSize}:fontcolor=white:borderw=2:bordercolor=black:x=(w-text_w)/2:y=h-${marginV}-text_h:enable='between(t,${b.startSec.toFixed(3)},${b.endSec.toFixed(3)})'`;
+    return `drawtext=fontfile=${FONT_PATH}:text='${escapedText}':fontsize=${fontSize}:fontcolor=white:borderw=2:bordercolor=black:box=1:boxcolor=yellow@0.65:boxborderw=10:x=(w-text_w)/2:y=(h*0.55):enable='between(t,${b.startSec.toFixed(3)},${b.endSec.toFixed(3)})'`;
   });
 
   return filters.join(',');
