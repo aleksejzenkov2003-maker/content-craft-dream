@@ -582,21 +582,23 @@ export default function Index() {
     if (firstVideo.question_status !== 'in_progress' || !firstVideo.publication_date) return;
     
     // Step a) Generate voiceover (ElevenLabs) for videos without it
-    for (const video of questionVideos) {
-      if (!video.voiceover_url && video.voiceover_status !== 'generating' && video.advisor_answer) {
-        try {
-          toast.info(`Генерация озвучки для ролика ${video.video_number || video.id.slice(0, 6)}...`);
-          await supabase.from('videos').update({ voiceover_status: 'generating' }).eq('id', video.id);
-          fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/generate-voiceover-for-video`, {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
-            },
-            body: JSON.stringify({ videoId: video.id }),
-          }).catch(e => console.error('Auto voiceover error:', e));
-        } catch (e) {
-          console.error('Auto voiceover error:', e);
+    if (isEnabled('take_in_work', 'voiceover')) {
+      for (const video of questionVideos) {
+        if (!video.voiceover_url && video.voiceover_status !== 'generating' && video.advisor_answer) {
+          try {
+            toast.info(`Генерация озвучки для ролика ${video.video_number || video.id.slice(0, 6)}...`);
+            await supabase.from('videos').update({ voiceover_status: 'generating' }).eq('id', video.id);
+            fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/generate-voiceover-for-video`, {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
+              },
+              body: JSON.stringify({ videoId: video.id }),
+            }).catch(e => console.error('Auto voiceover error:', e));
+          } catch (e) {
+            console.error('Auto voiceover error:', e);
+          }
         }
       }
     }
