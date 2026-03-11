@@ -5,7 +5,7 @@ import { ChevronUp, ChevronDown, X } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 const widthClasses = {
-  xs: 'max-w-sm w-[340px]',
+  xs: 'max-w-sm w-[420px]',
   sm: 'max-w-md w-[480px]',
   md: 'max-w-2xl w-[640px]',
   lg: 'max-w-4xl w-[900px]',
