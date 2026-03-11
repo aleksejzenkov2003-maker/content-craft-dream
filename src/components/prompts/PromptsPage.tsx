@@ -424,6 +424,7 @@ export function PromptsPage() {
               <div className="space-y-1.5">
                 <Label className="text-xs">User template</Label>
                 <Textarea
+                  ref={userTemplateRef}
                   value={form.user_template}
                   onChange={(e) => setForm({ ...form, user_template: e.target.value })}
                   placeholder="Перепиши следующий контент:&#10;{{content}}"
