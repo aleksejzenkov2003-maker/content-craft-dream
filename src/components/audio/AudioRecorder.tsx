@@ -24,7 +24,7 @@ export function AudioRecorder({ onRecordingComplete, className = '' }: AudioReco
   const analyserRef = useRef<AnalyserNode | null>(null);
   const chunksRef = useRef<Blob[]>([]);
   const audioRef = useRef<HTMLAudioElement | null>(null);
-  const timerRef = useRef<NodeJS.Timeout | null>(null);
+  const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const animationRef = useRef<number | null>(null);
 
   useEffect(() => {
