@@ -377,7 +377,7 @@ export function VideosTable({
     );
   }
 
-  const COL_GRID = 'grid-cols-[40px_130px_80px_80px_80px_55px_40px_50px_40px_40px]';
+  const COL_GRID = 'grid-cols-[40px_130px_80px_80px_80px_55px_40px_50px_40px_70px_40px]';
 
   return (
     <div className="flex flex-col h-full">
@@ -535,6 +535,7 @@ export function VideosTable({
                     <div>🎬</div>
                     <div>🖼</div>
                     <div>🔊</div>
+                    <div>Видео</div>
                     <div></div>
                   </div>
 
@@ -654,6 +655,25 @@ export function VideosTable({
                             </Button>
                           ) : (
                             <span className="text-muted-foreground/30 text-xs flex items-center justify-center w-6 h-6">—</span>
+                          )}
+                        </div>
+
+                        {/* Видео button */}
+                        <div onClick={(e) => e.stopPropagation()}>
+                          {effectiveVideoStatus === 'generating' ? (
+                            <Button size="xs" variant="outline" disabled>
+                              <Loader2 className="w-3 h-3 animate-spin" />
+                            </Button>
+                          ) : (
+                            <Button
+                              size="xs"
+                              variant="generate-video"
+                              onClick={() => onGenerateVideo(video)}
+                              disabled={!video.voiceover_url}
+                              title={!video.voiceover_url ? 'Сначала создайте озвучку' : undefined}
+                            >
+                              Видео
+                            </Button>
                           )}
                         </div>
 
