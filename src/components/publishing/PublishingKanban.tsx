@@ -249,6 +249,7 @@ export function PublishingKanban() {
   const { publications, loading, updatePublication } = usePublications();
   const { channels, loading: channelsLoading } = usePublishingChannels();
   const [activeId, setActiveId] = useState<string | null>(null);
+  const [editingPubId, setEditingPubId] = useState<string | null>(null);
 
   const sensors = useSensors(
     useSensor(PointerSensor, {
