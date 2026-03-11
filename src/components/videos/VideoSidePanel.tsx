@@ -497,8 +497,8 @@ export function VideoSidePanel({
           {[
             { label: 'Аудио', url: video.voiceover_url },
             { label: 'Обложка', url: video.front_cover_url },
-            { label: 'Субтитры', url: video.video_path },
-            { label: 'Видео', url: videoUrl },
+            { label: 'HeyGen', url: video.heygen_video_url },
+            { label: 'Финальное', url: video.video_path },
           ].map(({ label, url }) => (
             <div key={label} className="flex items-center justify-between gap-2">
               <span className="text-muted-foreground shrink-0">{label}</span>
