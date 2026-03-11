@@ -190,11 +190,17 @@ async function composeCover(
   // Load Montserrat font
   let fonts: any[] = [];
   try {
-    const fontUrl = 'https://fonts.gstatic.com/s/montserrat/v29/JTUHjIg1_i6t8kCHKm4532VJOt5-QNFgpCuM73w5aXp-p7K4KLg.woff';
-    const fontData = await fetch(fontUrl).then(r => r.arrayBuffer());
+    const fontUrl = 'https://cdn.jsdelivr.net/fontsource/fonts/montserrat@latest/latin-900-normal.woff2';
+    const fontResp = await fetch(fontUrl, { redirect: 'follow' });
+    if (!fontResp.ok) throw new Error(`Font fetch failed: ${fontResp.status}`);
+    const contentType = fontResp.headers.get('content-type') || '';
+    if (contentType.includes('html')) throw new Error('Font URL returned HTML');
+    const fontData = await fontResp.arrayBuffer();
+    if (fontData.byteLength < 1000) throw new Error('Font data too small');
     fonts = [{ name: 'Montserrat', data: fontData, weight: 900, style: 'normal' }];
+    console.log(`Montserrat font loaded: ${fontData.byteLength} bytes`);
   } catch (e) {
-    console.warn('Failed to load Montserrat font, falling back to default');
+    console.warn('Failed to load Montserrat font, falling back to default:', e);
   }
 
   const response = new ImageResponse(element, {
