@@ -521,6 +521,7 @@ export function VideosTable({
                     <div></div>
                     <button onClick={() => handleSort('advisor')} className="flex items-center gap-1 hover:text-foreground">
                       Духовник {getSortIcon('advisor')}
+                    </button>
                     <button onClick={() => handleSort('cover_status')} className="flex items-center gap-1 hover:text-foreground">
                       Cover {getSortIcon('cover_status')}
                     </button>
