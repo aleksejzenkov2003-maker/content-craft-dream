@@ -16,7 +16,8 @@ import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
-import { Plus, Trash2, Pencil, Play, Loader2, FileText, X } from 'lucide-react';
+import { Plus, Trash2, Pencil, Play, Loader2, FileText, X, Check } from 'lucide-react';
+import { useRef } from 'react';
 import { DbPrompt, usePrompts } from '@/hooks/usePrompts';
 import { usePublishingChannels, PublishingChannel } from '@/hooks/usePublishingChannels';
 import { useAdvisors } from '@/hooks/useAdvisors';
@@ -77,6 +78,7 @@ export function PromptsPage() {
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingPrompt, setEditingPrompt] = useState<DbPrompt | null>(null);
   const [deleteId, setDeleteId] = useState<string | null>(null);
+  const [saveSuccess, setSaveSuccess] = useState(false);
 
   // Form state
   const [form, setForm] = useState({
@@ -92,6 +94,7 @@ export function PromptsPage() {
   const [testResult, setTestResult] = useState('');
   const [selectedAdvisorId, setSelectedAdvisorId] = useState('');
 
+  const userTemplateRef = useRef<HTMLTextAreaElement>(null);
   const isImageType = IMAGE_TYPES.includes(form.type);
   const currentModels = isImageType ? IMAGE_MODELS : TEXT_MODELS;
 
@@ -150,7 +153,13 @@ export function PromptsPage() {
         }
       }
 
-      setIsDialogOpen(false);
+      // Show success feedback
+      setSaveSuccess(true);
+      setTimeout(() => setSaveSuccess(false), 2000);
+      // If new prompt, switch to edit mode
+      if (!editingPrompt && promptId) {
+        setEditingPrompt({ ...form, id: promptId, created_at: new Date().toISOString(), is_active: true });
+      }
     } finally {
       setSaving(false);
     }
@@ -363,14 +372,10 @@ export function PromptsPage() {
                 </div>
               </div>
 
-              <div className="grid gap-3 sm:grid-cols-2">
+              <div className="grid gap-3 sm:grid-cols-1">
                 <div className="space-y-1.5">
                   <Label className="text-xs">Temperature: {form.temperature}</Label>
                   <Slider value={[form.temperature]} onValueChange={([v]) => setForm({ ...form, temperature: v })} min={0} max={2} step={0.1} />
-                </div>
-                <div className="space-y-1.5">
-                  <Label className="text-xs">Max tokens: {form.max_tokens}</Label>
-                  <Slider value={[form.max_tokens]} onValueChange={([v]) => setForm({ ...form, max_tokens: v })} min={500} max={8000} step={100} />
                 </div>
               </div>
 
@@ -392,7 +397,22 @@ export function PromptsPage() {
                     <Badge
                       key={v.name} variant="outline"
                       className="font-mono text-[10px] cursor-pointer hover:bg-muted"
-                      onClick={() => setForm({ ...form, user_template: form.user_template + v.name })}
+                      onClick={() => {
+                        const textarea = userTemplateRef.current;
+                        if (textarea) {
+                          const start = textarea.selectionStart ?? form.user_template.length;
+                          const end = textarea.selectionEnd ?? start;
+                          const newText = form.user_template.substring(0, start) + v.name + form.user_template.substring(end);
+                          setForm({ ...form, user_template: newText });
+                          // Restore cursor position after React re-render
+                          setTimeout(() => {
+                            textarea.focus();
+                            textarea.setSelectionRange(start + v.name.length, start + v.name.length);
+                          }, 0);
+                        } else {
+                          setForm({ ...form, user_template: form.user_template + v.name });
+                        }
+                      }}
                       title={v.desc}
                     >
                       {v.name}
@@ -404,6 +424,7 @@ export function PromptsPage() {
               <div className="space-y-1.5">
                 <Label className="text-xs">User template</Label>
                 <Textarea
+                  ref={userTemplateRef}
                   value={form.user_template}
                   onChange={(e) => setForm({ ...form, user_template: e.target.value })}
                   placeholder="Перепиши следующий контент:&#10;{{content}}"
@@ -461,11 +482,11 @@ export function PromptsPage() {
 
           <DialogFooter className="mt-4">
             <Button variant="outline" onClick={() => setIsDialogOpen(false)}>
-              Отмена
+              Закрыть
             </Button>
-            <Button onClick={handleSave} disabled={saving || !form.name.trim()}>
-              {saving && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
-              Сохранить
+            <Button onClick={handleSave} disabled={saving || !form.name.trim()} variant={saveSuccess ? 'outline' : 'default'} className={saveSuccess ? 'border-emerald-500 text-emerald-600' : ''}>
+              {saving ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : saveSuccess ? <Check className="h-4 w-4 mr-2" /> : null}
+              {saveSuccess ? 'Сохранено' : 'Сохранить'}
             </Button>
           </DialogFooter>
         </DialogContent>
