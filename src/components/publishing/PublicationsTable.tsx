@@ -107,10 +107,8 @@ function PublicationDurationCell({
   const [resolvedDuration, setResolvedDuration] = useState<number | null>(duration ?? null);
 
   useEffect(() => {
-    if (duration) {
-      setResolvedDuration(duration);
-    }
-  }, [duration]);
+    setResolvedDuration(duration ?? null);
+  }, [duration, videoUrl]);
 
   return (
     <>

@@ -228,6 +228,8 @@ export function VideoSidePanel({
   };
 
   if (!video) return null;
+
+  return (
     <UnifiedPanel
       open={open}
       onOpenChange={onOpenChange}
