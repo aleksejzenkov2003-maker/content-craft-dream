@@ -672,7 +672,7 @@ export function VideosTable({
                               variant="generate-cover"
                               onClick={() => onGenerateCover(video)}
                             >
-                              Обл.
+                              Обложка
                             </Button>
                           )}
                         </div>
