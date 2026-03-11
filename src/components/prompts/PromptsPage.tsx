@@ -364,14 +364,10 @@ export function PromptsPage() {
                 </div>
               </div>
 
-              <div className="grid gap-3 sm:grid-cols-2">
+              <div className="grid gap-3 sm:grid-cols-1">
                 <div className="space-y-1.5">
                   <Label className="text-xs">Temperature: {form.temperature}</Label>
                   <Slider value={[form.temperature]} onValueChange={([v]) => setForm({ ...form, temperature: v })} min={0} max={2} step={0.1} />
-                </div>
-                <div className="space-y-1.5">
-                  <Label className="text-xs">Max tokens: {form.max_tokens}</Label>
-                  <Slider value={[form.max_tokens]} onValueChange={([v]) => setForm({ ...form, max_tokens: v })} min={500} max={8000} step={100} />
                 </div>
               </div>
 
