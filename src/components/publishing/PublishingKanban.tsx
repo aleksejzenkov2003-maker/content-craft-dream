@@ -378,6 +378,7 @@ export function PublishingKanban() {
               publications={publicationsByStatus.get(status.id) || []}
               onPublish={handlePublish}
               onRetry={handleRetry}
+              onEdit={setEditingPubId}
             />
           ))}
         </div>
