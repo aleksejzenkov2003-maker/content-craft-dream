@@ -1,77 +1,57 @@
 
 
-## Plan: Button Actions & Automation Settings
+## Решение: бинарная MP4-конкатенация + нормализация аудио через ffmpeg.wasm
 
-### Overview
+### Что сделано
 
-Add a configurable automation system to the Settings page. Each button action in the app will have a list of sub-processes that can be toggled on/off. The config is stored in a new DB table and read at runtime to skip disabled steps.
+1. **`supabase/functions/concat-video/index.ts`** — полная перезапись:
+   - Бинарный MP4-парсер: разбор боксов (moov/trak/stbl/stsz/stco/stsc/stts/stss/ctts)
+   - Извлечение сэмплов из обоих файлов, сборка нового mdat
+   - Объединение sample tables, пересчёт оффсетов, обновление duration
+   - Сохранение логики получения свежих HeyGen URL
+   - Загрузка результата в Storage
 
-### Automation Buttons & Their Processes
+2. **`src/lib/videoNormalizer.ts`** — утилита нормализации аудио через ffmpeg.wasm:
+   - Загружает ffmpeg WASM при первом использовании
+   - Перекодирует аудио в AAC-LC 48kHz mono 128kbps: `-c:v copy -c:a aac -ar 48000 -ac 1 -b:a 128k`
+   - Видео-поток копируется без потерь
 
-Based on the codebase analysis, here are the 4 automation entry points:
+3. **`src/components/covers/BackCoversGrid.tsx`** — интеграция нормализации:
+   - При загрузке видео-обложки автоматически нормализует аудио через ffmpeg.wasm
+   - Показывает прогресс нормализации
+   - Загружает нормализованный файл в Storage
+   - Fallback на оригинал при ошибке
 
-```text
-┌─────────────────────────┬──────────────────┬─────────────────────────┬──────────────────────────────────────────────┐
-│ Button                  │ Section          │ Pre-check               │ Processes                                    │
-├─────────────────────────┼──────────────────┼─────────────────────────┼──────────────────────────────────────────────┤
-│ Взят в работу           │ Вопросы          │ —                       │ • Генерация аудио и субтитров                │
-│                         │                  │                         │ • Генерация фона для обложки                 │
-│                         │                  │                         │ • Склейка обложки с миниатюрой + заголовок   │
-│                         │                  │                         │ • Генерация видео в HeyGen                   │
-│                         │                  │                         │ • Уменьшение размера видео                   │
-│                         │                  │                         │ • Наложение субтитров на видео               │
-├─────────────────────────┼──────────────────┼─────────────────────────┼──────────────────────────────────────────────┤
-│ Генерация видео         │ Ролики           │ Проверка фона и обложки │ • Генерация видео в HeyGen                   │
-│                         │                  │                         │ • Уменьшение размера видео                   │
-│                         │                  │                         │ • Финальное видео с субтитрами               │
-├─────────────────────────┼──────────────────┼─────────────────────────┼──────────────────────────────────────────────┤
-│ Подготовка к публикации │ Ролики           │ Выбор Соцсетей          │ • Добавление задачи на публикацию            │
-│                         │                  │                         │ • Добавление задней обложки                  │
-│                         │                  │                         │ • Генерация текста описания                  │
-│                         │                  │                         │ • Публикация в соцсетях                      │
-├─────────────────────────┼──────────────────┼─────────────────────────┼──────────────────────────────────────────────┤
-│ Опубликовать            │ Публикации       │ Проверка текстов        │ • Публикация в соцсетях                      │
-└─────────────────────────┴──────────────────┴─────────────────────────┴──────────────────────────────────────────────┘
-```
+### Зависимости
+- `@ffmpeg/ffmpeg@0.12.10`
+- `@ffmpeg/util@0.12.1`
 
-### Changes
+---
 
-**1. Database: `automation_settings` table** (migration)
-```sql
-create table public.automation_settings (
-  id uuid primary key default gen_random_uuid(),
-  button_key text not null,        -- e.g. 'take_in_work', 'generate_video', 'prepare_publish', 'publish'
-  process_key text not null,       -- e.g. 'voiceover', 'atmosphere', 'overlay', 'heygen', 'resize', 'subtitles'
-  is_enabled boolean not null default true,
-  created_at timestamptz default now(),
-  unique(button_key, process_key)
-);
-```
-Seed with all button/process combinations, all enabled by default. No RLS needed (authenticated read/write).
+## Субтитры: ElevenLabs timestamps → SRT → FFmpeg
 
-**2. `src/hooks/useAutomationSettings.ts`** (new)
-- Fetches all rows from `automation_settings`
-- Provides `isEnabled(buttonKey, processKey): boolean`
-- Provides `toggle(buttonKey, processKey, enabled)` to update DB
-- Caches in React Query
+### Что сделано
 
-**3. `src/components/settings/ButtonActionsSettings.tsx`** (new)
-- Renders the table matching the screenshot: columns for Button, Section, Pre-check, Processes (checkboxes)
-- Each checkbox toggles via `useAutomationSettings().toggle()`
-- Collapsible section in SettingsPage with anchor link "Управление действиями кнопок"
+1. **БД миграция** — добавлено поле `word_timestamps jsonb` в таблицу `videos`
 
-**4. `src/components/settings/SettingsPage.tsx`**
-- Add collapsible sections with anchor links at the top: "Управление действиями кнопок" and "Подключения API"
-- Embed `ButtonActionsSettings` component
-- Wrap existing API cards in the second section
+2. **Edge Functions** — обновлены оба voiceover-генератора:
+   - `supabase/functions/generate-voiceover-for-video/index.ts` → endpoint `/with-timestamps`
+   - `supabase/functions/generate-voiceover/index.ts` → endpoint `/with-timestamps`
+   - Ответ содержит `audio_base64` + `alignment` (character-level timestamps)
+   - Функция `buildWordTimestamps()` собирает word-level timestamps из character-level
+   - Timestamps сохраняются в `videos.word_timestamps`
 
-**5. `src/pages/Index.tsx`** — use the hook
-- In `triggerAutoGeneration`: check `isEnabled('take_in_work', 'voiceover')`, `isEnabled('take_in_work', 'atmosphere')`, etc. before running each step
-- In `handleGenerateVideo`: check `isEnabled('generate_video', 'heygen')` etc.
-- In `handlePublishVideo`: check `isEnabled('prepare_publish', 'create_publication')`, `isEnabled('prepare_publish', 'concat')`, `isEnabled('prepare_publish', 'generate_text')`
+3. **`src/lib/srtGenerator.ts`** — генерация субтитров:
+   - `generateSrt()` — SRT формат (группировка по N слов)
+   - `generateAss()` — ASS формат (со стилями: шрифт, размер, цвет, обводка)
+   - `generateSrtBlocks()` — промежуточная структура
 
-**6. `src/components/publishing/PublicationsTable.tsx`**
-- In `handlePublish`: check `isEnabled('publish', 'publish_social')`
+4. **`src/lib/videoSubtitles.ts`** — вшивание субтитров через ffmpeg.wasm:
+   - `burnSubtitles(videoUrl, timestamps, options, onProgress)` → File
+   - Использует ASS-фильтр для стилизованных субтитров
+   - Видео перекодируется libx264 (preset fast, crf 23), аудио копируется
 
-This gives full control over which automated sub-processes fire when each button is clicked, matching the UI from the screenshots exactly.
-
+5. **UI** — кнопка «Добавить субтитры» в `VideoSidePanel`:
+   - Появляется когда есть `heygen_video_url` и `word_timestamps`
+   - Показывает прогресс через Progress bar
+   - Результат загружается в Storage и сохраняется в `video_path`

@@ -26,6 +26,7 @@ import { useVideoGeneration } from '@/hooks/useVideoGeneration';
 import { usePublications } from '@/hooks/usePublications';
 import { useVideoConcat } from '@/hooks/useVideoConcat';
 import { usePublishingChannels } from '@/hooks/usePublishingChannels';
+import { useAutomationSettings } from '@/hooks/useAutomationSettings';
 import { SettingsPage } from '@/components/settings/SettingsPage';
 import { Users, ListVideo, Video as VideoIcon, CheckCircle, Loader2, Send, HelpCircle } from 'lucide-react';
 import { toast } from 'sonner';
@@ -66,6 +67,7 @@ export default function Index() {
   const { publications, loading: publicationsLoading, addPublication, refetch: refetchPublications } = usePublications();
   const { channels: publishingChannels } = usePublishingChannels();
   const { concatVideos } = useVideoConcat();
+  const { isEnabled } = useAutomationSettings();
 
   // Preload FFmpeg only on videos tab and only when browser is idle
   useEffect(() => {
@@ -197,28 +199,31 @@ export default function Index() {
         return;
       }
 
+      let finalUrl = sourceUrl;
+
       // Phase 1: Bitrate reduction
-      updateProgress('reducing_bitrate', 5);
-      toast.info('Шаг 1/2: Уменьшение битрейта видео...');
-      const { reduceVideoBitrate } = await import('@/lib/videoNormalizer');
-      const reducedFile = await reduceVideoBitrate(sourceUrl, (pct) => {
-        updateProgress('reducing_bitrate', Math.round(5 + pct * 40));
-      });
+      if (isEnabled('generate_video', 'resize')) {
+        updateProgress('reducing_bitrate', 5);
+        toast.info('Шаг 1/2: Уменьшение битрейта видео...');
+        const { reduceVideoBitrate } = await import('@/lib/videoNormalizer');
+        const reducedFile = await reduceVideoBitrate(sourceUrl, (pct) => {
+          updateProgress('reducing_bitrate', Math.round(5 + pct * 40));
+        });
 
-      // Upload reduced video
-      updateProgress('reducing_bitrate', 45);
-      const reducedFileName = `videos/${videoId}_reduced_${Date.now()}.mp4`;
-      const { error: uploadErr } = await supabase.storage
-        .from('media-files')
-        .upload(reducedFileName, reducedFile, { contentType: 'video/mp4', upsert: true });
-      if (uploadErr) throw uploadErr;
+        updateProgress('reducing_bitrate', 45);
+        const reducedFileName = `videos/${videoId}_reduced_${Date.now()}.mp4`;
+        const { error: uploadErr } = await supabase.storage
+          .from('media-files')
+          .upload(reducedFileName, reducedFile, { contentType: 'video/mp4', upsert: true });
+        if (uploadErr) throw uploadErr;
 
-      const { data: urlData } = supabase.storage.from('media-files').getPublicUrl(reducedFileName);
-      let finalUrl = urlData.publicUrl;
-      toast.success('✅ Шаг 1/2: Битрейт уменьшен!');
+        const { data: urlData } = supabase.storage.from('media-files').getPublicUrl(reducedFileName);
+        finalUrl = urlData.publicUrl;
+        toast.success('✅ Шаг 1/2: Битрейт уменьшен!');
+      }
 
       // Phase 2: Burn subtitles if word_timestamps exist
-      if (vid?.word_timestamps) {
+      if (isEnabled('generate_video', 'subtitles') && vid?.word_timestamps) {
         toast.info('Шаг 2/2: Начинаем вшивку субтитров...');
         try {
           const { burnSubtitlesBrowser } = await import('@/lib/videoSubtitles');
@@ -241,7 +246,7 @@ export default function Index() {
           console.error('Subtitle burn failed, using reduced video:', subErr);
           toast.warning('Не удалось вшить субтитры, используется видео без субтитров');
         }
-      } else {
+      } else if (!vid?.word_timestamps) {
         toast.success('✅ Постобработка завершена (субтитры не требуются)');
       }
 
@@ -262,7 +267,7 @@ export default function Index() {
         });
       }, 2000);
     }
-  }, [refetchVideos]);
+  }, [refetchVideos, isEnabled]);
 
   const pollVideoStatus = useCallback(async (videoId: string) => {
     try {
@@ -517,29 +522,32 @@ export default function Index() {
       toast.success(`Добавлено ${newChannelIds.length} публикаций`);
 
       // Fire-and-forget text generation — no per-item toasts
-      for (const pub of (inserted || [])) {
-        supabase.functions.invoke('generate-post-text', {
-          body: { publicationId: pub.id },
-        }).catch(console.error);
+      if (isEnabled('prepare_publish', 'generate_text')) {
+        for (const pub of (inserted || [])) {
+          supabase.functions.invoke('generate-post-text', {
+            body: { publicationId: pub.id },
+          }).catch(console.error);
+        }
       }
 
       // Auto-concat for channels with back covers if video is ready
-      // Fetch fresh video data to check for video URL
-      const { data: freshVideo } = await supabase
-        .from('videos')
-        .select('heygen_video_url, video_path')
-        .eq('id', video.id)
-        .single();
-      
-      const videoUrl = freshVideo?.video_path || freshVideo?.heygen_video_url;
-      if (videoUrl) {
-        for (const pub of (inserted || [])) {
-          if (channelsWithBackCover.has(pub.channel_id)) {
-            const backCoverUrl = channelDetails?.find(c => c.id === pub.channel_id)?.back_cover_video_url;
-            if (backCoverUrl) {
-              concatVideos(pub.id, videoUrl, backCoverUrl).then(() => {
-                refetchPublications();
-              }).catch(console.error);
+      if (isEnabled('prepare_publish', 'concat')) {
+        const { data: freshVideo } = await supabase
+          .from('videos')
+          .select('heygen_video_url, video_path')
+          .eq('id', video.id)
+          .single();
+        
+        const videoUrl = freshVideo?.video_path || freshVideo?.heygen_video_url;
+        if (videoUrl) {
+          for (const pub of (inserted || [])) {
+            if (channelsWithBackCover.has(pub.channel_id)) {
+              const backCoverUrl = channelDetails?.find(c => c.id === pub.channel_id)?.back_cover_video_url;
+              if (backCoverUrl) {
+                concatVideos(pub.id, videoUrl, backCoverUrl).then(() => {
+                  refetchPublications();
+                }).catch(console.error);
+              }
             }
           }
         }
@@ -580,61 +588,67 @@ export default function Index() {
     if (firstVideo.question_status !== 'in_progress' || !firstVideo.publication_date) return;
     
     // Step a) Generate voiceover (ElevenLabs) for videos without it
-    for (const video of questionVideos) {
-      if (!video.voiceover_url && video.voiceover_status !== 'generating' && video.advisor_answer) {
-        try {
-          toast.info(`Генерация озвучки для ролика ${video.video_number || video.id.slice(0, 6)}...`);
-          await supabase.from('videos').update({ voiceover_status: 'generating' }).eq('id', video.id);
-          fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/generate-voiceover-for-video`, {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
-            },
-            body: JSON.stringify({ videoId: video.id }),
-          }).catch(e => console.error('Auto voiceover error:', e));
-        } catch (e) {
-          console.error('Auto voiceover error:', e);
+    if (isEnabled('take_in_work', 'voiceover')) {
+      for (const video of questionVideos) {
+        if (!video.voiceover_url && video.voiceover_status !== 'generating' && video.advisor_answer) {
+          try {
+            toast.info(`Генерация озвучки для ролика ${video.video_number || video.id.slice(0, 6)}...`);
+            await supabase.from('videos').update({ voiceover_status: 'generating' }).eq('id', video.id);
+            fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/generate-voiceover-for-video`, {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
+              },
+              body: JSON.stringify({ videoId: video.id }),
+            }).catch(e => console.error('Auto voiceover error:', e));
+          } catch (e) {
+            console.error('Auto voiceover error:', e);
+          }
         }
       }
     }
     
     // Step b) Generate atmosphere background (Kie.ai / Nano Banana) for videos without it
-    for (const video of questionVideos) {
-      if (!video.atmosphere_url && video.cover_status !== 'generating') {
-        try {
+    if (isEnabled('take_in_work', 'atmosphere')) {
+      for (const video of questionVideos) {
+        if (!video.atmosphere_url && video.cover_status !== 'generating') {
+          try {
+            fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/generate-cover`, {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
+              },
+              body: JSON.stringify({ videoId: video.id, step: 'atmosphere' }),
+            }).then(async () => {
+              // Step c) After atmosphere, generate cover overlay (Image Magic)
+              if (isEnabled('take_in_work', 'cover_overlay')) {
+                await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/generate-cover`, {
+                  method: 'POST',
+                  headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
+                  },
+                  body: JSON.stringify({ videoId: video.id, step: 'overlay' }),
+                });
+              }
+              refetchVideos();
+            }).catch(e => console.error('Auto atmosphere/cover error:', e));
+          } catch (e) {
+            console.error('Auto atmosphere error:', e);
+          }
+        } else if (video.atmosphere_url && video.cover_status !== 'ready' && video.cover_status !== 'generating' && isEnabled('take_in_work', 'cover_overlay')) {
+          // Has atmosphere but no cover overlay yet
           fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/generate-cover`, {
             method: 'POST',
             headers: {
               'Content-Type': 'application/json',
               'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
             },
-            body: JSON.stringify({ videoId: video.id, step: 'atmosphere' }),
-          }).then(async () => {
-            // Step c) After atmosphere, generate cover overlay (Image Magic)
-            await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/generate-cover`, {
-              method: 'POST',
-              headers: {
-                'Content-Type': 'application/json',
-                'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
-              },
-              body: JSON.stringify({ videoId: video.id, step: 'overlay' }),
-            });
-            refetchVideos();
-          }).catch(e => console.error('Auto atmosphere/cover error:', e));
-        } catch (e) {
-          console.error('Auto atmosphere error:', e);
+            body: JSON.stringify({ videoId: video.id, step: 'overlay' }),
+          }).catch(e => console.error('Auto cover error:', e));
         }
-      } else if (video.atmosphere_url && video.cover_status !== 'ready' && video.cover_status !== 'generating') {
-        // Has atmosphere but no cover overlay yet
-        fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/generate-cover`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
-          },
-          body: JSON.stringify({ videoId: video.id, step: 'overlay' }),
-        }).catch(e => console.error('Auto cover error:', e));
       }
     }
     
