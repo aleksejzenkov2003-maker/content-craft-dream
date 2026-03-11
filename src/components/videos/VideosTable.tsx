@@ -623,8 +623,8 @@ export function VideosTable({
                           {coverUrl ? (
                             <Popover>
                               <PopoverTrigger asChild>
-                                <button className="w-8 h-8 rounded border border-border/50 overflow-hidden hover:border-primary/50 transition-colors">
-                                  <img src={coverUrl} alt="Cover" className="w-full h-full object-cover" />
+                                 <button className="w-10 h-10 rounded border border-border/50 overflow-hidden hover:border-primary/50 transition-colors">
+                                   <img src={coverUrl} alt="Cover" className="w-full h-full object-cover" />
                                 </button>
                               </PopoverTrigger>
                               <PopoverContent className="w-48 p-2" side="top">
