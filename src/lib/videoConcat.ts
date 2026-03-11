@@ -76,8 +76,8 @@ export async function concatVideosClient(
     signal?.throwIfAborted();
     onProgress?.({ phase: 'concatenating', progress: 52 });
 
-    // First try concat with both audio streams
-    let execResult = await ff.exec([
+    // First try concat with both audio streams (fast path — no re-scale)
+    await ff.exec([
       '-i', mainName,
       '-i', backName,
       '-filter_complex', '[0:v][0:a][1:v][1:a]concat=n=2:v=1:a=1[v][a]',
@@ -101,52 +101,15 @@ export async function concatVideosClient(
       outputData = null;
     }
 
-    // If output is empty or tiny (<10KB), retry with silent audio fallback
+    // If output is empty or tiny (<10KB), retry video-only concat (no scale, no audio — fast)
     if (!outputData || outputData.length < 10000) {
-      console.warn('Concat with audio failed or produced empty file, retrying with silent audio fallback...');
-      
-      // Clean up failed output
-      await ff.deleteFile(outputName).catch(() => undefined);
-
-      // Generate a silent audio track and concat video-only, then add silent audio
-      await ff.exec([
-        '-i', mainName,
-        '-i', backName,
-        '-filter_complex',
-        '[0:v]scale=1080:1920:force_original_aspect_ratio=decrease,pad=1080:1920:(ow-iw)/2:(oh-ih)/2,setsar=1[v0];' +
-        '[1:v]scale=1080:1920:force_original_aspect_ratio=decrease,pad=1080:1920:(ow-iw)/2:(oh-ih)/2,setsar=1[v1];' +
-        '[v0][v1]concat=n=2:v=1:a=0[v];' +
-        'anullsrc=r=48000:cl=stereo[silence]',
-        '-map', '[v]',
-        '-map', '[silence]',
-        '-c:v', 'libx264',
-        '-preset', 'fast',
-        '-crf', '23',
-        '-c:a', 'aac',
-        '-shortest',
-        '-y', outputName,
-      ]);
-
-      try {
-        const raw = await ff.readFile(outputName);
-        outputData = raw instanceof Uint8Array ? raw : new TextEncoder().encode(raw as string);
-      } catch {
-        outputData = null;
-      }
-    }
-
-    // Still empty? Try simplest possible approach - video only
-    if (!outputData || outputData.length < 10000) {
-      console.warn('Silent audio fallback also failed, trying video-only concat...');
+      console.warn('Concat with audio failed, retrying video-only (no scale)...');
       await ff.deleteFile(outputName).catch(() => undefined);
 
       await ff.exec([
         '-i', mainName,
         '-i', backName,
-        '-filter_complex',
-        '[0:v]scale=1080:1920:force_original_aspect_ratio=decrease,pad=1080:1920:(ow-iw)/2:(oh-ih)/2,setsar=1[v0];' +
-        '[1:v]scale=1080:1920:force_original_aspect_ratio=decrease,pad=1080:1920:(ow-iw)/2:(oh-ih)/2,setsar=1[v1];' +
-        '[v0][v1]concat=n=2:v=1:a=0[v]',
+        '-filter_complex', '[0:v][1:v]concat=n=2:v=1:a=0[v]',
         '-map', '[v]',
         '-c:v', 'libx264',
         '-preset', 'fast',
