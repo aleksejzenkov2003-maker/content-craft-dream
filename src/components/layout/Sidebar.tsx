@@ -40,10 +40,6 @@ const navItems: NavItem[] = [{
   icon: ListVideo,
   badgeKey: 'playlists'
 }, {
-  id: 'automation',
-  label: 'Автоматизация',
-  icon: Zap
-}, {
   id: 'channels',
   label: 'Каналы',
   icon: Globe
