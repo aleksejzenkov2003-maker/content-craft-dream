@@ -164,7 +164,17 @@ export function VideoSidePanel({
   const videoStatus = resolveAssetStatus(video.video_path || video.heygen_video_url, video.generation_status);
 
   const videoUrl = video.video_path || video.heygen_video_url;
-  const durationFormatted = video.video_duration ? `${Math.floor(video.video_duration / 60)}:${String(video.video_duration % 60).padStart(2, '0')}` : '—';
+  const effectiveDuration = video.video_duration || detectedDuration;
+  const durationFormatted = effectiveDuration ? `${Math.floor(effectiveDuration / 60)}:${String(Math.round(effectiveDuration % 60)).padStart(2, '0')}` : '—';
+
+  const handleVideoLoadedMetadata = (e: React.SyntheticEvent<HTMLVideoElement>) => {
+    const dur = e.currentTarget.duration;
+    if (dur && isFinite(dur) && !video.video_duration) {
+      setDetectedDuration(dur);
+      // Save to DB silently
+      supabase.from('videos').update({ video_duration: Math.round(dur) }).eq('id', video.id).then();
+    }
+  };
 
   return (
     <UnifiedPanel
