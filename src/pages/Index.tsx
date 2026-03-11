@@ -199,28 +199,31 @@ export default function Index() {
         return;
       }
 
+      let finalUrl = sourceUrl;
+
       // Phase 1: Bitrate reduction
-      updateProgress('reducing_bitrate', 5);
-      toast.info('Шаг 1/2: Уменьшение битрейта видео...');
-      const { reduceVideoBitrate } = await import('@/lib/videoNormalizer');
-      const reducedFile = await reduceVideoBitrate(sourceUrl, (pct) => {
-        updateProgress('reducing_bitrate', Math.round(5 + pct * 40));
-      });
+      if (isEnabled('generate_video', 'resize')) {
+        updateProgress('reducing_bitrate', 5);
+        toast.info('Шаг 1/2: Уменьшение битрейта видео...');
+        const { reduceVideoBitrate } = await import('@/lib/videoNormalizer');
+        const reducedFile = await reduceVideoBitrate(sourceUrl, (pct) => {
+          updateProgress('reducing_bitrate', Math.round(5 + pct * 40));
+        });
 
-      // Upload reduced video
-      updateProgress('reducing_bitrate', 45);
-      const reducedFileName = `videos/${videoId}_reduced_${Date.now()}.mp4`;
-      const { error: uploadErr } = await supabase.storage
-        .from('media-files')
-        .upload(reducedFileName, reducedFile, { contentType: 'video/mp4', upsert: true });
-      if (uploadErr) throw uploadErr;
+        updateProgress('reducing_bitrate', 45);
+        const reducedFileName = `videos/${videoId}_reduced_${Date.now()}.mp4`;
+        const { error: uploadErr } = await supabase.storage
+          .from('media-files')
+          .upload(reducedFileName, reducedFile, { contentType: 'video/mp4', upsert: true });
+        if (uploadErr) throw uploadErr;
 
-      const { data: urlData } = supabase.storage.from('media-files').getPublicUrl(reducedFileName);
-      let finalUrl = urlData.publicUrl;
-      toast.success('✅ Шаг 1/2: Битрейт уменьшен!');
+        const { data: urlData } = supabase.storage.from('media-files').getPublicUrl(reducedFileName);
+        finalUrl = urlData.publicUrl;
+        toast.success('✅ Шаг 1/2: Битрейт уменьшен!');
+      }
 
       // Phase 2: Burn subtitles if word_timestamps exist
-      if (vid?.word_timestamps) {
+      if (isEnabled('generate_video', 'subtitles') && vid?.word_timestamps) {
         toast.info('Шаг 2/2: Начинаем вшивку субтитров...');
         try {
           const { burnSubtitlesBrowser } = await import('@/lib/videoSubtitles');
@@ -243,7 +246,7 @@ export default function Index() {
           console.error('Subtitle burn failed, using reduced video:', subErr);
           toast.warning('Не удалось вшить субтитры, используется видео без субтитров');
         }
-      } else {
+      } else if (!vid?.word_timestamps) {
         toast.success('✅ Постобработка завершена (субтитры не требуются)');
       }
 
