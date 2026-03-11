@@ -112,7 +112,7 @@ async function composeCover(
         height: '100%',
         display: 'flex',
         position: 'relative',
-        fontFamily: 'sans-serif',
+        fontFamily: 'Montserrat, sans-serif',
       },
     },
     // Background atmosphere image
@@ -137,46 +137,23 @@ async function composeCover(
         background: 'linear-gradient(to bottom, rgba(0,0,0,0.1) 0%, rgba(0,0,0,0.05) 30%, rgba(0,0,0,0.15) 60%, rgba(0,0,0,0.55) 100%)',
       },
     }),
-    // Advisor photo — absolute positioned top-left
+    // Advisor photo — no border, no name label
     advisorPhotoUrl
-      ? React.createElement(
-          'div',
-          {
-            style: {
-              position: 'absolute',
-              top: 100,
-              left: 100,
-              display: 'flex',
-              flexDirection: 'column',
-              zIndex: 10,
-            },
+      ? React.createElement('img', {
+          src: advisorPhotoUrl,
+          style: {
+            position: 'absolute',
+            top: 100,
+            left: 100,
+            width: 350,
+            height: 618,
+            borderRadius: 24,
+            objectFit: 'cover',
+            zIndex: 10,
           },
-          React.createElement('img', {
-            src: advisorPhotoUrl,
-            style: {
-              width: 350,
-              height: 618,
-              borderRadius: 24,
-              objectFit: 'cover',
-              border: '4px solid rgba(255,255,255,0.8)',
-            },
-          }),
-          React.createElement(
-            'div',
-            {
-              style: {
-                color: 'white',
-                fontSize: 32,
-                fontWeight: 600,
-                marginTop: 12,
-                paddingLeft: 8,
-              },
-            },
-            advisorName
-          )
-        )
+        })
       : null,
-    // Hook text — absolute positioned
+    // Hook text — large, centered, with text stroke effect
     React.createElement(
       'div',
       {
@@ -187,20 +164,22 @@ async function composeCover(
           width: '100%',
           display: 'flex',
           justifyContent: 'center',
-          padding: '0 60px',
+          padding: '0 50px',
           zIndex: 10,
         },
       },
+      // Shadow layer for stroke effect
       React.createElement(
         'div',
         {
           style: {
             color: 'white',
-            fontSize: hookText.length > 80 ? 48 : hookText.length > 40 ? 56 : 64,
-            fontWeight: 800,
+            fontSize: hookText.length > 80 ? 64 : hookText.length > 40 ? 72 : 80,
+            fontWeight: 900,
             textAlign: 'center',
-            lineHeight: 1.3,
+            lineHeight: 1.25,
             maxWidth: '100%',
+            textShadow: '0 0 8px rgba(0,0,0,0.9), 0 0 16px rgba(0,0,0,0.7), 2px 2px 0 rgba(0,0,0,0.8), -2px -2px 0 rgba(0,0,0,0.8), 2px -2px 0 rgba(0,0,0,0.8), -2px 2px 0 rgba(0,0,0,0.8)',
           },
         },
         hookText
@@ -208,9 +187,20 @@ async function composeCover(
     )
   );
 
+  // Load Montserrat font
+  let fonts: any[] = [];
+  try {
+    const fontUrl = 'https://fonts.gstatic.com/s/montserrat/v29/JTUHjIg1_i6t8kCHKm4532VJOt5-QNFgpCuM73w5aXp-p7K4KLg.woff';
+    const fontData = await fetch(fontUrl).then(r => r.arrayBuffer());
+    fonts = [{ name: 'Montserrat', data: fontData, weight: 900, style: 'normal' }];
+  } catch (e) {
+    console.warn('Failed to load Montserrat font, falling back to default');
+  }
+
   const response = new ImageResponse(element, {
     width: WIDTH,
     height: HEIGHT,
+    fonts: fonts.length > 0 ? fonts : undefined,
   });
 
   return response.arrayBuffer();
