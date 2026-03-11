@@ -45,6 +45,7 @@ interface VideoSidePanelProps {
   isGenerating: boolean;
   onPrev?: () => void;
   onNext?: () => void;
+  autoSubtitleProgress?: { phase: string; progress: number } | null;
 }
 
 /* Status resolution for asset badges */
