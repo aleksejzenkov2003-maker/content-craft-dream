@@ -535,6 +535,7 @@ export function VideosTable({
                     <div>🎬</div>
                     <div>🖼</div>
                     <div>🔊</div>
+                    <div>Видео</div>
                     <div></div>
                   </div>
 
