@@ -21,7 +21,11 @@ interface ButtonConfig {
 const BUTTONS: ButtonConfig[] = [
   { key: 'take_in_work', label: 'Взят в работу', section: 'Вопросы', precheck: '—' },
   { key: 'generate_video', label: 'Генерация видео', section: 'Ролики', precheck: 'Проверка фона и обложки' },
+  { key: 'side_cover', label: 'Шаг 2. Обложка', section: 'Панель ролика', precheck: 'Проверка фона' },
+  { key: 'side_video', label: 'Шаг 3. Видео', section: 'Панель ролика', precheck: 'Наличие озвучки' },
   { key: 'prepare_publish', label: 'Подготовка к публикации', section: 'Ролики', precheck: 'Выбор Соцсетей' },
+  { key: 'bulk_generate_covers', label: 'Массовая генерация обложек', section: 'Ролики', precheck: '—' },
+  { key: 'bulk_publish', label: 'Массовая публикация', section: 'Ролики', precheck: 'Плановая дата' },
   { key: 'publish', label: 'Опубликовать', section: 'Публикации', precheck: 'Проверка текстов' },
 ];
 
