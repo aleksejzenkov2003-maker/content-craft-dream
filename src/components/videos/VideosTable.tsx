@@ -377,7 +377,7 @@ export function VideosTable({
     );
   }
 
-  const COL_GRID = 'grid-cols-[40px_120px_70px_70px_70px_50px_40px_44px_40px_62px_56px_62px_36px]';
+  const COL_GRID = 'grid-cols-[40px_140px_80px_80px_80px_56px_44px_48px_44px_80px_60px_66px_36px]';
 
   return (
     <div className="flex flex-col h-full">
@@ -591,7 +591,7 @@ export function VideosTable({
 
                         {/* Duration */}
                         <div className="text-xs text-muted-foreground">
-                          {video.video_duration ? `${video.video_duration}s` : '—'}
+                          {video.video_duration ? `${Math.floor(video.video_duration / 60)}:${String(Math.round(video.video_duration % 60)).padStart(2, '0')}` : '—'}
                         </div>
 
 
@@ -672,7 +672,7 @@ export function VideosTable({
                               variant="generate-cover"
                               onClick={() => onGenerateCover(video)}
                             >
-                              Обл.
+                              Обложка
                             </Button>
                           )}
                         </div>
