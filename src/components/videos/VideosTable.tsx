@@ -598,23 +598,24 @@ export function VideosTable({
                         {/* Video preview */}
                         <div onClick={(e) => e.stopPropagation()}>
                           {(video.video_path || video.heygen_video_url) ? (
-                            <Popover>
-                              <PopoverTrigger asChild>
+                            <Dialog>
+                              <DialogTrigger asChild>
                                  <Button size="icon-xs" variant="ghost" title="Смотреть видео">
                                    <VideoIcon className="w-4 h-4" />
                                 </Button>
-                              </PopoverTrigger>
-                              <PopoverContent className="w-80 p-2" side="top">
+                              </DialogTrigger>
+                              <DialogContent className="max-w-sm p-2 bg-black border-none [&>button]:text-white">
                                 <video
                                   src={video.video_path || video.heygen_video_url!}
                                   controls
+                                  autoPlay
                                   playsInline
                                   preload="metadata"
                                   className="w-full rounded-md"
                                   poster={video.front_cover_url || undefined}
                                 />
-                              </PopoverContent>
-                            </Popover>
+                              </DialogContent>
+                            </Dialog>
                           ) : (
                             <span className="text-muted-foreground/40 text-xs">—</span>
                           )}
