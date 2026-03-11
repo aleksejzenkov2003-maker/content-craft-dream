@@ -197,6 +197,7 @@ interface StatusColumnProps {
   publications: Publication[];
   onPublish: (id: string) => void;
   onRetry: (id: string) => void;
+  onEdit: (id: string) => void;
 }
 
 function StatusColumn({ status, publications, onPublish, onRetry }: StatusColumnProps) {
