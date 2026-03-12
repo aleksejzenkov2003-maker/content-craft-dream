@@ -107,17 +107,19 @@ async function handleImagePromptKie(userMessage: string) {
   const kieApiKey = Deno.env.get('KIE_API_KEY');
   if (!kieApiKey) throw new Error('KIE_API_KEY is not configured');
 
-  // Create task
-  const createRes = await fetch('https://api.kie.ai/api/v1/task/create/image', {
+  const createRes = await fetch('https://api.kie.ai/api/v1/jobs/createTask', {
     method: 'POST',
     headers: {
       'Authorization': `Bearer ${kieApiKey}`,
       'Content-Type': 'application/json',
     },
     body: JSON.stringify({
-      prompt: userMessage,
-      model: 'google/nano-banana',
-      aspectRatio: '9:16',
+      model: 'nano-banana-pro',
+      input: {
+        prompt: userMessage,
+        aspect_ratio: '9:16',
+        output_format: 'png',
+      },
     })
   });
 
@@ -127,24 +129,41 @@ async function handleImagePromptKie(userMessage: string) {
   }
 
   const createData = await createRes.json();
-  const taskId = createData.data?.id;
-  if (!taskId) throw new Error('No task ID from Kie.ai');
+  const taskId = createData.data?.taskId;
+  if (!taskId) throw new Error('No task ID from Kie.ai: ' + JSON.stringify(createData));
 
   // Poll for result
-  for (let i = 0; i < 30; i++) {
+  for (let i = 0; i < 60; i++) {
     await new Promise(r => setTimeout(r, 3000));
-    const statusRes = await fetch(`https://api.kie.ai/api/v1/task/${taskId}`, {
+    const statusRes = await fetch(`https://api.kie.ai/api/v1/jobs/recordInfo?taskId=${taskId}`, {
       headers: { 'Authorization': `Bearer ${kieApiKey}` }
     });
+    if (!statusRes.ok) continue;
     const statusData = await statusRes.json();
+    const state = statusData.data?.state;
     const status = statusData.data?.status;
-    
-    if (status === 'completed') {
-      const imageUrl = statusData.data?.output?.image_url;
+
+    if (state === 'success' || status === 'SUCCESS' || status === 'completed') {
+      if (statusData.data?.resultJson) {
+        try {
+          const parsed = typeof statusData.data.resultJson === 'string'
+            ? JSON.parse(statusData.data.resultJson)
+            : statusData.data.resultJson;
+          if (parsed.resultUrls?.length > 0) return { result: parsed.resultUrls[0] };
+        } catch {}
+      }
+      const imageUrl = statusData.data?.output?.imageUrl || statusData.data?.output?.image_url;
       if (imageUrl) return { result: imageUrl };
-      throw new Error('No image URL in Kie.ai result');
+      const output = statusData.data?.output || statusData.data?.response;
+      if (output) {
+        const urls = Object.values(output).filter((v): v is string => typeof v === 'string' && v.startsWith('http'));
+        if (urls.length > 0) return { result: urls[0] };
+      }
+      throw new Error('No image URL in Kie.ai result: ' + JSON.stringify(statusData.data));
     }
-    if (status === 'failed') throw new Error('Kie.ai task failed');
+    if (state === 'fail' || status === 'FAILED' || status === 'failed') {
+      throw new Error('Kie.ai task failed: ' + (statusData.data?.failMsg || JSON.stringify(statusData.data)));
+    }
   }
   throw new Error('Kie.ai task timed out');
 }
