@@ -1,57 +1,23 @@
 
 
-## Решение: бинарная MP4-конкатенация + нормализация аудио через ffmpeg.wasm
+## Два исправления
 
-### Что сделано
+### 1. Фото духовника не обновляются в карточке
 
-1. **`supabase/functions/concat-video/index.ts`** — полная перезапись:
-   - Бинарный MP4-парсер: разбор боксов (moov/trak/stbl/stsz/stco/stsc/stts/stss/ctts)
-   - Извлечение сэмплов из обоих файлов, сборка нового mdat
-   - Объединение sample tables, пересчёт оффсетов, обновление duration
-   - Сохранение логики получения свежих HeyGen URL
-   - Загрузка результата в Storage
+**Причина**: В `AdvisorsGrid.tsx` превью «Основное фото» и «Миниатюра» (строки 241, 255) используют `getScenePhoto(selectedAdvisorLive!)` — объект из БД. Когда пользователь меняет фото в дропдауне (строки 320, 333), обновляется `editFormData`, но `selectedAdvisorLive` остаётся со старыми значениями `scene_photo_id` / `thumbnail_photo_id`. Превью не меняется до нажатия «Сохранить».
 
-2. **`src/lib/videoNormalizer.ts`** — утилита нормализации аудио через ffmpeg.wasm:
-   - Загружает ffmpeg WASM при первом использовании
-   - Перекодирует аудио в AAC-LC 48kHz mono 128kbps: `-c:v copy -c:a aac -ar 48000 -ac 1 -b:a 128k`
-   - Видео-поток копируется без потерь
+**Исправление**: Заменить `selectedAdvisorLive!` на `selectedAdvisor` (который уже содержит merged данные из `editFormData`) в вызовах `getScenePhoto` и `getThumbnailPhoto` для превью-блоков (строки 241-242 и 255-257).
 
-3. **`src/components/covers/BackCoversGrid.tsx`** — интеграция нормализации:
-   - При загрузке видео-обложки автоматически нормализует аудио через ffmpeg.wasm
-   - Показывает прогресс нормализации
-   - Загружает нормализованный файл в Storage
-   - Fallback на оригинал при ошибке
+### 2. Первоначальный размер видео в карточке генерации
 
-### Зависимости
-- `@ffmpeg/ffmpeg@0.12.10`
-- `@ffmpeg/util@0.12.1`
+**Причина**: Сейчас в «Мета» блоке показан только размер финального видео (`video_path` или `heygen_video_url`). Нет информации об оригинальном размере HeyGen-видео для сравнения.
 
----
+**Исправление** в `VideoSidePanel.tsx`:
+- Добавить `originalSizeBytes` state — размер `heygen_video_url` (оригинал до уменьшения битрейта)
+- Проводить probe размера `heygen_video_url` параллельно с текущим probe финального видео
+- В блоке «Мета» (строки 566-571) показать строку «Оригинал HeyGen» с размером и коэффициентом сжатия (например: `45.2 MB → 12.1 MB (×3.7)`)
 
-## Субтитры: ElevenLabs timestamps → SRT → FFmpeg
+### Файлы
+- `src/components/advisors/AdvisorsGrid.tsx` — 2 замены `selectedAdvisorLive!` → `selectedAdvisor`
+- `src/components/videos/VideoSidePanel.tsx` — новый state + probe + отображение в мета-блоке
 
-### Что сделано
-
-1. **БД миграция** — добавлено поле `word_timestamps jsonb` в таблицу `videos`
-
-2. **Edge Functions** — обновлены оба voiceover-генератора:
-   - `supabase/functions/generate-voiceover-for-video/index.ts` → endpoint `/with-timestamps`
-   - `supabase/functions/generate-voiceover/index.ts` → endpoint `/with-timestamps`
-   - Ответ содержит `audio_base64` + `alignment` (character-level timestamps)
-   - Функция `buildWordTimestamps()` собирает word-level timestamps из character-level
-   - Timestamps сохраняются в `videos.word_timestamps`
-
-3. **`src/lib/srtGenerator.ts`** — генерация субтитров:
-   - `generateSrt()` — SRT формат (группировка по N слов)
-   - `generateAss()` — ASS формат (со стилями: шрифт, размер, цвет, обводка)
-   - `generateSrtBlocks()` — промежуточная структура
-
-4. **`src/lib/videoSubtitles.ts`** — вшивание субтитров через ffmpeg.wasm:
-   - `burnSubtitles(videoUrl, timestamps, options, onProgress)` → File
-   - Использует ASS-фильтр для стилизованных субтитров
-   - Видео перекодируется libx264 (preset fast, crf 23), аудио копируется
-
-5. **UI** — кнопка «Добавить субтитры» в `VideoSidePanel`:
-   - Появляется когда есть `heygen_video_url` и `word_timestamps`
-   - Показывает прогресс через Progress bar
-   - Результат загружается в Storage и сохраняется в `video_path`
