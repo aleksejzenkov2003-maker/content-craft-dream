@@ -57,6 +57,7 @@ interface TimedBlock {
   startSec: number;
   endSec: number;
   text: string;
+  words?: Array<{ word: string; start: number; end: number }>;
 }
 
 function parseAssToBlocks(assContent: string): TimedBlock[] {
@@ -99,7 +100,7 @@ function escapeDrawtext(text: string): string {
 function buildDrawtextFilter(
   blocks: TimedBlock[],
   fontSize = 44,
-  marginV = 160,
+  _marginV = 160,
 ): string {
   if (blocks.length === 0) return 'null';
 
@@ -107,6 +108,59 @@ function buildDrawtextFilter(
     const escapedText = escapeDrawtext(b.text);
     return `drawtext=fontfile=${FONT_PATH}:text='${escapedText}':fontsize=${fontSize}:fontcolor=0xFFCC00:borderw=3:bordercolor=black:x=(w-text_w)/2:y=(h*0.55):enable='between(t,${b.startSec.toFixed(3)},${b.endSec.toFixed(3)})'`;
   });
+
+  return filters.join(',');
+}
+
+// ── Highlight (karaoke) drawtext filter ──
+
+function buildHighlightDrawtextFilter(
+  blocks: TimedBlock[],
+  fontSize = 44,
+): string {
+  if (blocks.length === 0) return 'null';
+
+  const charWidth = fontSize * 0.55; // approximate for Montserrat Bold
+  const filters: string[] = [];
+
+  for (const b of blocks) {
+    if (!b.words || b.words.length <= 1) {
+      // Fallback to simple yellow for single-word blocks or blocks without word data
+      const escapedText = escapeDrawtext(b.text);
+      filters.push(
+        `drawtext=fontfile=${FONT_PATH}:text='${escapedText}':fontsize=${fontSize}:fontcolor=0xFFCC00:borderw=3:bordercolor=black:x=(w-text_w)/2:y=(h*0.55):enable='between(t,${b.startSec.toFixed(3)},${b.endSec.toFixed(3)})'`
+      );
+      continue;
+    }
+
+    // Base layer: full text in white
+    const escapedFull = escapeDrawtext(b.text);
+    filters.push(
+      `drawtext=fontfile=${FONT_PATH}:text='${escapedFull}':fontsize=${fontSize}:fontcolor=white:borderw=3:bordercolor=black:x=(w-text_w)/2:y=(h*0.55):enable='between(t,${b.startSec.toFixed(3)},${b.endSec.toFixed(3)})'`
+    );
+
+    // Overlay layers: each word in yellow (highlight color) during its spoken time
+    // Calculate x-offset for each word relative to block center
+    const totalTextLen = b.text.length;
+    let charOffset = 0;
+
+    for (const w of b.words) {
+      const wordText = w.word;
+      const escapedWord = escapeDrawtext(wordText);
+      // x = center_of_block_start + word_offset
+      // center_of_block_start = (w - totalWidth) / 2
+      // word x = (w - totalWidth) / 2 + charOffset * charWidth
+      const totalWidthExpr = `${(totalTextLen * charWidth).toFixed(1)}`;
+      const offsetPx = (charOffset * charWidth).toFixed(1);
+      const xExpr = `(w-${totalWidthExpr})/2+${offsetPx}`;
+
+      filters.push(
+        `drawtext=fontfile=${FONT_PATH}:text='${escapedWord}':fontsize=${fontSize}:fontcolor=0xFFCC00:borderw=3:bordercolor=black:x=${xExpr}:y=(h*0.55):enable='between(t,${w.start.toFixed(3)},${w.end.toFixed(3)})'`
+      );
+
+      charOffset += wordText.length + 1; // +1 for space
+    }
+  }
 
   return filters.join(',');
 }
@@ -137,7 +191,7 @@ async function execWithLogs(
 
 export async function prepareSubtitlesServer(
   videoId: string,
-): Promise<{ videoUrl: string; assContent: string }> {
+): Promise<{ videoUrl: string; assContent: string; wordTimestamps?: WordTimestamp[] }> {
   const { data, error } = await supabase.functions.invoke('burn-subtitles', {
     body: { videoId },
   });
@@ -148,6 +202,7 @@ export async function prepareSubtitlesServer(
   return {
     videoUrl: data.videoUrl,
     assContent: data.assContent,
+    wordTimestamps: data.wordTimestamps,
   };
 }
 
@@ -157,16 +212,29 @@ export async function burnSubtitlesHybrid(
   videoId: string,
   onProgress?: (info: SubtitleProgressInfo) => void,
   signal?: AbortSignal,
+  highlight?: boolean,
 ): Promise<{ videoUrl: string }> {
   onProgress?.({ phase: 'server_processing', progress: 5 });
-  const { videoUrl, assContent } = await prepareSubtitlesServer(videoId);
+  const { videoUrl, assContent, wordTimestamps } = await prepareSubtitlesServer(videoId);
   onProgress?.({ phase: 'server_processing', progress: 10 });
 
   signal?.throwIfAborted();
 
-  const blocks = parseAssToBlocks(assContent);
+  // If highlight mode and we have word timestamps, use smart blocks with word data
+  let blocks: TimedBlock[];
+  if (highlight && wordTimestamps && wordTimestamps.length > 0) {
+    const smartBlocks = generateSmartBlocks(wordTimestamps);
+    blocks = smartBlocks.map(b => ({
+      startSec: b.startSec,
+      endSec: b.endSec,
+      text: b.text,
+      words: b.words,
+    }));
+  } else {
+    blocks = parseAssToBlocks(assContent);
+  }
   if (blocks.length === 0) throw new Error('No subtitle blocks found');
-  console.log(`[subtitles] Parsed ${blocks.length} subtitle blocks`);
+  console.log(`[subtitles] ${highlight ? 'Highlight' : 'Normal'} mode, ${blocks.length} blocks`);
 
   onProgress?.({ phase: 'loading_ffmpeg', progress: 12 });
   const ff = await getSharedFFmpeg(
@@ -204,8 +272,8 @@ export async function burnSubtitlesHybrid(
     await ff.writeFile(inputName, new Uint8Array(videoBuffer));
 
     // Build drawtext filter
-    const vf = buildDrawtextFilter(blocks);
-    console.log(`[subtitles] drawtext filter length: ${vf.length} chars`);
+    const vf = highlight ? buildHighlightDrawtextFilter(blocks) : buildDrawtextFilter(blocks);
+    console.log(`[subtitles] drawtext filter length: ${vf.length} chars, filters: ${vf.split(',drawtext=').length}`);
 
     onProgress?.({ phase: 'burning_subtitles', progress: 40 });
 
@@ -254,6 +322,7 @@ export async function burnSubtitlesBrowser(
   options: SubtitleOptions = {},
   onProgress?: (info: SubtitleProgressInfo) => void,
   signal?: AbortSignal,
+  highlight?: boolean,
 ): Promise<File> {
   if (!isBrowserFFmpegSupported()) {
     throw new Error('Браузер не поддерживает FFmpeg WASM');
@@ -291,6 +360,7 @@ export async function burnSubtitlesBrowser(
       startSec: b.startSec,
       endSec: b.endSec,
       text: b.text,
+      words: b.words,
     }));
 
     if (blocks.length === 0) throw new Error('No subtitle blocks generated');
@@ -308,11 +378,9 @@ export async function burnSubtitlesBrowser(
     await ff.writeFile(inputName, new Uint8Array(videoBuffer));
 
     // Build drawtext filter
-    const vf = buildDrawtextFilter(
-      blocks,
-      options.fontSize ?? 36,
-      options.marginV ?? 160,
-    );
+    const vf = highlight
+      ? buildHighlightDrawtextFilter(blocks, options.fontSize ?? 36)
+      : buildDrawtextFilter(blocks, options.fontSize ?? 36, options.marginV ?? 160);
 
     onProgress?.({ phase: 'burning_subtitles', progress: 40 });
 

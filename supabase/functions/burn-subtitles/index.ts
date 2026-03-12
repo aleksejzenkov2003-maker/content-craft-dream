@@ -139,6 +139,7 @@ Deno.serve(async (req) => {
         status: 'ready',
         videoUrl,
         assContent,
+        wordTimestamps: video.word_timestamps,
         videoId: video.id,
         timestampCount: video.word_timestamps.length,
       }),

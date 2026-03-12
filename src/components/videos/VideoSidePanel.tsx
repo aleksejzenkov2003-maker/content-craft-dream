@@ -72,6 +72,7 @@ export function VideoSidePanel({
   const [atmospherePromptText, setAtmospherePromptText] = useState('');
   const [subtitleProgress, setSubtitleProgress] = useState<{ phase: string; progress: number } | null>(null);
   const [subtitleAbort, setSubtitleAbort] = useState<AbortController | null>(null);
+  const [highlightMode, setHighlightMode] = useState(true);
   const [detectedDuration, setDetectedDuration] = useState<number | null>(null);
   const [videoSizeBytes, setVideoSizeBytes] = useState<number | null>(null);
 
@@ -448,6 +449,15 @@ export function VideoSidePanel({
         )}
         {video.word_timestamps && (video.reduced_video_url || video.heygen_video_url) && !autoSubtitleProgress && (
           <div className="space-y-1.5">
+            <div className="flex items-center gap-2 mb-1">
+              <Checkbox
+                id="highlight-mode"
+                checked={highlightMode}
+                onCheckedChange={(checked) => setHighlightMode(!!checked)}
+                disabled={subtitleProgress !== null}
+              />
+              <Label htmlFor="highlight-mode" className="text-[10px] cursor-pointer">Highlight (караоке)</Label>
+            </div>
             <div className="flex gap-1">
               <Button
                 size="xs"
@@ -472,6 +482,7 @@ export function VideoSidePanel({
                       { fontSize: 48 },
                       (info) => setSubtitleProgress({ phase: info.phase, progress: info.progress }),
                       ac.signal,
+                      highlightMode,
                     );
                     clearTimeout(watchdog);
                     setSubtitleProgress({ phase: 'uploading_result', progress: 95 });

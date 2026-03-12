@@ -1,57 +1,57 @@
 
 
-## Karaoke-highlight субтитры
+## Решение: бинарная MP4-конкатенация + нормализация аудио через ffmpeg.wasm
 
-### Текущее состояние
+### Что сделано
 
-Сейчас субтитры работают так:
-1. Сервер (`burn-subtitles`) получает `word_timestamps` и генерирует ASS
-2. Клиент парсит ASS обратно в блоки и строит `drawtext` фильтры (потому что ffmpeg.wasm не имеет `libass`)
-3. Каждый блок — один `drawtext` с полным текстом блока жёлтым цветом на весь период
+1. **`supabase/functions/concat-video/index.ts`** — полная перезапись:
+   - Бинарный MP4-парсер: разбор боксов (moov/trak/stbl/stsz/stco/stsc/stts/stss/ctts)
+   - Извлечение сэмплов из обоих файлов, сборка нового mdat
+   - Объединение sample tables, пересчёт оффсетов, обновление duration
+   - Сохранение логики получения свежих HeyGen URL
+   - Загрузка результата в Storage
 
-**Проблема**: нет подсветки отдельных слов (karaoke). Весь блок показывается целиком одним цветом.
+2. **`src/lib/videoNormalizer.ts`** — утилита нормализации аудио через ffmpeg.wasm:
+   - Загружает ffmpeg WASM при первом использовании
+   - Перекодирует аудио в AAC-LC 48kHz mono 128kbps: `-c:v copy -c:a aac -ar 48000 -ac 1 -b:a 128k`
+   - Видео-поток копируется без потерь
 
-### Что нужно сделать
+3. **`src/components/covers/BackCoversGrid.tsx`** — интеграция нормализации:
+   - При загрузке видео-обложки автоматически нормализует аудио через ffmpeg.wasm
+   - Показывает прогресс нормализации
+   - Загружает нормализованный файл в Storage
+   - Fallback на оригинал при ошибке
 
-Добавить **highlight-режим**: в каждом блоке активное (произносимое) слово — жёлтым, остальные — белым. Два слоя drawtext на каждый момент:
+### Зависимости
+- `@ffmpeg/ffmpeg@0.12.10`
+- `@ffmpeg/util@0.12.1`
 
-```text
-Блок "Добрый день друзья" (1.0–2.5с)
-Слово "Добрый"  (1.0–1.3с)
-Слово "день"    (1.3–1.7с)  
-Слово "друзья"  (1.7–2.5с)
+---
 
-drawtext фильтры:
-1) "Добрый день друзья" белым,  enable=between(t,1.0,2.5)      ← базовый слой
-2) "Добрый"            жёлтым, enable=between(t,1.0,1.3), x=...← поверх, со сдвигом
-3) "день"              жёлтым, enable=between(t,1.3,1.7), x=...
-4) "друзья"            жёлтым, enable=between(t,1.7,2.5), x=...
-```
+## Субтитры: ElevenLabs timestamps → SRT → FFmpeg
 
-X-позиция каждого слова рассчитывается через приближение: `charWidth ≈ fontSize × 0.55` для Montserrat Bold.
+### Что сделано
 
-### Изменения по файлам
+1. **БД миграция** — добавлено поле `word_timestamps jsonb` в таблицу `videos`
 
-**1. `src/lib/srtGenerator.ts`**
-- Расширить `SrtBlock` — добавить поле `words: WordTimestamp[]` (оригинальные тайминги слов внутри блока)
-- В `generateSmartBlocks` — сохранять массив слов для каждого блока
+2. **Edge Functions** — обновлены оба voiceover-генератора:
+   - `supabase/functions/generate-voiceover-for-video/index.ts` → endpoint `/with-timestamps`
+   - `supabase/functions/generate-voiceover/index.ts` → endpoint `/with-timestamps`
+   - Ответ содержит `audio_base64` + `alignment` (character-level timestamps)
+   - Функция `buildWordTimestamps()` собирает word-level timestamps из character-level
+   - Timestamps сохраняются в `videos.word_timestamps`
 
-**2. `src/lib/videoSubtitles.ts`**
-- Расширить `TimedBlock` — добавить `words: Array<{word, start, end}>`
-- Новая функция `buildHighlightDrawtextFilter(blocks, fontSize)`:
-  - Для каждого блока: 1 drawtext белый (весь текст), + N drawtext жёлтых (по одному на слово с рассчитанной x-позицией)
-- В `burnSubtitlesHybrid` — передавать `word_timestamps` с сервера и использовать highlight-фильтр вместо обычного
-- В `burnSubtitlesBrowser` — аналогично
+3. **`src/lib/srtGenerator.ts`** — генерация субтитров:
+   - `generateSrt()` — SRT формат (группировка по N слов)
+   - `generateAss()` — ASS формат (со стилями: шрифт, размер, цвет, обводка)
+   - `generateSrtBlocks()` — промежуточная структура
 
-**3. `supabase/functions/burn-subtitles/index.ts`**
-- Возвращать `wordTimestamps` в ответе (сырые тайминги из БД), чтобы клиент мог строить highlight-фильтр напрямую из слов, а не из ASS
+4. **`src/lib/videoSubtitles.ts`** — вшивание субтитров через ffmpeg.wasm:
+   - `burnSubtitles(videoUrl, timestamps, options, onProgress)` → File
+   - Использует ASS-фильтр для стилизованных субтитров
+   - Видео перекодируется libx264 (preset fast, crf 23), аудио копируется
 
-**4. `src/components/videos/VideoSidePanel.tsx`**
-- Добавить переключатель «Highlight» (чекбокс или toggle) рядом с кнопкой «Вшить субтитры»
-- Передавать `highlight: boolean` в `burnSubtitlesHybrid`
-
-### Ограничения
-
-- Позиционирование слов — приближённое (по количеству символов). Для Montserrat Bold при 44px это даёт достаточную точность для коротких блоков (до 24 символов)
-- Количество drawtext-фильтров вырастет примерно в 4 раза (было ~N блоков, станет ~N + N×avg_words). Для типичного 60-секундного видео (~80 блоков, ~240 слов) это ~320 drawtext — FFmpeg справится
-
+5. **UI** — кнопка «Добавить субтитры» в `VideoSidePanel`:
+   - Появляется когда есть `heygen_video_url` и `word_timestamps`
+   - Показывает прогресс через Progress bar
+   - Результат загружается в Storage и сохраняется в `video_path`
