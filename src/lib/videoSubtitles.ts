@@ -360,6 +360,7 @@ export async function burnSubtitlesBrowser(
       startSec: b.startSec,
       endSec: b.endSec,
       text: b.text,
+      words: b.words,
     }));
 
     if (blocks.length === 0) throw new Error('No subtitle blocks generated');
@@ -377,11 +378,9 @@ export async function burnSubtitlesBrowser(
     await ff.writeFile(inputName, new Uint8Array(videoBuffer));
 
     // Build drawtext filter
-    const vf = buildDrawtextFilter(
-      blocks,
-      options.fontSize ?? 36,
-      options.marginV ?? 160,
-    );
+    const vf = highlight
+      ? buildHighlightDrawtextFilter(blocks, options.fontSize ?? 36)
+      : buildDrawtextFilter(blocks, options.fontSize ?? 36, options.marginV ?? 160);
 
     onProgress?.({ phase: 'burning_subtitles', progress: 40 });
 

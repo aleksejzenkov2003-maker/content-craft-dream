@@ -449,6 +449,15 @@ export function VideoSidePanel({
         )}
         {video.word_timestamps && (video.reduced_video_url || video.heygen_video_url) && !autoSubtitleProgress && (
           <div className="space-y-1.5">
+            <div className="flex items-center gap-2 mb-1">
+              <Checkbox
+                id="highlight-mode"
+                checked={highlightMode}
+                onCheckedChange={(checked) => setHighlightMode(!!checked)}
+                disabled={subtitleProgress !== null}
+              />
+              <Label htmlFor="highlight-mode" className="text-[10px] cursor-pointer">Highlight (караоке)</Label>
+            </div>
             <div className="flex gap-1">
               <Button
                 size="xs"
