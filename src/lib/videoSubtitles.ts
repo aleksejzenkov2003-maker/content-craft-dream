@@ -155,7 +155,7 @@ function buildHighlightDrawtextFilter(
       const xExpr = `(w-${totalWidthExpr})/2+${offsetPx}`;
 
       filters.push(
-        `drawtext=fontfile=${FONT_PATH}:text='${escapedWord}':fontsize=${fontSize}:fontcolor=0xFFCC00:borderw=3:bordercolor=black:x=${xExpr}:y=(h*0.55):enable='between(t,${w.start.toFixed(3)},${w.end.toFixed(3)})'`
+        `drawtext=fontfile=${FONT_PATH}:text='${escapedWord}':fontsize=${fontSize}:fontcolor=0xFFCC00:x=${xExpr}:y=(h*0.55):enable='between(t,${w.start.toFixed(3)},${w.end.toFixed(3)})'`
       );
 
       charOffset += wordText.length + 1; // +1 for space
