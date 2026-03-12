@@ -282,6 +282,27 @@ export default function Index() {
     }
   }, [refetchVideos, isEnabled]);
 
+  // Auto-resume post-processing for videos stuck in 'generating' reel_status after page refresh
+  const resumedRef = useRef<Set<string>>(new Set());
+  useEffect(() => {
+    if (!videos.length) return;
+    const stuckVideos = videos.filter(
+      v => v.reel_status === 'generating' && v.heygen_video_url && !resumedRef.current.has(v.id)
+    );
+    for (const v of stuckVideos) {
+      resumedRef.current.add(v.id);
+      console.log(`[resume] Auto-resuming post-processing for video ${v.id}`);
+      toast.info('Возобновление постобработки видео...');
+      postProcessVideo(v.id).then(() => {
+        refetchPublications();
+        triggerAutoConcat(v.id);
+      }).catch(err => {
+        console.error('Resume post-processing failed:', err);
+        toast.error('Ошибка возобновления постобработки');
+      });
+    }
+  }, [videos, postProcessVideo, refetchPublications, triggerAutoConcat]);
+
   const pollVideoStatus = useCallback(async (videoId: string) => {
     try {
       const { data, error } = await supabase.functions.invoke('check-video-status', {
