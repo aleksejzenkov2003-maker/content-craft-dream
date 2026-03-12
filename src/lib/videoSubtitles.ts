@@ -215,14 +215,26 @@ export async function burnSubtitlesHybrid(
   highlight?: boolean,
 ): Promise<{ videoUrl: string }> {
   onProgress?.({ phase: 'server_processing', progress: 5 });
-  const { videoUrl, assContent } = await prepareSubtitlesServer(videoId);
+  const { videoUrl, assContent, wordTimestamps } = await prepareSubtitlesServer(videoId);
   onProgress?.({ phase: 'server_processing', progress: 10 });
 
   signal?.throwIfAborted();
 
-  const blocks = parseAssToBlocks(assContent);
+  // If highlight mode and we have word timestamps, use smart blocks with word data
+  let blocks: TimedBlock[];
+  if (highlight && wordTimestamps && wordTimestamps.length > 0) {
+    const smartBlocks = generateSmartBlocks(wordTimestamps);
+    blocks = smartBlocks.map(b => ({
+      startSec: b.startSec,
+      endSec: b.endSec,
+      text: b.text,
+      words: b.words,
+    }));
+  } else {
+    blocks = parseAssToBlocks(assContent);
+  }
   if (blocks.length === 0) throw new Error('No subtitle blocks found');
-  console.log(`[subtitles] Parsed ${blocks.length} subtitle blocks`);
+  console.log(`[subtitles] ${highlight ? 'Highlight' : 'Normal'} mode, ${blocks.length} blocks`);
 
   onProgress?.({ phase: 'loading_ffmpeg', progress: 12 });
   const ff = await getSharedFFmpeg(
