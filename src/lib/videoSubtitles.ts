@@ -191,7 +191,7 @@ async function execWithLogs(
 
 export async function prepareSubtitlesServer(
   videoId: string,
-): Promise<{ videoUrl: string; assContent: string }> {
+): Promise<{ videoUrl: string; assContent: string; wordTimestamps?: WordTimestamp[] }> {
   const { data, error } = await supabase.functions.invoke('burn-subtitles', {
     body: { videoId },
   });
@@ -202,6 +202,7 @@ export async function prepareSubtitlesServer(
   return {
     videoUrl: data.videoUrl,
     assContent: data.assContent,
+    wordTimestamps: data.wordTimestamps,
   };
 }
 
