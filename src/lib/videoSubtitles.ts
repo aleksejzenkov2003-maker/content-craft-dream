@@ -272,8 +272,8 @@ export async function burnSubtitlesHybrid(
     await ff.writeFile(inputName, new Uint8Array(videoBuffer));
 
     // Build drawtext filter
-    const vf = buildDrawtextFilter(blocks);
-    console.log(`[subtitles] drawtext filter length: ${vf.length} chars`);
+    const vf = highlight ? buildHighlightDrawtextFilter(blocks) : buildDrawtextFilter(blocks);
+    console.log(`[subtitles] drawtext filter length: ${vf.length} chars, filters: ${vf.split(',drawtext=').length}`);
 
     onProgress?.({ phase: 'burning_subtitles', progress: 40 });
 
