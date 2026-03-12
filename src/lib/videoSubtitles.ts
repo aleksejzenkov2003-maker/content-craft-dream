@@ -322,6 +322,7 @@ export async function burnSubtitlesBrowser(
   options: SubtitleOptions = {},
   onProgress?: (info: SubtitleProgressInfo) => void,
   signal?: AbortSignal,
+  highlight?: boolean,
 ): Promise<File> {
   if (!isBrowserFFmpegSupported()) {
     throw new Error('Браузер не поддерживает FFmpeg WASM');
