@@ -212,6 +212,7 @@ export async function burnSubtitlesHybrid(
   videoId: string,
   onProgress?: (info: SubtitleProgressInfo) => void,
   signal?: AbortSignal,
+  highlight?: boolean,
 ): Promise<{ videoUrl: string }> {
   onProgress?.({ phase: 'server_processing', progress: 5 });
   const { videoUrl, assContent } = await prepareSubtitlesServer(videoId);
