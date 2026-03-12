@@ -57,6 +57,7 @@ interface TimedBlock {
   startSec: number;
   endSec: number;
   text: string;
+  words?: Array<{ word: string; start: number; end: number }>;
 }
 
 function parseAssToBlocks(assContent: string): TimedBlock[] {
@@ -99,7 +100,7 @@ function escapeDrawtext(text: string): string {
 function buildDrawtextFilter(
   blocks: TimedBlock[],
   fontSize = 44,
-  marginV = 160,
+  _marginV = 160,
 ): string {
   if (blocks.length === 0) return 'null';
 
@@ -107,6 +108,59 @@ function buildDrawtextFilter(
     const escapedText = escapeDrawtext(b.text);
     return `drawtext=fontfile=${FONT_PATH}:text='${escapedText}':fontsize=${fontSize}:fontcolor=0xFFCC00:borderw=3:bordercolor=black:x=(w-text_w)/2:y=(h*0.55):enable='between(t,${b.startSec.toFixed(3)},${b.endSec.toFixed(3)})'`;
   });
+
+  return filters.join(',');
+}
+
+// ── Highlight (karaoke) drawtext filter ──
+
+function buildHighlightDrawtextFilter(
+  blocks: TimedBlock[],
+  fontSize = 44,
+): string {
+  if (blocks.length === 0) return 'null';
+
+  const charWidth = fontSize * 0.55; // approximate for Montserrat Bold
+  const filters: string[] = [];
+
+  for (const b of blocks) {
+    if (!b.words || b.words.length <= 1) {
+      // Fallback to simple yellow for single-word blocks or blocks without word data
+      const escapedText = escapeDrawtext(b.text);
+      filters.push(
+        `drawtext=fontfile=${FONT_PATH}:text='${escapedText}':fontsize=${fontSize}:fontcolor=0xFFCC00:borderw=3:bordercolor=black:x=(w-text_w)/2:y=(h*0.55):enable='between(t,${b.startSec.toFixed(3)},${b.endSec.toFixed(3)})'`
+      );
+      continue;
+    }
+
+    // Base layer: full text in white
+    const escapedFull = escapeDrawtext(b.text);
+    filters.push(
+      `drawtext=fontfile=${FONT_PATH}:text='${escapedFull}':fontsize=${fontSize}:fontcolor=white:borderw=3:bordercolor=black:x=(w-text_w)/2:y=(h*0.55):enable='between(t,${b.startSec.toFixed(3)},${b.endSec.toFixed(3)})'`
+    );
+
+    // Overlay layers: each word in yellow (highlight color) during its spoken time
+    // Calculate x-offset for each word relative to block center
+    const totalTextLen = b.text.length;
+    let charOffset = 0;
+
+    for (const w of b.words) {
+      const wordText = w.word;
+      const escapedWord = escapeDrawtext(wordText);
+      // x = center_of_block_start + word_offset
+      // center_of_block_start = (w - totalWidth) / 2
+      // word x = (w - totalWidth) / 2 + charOffset * charWidth
+      const totalWidthExpr = `${(totalTextLen * charWidth).toFixed(1)}`;
+      const offsetPx = (charOffset * charWidth).toFixed(1);
+      const xExpr = `(w-${totalWidthExpr})/2+${offsetPx}`;
+
+      filters.push(
+        `drawtext=fontfile=${FONT_PATH}:text='${escapedWord}':fontsize=${fontSize}:fontcolor=0xFFCC00:borderw=3:bordercolor=black:x=${xExpr}:y=(h*0.55):enable='between(t,${w.start.toFixed(3)},${w.end.toFixed(3)})'`
+      );
+
+      charOffset += wordText.length + 1; // +1 for space
+    }
+  }
 
   return filters.join(',');
 }
