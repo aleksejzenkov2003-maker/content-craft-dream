@@ -17,6 +17,8 @@ export interface SrtBlock {
   startSec: number;
   /** Original end in seconds */
   endSec: number;
+  /** Original word-level timestamps within this block (for highlight mode) */
+  words: WordTimestamp[];
 }
 
 export interface SmartSegmentOptions {
