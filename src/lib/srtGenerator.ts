@@ -60,7 +60,7 @@ export function generateSmartBlocks(
 
   const blocks: SrtBlock[] = [];
 
-  let cur: { start: number; end: number; text: string; words: number; lastEnd: number } | null = null;
+  let cur: { start: number; end: number; text: string; wordCount: number; lastEnd: number; wordsList: WordTimestamp[] } | null = null;
 
   const flush = () => {
     if (!cur) return;
@@ -73,6 +73,7 @@ export function generateSmartBlocks(
       startSec: cur.start,
       endSec: Math.max(cur.end, cur.start + 0.3),
       text,
+      words: cur.wordsList,
     });
     cur = null;
   };
@@ -83,7 +84,7 @@ export function generateSmartBlocks(
     const end = w.end;
 
     if (!cur) {
-      cur = { start, end, text: t, words: 1, lastEnd: end };
+      cur = { start, end, text: t, wordCount: 1, lastEnd: end, wordsList: [w] };
       continue;
     }
 
@@ -94,17 +95,18 @@ export function generateSmartBlocks(
     const shouldSplit =
       gap > gapSplit ||
       proposedText.length > maxChars ||
-      (cur.words + 1) > maxWords ||
+      (cur.wordCount + 1) > maxWords ||
       duration > maxDuration;
 
     if (shouldSplit) {
       flush();
-      cur = { start, end, text: t, words: 1, lastEnd: end };
+      cur = { start, end, text: t, wordCount: 1, lastEnd: end, wordsList: [w] };
     } else {
       cur.text = proposedText;
       cur.end = end;
-      cur.words += 1;
+      cur.wordCount += 1;
       cur.lastEnd = end;
+      cur.wordsList.push(w);
     }
   }
 
