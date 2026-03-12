@@ -342,7 +342,7 @@ export function PromptForm({ prompt, onSave, onCancel, onTest, advisors = [] }: 
             <div className="space-y-2">
               <Label>Результат</Label>
               <div className="p-3 bg-muted rounded-lg max-h-[400px] overflow-auto">
-                {isImageType && testResult.startsWith('data:image') ? (
+                {isImageType && (testResult.startsWith('data:image') || testResult.startsWith('http')) ? (
                   <img src={testResult} alt="Сгенерированное изображение" className="max-w-full rounded" />
                 ) : (
                   <p className="text-sm whitespace-pre-wrap">{testResult}</p>

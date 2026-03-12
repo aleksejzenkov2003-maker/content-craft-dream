@@ -469,7 +469,7 @@ export function PromptsPage() {
                 <div className="space-y-1.5">
                   <Label className="text-xs">Результат</Label>
                   <div className="p-3 bg-muted rounded-lg max-h-[350px] overflow-auto">
-                    {isImageType && testResult.startsWith('data:image') ? (
+                    {isImageType && (testResult.startsWith('data:image') || testResult.startsWith('http')) ? (
                       <img src={testResult} alt="Результат" className="max-w-full rounded" />
                     ) : (
                       <p className="text-xs whitespace-pre-wrap">{testResult}</p>
