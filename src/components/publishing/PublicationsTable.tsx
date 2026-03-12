@@ -493,6 +493,7 @@ const minuteOptions = [0, 5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55];
   const getPublicationTitle = (pub: Publication) => {
     const question = pub.video?.question || 'Без вопроса';
     const advisor = pub.video?.advisor?.display_name || pub.video?.advisor?.name || 'Духовник';
+    if (groupBy === 'question') return advisor;
     return `${question} — ${advisor}`;
   };
 
