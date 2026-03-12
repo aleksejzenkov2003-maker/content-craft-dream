@@ -473,6 +473,7 @@ export function VideoSidePanel({
                       { fontSize: 48 },
                       (info) => setSubtitleProgress({ phase: info.phase, progress: info.progress }),
                       ac.signal,
+                      highlightMode,
                     );
                     clearTimeout(watchdog);
                     setSubtitleProgress({ phase: 'uploading_result', progress: 95 });
