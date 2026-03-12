@@ -72,6 +72,7 @@ export function VideoSidePanel({
   const [atmospherePromptText, setAtmospherePromptText] = useState('');
   const [subtitleProgress, setSubtitleProgress] = useState<{ phase: string; progress: number } | null>(null);
   const [subtitleAbort, setSubtitleAbort] = useState<AbortController | null>(null);
+  const [highlightMode, setHighlightMode] = useState(true);
   const [detectedDuration, setDetectedDuration] = useState<number | null>(null);
   const [videoSizeBytes, setVideoSizeBytes] = useState<number | null>(null);
 
