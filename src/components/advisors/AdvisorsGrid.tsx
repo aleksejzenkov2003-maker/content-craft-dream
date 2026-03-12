@@ -238,8 +238,8 @@ export function AdvisorsGrid({
                 <div className="space-y-1">
                   <div className="text-sm font-medium text-center">Основное фото</div>
                   <div className="relative w-48 aspect-[9/16] bg-muted rounded-xl overflow-hidden border-2 border-border">
-                    {getScenePhoto(selectedAdvisorLive!) ? (
-                      <img src={getScenePhoto(selectedAdvisorLive!)!.photo_url} alt="" className="w-full h-full object-cover" />
+                    {getScenePhoto(selectedAdvisor) ? (
+                      <img src={getScenePhoto(selectedAdvisor)!.photo_url} alt="" className="w-full h-full object-cover" />
                     ) : (
                       <div className="w-full h-full flex items-center justify-center">
                         <Image className="w-8 h-8 text-muted-foreground" />
@@ -252,9 +252,9 @@ export function AdvisorsGrid({
                 <div className="space-y-1">
                   <div className="text-sm font-medium text-center">Миниатюра</div>
                   <div className="relative w-48 aspect-[9/16] bg-muted rounded-xl overflow-hidden border-2 border-border">
-                    {getThumbnailPhoto(selectedAdvisorLive!) ? (
+                    {getThumbnailPhoto(selectedAdvisor) ? (
                       <>
-                        <img src={getThumbnailPhoto(selectedAdvisorLive!)!.photo_url} alt="" className="w-full h-full object-cover" />
+                        <img src={getThumbnailPhoto(selectedAdvisor)!.photo_url} alt="" className="w-full h-full object-cover" />
                         <div className="absolute bottom-0 inset-x-0 bg-gradient-to-t from-black/70 to-transparent pt-6 pb-2 px-2">
                           <span className="text-white text-xs font-medium">
                             {selectedAdvisor.display_name || selectedAdvisor.name}

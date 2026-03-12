@@ -19,6 +19,7 @@ import { Progress } from '@/components/ui/progress';
 import { cn } from '@/lib/utils';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
+import { formatFileSize } from '@/components/publishing/videoMetadata';
 
 interface CoverVariant {
   id: string;
@@ -128,45 +129,52 @@ export function VideoSidePanel({
   }, [video?.id, video?.question, video?.hook, video?.advisor_answer, advisor]);
 
   const videoUrl = video?.video_path || video?.heygen_video_url || null;
+  const [originalSizeBytes, setOriginalSizeBytes] = useState<number | null>(null);
 
   useEffect(() => {
     if (!videoUrl) {
       setVideoSizeBytes(null);
+      setOriginalSizeBytes(null);
       return;
     }
 
     let cancelled = false;
 
-    const resolveVideoSize = async () => {
+    const probeSize = async (url: string): Promise<number | null> => {
       try {
-        let response = await fetch(videoUrl, { method: 'HEAD' });
+        let response = await fetch(url, { method: 'HEAD' });
         let contentLength = response.headers.get('content-length');
-
         if (!contentLength) {
-          response = await fetch(videoUrl, { method: 'GET', headers: { Range: 'bytes=0-0' } });
+          response = await fetch(url, { method: 'GET', headers: { Range: 'bytes=0-0' } });
           const contentRange = response.headers.get('content-range');
           const totalFromRange = contentRange?.split('/')[1];
           contentLength = totalFromRange || response.headers.get('content-length');
         }
-
-        if (!cancelled && contentLength) {
-          setVideoSizeBytes(Number(contentLength));
-        } else if (!cancelled) {
-          setVideoSizeBytes(null);
-        }
+        return contentLength ? Number(contentLength) : null;
       } catch {
-        if (!cancelled) {
-          setVideoSizeBytes(null);
-        }
+        return null;
       }
     };
 
-    resolveVideoSize();
+    const resolve = async () => {
+      const heygenUrl = video?.heygen_video_url || null;
+      const hasReduced = video?.video_path && heygenUrl && video.video_path !== heygenUrl;
 
-    return () => {
-      cancelled = true;
+      const [finalSize, origSize] = await Promise.all([
+        probeSize(videoUrl),
+        hasReduced ? probeSize(heygenUrl) : Promise.resolve(null),
+      ]);
+
+      if (!cancelled) {
+        setVideoSizeBytes(finalSize);
+        setOriginalSizeBytes(origSize);
+      }
     };
-  }, [videoUrl]);
+
+    resolve();
+
+    return () => { cancelled = true; };
+  }, [videoUrl, video?.heygen_video_url, video?.video_path]);
 
   if (!video) return null;
 
@@ -567,7 +575,11 @@ export function VideoSidePanel({
         <span className="text-muted-foreground">Длительность видео</span>
         <span>{durationFormatted}</span>
         <span className="text-muted-foreground">Размер видео</span>
-        <span>{sizeFormatted}</span>
+        <span>
+          {originalSizeBytes && videoSizeBytes && originalSizeBytes > videoSizeBytes
+            ? `${formatFileSize(originalSizeBytes)} → ${sizeFormatted} (×${(originalSizeBytes / videoSizeBytes).toFixed(1)})`
+            : sizeFormatted}
+        </span>
       </div>
     </UnifiedPanel>
   );
