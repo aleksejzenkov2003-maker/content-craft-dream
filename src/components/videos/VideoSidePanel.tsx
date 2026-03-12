@@ -574,7 +574,11 @@ export function VideoSidePanel({
         <span className="text-muted-foreground">Длительность видео</span>
         <span>{durationFormatted}</span>
         <span className="text-muted-foreground">Размер видео</span>
-        <span>{sizeFormatted}</span>
+        <span>
+          {originalSizeBytes && videoSizeBytes && originalSizeBytes > videoSizeBytes
+            ? `${formatFileSize(originalSizeBytes)} → ${sizeFormatted} (×${(originalSizeBytes / videoSizeBytes).toFixed(1)})`
+            : sizeFormatted}
+        </span>
       </div>
     </UnifiedPanel>
   );
