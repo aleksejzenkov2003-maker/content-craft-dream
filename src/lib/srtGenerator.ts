@@ -138,6 +138,7 @@ export function generateSrtBlocks(
       startSec: blockStart,
       endSec: blockEnd,
       text,
+      words: chunk,
     });
   }
 
