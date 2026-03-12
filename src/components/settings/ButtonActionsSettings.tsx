@@ -3,26 +3,20 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Loader2, RefreshCw, Send, Play, Layers } from 'lucide-react';
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '@/components/ui/table';
-import { ReactNode } from 'react';
+import { ReactNode, useMemo } from 'react';
 
-interface ButtonConfig {
-  key: string;
+interface ColumnConfig {
+  buttonKeys: string[];
+  label: string;
   section: string;
   precheck: string;
   preview: ReactNode;
 }
 
-const BUTTONS: ButtonConfig[] = [
+const COLUMNS: ColumnConfig[] = [
   {
-    key: 'take_in_work',
+    buttonKeys: ['take_in_work'],
+    label: 'Взять в работу',
     section: 'Вопросы',
     precheck: 'Дата, плейлист, сцена',
     preview: (
@@ -32,67 +26,55 @@ const BUTTONS: ButtonConfig[] = [
     ),
   },
   {
-    key: 'side_cover',
+    buttonKeys: ['side_cover'],
+    label: 'Обложка (панель)',
     section: 'Панель ролика',
     precheck: '—',
     preview: (
       <Button size="xs" variant="outline" className="pointer-events-none border-orange-500/50 text-orange-700">
-        <RefreshCw className="w-3 h-3 mr-1" />Шаг 2. Обложка
+        <RefreshCw className="w-3 h-3 mr-1" />Шаг 2
       </Button>
     ),
   },
   {
-    key: 'generate_video',
+    buttonKeys: ['generate_video', 'bulk_generate_covers'],
+    label: 'Генерация видео',
     section: 'Таблица роликов',
     precheck: 'Наличие озвучки',
     preview: (
-      <Button size="xs" variant="generate-video" className="pointer-events-none">
-        Видео
-      </Button>
+      <div className="flex gap-1">
+        <Button size="xs" variant="generate-video" className="pointer-events-none">Видео</Button>
+        <Button size="xs" variant="generate-cover" className="pointer-events-none">
+          <Layers className="w-3 h-3 mr-1" />Обл.
+        </Button>
+      </div>
     ),
   },
   {
-    key: 'side_video',
+    buttonKeys: ['side_video'],
+    label: 'Видео (панель)',
     section: 'Панель ролика',
     precheck: 'Наличие озвучки',
     preview: (
       <Button size="xs" variant="outline" className="pointer-events-none border-green-500/50 text-green-700">
-        <RefreshCw className="w-3 h-3 mr-1" />Шаг 3. Видео
+        <RefreshCw className="w-3 h-3 mr-1" />Шаг 3
       </Button>
     ),
   },
   {
-    key: 'prepare_publish',
-    section: 'Панель ролика',
+    buttonKeys: ['prepare_publish', 'bulk_publish'],
+    label: 'Подготовка к публикации',
+    section: 'Ролики',
     precheck: 'Готовность + каналы',
     preview: (
-      <Button size="sm" variant="default" className="pointer-events-none h-7 text-xs">
-        Отправить на подготовку к публикации
+      <Button size="xs" variant="default" className="pointer-events-none">
+        <Send className="w-3 h-3 mr-1" />Подготовка
       </Button>
     ),
   },
   {
-    key: 'bulk_generate_covers',
-    section: 'Таблица роликов',
-    precheck: '—',
-    preview: (
-      <Button size="xs" variant="generate-cover" className="pointer-events-none">
-        <Layers className="w-3 h-3 mr-1" />Обложки
-      </Button>
-    ),
-  },
-  {
-    key: 'bulk_publish',
-    section: 'Таблица роликов',
-    precheck: 'Плановая дата',
-    preview: (
-      <Button size="xs" variant="publish" className="pointer-events-none">
-        <Send className="w-3 h-3 mr-1" />Публикация
-      </Button>
-    ),
-  },
-  {
-    key: 'publish',
+    buttonKeys: ['publish'],
+    label: 'Опубликовать',
     section: 'Публикации',
     precheck: 'Текст + видео',
     preview: (
@@ -106,6 +88,17 @@ const BUTTONS: ButtonConfig[] = [
 export function ButtonActionsSettings() {
   const { settings, isLoading, toggle } = useAutomationSettings();
 
+  // Derive unique process rows from settings data
+  const processRows = useMemo(() => {
+    const allKeys = new Map<string, string>();
+    settings.forEach(s => {
+      if (!allKeys.has(s.process_key)) {
+        allKeys.set(s.process_key, s.process_label);
+      }
+    });
+    return Array.from(allKeys.entries()).map(([key, label]) => ({ key, label }));
+  }, [settings]);
+
   if (isLoading) {
     return (
       <div className="flex items-center justify-center py-8">
@@ -114,62 +107,81 @@ export function ButtonActionsSettings() {
     );
   }
 
-  const grouped = BUTTONS.map(btn => ({
-    ...btn,
-    processes: settings.filter(s => s.button_key === btn.key),
-  }));
+  // Build a lookup: `${buttonKey}::${processKey}` -> setting
+  const settingsMap = new Map(
+    settings.map(s => [`${s.button_key}::${s.process_key}`, s])
+  );
+
+  const findSetting = (buttonKeys: string[], processKey: string) => {
+    for (const bk of buttonKeys) {
+      const s = settingsMap.get(`${bk}::${processKey}`);
+      if (s) return s;
+    }
+    return null;
+  };
 
   return (
-    <div className="rounded-lg border overflow-hidden">
-      <Table>
-        <TableHeader>
-          <TableRow>
-            <TableHead className="w-[250px]">Кнопка</TableHead>
-            <TableHead className="w-[140px]">Раздел</TableHead>
-            <TableHead className="w-[160px]">Предпроверка</TableHead>
-            <TableHead>Процессы</TableHead>
-          </TableRow>
-        </TableHeader>
-        <TableBody>
-          {grouped.map(btn => (
-            <TableRow key={btn.key}>
-              <TableCell className="align-top py-3">
-                <div className="flex flex-col gap-1.5">
-                  {btn.preview}
-                  <span className="text-[10px] text-muted-foreground font-mono">{btn.key}</span>
+    <div className="rounded-lg border overflow-x-auto">
+      <table className="w-full text-sm">
+        <thead>
+          {/* Row 1: button previews */}
+          <tr className="border-b bg-muted/30">
+            <th className="text-left px-3 py-2 font-medium text-muted-foreground min-w-[180px]">
+              Процесс
+            </th>
+            {COLUMNS.map(col => (
+              <th key={col.buttonKeys.join(',')} className="px-3 py-2 text-center min-w-[120px]">
+                <div className="flex flex-col items-center gap-1">
+                  {col.preview}
                 </div>
-              </TableCell>
-              <TableCell className="align-top py-3">
-                <Badge variant="secondary" className="text-[10px]">{btn.section}</Badge>
-              </TableCell>
-              <TableCell className="text-xs text-muted-foreground align-top py-3">
-                {btn.precheck}
-              </TableCell>
-              <TableCell className="py-3">
-                <div className="flex flex-col gap-2">
-                  {btn.processes.map(proc => (
-                    <label
-                      key={proc.process_key}
-                      className="flex items-center gap-2 cursor-pointer"
-                    >
-                      <Checkbox
-                        checked={proc.is_enabled}
-                        onCheckedChange={(checked) =>
-                          toggle(btn.key, proc.process_key, !!checked)
-                        }
-                      />
-                      <span className="text-sm">{proc.process_label}</span>
-                    </label>
-                  ))}
-                  {btn.processes.length === 0 && (
-                    <span className="text-xs text-muted-foreground">Нет процессов</span>
-                  )}
-                </div>
-              </TableCell>
-            </TableRow>
+              </th>
+            ))}
+          </tr>
+          {/* Row 2: section + precheck */}
+          <tr className="border-b bg-muted/10">
+            <th className="px-3 py-1.5"></th>
+            {COLUMNS.map(col => (
+              <th key={col.buttonKeys.join(',') + '_info'} className="px-3 py-1.5 text-center">
+                <Badge variant="secondary" className="text-[10px] mb-0.5">{col.section}</Badge>
+                <p className="text-[10px] text-muted-foreground font-normal">{col.precheck}</p>
+              </th>
+            ))}
+          </tr>
+        </thead>
+        <tbody>
+          {processRows.map(proc => (
+            <tr key={proc.key} className="border-b last:border-b-0 hover:bg-muted/20 transition-colors">
+              <td className="px-3 py-2.5 text-foreground">{proc.label}</td>
+              {COLUMNS.map(col => {
+                const setting = findSetting(col.buttonKeys, proc.key);
+                return (
+                  <td key={col.buttonKeys.join(',') + proc.key} className="px-3 py-2.5 text-center">
+                    {setting ? (
+                      <div className="flex justify-center">
+                        <Checkbox
+                          checked={setting.is_enabled}
+                          onCheckedChange={(checked) =>
+                            toggle(setting.button_key, setting.process_key, !!checked)
+                          }
+                        />
+                      </div>
+                    ) : (
+                      <span className="text-muted-foreground/30">—</span>
+                    )}
+                  </td>
+                );
+              })}
+            </tr>
           ))}
-        </TableBody>
-      </Table>
+          {processRows.length === 0 && (
+            <tr>
+              <td colSpan={COLUMNS.length + 1} className="px-3 py-6 text-center text-muted-foreground">
+                Нет настроек автоматизации
+              </td>
+            </tr>
+          )}
+        </tbody>
+      </table>
     </div>
   );
 }

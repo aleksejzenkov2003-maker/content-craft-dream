@@ -1,46 +1,57 @@
 
 
-## Настройки: меню-навигация + матричная таблица кнопок
+## Решение: бинарная MP4-конкатенация + нормализация аудио через ffmpeg.wasm
 
-### Что делаем
+### Что сделано
 
-1. **SettingsPage** — переделать в меню с якорными ссылками (как на скриншоте 1):
-   - «Управление действиями кнопок»
-   - «Подключения API / Баланс»
-   - «Настройки видеоформата ролика» (пока заглушка)
-   
-   По клику на ссылку — показывается соответствующая секция (через `useState` для activeSection).
+1. **`supabase/functions/concat-video/index.ts`** — полная перезапись:
+   - Бинарный MP4-парсер: разбор боксов (moov/trak/stbl/stsz/stco/stsc/stts/stss/ctts)
+   - Извлечение сэмплов из обоих файлов, сборка нового mdat
+   - Объединение sample tables, пересчёт оффсетов, обновление duration
+   - Сохранение логики получения свежих HeyGen URL
+   - Загрузка результата в Storage
 
-2. **ButtonActionsSettings** — переделать из row-per-button в **матрицу** (как на скриншоте 2):
-   - **Столбцы**: кнопки (Взять в работу, Генерация видео, Подготовка к публикации, Опубликовать)
-   - Под каждым столбцом: раздел ("Вопросы", "Ролики", ...) и проверки
-   - **Строки**: уникальные процессы (voiceover, atmosphere, cover_overlay, heygen, resize, subtitles, concat, create_publication, generate_text, publish_social)
-   - **Ячейки**: чекбокс если процесс существует для данной кнопки, пустая если нет
+2. **`src/lib/videoNormalizer.ts`** — утилита нормализации аудио через ffmpeg.wasm:
+   - Загружает ffmpeg WASM при первом использовании
+   - Перекодирует аудио в AAC-LC 48kHz mono 128kbps: `-c:v copy -c:a aac -ar 48000 -ac 1 -b:a 128k`
+   - Видео-поток копируется без потерь
 
-### Структура матрицы (из данных БД)
+3. **`src/components/covers/BackCoversGrid.tsx`** — интеграция нормализации:
+   - При загрузке видео-обложки автоматически нормализует аудио через ffmpeg.wasm
+   - Показывает прогресс нормализации
+   - Загружает нормализованный файл в Storage
+   - Fallback на оригинал при ошибке
 
-```text
-                          Взять в работу | Генерация видео | Подгот. публ. | Опубликовать
-Раздел                    "Вопросы"      | "Ролики"        | "Ролики"      | "Публикации"
-Проверки                  Дата,сцена     | Пред.этапы      | Пред.этапы    | Пред.этапы
-─────────────────────────────────────────────────────────────────────────────────────────
-Генерация аудио           [x]            |                 |               |
-Генерация фона            [x]            | [x] bulk_covers |               |
-Склейка обложки           [x]            | [x] bulk_covers |               |
-Генерация видео HeyGen    [ ]            | [x]             |               |
-Уменьшение размера        [ ]            | [x]             |               |
-Наложение субтитров       [ ]            | [x]             |               |
-Склейка с задней обл.     |              |                 | [x]           | [x]
-Создание публикаций       |              |                 | [x]           | [x]
-Генерация текста           |              |                 | [x]           | [x]
-Публикация в соцсетях     |              |                 | [x]           | [x]
-```
+### Зависимости
+- `@ffmpeg/ffmpeg@0.12.10`
+- `@ffmpeg/util@0.12.1`
 
-Также включить `side_cover` и `side_video` в отдельные столбцы или сгруппировать с основными.
+---
 
-### Файлы
+## Субтитры: ElevenLabs timestamps → SRT → FFmpeg
 
-- **`src/components/settings/SettingsPage.tsx`** — заменить на меню-навигацию с секциями; API/баланс вынести в отдельный компонент `ApiBalancesSettings`
-- **`src/components/settings/ButtonActionsSettings.tsx`** — переписать в матричный layout
-- **`src/components/settings/ApiBalancesSettings.tsx`** — новый файл, вынести текущий код API статусов и балансов
+### Что сделано
 
+1. **БД миграция** — добавлено поле `word_timestamps jsonb` в таблицу `videos`
+
+2. **Edge Functions** — обновлены оба voiceover-генератора:
+   - `supabase/functions/generate-voiceover-for-video/index.ts` → endpoint `/with-timestamps`
+   - `supabase/functions/generate-voiceover/index.ts` → endpoint `/with-timestamps`
+   - Ответ содержит `audio_base64` + `alignment` (character-level timestamps)
+   - Функция `buildWordTimestamps()` собирает word-level timestamps из character-level
+   - Timestamps сохраняются в `videos.word_timestamps`
+
+3. **`src/lib/srtGenerator.ts`** — генерация субтитров:
+   - `generateSrt()` — SRT формат (группировка по N слов)
+   - `generateAss()` — ASS формат (со стилями: шрифт, размер, цвет, обводка)
+   - `generateSrtBlocks()` — промежуточная структура
+
+4. **`src/lib/videoSubtitles.ts`** — вшивание субтитров через ffmpeg.wasm:
+   - `burnSubtitles(videoUrl, timestamps, options, onProgress)` → File
+   - Использует ASS-фильтр для стилизованных субтитров
+   - Видео перекодируется libx264 (preset fast, crf 23), аудио копируется
+
+5. **UI** — кнопка «Добавить субтитры» в `VideoSidePanel`:
+   - Появляется когда есть `heygen_video_url` и `word_timestamps`
+   - Показывает прогресс через Progress bar
+   - Результат загружается в Storage и сохраняется в `video_path`
