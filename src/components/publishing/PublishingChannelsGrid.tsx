@@ -11,7 +11,6 @@ import {
   DialogHeader,
   DialogTitle,
   DialogFooter,
-  DialogTrigger,
 } from '@/components/ui/dialog';
 import {
   Select,
@@ -23,7 +22,6 @@ import {
 import { Plus, Globe, FileSpreadsheet, Image, Trash2 } from 'lucide-react';
 import { FileUploader } from '@/components/upload/FileUploader';
 import { PublishingChannel, usePublishingChannels } from '@/hooks/usePublishingChannels';
-import { Textarea } from '@/components/ui/textarea';
 import { CsvImporter } from '@/components/import/CsvImporter';
 import { CHANNEL_COLUMN_MAPPING, CHANNEL_PREVIEW_COLUMNS, CHANNEL_FIELD_DEFINITIONS } from '@/components/import/importConfigs';
 import { usePrompts } from '@/hooks/usePrompts';
@@ -45,31 +43,21 @@ export function PublishingChannelsGrid() {
   const [showImporter, setShowImporter] = useState(false);
   const [editingChannel, setEditingChannel] = useState<PublishingChannel | null>(null);
 
-  const postTextPrompts = prompts.filter(p => p.type === 'post_text');
-
   const [formData, setFormData] = useState({
     name: '',
     network_type: 'instagram',
-    proxy_server: '',
-    location: '',
-    post_text_prompt: '',
     is_active: true,
     back_cover_url: '',
     back_cover_video_url: '',
-    proxy_id: '',
   });
 
   const resetForm = () => {
     setFormData({
       name: '',
       network_type: 'instagram',
-      proxy_server: '',
-      location: '',
-      post_text_prompt: '',
       is_active: true,
       back_cover_url: '',
       back_cover_video_url: '',
-      proxy_id: '',
     });
     setEditingChannel(null);
   };
@@ -80,13 +68,9 @@ export function PublishingChannelsGrid() {
       setFormData({
         name: channel.name,
         network_type: channel.network_type,
-        proxy_server: channel.proxy_server || '',
-        location: channel.location || '',
-        post_text_prompt: channel.post_text_prompt || '',
         is_active: channel.is_active,
         back_cover_url: channel.back_cover_url || '',
         back_cover_video_url: channel.back_cover_video_url || '',
-        proxy_id: channel.proxy_id || '',
       });
     } else {
       resetForm();
@@ -97,15 +81,12 @@ export function PublishingChannelsGrid() {
   const handleSubmit = async () => {
     if (!formData.name) return;
     try {
-      const selectedProxy = proxies.find(p => p.id === formData.proxy_id);
       const payload = {
-        ...formData,
+        name: formData.name,
+        network_type: formData.network_type,
+        is_active: formData.is_active,
         back_cover_url: formData.back_cover_url || null,
         back_cover_video_url: formData.back_cover_video_url || null,
-        proxy_server: selectedProxy ? `${selectedProxy.server}:${selectedProxy.port}` : null,
-        location: selectedProxy?.name || null,
-        post_text_prompt: formData.post_text_prompt || null,
-        proxy_id: formData.proxy_id || null,
       };
       if (editingChannel) {
         await updateChannel(editingChannel.id, payload);
@@ -127,15 +108,20 @@ export function PublishingChannelsGrid() {
     await bulkImport(data as Partial<PublishingChannel>[]);
   };
 
-  // Find prompt name by prompt_id or text matching
   const getPromptLabel = (channel: PublishingChannel) => {
     if (channel.prompt_id) {
       const found = prompts.find(p => p.id === channel.prompt_id);
       return found?.name || null;
     }
-    if (!channel.post_text_prompt) return null;
-    const found = postTextPrompts.find(p => p.system_prompt === channel.post_text_prompt || p.user_template === channel.post_text_prompt);
-    return found?.name || (channel.post_text_prompt.length > 30 ? channel.post_text_prompt.slice(0, 30) + '…' : channel.post_text_prompt);
+    return null;
+  };
+
+  const getProxyLabel = (channel: PublishingChannel) => {
+    if (channel.proxy_id) {
+      const found = proxies.find(p => p.id === channel.proxy_id);
+      return found?.name || channel.location || null;
+    }
+    return channel.location || null;
   };
 
   if (loading) {
@@ -145,14 +131,6 @@ export function PublishingChannelsGrid() {
       </div>
     );
   }
-
-  // Group channels by network_type
-  const grouped = channels.reduce<Record<string, PublishingChannel[]>>((acc, ch) => {
-    const key = ch.network_type;
-    if (!acc[key]) acc[key] = [];
-    acc[key].push(ch);
-    return acc;
-  }, {});
 
   return (
     <div className="space-y-6">
@@ -191,23 +169,25 @@ export function PublishingChannelsGrid() {
             >
               <CardContent className="p-4">
                 <div className="flex gap-3">
-                  {/* Left: info */}
                   <div className="flex-1 space-y-2 min-w-0">
                     <h4 className="font-semibold text-base truncate">{channel.name}</h4>
                     <div className="flex flex-col gap-1.5">
-                    {(() => {
-                      const label = getPromptLabel(channel);
-                      return label ? (
-                        <Badge variant="destructive" className="text-xs w-fit">
-                          Промт: {label}
-                        </Badge>
-                      ) : null;
-                    })()}
-                      {channel.proxy_server && (
-                        <Badge variant="secondary" className="text-xs w-fit bg-emerald-700 text-white hover:bg-emerald-700">
-                          Прокси: {channel.location || channel.proxy_server}
-                        </Badge>
-                      )}
+                      {(() => {
+                        const label = getPromptLabel(channel);
+                        return label ? (
+                          <Badge variant="destructive" className="text-xs w-fit">
+                            Промт: {label}
+                          </Badge>
+                        ) : null;
+                      })()}
+                      {(() => {
+                        const label = getProxyLabel(channel);
+                        return label ? (
+                          <Badge variant="secondary" className="text-xs w-fit bg-emerald-700 text-white hover:bg-emerald-700">
+                            Прокси: {label}
+                          </Badge>
+                        ) : null;
+                      })()}
                     </div>
                     <div className="flex items-center gap-2 pt-1">
                       <span className="text-xs">{channel.is_active ? 'Активен' : 'Неактивен'}</span>
@@ -218,7 +198,6 @@ export function PublishingChannelsGrid() {
                       />
                     </div>
                   </div>
-                  {/* Right: back cover thumbnail */}
                   <div className="w-24 aspect-[9/16] rounded-lg overflow-hidden bg-muted flex-shrink-0 border border-border">
                     {channel.back_cover_video_url ? (
                       <video
@@ -286,57 +265,35 @@ export function PublishingChannelsGrid() {
                   </SelectContent>
                 </Select>
               </div>
-              <div className="space-y-2">
-                <Label>Прокси-сервер</Label>
-                <Select
-                  value={formData.proxy_id || '__none__'}
-                  onValueChange={(value) => setFormData({ ...formData, proxy_id: value === '__none__' ? '' : value })}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Без прокси" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="__none__">Без прокси</SelectItem>
-                    {proxies.filter(p => p.is_active).map(p => (
-                      <SelectItem key={p.id} value={p.id}>
-                        {p.name} ({p.server}:{p.port})
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-2">
-                <Label>Промт для генерации текста</Label>
-                {postTextPrompts.length > 0 ? (
-                  <Select
-                    value={formData.post_text_prompt || '__custom__'}
-                    onValueChange={(value) => {
-                      if (value === '__custom__') {
-                        setFormData({ ...formData, post_text_prompt: '' });
-                      } else {
-                        const p = postTextPrompts.find(pr => pr.id === value);
-                        if (p) setFormData({ ...formData, post_text_prompt: p.user_template });
-                      }
-                    }}
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Выберите промт..." />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="__custom__">Свой текст</SelectItem>
-                      {postTextPrompts.map(p => (
-                        <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                ) : null}
-                <Textarea
-                  value={formData.post_text_prompt}
-                  onChange={(e) => setFormData({ ...formData, post_text_prompt: e.target.value })}
-                  placeholder="Напиши привлекательный текст для поста о..."
-                  rows={3}
-                />
-              </div>
+
+              {/* Read-only prompt info */}
+              {editingChannel && (
+                <div className="space-y-2">
+                  <Label className="text-muted-foreground">Промт</Label>
+                  <div className="text-sm">
+                    {getPromptLabel(editingChannel) ? (
+                      <Badge variant="destructive" className="text-xs">{getPromptLabel(editingChannel)}</Badge>
+                    ) : (
+                      <span className="text-muted-foreground italic">Не привязан (настраивается в Промтах)</span>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {/* Read-only proxy info */}
+              {editingChannel && (
+                <div className="space-y-2">
+                  <Label className="text-muted-foreground">Прокси</Label>
+                  <div className="text-sm">
+                    {getProxyLabel(editingChannel) ? (
+                      <Badge variant="secondary" className="text-xs bg-emerald-700 text-white hover:bg-emerald-700">{getProxyLabel(editingChannel)}</Badge>
+                    ) : (
+                      <span className="text-muted-foreground italic">Не привязан (настраивается в Прокси)</span>
+                    )}
+                  </div>
+                </div>
+              )}
+
               <div className="flex items-center justify-between">
                 <span className="text-sm">{formData.is_active ? 'Активен' : 'Неактивен'}</span>
                 <Switch
