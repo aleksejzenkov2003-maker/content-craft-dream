@@ -129,6 +129,8 @@ export function VideoSidePanel({
     fetchAtmospherePrompt();
   }, [video?.id, video?.question, video?.hook, video?.advisor_answer, advisor]);
 
+  const [videoIndex, setVideoIndex] = useState(0);
+
   // Build video variants for carousel
   const videoVariants = (() => {
     if (!video) return [];
@@ -137,7 +139,6 @@ export function VideoSidePanel({
     if (video.video_path && video.video_path !== video.heygen_video_url) variants.push({ label: 'С субтитрами', url: video.video_path });
     return variants;
   })();
-  const [videoIndex, setVideoIndex] = useState(0);
 
   // Reset video index when variants change
   useEffect(() => {
