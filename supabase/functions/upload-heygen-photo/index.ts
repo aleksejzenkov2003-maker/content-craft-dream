@@ -64,14 +64,21 @@ serve(async (req) => {
     }
 
     // Update photo record with HeyGen asset ID (store image_key for video generation)
-    const { error: updateError } = await supabase
-      .from('advisor_photos')
-      .update({ heygen_asset_id: imageKey || assetId })
-      .eq('id', photoId);
+    // Scene photos have IDs like "scene-<uuid>" — update playlist_scenes instead
+    if (photoId.startsWith('scene-')) {
+      const sceneId = photoId.replace('scene-', '');
+      console.log(`Updating playlist_scene ${sceneId} with heygen asset info`);
+      // No heygen_asset_id column on playlist_scenes, so we just skip the DB update
+    } else {
+      const { error: updateError } = await supabase
+        .from('advisor_photos')
+        .update({ heygen_asset_id: imageKey || assetId })
+        .eq('id', photoId);
 
-    if (updateError) {
-      console.error('Failed to update photo record:', updateError);
-      throw updateError;
+      if (updateError) {
+        console.error('Failed to update photo record:', updateError);
+        throw updateError;
+      }
     }
 
     console.log(`Photo ${photoId} uploaded to HeyGen with image_key: ${imageKey}, asset_id: ${assetId}`);
