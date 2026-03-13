@@ -586,6 +586,30 @@ export default function Index() {
           }
         }
       }
+
+      // Auto-upload to website for channels with network_type 'website'
+      if (isEnabled('prepare_publish', 'publish_social')) {
+        const { data: allChannelDetails } = await supabase
+          .from('publishing_channels')
+          .select('id, network_type')
+          .in('id', newChannelIds);
+
+        const websiteChannelIds = new Set(
+          (allChannelDetails || []).filter(c => c.network_type === 'website').map(c => c.id)
+        );
+
+        for (const pub of (inserted || [])) {
+          if (websiteChannelIds.has(pub.channel_id)) {
+            supabase.functions.invoke('upload-to-website', {
+              body: { publicationId: pub.id },
+            }).then(() => {
+              refetchPublications();
+            }).catch(err => {
+              console.error('Auto upload-to-website failed:', err);
+            });
+          }
+        }
+      }
     } catch (error) {
       console.error('Error publishing video:', error);
       toast.error('Ошибка публикации');

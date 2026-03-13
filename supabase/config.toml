@@ -62,3 +62,6 @@ verify_jwt = false
 
 [functions.concat-video]
 verify_jwt = false
+
+[functions.upload-to-website]
+verify_jwt = false
