@@ -848,9 +848,9 @@ onClick={() => setEditingPublicationId(pub.id)}
                       {/* Проверка */}
                       <TableCell className="py-1">
                         {isChecked ? (
-                          <span className="font-medium text-green-600">Готово</span>
+                          <span className="font-medium text-green-600">Проверено</span>
                         ) : (
-                          <span className="text-muted-foreground">—</span>
+                          <span className="text-muted-foreground">Не проверен</span>
                         )}
                       </TableCell>
                       {/* Статус */}
