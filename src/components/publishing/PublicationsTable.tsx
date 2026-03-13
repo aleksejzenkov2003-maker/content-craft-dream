@@ -720,7 +720,7 @@ const minuteOptions = [0, 5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55];
                     <TableHead className="w-[50px] py-1">Склейка</TableHead>
                     <TableHead className="w-[50px] py-1">Текст</TableHead>
                     <TableHead className="w-[70px] py-1">Проверка</TableHead>
-                    <TableHead className="w-[60px] py-1">Статус</TableHead>
+                    <TableHead className="w-[90px] py-1">Публикация</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
