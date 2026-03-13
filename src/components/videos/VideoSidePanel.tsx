@@ -392,7 +392,7 @@ export function VideoSidePanel({
               onUpdateVideo(video.id, { is_ready: val } as any);
             }}
           />
-          <Label htmlFor="is-ready" className="text-xs cursor-pointer">Готовность</Label>
+          <Label htmlFor="is-ready" className="text-xs cursor-pointer">Проверено</Label>
         </div>
       </PanelSection>
 
