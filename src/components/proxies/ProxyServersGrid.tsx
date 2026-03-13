@@ -27,6 +27,7 @@ import { Plus, Server, Copy, Trash2, Eye, EyeOff } from 'lucide-react';
 import { ProxyServer, useProxyServers } from '@/hooks/useProxyServers';
 import { usePublishingChannels, PublishingChannel } from '@/hooks/usePublishingChannels';
 import { toast } from 'sonner';
+import { supabase } from '@/integrations/supabase/client';
 
 const networkColors: Record<string, string> = {
   youtube: 'bg-red-600 text-white hover:bg-red-600',
@@ -64,11 +65,12 @@ function CopyField({ label, value }: { label: string; value: string }) {
 
 export function ProxyServersGrid() {
   const { proxies, loading, addProxy, updateProxy, deleteProxy } = useProxyServers();
-  const { channels } = usePublishingChannels();
+  const { channels, refetch: refetchChannels } = usePublishingChannels();
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingProxy, setEditingProxy] = useState<ProxyServer | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<ProxyServer | null>(null);
   const [showPassword, setShowPassword] = useState(false);
+  const [linkedChannelIds, setLinkedChannelIds] = useState<string[]>([]);
 
   const [formData, setFormData] = useState({
     name: '',
@@ -84,6 +86,7 @@ export function ProxyServersGrid() {
     setFormData({ name: '', login: '', password: '', server: '', port: 8080, protocol: 'HTTP', is_active: true });
     setEditingProxy(null);
     setShowPassword(false);
+    setLinkedChannelIds([]);
   };
 
   const handleOpenDialog = (proxy?: ProxyServer) => {
@@ -98,6 +101,7 @@ export function ProxyServersGrid() {
         protocol: proxy.protocol,
         is_active: proxy.is_active,
       });
+      setLinkedChannelIds(channels.filter(ch => ch.proxy_id === proxy.id).map(ch => ch.id));
     } else {
       resetForm();
     }
@@ -112,14 +116,64 @@ export function ProxyServersGrid() {
         login: formData.login || null,
         password: formData.password || null,
       };
+
+      let proxyId = editingProxy?.id;
+
       if (editingProxy) {
         await updateProxy(editingProxy.id, payload);
       } else {
-        await addProxy(payload);
+        // For new proxy, we need to get the id after insert
+        const { data, error } = await supabase
+          .from('proxy_servers')
+          .insert({
+            name: payload.name,
+            login: payload.login,
+            password: payload.password,
+            server: payload.server,
+            port: payload.port || 8080,
+            protocol: payload.protocol || 'HTTP',
+            is_active: payload.is_active ?? true,
+          })
+          .select('id')
+          .single();
+        if (error) throw error;
+        proxyId = data.id;
+        toast.success('Прокси добавлен');
       }
+
+      // Update channel bindings
+      if (proxyId) {
+        const proxyString = `${formData.server}:${formData.port}`;
+        const previouslyLinked = channels.filter(ch => ch.proxy_id === proxyId).map(ch => ch.id);
+        const toLink = linkedChannelIds.filter(id => !previouslyLinked.includes(id));
+        const toUnlink = previouslyLinked.filter(id => !linkedChannelIds.includes(id));
+
+        // Link new channels
+        for (const chId of toLink) {
+          await supabase
+            .from('publishing_channels')
+            .update({ proxy_id: proxyId, proxy_server: proxyString, location: formData.name })
+            .eq('id', chId);
+        }
+
+        // Unlink removed channels
+        for (const chId of toUnlink) {
+          await supabase
+            .from('publishing_channels')
+            .update({ proxy_id: null, proxy_server: null, location: null })
+            .eq('id', chId);
+        }
+
+        if (toLink.length > 0 || toUnlink.length > 0) {
+          await refetchChannels();
+        }
+      }
+
       setIsDialogOpen(false);
       resetForm();
-    } catch {}
+    } catch (error) {
+      console.error('Error saving proxy:', error);
+    }
   };
 
   const handleDelete = async () => {
@@ -128,9 +182,32 @@ export function ProxyServersGrid() {
     setDeleteTarget(null);
   };
 
-  // Get channels linked to a proxy
   const getLinkedChannels = (proxyId: string): PublishingChannel[] => {
-    return channels.filter(ch => (ch as any).proxy_id === proxyId);
+    return channels.filter(ch => ch.proxy_id === proxyId);
+  };
+
+  // Group channels by network type for the binding UI
+  const channelsByNetwork = channels.reduce<Record<string, PublishingChannel[]>>((acc, ch) => {
+    const key = ch.network_type;
+    if (!acc[key]) acc[key] = [];
+    acc[key].push(ch);
+    return acc;
+  }, {});
+
+  const toggleChannel = (channelId: string) => {
+    setLinkedChannelIds(prev =>
+      prev.includes(channelId) ? prev.filter(id => id !== channelId) : [...prev, channelId]
+    );
+  };
+
+  const toggleAllNetwork = (networkChannels: PublishingChannel[]) => {
+    const ids = networkChannels.map(ch => ch.id);
+    const allSelected = ids.every(id => linkedChannelIds.includes(id));
+    if (allSelected) {
+      setLinkedChannelIds(prev => prev.filter(id => !ids.includes(id)));
+    } else {
+      setLinkedChannelIds(prev => [...new Set([...prev, ...ids])]);
+    }
   };
 
   if (loading) {
@@ -205,7 +282,7 @@ export function ProxyServersGrid() {
 
       {/* Edit / Add Dialog */}
       <Dialog open={isDialogOpen} onOpenChange={(open) => { if (!open) { setIsDialogOpen(false); resetForm(); } }}>
-        <DialogContent className="max-w-md">
+        <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>{editingProxy ? 'Редактировать прокси' : 'Новый прокси-сервер'}</DialogTitle>
           </DialogHeader>
@@ -300,6 +377,52 @@ export function ProxyServersGrid() {
                 onCheckedChange={(checked) => setFormData({ ...formData, is_active: checked })}
               />
             </div>
+
+            {/* Channel Binding Section */}
+            {channels.length > 0 && (
+              <div className="border-t pt-4 space-y-3">
+                <div className="flex items-center justify-between">
+                  <p className="text-sm font-medium">Привязка к каналам</p>
+                  <span className="text-xs text-muted-foreground">{linkedChannelIds.length} выбрано</span>
+                </div>
+                <div className="space-y-3 max-h-48 overflow-y-auto pr-1">
+                  {Object.entries(channelsByNetwork).map(([network, networkChannels]) => {
+                    const networkIds = networkChannels.map(ch => ch.id);
+                    const allSelected = networkIds.every(id => linkedChannelIds.includes(id));
+                    const someSelected = networkIds.some(id => linkedChannelIds.includes(id));
+                    return (
+                      <div key={network} className="space-y-1">
+                        <label className="flex items-center gap-2 cursor-pointer text-sm font-medium text-muted-foreground">
+                          <Checkbox
+                            checked={allSelected}
+                            // @ts-ignore
+                            indeterminate={someSelected && !allSelected}
+                            onCheckedChange={() => toggleAllNetwork(networkChannels)}
+                          />
+                          {network.charAt(0).toUpperCase() + network.slice(1)}
+                        </label>
+                        <div className="ml-6 space-y-1">
+                          {networkChannels.map(ch => (
+                            <label key={ch.id} className="flex items-center gap-2 cursor-pointer text-sm">
+                              <Checkbox
+                                checked={linkedChannelIds.includes(ch.id)}
+                                onCheckedChange={() => toggleChannel(ch.id)}
+                              />
+                              {ch.name}
+                              {ch.proxy_id && ch.proxy_id !== editingProxy?.id && (
+                                <span className="text-[10px] text-muted-foreground ml-1">
+                                  (другой прокси)
+                                </span>
+                              )}
+                            </label>
+                          ))}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
 
             {/* Copy fields for existing proxy */}
             {editingProxy && (
