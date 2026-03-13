@@ -286,14 +286,14 @@ export function VideoDetailModal({
             {/* Photo selection */}
             <div className="space-y-2">
               <Label>Фото аватара</Label>
-              {photos.length === 0 ? (
+              {allPhotos.length === 0 ? (
                 <div className="flex items-center gap-2 text-muted-foreground p-4 border rounded-lg">
                   <AlertCircle className="w-5 h-5" />
                   <span>У духовника нет фотографий. Добавьте фото на странице духовников.</span>
                 </div>
               ) : (
                 <div className="flex gap-2 flex-wrap">
-                  {photos.map((photo) => (
+                  {allPhotos.map((photo) => (
                     <div
                       key={photo.id}
                       className={`relative cursor-pointer rounded-lg overflow-hidden border-2 transition-all ${
@@ -313,9 +313,9 @@ export function VideoDetailModal({
                           HeyGen
                         </Badge>
                       )}
-                      {photo.is_primary && (
+                      {photo.label && (
                         <Badge className="absolute top-1 left-1 text-xs" variant="secondary">
-                          Main
+                          {photo.label}
                         </Badge>
                       )}
                     </div>
