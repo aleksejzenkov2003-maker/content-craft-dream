@@ -129,7 +129,24 @@ export function VideoSidePanel({
     fetchAtmospherePrompt();
   }, [video?.id, video?.question, video?.hook, video?.advisor_answer, advisor]);
 
-  const videoUrl = video?.video_path || video?.heygen_video_url || null;
+  const [videoIndex, setVideoIndex] = useState(0);
+
+  // Build video variants for carousel
+  const videoVariants = (() => {
+    if (!video) return [];
+    const variants: { label: string; url: string }[] = [];
+    if (video.heygen_video_url) variants.push({ label: 'HeyGen видео', url: video.heygen_video_url });
+    if (video.video_path && video.video_path !== video.heygen_video_url) variants.push({ label: 'С субтитрами', url: video.video_path });
+    return variants;
+  })();
+
+  // Reset video index when variants change
+  useEffect(() => {
+    setVideoIndex(Math.max(0, videoVariants.length - 1));
+  }, [video?.video_path, video?.heygen_video_url]);
+
+  const videoUrl = videoVariants.length > 0 ? videoVariants[Math.min(videoIndex, videoVariants.length - 1)]?.url : null;
+  const currentVideoLabel = videoVariants.length > 0 ? videoVariants[Math.min(videoIndex, videoVariants.length - 1)]?.label : null;
   const [originalSizeBytes, setOriginalSizeBytes] = useState<number | null>(null);
 
   useEffect(() => {
@@ -336,12 +353,21 @@ export function VideoSidePanel({
 
             {/* Video */}
             <div className="space-y-1">
-              <Label className="text-[10px] text-muted-foreground flex items-center gap-1"><Play className="w-3 h-3" />Видео</Label>
+              <Label className="text-[10px] text-muted-foreground flex items-center gap-1"><Play className="w-3 h-3" />Видео ({videoVariants.length})</Label>
               {videoUrl ? (
-                <div className="relative aspect-[9/16] rounded-md overflow-hidden bg-black">
-                  <video src={videoUrl} controls className="w-full h-full object-contain" poster={video.front_cover_url || undefined} onLoadedMetadata={handleVideoLoadedMetadata} />
-                  {video.video_path && <span className="absolute top-1 right-1 bg-black/60 text-white text-[7px] px-1 py-0.5 rounded">С субтитрами</span>}
-                  <div className={cn("absolute bottom-1 left-1 right-1 text-center text-[8px] font-medium py-0.5 rounded", videoStatus.colorClass)}>{videoStatus.label}</div>
+                <div className="relative">
+                  <div className="relative aspect-[9/16] rounded-md overflow-hidden bg-black">
+                    <video key={videoUrl} src={videoUrl} controls className="w-full h-full object-contain" poster={video.front_cover_url || undefined} onLoadedMetadata={handleVideoLoadedMetadata} />
+                    {currentVideoLabel && <span className="absolute top-1 right-1 bg-black/60 text-white text-[7px] px-1 py-0.5 rounded">{currentVideoLabel}</span>}
+                    <div className={cn("absolute bottom-1 left-1 right-1 text-center text-[8px] font-medium py-0.5 rounded", videoStatus.colorClass)}>{videoStatus.label}</div>
+                  </div>
+                  {videoVariants.length > 1 && (
+                    <div className="flex items-center justify-center gap-1 mt-0.5">
+                      <Button size="icon" variant="ghost" className="h-4 w-4" disabled={videoIndex === 0} onClick={() => setVideoIndex(i => i - 1)}><ChevronLeft className="w-3 h-3" /></Button>
+                      <span className="text-[8px] text-muted-foreground">{videoIndex + 1}/{videoVariants.length}</span>
+                      <Button size="icon" variant="ghost" className="h-4 w-4" disabled={videoIndex === videoVariants.length - 1} onClick={() => setVideoIndex(i => i + 1)}><ChevronRight className="w-3 h-3" /></Button>
+                    </div>
+                  )}
                 </div>
               ) : (
                 <div className="relative aspect-[9/16] rounded-md border-2 border-dashed border-muted-foreground/20 bg-muted/30 flex flex-col items-center justify-center gap-1">

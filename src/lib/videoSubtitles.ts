@@ -114,18 +114,55 @@ function buildDrawtextFilter(
 
 // ── Highlight (karaoke) drawtext filter ──
 
+/**
+ * Measure pixel widths using OffscreenCanvas for precise word positioning.
+ * Returns a map of prefix widths for each block's words.
+ */
+function measureWordOffsets(
+  blocks: TimedBlock[],
+  fontSize: number,
+): Map<TimedBlock, { totalWidth: number; offsets: number[] }> {
+  const result = new Map<TimedBlock, { totalWidth: number; offsets: number[] }>();
+
+  let canvas: OffscreenCanvas | HTMLCanvasElement;
+  try {
+    canvas = new OffscreenCanvas(1, 1);
+  } catch {
+    canvas = document.createElement('canvas');
+  }
+  const ctx = canvas.getContext('2d') as OffscreenCanvasRenderingContext2D | CanvasRenderingContext2D;
+  if (!ctx) return result;
+
+  // Use the same font loaded into FFmpeg
+  ctx.font = `bold ${fontSize}px Montserrat, sans-serif`;
+
+  for (const b of blocks) {
+    if (!b.words || b.words.length === 0) continue;
+    const totalWidth = ctx.measureText(b.text).width;
+    const offsets: number[] = [];
+    let charOffset = 0;
+    for (const w of b.words) {
+      const prefix = b.text.substring(0, charOffset);
+      offsets.push(ctx.measureText(prefix).width);
+      charOffset += w.word.length + 1; // +1 for space
+    }
+    result.set(b, { totalWidth, offsets });
+  }
+  return result;
+}
+
 function buildHighlightDrawtextFilter(
   blocks: TimedBlock[],
   fontSize = 44,
 ): string {
   if (blocks.length === 0) return 'null';
 
-  const charWidth = fontSize * 0.55; // approximate for Montserrat Bold
+  // Pre-compute precise pixel offsets using Canvas measureText
+  const measurements = measureWordOffsets(blocks, fontSize);
   const filters: string[] = [];
 
   for (const b of blocks) {
     if (!b.words || b.words.length <= 1) {
-      // Fallback to simple yellow for single-word blocks or blocks without word data
       const escapedText = escapeDrawtext(b.text);
       filters.push(
         `drawtext=fontfile=${FONT_PATH}:text='${escapedText}':fontsize=${fontSize}:fontcolor=0xFFCC00:borderw=3:bordercolor=black:x=(w-text_w)/2:y=(h*0.55):enable='between(t,${b.startSec.toFixed(3)},${b.endSec.toFixed(3)})'`
@@ -139,26 +176,20 @@ function buildHighlightDrawtextFilter(
       `drawtext=fontfile=${FONT_PATH}:text='${escapedFull}':fontsize=${fontSize}:fontcolor=white:borderw=3:bordercolor=black:x=(w-text_w)/2:y=(h*0.55):enable='between(t,${b.startSec.toFixed(3)},${b.endSec.toFixed(3)})'`
     );
 
-    // Overlay layers: each word in yellow (highlight color) during its spoken time
-    // Calculate x-offset for each word relative to block center
-    const totalTextLen = b.text.length;
-    let charOffset = 0;
+    // Overlay layers: each word in yellow during its spoken time
+    const m = measurements.get(b);
+    if (!m) continue;
 
-    for (const w of b.words) {
-      const wordText = w.word;
-      const escapedWord = escapeDrawtext(wordText);
-      // x = center_of_block_start + word_offset
-      // center_of_block_start = (w - totalWidth) / 2
-      // word x = (w - totalWidth) / 2 + charOffset * charWidth
-      const totalWidthExpr = `${(totalTextLen * charWidth).toFixed(1)}`;
-      const offsetPx = (charOffset * charWidth).toFixed(1);
-      const xExpr = `(w-${totalWidthExpr})/2+${offsetPx}`;
+    for (let i = 0; i < b.words.length; i++) {
+      const w = b.words[i];
+      const escapedWord = escapeDrawtext(w.word);
+      const totalWidthPx = m.totalWidth.toFixed(1);
+      const offsetPx = m.offsets[i].toFixed(1);
+      const xExpr = `(w-${totalWidthPx})/2+${offsetPx}`;
 
       filters.push(
         `drawtext=fontfile=${FONT_PATH}:text='${escapedWord}':fontsize=${fontSize}:fontcolor=0xFFCC00:x=${xExpr}:y=(h*0.55):enable='between(t,${w.start.toFixed(3)},${w.end.toFixed(3)})'`
       );
-
-      charOffset += wordText.length + 1; // +1 for space
     }
   }
 
