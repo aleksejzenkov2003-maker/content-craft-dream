@@ -328,26 +328,26 @@ export function PublicationEditDialog({
         </Button>
 
         {/* Links */}
-        {(publication.final_video_url || publication.post_url) && (
-          <div className="space-y-1 text-xs">
-            {publication.final_video_url && (
-              <div className="flex items-center gap-2">
-                <span className="text-muted-foreground w-[140px] shrink-0">Ссылка на финальное видео</span>
-                <a href={publication.final_video_url} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline truncate">
-                  {publication.final_video_url}
-                </a>
-              </div>
-            )}
-            {publication.post_url && (
-              <div className="flex items-center gap-2">
-                <span className="text-muted-foreground w-[140px] shrink-0">Ссылка на публикацию</span>
-                <a href={publication.post_url} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline truncate">
-                  {publication.post_url}
-                </a>
-              </div>
+        <div className="space-y-1 text-xs">
+          {publication.final_video_url && (
+            <div className="flex items-center gap-2">
+              <span className="text-muted-foreground w-[140px] shrink-0">Ссылка на видео</span>
+              <a href={publication.final_video_url} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline truncate">
+                {publication.final_video_url}
+              </a>
+            </div>
+          )}
+          <div className="flex items-center gap-2">
+            <span className="text-muted-foreground w-[140px] shrink-0">Ссылка на публикацию</span>
+            {publication.post_url ? (
+              <a href={publication.post_url} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline truncate">
+                {publication.post_url}
+              </a>
+            ) : (
+              <span className="text-muted-foreground">Не опубликовано</span>
             )}
           </div>
-        )}
+        </div>
       </div>
 
       {/* Error */}
