@@ -63,21 +63,19 @@ import { cn } from '@/lib/utils';
 import { formatFileSize, resolvePublicationVideoMetadata } from './videoMetadata';
 
 const statusLabels: Record<string, { label: string; variant: 'default' | 'secondary' | 'destructive' | 'outline' }> = {
-  pending: { label: 'Ожидает', variant: 'secondary' },
-  checked: { label: 'Проверено', variant: 'outline' },
-  needs_concat: { label: 'Ожидает склейки', variant: 'outline' },
-  concatenating: { label: 'Склейка...', variant: 'outline' },
-  scheduled: { label: 'Запланирован', variant: 'outline' },
-  published: { label: 'Опубликован', variant: 'default' },
+  pending: { label: 'Не опубликовано', variant: 'secondary' },
+  checked: { label: 'Не опубликовано', variant: 'secondary' },
+  needs_concat: { label: 'Не опубликовано', variant: 'secondary' },
+  concatenating: { label: 'Не опубликовано', variant: 'secondary' },
+  scheduled: { label: 'Не опубликовано', variant: 'secondary' },
+  published: { label: 'Опубликовано', variant: 'default' },
   error: { label: 'Ошибка', variant: 'destructive' },
   failed: { label: 'Ошибка', variant: 'destructive' },
 };
 
 const statusOptions = [
-  { value: 'pending', label: 'Ожидает' },
-  { value: 'checked', label: 'Проверено' },
-  { value: 'scheduled', label: 'Запланирован' },
-  { value: 'published', label: 'Опубликован' },
+  { value: 'pending', label: 'Не опубликовано' },
+  { value: 'published', label: 'Опубликовано' },
   { value: 'failed', label: 'Ошибка' },
 ];
 
