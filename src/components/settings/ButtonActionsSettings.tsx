@@ -65,7 +65,7 @@ const COLUMNS: ColumnConfig[] = [
     buttonKeys: ['prepare_publish', 'bulk_publish'],
     label: 'Подготовка к публикации',
     section: 'Ролики',
-    precheck: 'Готовность + каналы',
+    precheck: 'Проверено + каналы',
     preview: (
       <Button size="xs" variant="default" className="pointer-events-none">
         <Send className="w-3 h-3 mr-1" />Подготовка

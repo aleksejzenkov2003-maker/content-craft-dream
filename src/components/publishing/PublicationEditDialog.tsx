@@ -310,7 +310,7 @@ export function PublicationEditDialog({
             onCheckedChange={(v) => setIsReady(!!v)}
           />
           <label htmlFor="pub-ready" className="text-sm font-medium cursor-pointer">
-            Готовность
+            Проверено
           </label>
         </div>
 

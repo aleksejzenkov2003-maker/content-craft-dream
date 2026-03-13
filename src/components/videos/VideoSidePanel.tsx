@@ -392,7 +392,7 @@ export function VideoSidePanel({
               onUpdateVideo(video.id, { is_ready: val } as any);
             }}
           />
-          <Label htmlFor="is-ready" className="text-xs cursor-pointer">Готовность</Label>
+          <Label htmlFor="is-ready" className="text-xs cursor-pointer">Проверено</Label>
         </div>
       </PanelSection>
 
@@ -402,7 +402,7 @@ export function VideoSidePanel({
         size="sm"
         onClick={handlePublish}
         disabled={!isReady || selectedChannels.length === 0}
-        title={!isReady ? 'Поставьте галочку «Готовность»' : selectedChannels.length === 0 ? 'Выберите каналы' : undefined}
+        title={!isReady ? 'Поставьте галочку «Проверено»' : selectedChannels.length === 0 ? 'Выберите каналы' : undefined}
       >
         Отправить на подготовку к публикации ({selectedChannels.length})
       </Button>

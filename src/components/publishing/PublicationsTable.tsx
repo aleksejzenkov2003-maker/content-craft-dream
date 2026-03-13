@@ -63,21 +63,19 @@ import { cn } from '@/lib/utils';
 import { formatFileSize, resolvePublicationVideoMetadata } from './videoMetadata';
 
 const statusLabels: Record<string, { label: string; variant: 'default' | 'secondary' | 'destructive' | 'outline' }> = {
-  pending: { label: 'Ожидает', variant: 'secondary' },
-  checked: { label: 'Проверено', variant: 'outline' },
-  needs_concat: { label: 'Ожидает склейки', variant: 'outline' },
-  concatenating: { label: 'Склейка...', variant: 'outline' },
-  scheduled: { label: 'Запланирован', variant: 'outline' },
-  published: { label: 'Опубликован', variant: 'default' },
+  pending: { label: 'Не опубликовано', variant: 'secondary' },
+  checked: { label: 'Не опубликовано', variant: 'secondary' },
+  needs_concat: { label: 'Не опубликовано', variant: 'secondary' },
+  concatenating: { label: 'Не опубликовано', variant: 'secondary' },
+  scheduled: { label: 'Не опубликовано', variant: 'secondary' },
+  published: { label: 'Опубликовано', variant: 'default' },
   error: { label: 'Ошибка', variant: 'destructive' },
   failed: { label: 'Ошибка', variant: 'destructive' },
 };
 
 const statusOptions = [
-  { value: 'pending', label: 'Ожидает' },
-  { value: 'checked', label: 'Проверено' },
-  { value: 'scheduled', label: 'Запланирован' },
-  { value: 'published', label: 'Опубликован' },
+  { value: 'pending', label: 'Не опубликовано' },
+  { value: 'published', label: 'Опубликовано' },
   { value: 'failed', label: 'Ошибка' },
 ];
 
@@ -578,7 +576,7 @@ const minuteOptions = [0, 5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55];
               { key: null, label: 'Все', count: statusCounts.all, activeClass: 'bg-primary/10 text-primary border-primary' },
               { key: 'pending', label: 'Ожидают', count: statusCounts.pending, activeClass: 'bg-yellow-500/10 text-yellow-700 border-yellow-500' },
               { key: 'checked', label: 'Проверены', count: statusCounts.checked, activeClass: 'bg-blue-500/10 text-blue-700 border-blue-500' },
-              { key: 'published', label: 'Опубликованы', count: statusCounts.published, activeClass: 'bg-green-500/10 text-green-700 border-green-500' },
+              { key: 'published', label: 'Опубликовано', count: statusCounts.published, activeClass: 'bg-green-500/10 text-green-700 border-green-500' },
               { key: 'failed', label: 'Ошибки', count: statusCounts.failed, activeClass: 'bg-destructive/10 text-destructive border-destructive' },
             ].map(tab => (
               <button
@@ -722,7 +720,7 @@ const minuteOptions = [0, 5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55];
                     <TableHead className="w-[50px] py-1">Склейка</TableHead>
                     <TableHead className="w-[50px] py-1">Текст</TableHead>
                     <TableHead className="w-[70px] py-1">Проверка</TableHead>
-                    <TableHead className="w-[60px] py-1">Статус</TableHead>
+                    <TableHead className="w-[90px] py-1">Публикация</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -850,9 +848,9 @@ onClick={() => setEditingPublicationId(pub.id)}
                       {/* Проверка */}
                       <TableCell className="py-1">
                         {isChecked ? (
-                          <span className="font-medium text-green-600">Готово</span>
+                          <span className="font-medium text-green-600">Проверено</span>
                         ) : (
-                          <span className="text-muted-foreground">—</span>
+                          <span className="text-muted-foreground">Не проверен</span>
                         )}
                       </TableCell>
                       {/* Статус */}
