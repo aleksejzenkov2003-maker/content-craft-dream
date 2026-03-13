@@ -576,7 +576,7 @@ const minuteOptions = [0, 5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55];
               { key: null, label: 'Все', count: statusCounts.all, activeClass: 'bg-primary/10 text-primary border-primary' },
               { key: 'pending', label: 'Ожидают', count: statusCounts.pending, activeClass: 'bg-yellow-500/10 text-yellow-700 border-yellow-500' },
               { key: 'checked', label: 'Проверены', count: statusCounts.checked, activeClass: 'bg-blue-500/10 text-blue-700 border-blue-500' },
-              { key: 'published', label: 'Опубликованы', count: statusCounts.published, activeClass: 'bg-green-500/10 text-green-700 border-green-500' },
+              { key: 'published', label: 'Опубликовано', count: statusCounts.published, activeClass: 'bg-green-500/10 text-green-700 border-green-500' },
               { key: 'failed', label: 'Ошибки', count: statusCounts.failed, activeClass: 'bg-destructive/10 text-destructive border-destructive' },
             ].map(tab => (
               <button
