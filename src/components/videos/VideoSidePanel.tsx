@@ -129,7 +129,23 @@ export function VideoSidePanel({
     fetchAtmospherePrompt();
   }, [video?.id, video?.question, video?.hook, video?.advisor_answer, advisor]);
 
-  const videoUrl = video?.video_path || video?.heygen_video_url || null;
+  // Build video variants for carousel
+  const videoVariants = (() => {
+    if (!video) return [];
+    const variants: { label: string; url: string }[] = [];
+    if (video.heygen_video_url) variants.push({ label: 'HeyGen видео', url: video.heygen_video_url });
+    if (video.video_path && video.video_path !== video.heygen_video_url) variants.push({ label: 'С субтитрами', url: video.video_path });
+    return variants;
+  })();
+  const [videoIndex, setVideoIndex] = useState(0);
+
+  // Reset video index when variants change
+  useEffect(() => {
+    setVideoIndex(Math.max(0, videoVariants.length - 1));
+  }, [video?.video_path, video?.heygen_video_url]);
+
+  const videoUrl = videoVariants.length > 0 ? videoVariants[Math.min(videoIndex, videoVariants.length - 1)]?.url : null;
+  const currentVideoLabel = videoVariants.length > 0 ? videoVariants[Math.min(videoIndex, videoVariants.length - 1)]?.label : null;
   const [originalSizeBytes, setOriginalSizeBytes] = useState<number | null>(null);
 
   useEffect(() => {
