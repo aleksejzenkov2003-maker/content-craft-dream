@@ -270,13 +270,15 @@ export function PublicationEditDialog({
         <TabsContent value="video" className="mt-3 overflow-hidden">
           {publication.final_video_url ? (
             <div className="space-y-3">
-              <video
-                src={publication.final_video_url}
-                controls
-                playsInline
-                preload="metadata"
-                className="w-full max-h-[50vh] rounded-lg object-contain bg-black"
-              />
+              <div className="flex justify-center">
+                <video
+                  src={publication.final_video_url}
+                  controls
+                  playsInline
+                  preload="metadata"
+                  className="max-h-[50vh] rounded-lg"
+                />
+              </div>
               <div className="flex items-center gap-2 text-xs text-muted-foreground">
                 <a
                   href={publication.final_video_url}
