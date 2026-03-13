@@ -185,7 +185,7 @@ export function VideoDetailModal({
             {(() => {
               const sceneFromPlaylist = scenePhotos[0];
               const scenePhoto = sceneFromPlaylist
-                ? { url: sceneFromPlaylist.scene_url!, label: 'Сцена' }
+                ? { url: sceneFromPlaylist.photo_url, label: 'Сцена' }
                 : (() => {
                     const photo = advisor?.photos?.find(p => p.id === advisor?.scene_photo_id) || advisor?.photos?.find(p => p.is_primary) || advisor?.photos?.[0];
                     return photo ? { url: photo.photo_url, label: 'Фото' } : null;
