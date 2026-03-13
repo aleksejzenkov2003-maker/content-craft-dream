@@ -183,12 +183,18 @@ export function VideoDetailModal({
           <TabsContent value="info" className="space-y-4">
             {/* Scene photo */}
             {(() => {
-              const scenePhoto = advisor?.photos?.find(p => p.id === advisor?.scene_photo_id) || advisor?.photos?.find(p => p.is_primary) || advisor?.photos?.[0];
+              const sceneFromPlaylist = scenePhotos[0];
+              const scenePhoto = sceneFromPlaylist
+                ? { url: sceneFromPlaylist.photo_url, label: 'Сцена' }
+                : (() => {
+                    const photo = advisor?.photos?.find(p => p.id === advisor?.scene_photo_id) || advisor?.photos?.find(p => p.is_primary) || advisor?.photos?.[0];
+                    return photo ? { url: photo.photo_url, label: 'Фото' } : null;
+                  })();
               return scenePhoto ? (
                 <div className="space-y-2">
                   <Label className="text-muted-foreground">Фото сцены</Label>
                   <img
-                    src={scenePhoto.photo_url}
+                    src={scenePhoto.url}
                     alt="Scene"
                     className="w-24 h-24 rounded-lg object-cover"
                   />

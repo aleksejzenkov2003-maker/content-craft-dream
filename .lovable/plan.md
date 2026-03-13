@@ -1,22 +1,57 @@
 
 
-## Fix: Scene photo not showing in Info tab
+## Решение: бинарная MP4-конкатенация + нормализация аудио через ffmpeg.wasm
 
-**Problem**: Line 186 in `VideoDetailModal.tsx` searches for the scene photo among `advisor?.photos` (uploaded advisor portraits). It should instead show the generated scene image from `playlist_scenes` — which is already fetched into `scenePhotos` state (lines 80-104) but only used in the Generate tab.
+### Что сделано
 
-**Fix** in `src/components/videos/VideoDetailModal.tsx`:
+1. **`supabase/functions/concat-video/index.ts`** — полная перезапись:
+   - Бинарный MP4-парсер: разбор боксов (moov/trak/stbl/stsz/stco/stsc/stts/stss/ctts)
+   - Извлечение сэмплов из обоих файлов, сборка нового mdat
+   - Объединение sample tables, пересчёт оффсетов, обновление duration
+   - Сохранение логики получения свежих HeyGen URL
+   - Загрузка результата в Storage
 
-Replace the scene photo logic in the Info tab (lines 185-197) to prioritize `scenePhotos[0]` (from `playlist_scenes`), falling back to the advisor's `scene_photo_id` photo only if no playlist scene exists.
+2. **`src/lib/videoNormalizer.ts`** — утилита нормализации аудио через ffmpeg.wasm:
+   - Загружает ffmpeg WASM при первом использовании
+   - Перекодирует аудио в AAC-LC 48kHz mono 128kbps: `-c:v copy -c:a aac -ar 48000 -ac 1 -b:a 128k`
+   - Видео-поток копируется без потерь
 
-```tsx
-// Current (wrong): looks in advisor.photos
-const scenePhoto = advisor?.photos?.find(p => p.id === advisor?.scene_photo_id) || ...
+3. **`src/components/covers/BackCoversGrid.tsx`** — интеграция нормализации:
+   - При загрузке видео-обложки автоматически нормализует аудио через ffmpeg.wasm
+   - Показывает прогресс нормализации
+   - Загружает нормализованный файл в Storage
+   - Fallback на оригинал при ошибке
 
-// Fixed: prioritize actual scene from playlist_scenes
-const sceneImage = scenePhotos[0]
-  || advisor?.photos?.find(p => p.id === advisor?.scene_photo_id)
-  || advisor?.photos?.find(p => p.is_primary);
-```
+### Зависимости
+- `@ffmpeg/ffmpeg@0.12.10`
+- `@ffmpeg/util@0.12.1`
 
-Single file change, ~5 lines.
+---
 
+## Субтитры: ElevenLabs timestamps → SRT → FFmpeg
+
+### Что сделано
+
+1. **БД миграция** — добавлено поле `word_timestamps jsonb` в таблицу `videos`
+
+2. **Edge Functions** — обновлены оба voiceover-генератора:
+   - `supabase/functions/generate-voiceover-for-video/index.ts` → endpoint `/with-timestamps`
+   - `supabase/functions/generate-voiceover/index.ts` → endpoint `/with-timestamps`
+   - Ответ содержит `audio_base64` + `alignment` (character-level timestamps)
+   - Функция `buildWordTimestamps()` собирает word-level timestamps из character-level
+   - Timestamps сохраняются в `videos.word_timestamps`
+
+3. **`src/lib/srtGenerator.ts`** — генерация субтитров:
+   - `generateSrt()` — SRT формат (группировка по N слов)
+   - `generateAss()` — ASS формат (со стилями: шрифт, размер, цвет, обводка)
+   - `generateSrtBlocks()` — промежуточная структура
+
+4. **`src/lib/videoSubtitles.ts`** — вшивание субтитров через ffmpeg.wasm:
+   - `burnSubtitles(videoUrl, timestamps, options, onProgress)` → File
+   - Использует ASS-фильтр для стилизованных субтитров
+   - Видео перекодируется libx264 (preset fast, crf 23), аудио копируется
+
+5. **UI** — кнопка «Добавить субтитры» в `VideoSidePanel`:
+   - Появляется когда есть `heygen_video_url` и `word_timestamps`
+   - Показывает прогресс через Progress bar
+   - Результат загружается в Storage и сохраняется в `video_path`
