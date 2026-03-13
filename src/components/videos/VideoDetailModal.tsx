@@ -75,7 +75,40 @@ export function VideoDetailModal({
   const advisor = advisors.find((a) => a.id === video?.advisor_id);
   const photos = advisor?.photos || [];
   const photosWithAssetId = photos.filter((p) => p.heygen_asset_id);
-  const selectedPhoto = photos.find((p) => p.id === selectedPhotoId) || photosWithAssetId[0] || photos[0];
+
+  // Fetch scene images from playlist_scenes
+  const [scenePhotos, setScenePhotos] = useState<Array<{ id: string; photo_url: string; label: string }>>([]);
+  
+  useEffect(() => {
+    if (!video?.playlist_id || !video?.advisor_id || !open) {
+      setScenePhotos([]);
+      return;
+    }
+    const fetchScenes = async () => {
+      const { data } = await supabase
+        .from('playlist_scenes')
+        .select('id, scene_url')
+        .eq('playlist_id', video.playlist_id!)
+        .eq('advisor_id', video.advisor_id!)
+        .eq('status', 'approved')
+        .not('scene_url', 'is', null);
+      if (data) {
+        setScenePhotos(data.map((s, i) => ({
+          id: `scene-${s.id}`,
+          photo_url: s.scene_url!,
+          label: `Сцена ${i + 1}`,
+        })));
+      }
+    };
+    fetchScenes();
+  }, [video?.playlist_id, video?.advisor_id, open]);
+
+  // Combine advisor photos + scene photos for selection
+  const allPhotos = [
+    ...photos.map(p => ({ ...p, label: p.is_primary ? 'Main' : undefined as string | undefined, isScene: false })),
+    ...scenePhotos.map(s => ({ id: s.id, photo_url: s.photo_url, heygen_asset_id: null as string | null, is_primary: false, advisor_id: video?.advisor_id || '', created_at: '', label: s.label, isScene: true })),
+  ];
+  const selectedPhoto = allPhotos.find((p) => p.id === selectedPhotoId) || photosWithAssetId[0] || photos[0];
 
   // Initialize script when video changes
   const script = editedScript || video?.advisor_answer || '';
