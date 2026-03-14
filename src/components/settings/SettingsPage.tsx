@@ -3,6 +3,7 @@ import { cn } from '@/lib/utils';
 import { Zap, Plug, Film } from 'lucide-react';
 import { ButtonActionsSettings } from './ButtonActionsSettings';
 import { ApiBalancesSettings } from './ApiBalancesSettings';
+import { VideoFormatSettings } from './VideoFormatSettings';
 
 const SECTIONS = [
   { key: 'buttons', label: 'Управление действиями кнопок', icon: Zap },
@@ -44,11 +45,7 @@ export function SettingsPage() {
       {/* Content */}
       {activeSection === 'buttons' && <ButtonActionsSettings />}
       {activeSection === 'api' && <ApiBalancesSettings />}
-      {activeSection === 'video_format' && (
-        <div className="rounded-lg border p-8 text-center text-muted-foreground text-sm">
-          Раздел в разработке
-        </div>
-      )}
+      {activeSection === 'video_format' && <VideoFormatSettings />}
     </div>
   );
 }
