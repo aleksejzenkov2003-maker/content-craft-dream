@@ -1,57 +1,76 @@
 
 
-## Решение: бинарная MP4-конкатенация + нормализация аудио через ffmpeg.wasm
+## Add Motion для Avatar III в карточке видео
 
-### Что сделано
+### Суть
+Добавить в VideoSidePanel секцию "Настройка аватара" (только для режима v3), где можно:
+1. Выбрать **motion engine** из списка (consistent, expressive, consistent_gen_3, hailuo_2, veo2, seedance_lite, kling)
+2. Указать **motion prompt** (текст описания движений)
+3. Нажать "Добавить движение" — вызов API `/v2/photo_avatar/add_motion`, получить новый `talking_photo_id` с motion
+4. Сохранить этот ID → использовать при генерации видео вместо обычного `talking_photo_id`
 
-1. **`supabase/functions/concat-video/index.ts`** — полная перезапись:
-   - Бинарный MP4-парсер: разбор боксов (moov/trak/stbl/stsz/stco/stsc/stts/stss/ctts)
-   - Извлечение сэмплов из обоих файлов, сборка нового mdat
-   - Объединение sample tables, пересчёт оффсетов, обновление duration
-   - Сохранение логики получения свежих HeyGen URL
-   - Загрузка результата в Storage
+Motion-аватар создаётся один раз ($1), затем переиспользуется. Каждое видео — $1/мин.
 
-2. **`src/lib/videoNormalizer.ts`** — утилита нормализации аудио через ffmpeg.wasm:
-   - Загружает ffmpeg WASM при первом использовании
-   - Перекодирует аудио в AAC-LC 48kHz mono 128kbps: `-c:v copy -c:a aac -ar 48000 -ac 1 -b:a 128k`
-   - Видео-поток копируется без потерь
+### Изменения
 
-3. **`src/components/covers/BackCoversGrid.tsx`** — интеграция нормализации:
-   - При загрузке видео-обложки автоматически нормализует аудио через ffmpeg.wasm
-   - Показывает прогресс нормализации
-   - Загружает нормализованный файл в Storage
-   - Fallback на оригинал при ошибке
+**1. Migration: новые поля в `videos`**
 
-### Зависимости
-- `@ffmpeg/ffmpeg@0.12.10`
-- `@ffmpeg/util@0.12.1`
+```sql
+ALTER TABLE public.videos
+  ADD COLUMN motion_type TEXT DEFAULT NULL,
+  ADD COLUMN motion_prompt TEXT DEFAULT NULL,
+  ADD COLUMN motion_avatar_id TEXT DEFAULT NULL;
+```
 
----
+- `motion_type` — выбранный engine (consistent, expressive, etc.)
+- `motion_prompt` — описание движений
+- `motion_avatar_id` — результат add_motion API, переиспользуемый talking_photo_id
 
-## Субтитры: ElevenLabs timestamps → SRT → FFmpeg
+**2. Новый Edge Function: `add-avatar-motion`**
 
-### Что сделано
+Вызывает HeyGen API:
+```
+POST https://api.heygen.com/v2/photo_avatar/add_motion
+{ "id": talkingPhotoId, "prompt": motionPrompt, "motion_type": motionType }
+```
+Получает новый avatar/look ID → сохраняет в `videos.motion_avatar_id`.
 
-1. **БД миграция** — добавлено поле `word_timestamps jsonb` в таблицу `videos`
+Шаги:
+- Получить видео + адвайзора из БД
+- Загрузить фото как talking_photo (как в generate-video-heygen)
+- Вызвать add_motion
+- Сохранить `motion_avatar_id` в videos
 
-2. **Edge Functions** — обновлены оба voiceover-генератора:
-   - `supabase/functions/generate-voiceover-for-video/index.ts` → endpoint `/with-timestamps`
-   - `supabase/functions/generate-voiceover/index.ts` → endpoint `/with-timestamps`
-   - Ответ содержит `audio_base64` + `alignment` (character-level timestamps)
-   - Функция `buildWordTimestamps()` собирает word-level timestamps из character-level
-   - Timestamps сохраняются в `videos.word_timestamps`
+**3. Правка Edge Function: `generate-video-heygen`**
 
-3. **`src/lib/srtGenerator.ts`** — генерация субтитров:
-   - `generateSrt()` — SRT формат (группировка по N слов)
-   - `generateAss()` — ASS формат (со стилями: шрифт, размер, цвет, обводка)
-   - `generateSrtBlocks()` — промежуточная структура
+Перед генерацией проверить: если у видео есть `motion_avatar_id` и режим v3 — использовать его вместо свежезагруженного `talkingPhotoId`:
 
-4. **`src/lib/videoSubtitles.ts`** — вшивание субтитров через ffmpeg.wasm:
-   - `burnSubtitles(videoUrl, timestamps, options, onProgress)` → File
-   - Использует ASS-фильтр для стилизованных субтитров
-   - Видео перекодируется libx264 (preset fast, crf 23), аудио копируется
+```typescript
+const talkingPhotoIdFinal = video.motion_avatar_id || talkingPhotoId;
+```
 
-5. **UI** — кнопка «Добавить субтитры» в `VideoSidePanel`:
-   - Появляется когда есть `heygen_video_url` и `word_timestamps`
-   - Показывает прогресс через Progress bar
-   - Результат загружается в Storage и сохраняется в `video_path`
+Также добавить `talking_style: 'expressive'` если есть motion.
+
+**4. UI: секция в VideoSidePanel**
+
+После кнопок "Шаг 1/2/3" добавить блок "Настройка аватара" (показывать только если heygen_mode === 'v3'):
+- Select: motion_type (7 вариантов)
+- Input: motion_prompt (с дефолтом "The person gestures naturally...")
+- Кнопка "Добавить движение" → вызов edge function
+- Статус: если `motion_avatar_id` есть — показать зелёный бейдж "Motion готов"
+
+**5. Обновить Video interface** в `useVideos.ts`
+
+Добавить 3 новых поля: `motion_type`, `motion_prompt`, `motion_avatar_id`.
+
+### Файлы
+1. **Migration** — 3 колонки в videos
+2. **New**: `supabase/functions/add-avatar-motion/index.ts`
+3. **Edit**: `supabase/config.toml` — зарегистрировать функцию
+4. **Edit**: `supabase/functions/generate-video-heygen/index.ts` — использовать motion_avatar_id
+5. **Edit**: `src/hooks/useVideos.ts` — добавить поля в интерфейс
+6. **Edit**: `src/components/videos/VideoSidePanel.tsx` — UI блок настройки аватара
+
+### Не меняется
+- check-video-status, concat, субтитры, публикация — всё после генерации идёт как раньше
+
