@@ -118,6 +118,18 @@ export function VideoSidePanel({
     setIsReady((video as any)?.is_ready || false);
   }, [video?.id, video?.selected_channels, video?.advisor_answer, advisor]);
 
+  // Fetch heygen_mode setting
+  useEffect(() => {
+    supabase.from('app_settings' as any).select('value').eq('key', 'heygen_mode').single()
+      .then(({ data }) => { if (data) setHeygenMode((data as any).value); });
+  }, []);
+
+  // Sync motion state from video
+  useEffect(() => {
+    if (video?.motion_type) setMotionType(video.motion_type);
+    if (video?.motion_prompt) setMotionPrompt(video.motion_prompt);
+  }, [video?.id]);
+
   useEffect(() => {
     const fetchAtmospherePrompt = async () => {
       if (!video?.id) return;
