@@ -286,11 +286,17 @@ serve(async (req) => {
     await supabase.from('videos').update({ cover_status: 'generating' }).eq('id', videoId);
 
     // Determine which steps to run
-    const runAtmosphere = !step || step === 'atmosphere';
+    // Auto-run atmosphere if overlay is requested but no atmosphere exists
+    const needsAtmosphere = !video.atmosphere_url;
+    const runAtmosphere = !step || step === 'atmosphere' || (step === 'overlay' && needsAtmosphere);
     const runOverlay = !step || step === 'overlay';
 
     let atmosphereStorageUrl = video.atmosphere_url;
     let finalAtmospherePrompt = video.atmosphere_prompt || '';
+
+    if (step === 'overlay' && needsAtmosphere) {
+      console.log('No atmosphere found — auto-generating atmosphere before overlay...');
+    }
 
     // =============================================
     // STEP 1: Generate atmosphere background (AI)
