@@ -111,9 +111,13 @@ serve(async (req) => {
     console.log('talking_photo_id for motion:', talkingPhotoId);
 
     // Call add_motion API
+    const MAX_PROMPT_LENGTH = 512;
+    const rawPrompt = motionPrompt || 'The person gestures naturally with their hands while explaining something';
+    const truncatedPrompt = rawPrompt.length > MAX_PROMPT_LENGTH ? rawPrompt.slice(0, MAX_PROMPT_LENGTH) : rawPrompt;
+
     const motionBody = {
       id: talkingPhotoId,
-      prompt: motionPrompt || 'The person gestures naturally with their hands while explaining something',
+      prompt: truncatedPrompt,
       motion_type: motionType || 'consistent',
     };
 
