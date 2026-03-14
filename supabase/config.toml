@@ -65,3 +65,6 @@ verify_jwt = false
 
 [functions.upload-to-website]
 verify_jwt = false
+
+[functions.add-avatar-motion]
+verify_jwt = false
