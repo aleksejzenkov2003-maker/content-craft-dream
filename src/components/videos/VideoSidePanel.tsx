@@ -6,13 +6,15 @@ import { Label } from '@/components/ui/label';
 import { Separator } from '@/components/ui/separator';
 import { Textarea } from '@/components/ui/textarea';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Input } from '@/components/ui/input';
 import { Video } from '@/hooks/useVideos';
 import { Advisor } from '@/hooks/useAdvisors';
 import { PublishingChannel } from '@/hooks/usePublishingChannels';
 import {
   Loader2, ChevronLeft, ChevronRight, Link as LinkIcon,
   Image as ImageIcon, Play, Check, Trash2, Copy,
-  Sun, Layers, Volume2, MessageSquare, Subtitles, X, ExternalLink, RefreshCw,
+  Sun, Layers, Volume2, MessageSquare, Subtitles, X, ExternalLink, RefreshCw, Sparkles,
 } from 'lucide-react';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Progress } from '@/components/ui/progress';
