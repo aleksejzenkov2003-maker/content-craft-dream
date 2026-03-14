@@ -52,6 +52,10 @@ export interface Video {
   selected_channels: string[] | null;
   // Readiness flag
   is_ready: boolean | null;
+  // Motion fields
+  motion_type: string | null;
+  motion_prompt: string | null;
+  motion_avatar_id: string | null;
   // Joined data
   advisor?: {
     id: string;

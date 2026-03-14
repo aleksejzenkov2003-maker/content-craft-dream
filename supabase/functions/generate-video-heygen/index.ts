@@ -230,7 +230,8 @@ serve(async (req) => {
         video_inputs: [{
           character: {
             type: 'talking_photo',
-            talking_photo_id: talkingPhotoId,
+            talking_photo_id: talkingPhotoIdFinal,
+            ...(video.motion_avatar_id && heygenMode === 'v3' ? { talking_style: 'expressive' } : {}),
           },
           voice: {
             type: 'audio',

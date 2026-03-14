@@ -959,6 +959,9 @@ export type Database = {
           instagram_url: string | null
           is_ready: boolean | null
           main_photo_url: string | null
+          motion_avatar_id: string | null
+          motion_prompt: string | null
+          motion_type: string | null
           pinterest_url: string | null
           playlist_id: string | null
           publication_date: string | null
@@ -1007,6 +1010,9 @@ export type Database = {
           instagram_url?: string | null
           is_ready?: boolean | null
           main_photo_url?: string | null
+          motion_avatar_id?: string | null
+          motion_prompt?: string | null
+          motion_type?: string | null
           pinterest_url?: string | null
           playlist_id?: string | null
           publication_date?: string | null
@@ -1055,6 +1061,9 @@ export type Database = {
           instagram_url?: string | null
           is_ready?: boolean | null
           main_photo_url?: string | null
+          motion_avatar_id?: string | null
+          motion_prompt?: string | null
+          motion_type?: string | null
           pinterest_url?: string | null
           playlist_id?: string | null
           publication_date?: string | null
