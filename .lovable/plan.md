@@ -54,4 +54,29 @@
 5. **UI** — кнопка «Добавить субтитры» в `VideoSidePanel`:
    - Появляется когда есть `heygen_video_url` и `word_timestamps`
    - Показывает прогресс через Progress bar
-   - Результат загружается в Storage и сохраняется в `video_path`
+    - Результат загружается в Storage и сохраняется в `video_path`
+
+---
+
+## Add Motion для Avatar III
+
+### Что сделано
+
+1. **БД миграция** — добавлены поля `motion_type`, `motion_prompt`, `motion_avatar_id` в `videos`
+
+2. **Edge Function `add-avatar-motion`** — вызывает HeyGen `/v2/photo_avatar/add_motion`:
+   - Находит фото адвайзора, загружает как talking_photo
+   - Отправляет motion запрос с выбранным engine и промтом
+   - Сохраняет `motion_avatar_id` в videos
+
+3. **Edge Function `generate-video-heygen`** — обновлён:
+   - Если `motion_avatar_id` есть и режим v3 → использует его вместо свежей загрузки фото
+   - Добавляет `talking_style: 'expressive'` при наличии motion
+
+4. **UI в VideoSidePanel** — секция "Настройка аватара (Motion)":
+   - Показывается только в режиме v3
+   - Select из 7 motion engines
+   - Input для motion prompt
+   - Кнопка "Добавить движение ($1)"
+   - Бейдж "Motion готов" при наличии motion_avatar_id
+   - Кнопка сброса motion
