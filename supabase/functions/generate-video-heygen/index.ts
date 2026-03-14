@@ -200,8 +200,20 @@ serve(async (req) => {
     const talkingPhotoId = await uploadTalkingPhoto(imageUrl, heygenKey);
     console.log('talking_photo_id:', talkingPhotoId);
 
-    // --- Call HeyGen v2/video/generate (Avatar III) ---
-    const heygenResponse = await fetch('https://api.heygen.com/v2/video/generate', {
+    // --- Determine HeyGen mode (v3 = Avatar III, v4 = Avatar IV) ---
+    const { data: modeSettings } = await supabase
+      .from('app_settings')
+      .select('value')
+      .eq('key', 'heygen_mode')
+      .single();
+    const heygenMode = modeSettings?.value || 'v3';
+    const heygenEndpoint = heygenMode === 'v4'
+      ? 'https://api.heygen.com/v2/video/av4/generate'
+      : 'https://api.heygen.com/v2/video/generate';
+    console.log(`Using HeyGen mode: ${heygenMode}, endpoint: ${heygenEndpoint}`);
+
+    // --- Call HeyGen API ---
+    const heygenResponse = await fetch(heygenEndpoint, {
       method: 'POST',
       headers: {
         'X-Api-Key': heygenKey,

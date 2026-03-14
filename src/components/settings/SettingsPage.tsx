@@ -45,11 +45,7 @@ export function SettingsPage() {
       {/* Content */}
       {activeSection === 'buttons' && <ButtonActionsSettings />}
       {activeSection === 'api' && <ApiBalancesSettings />}
-      {activeSection === 'video_format' && (
-        <div className="rounded-lg border p-8 text-center text-muted-foreground text-sm">
-          Раздел в разработке
-        </div>
-      )}
+      {activeSection === 'video_format' && <VideoFormatSettings />}
     </div>
   );
 }
