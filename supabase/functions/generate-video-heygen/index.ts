@@ -196,9 +196,15 @@ serve(async (req) => {
       throw new Error('No image found. Upload advisor photo or generate a cover first.');
     }
 
-    // Always upload as talking_photo (cached heygen_asset_id from /v1/asset won't work here)
-    const talkingPhotoId = await uploadTalkingPhoto(imageUrl, heygenKey);
-    console.log('talking_photo_id:', talkingPhotoId);
+    // Use motion_avatar_id if available (pre-processed with add_motion), otherwise upload fresh
+    let talkingPhotoIdFinal: string;
+    if (video.motion_avatar_id && heygenMode === 'v3') {
+      talkingPhotoIdFinal = video.motion_avatar_id;
+      console.log('Using motion_avatar_id:', talkingPhotoIdFinal);
+    } else {
+      talkingPhotoIdFinal = await uploadTalkingPhoto(imageUrl, heygenKey);
+      console.log('talking_photo_id (fresh upload):', talkingPhotoIdFinal);
+    }
 
     // --- Determine HeyGen mode (v3 = Avatar III, v4 = Avatar IV) ---
     const { data: modeSettings } = await supabase
