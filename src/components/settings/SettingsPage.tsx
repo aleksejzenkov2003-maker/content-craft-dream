@@ -3,6 +3,7 @@ import { cn } from '@/lib/utils';
 import { Zap, Plug, Film } from 'lucide-react';
 import { ButtonActionsSettings } from './ButtonActionsSettings';
 import { ApiBalancesSettings } from './ApiBalancesSettings';
+import { VideoFormatSettings } from './VideoFormatSettings';
 
 const SECTIONS = [
   { key: 'buttons', label: 'Управление действиями кнопок', icon: Zap },
