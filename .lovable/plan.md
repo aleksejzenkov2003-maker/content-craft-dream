@@ -1,57 +1,65 @@
 
 
-## Решение: бинарная MP4-конкатенация + нормализация аудио через ffmpeg.wasm
+## HeyGen Mode: Avatar III vs Avatar IV
 
-### Что сделано
+### Суть
+Оба режима работают одинаково — берут фото, загружают как `talking_photo`, генерируют видео. Разница только в **эндпоинте и качестве**:
 
-1. **`supabase/functions/concat-video/index.ts`** — полная перезапись:
-   - Бинарный MP4-парсер: разбор боксов (moov/trak/stbl/stsz/stco/stsc/stts/stss/ctts)
-   - Извлечение сэмплов из обоих файлов, сборка нового mdat
-   - Объединение sample tables, пересчёт оффсетов, обновление duration
-   - Сохранение логики получения свежих HeyGen URL
-   - Загрузка результата в Storage
+- **Avatar III** (текущий): `POST v2/video/generate` — дешевле
+- **Avatar IV** (старый дорогой, ~$6): `POST v2/video/av4/generate` — лучше мимика и движения головы
 
-2. **`src/lib/videoNormalizer.ts`** — утилита нормализации аудио через ffmpeg.wasm:
-   - Загружает ffmpeg WASM при первом использовании
-   - Перекодирует аудио в AAC-LC 48kHz mono 128kbps: `-c:v copy -c:a aac -ar 48000 -ac 1 -b:a 128k`
-   - Видео-поток копируется без потерь
+Весь остальной pipeline (voiceover, photo upload, status check, concat, subtitles) **не меняется**.
 
-3. **`src/components/covers/BackCoversGrid.tsx`** — интеграция нормализации:
-   - При загрузке видео-обложки автоматически нормализует аудио через ffmpeg.wasm
-   - Показывает прогресс нормализации
-   - Загружает нормализованный файл в Storage
-   - Fallback на оригинал при ошибке
+### Изменения
 
-### Зависимости
-- `@ffmpeg/ffmpeg@0.12.10`
-- `@ffmpeg/util@0.12.1`
+**1. Migration: таблица `app_settings`**
 
----
+Key-value таблица для системных настроек. Первая запись — `heygen_mode` со значением `v3`.
 
-## Субтитры: ElevenLabs timestamps → SRT → FFmpeg
+```sql
+CREATE TABLE public.app_settings (
+  key TEXT PRIMARY KEY,
+  value TEXT NOT NULL,
+  updated_at TIMESTAMPTZ DEFAULT now()
+);
+ALTER TABLE public.app_settings ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Allow all" ON public.app_settings FOR ALL USING (true) WITH CHECK (true);
+INSERT INTO app_settings (key, value) VALUES ('heygen_mode', 'v3');
+```
 
-### Что сделано
+**2. Новый файл: `src/components/settings/VideoFormatSettings.tsx`**
 
-1. **БД миграция** — добавлено поле `word_timestamps jsonb` в таблицу `videos`
+- Загружает `heygen_mode` из `app_settings`
+- Radio group:
+  - **Avatar III** — Talking Photo, дешевле, стандартное качество
+  - **Avatar IV** — Talking Photo, дороже (~$6), улучшенная мимика
+- Upsert при смене
 
-2. **Edge Functions** — обновлены оба voiceover-генератора:
-   - `supabase/functions/generate-voiceover-for-video/index.ts` → endpoint `/with-timestamps`
-   - `supabase/functions/generate-voiceover/index.ts` → endpoint `/with-timestamps`
-   - Ответ содержит `audio_base64` + `alignment` (character-level timestamps)
-   - Функция `buildWordTimestamps()` собирает word-level timestamps из character-level
-   - Timestamps сохраняются в `videos.word_timestamps`
+**3. Правка: `src/components/settings/SettingsPage.tsx`**
 
-3. **`src/lib/srtGenerator.ts`** — генерация субтитров:
-   - `generateSrt()` — SRT формат (группировка по N слов)
-   - `generateAss()` — ASS формат (со стилями: шрифт, размер, цвет, обводка)
-   - `generateSrtBlocks()` — промежуточная структура
+Заменить заглушку `video_format` на `<VideoFormatSettings />`
 
-4. **`src/lib/videoSubtitles.ts`** — вшивание субтитров через ffmpeg.wasm:
-   - `burnSubtitles(videoUrl, timestamps, options, onProgress)` → File
-   - Использует ASS-фильтр для стилизованных субтитров
-   - Видео перекодируется libx264 (preset fast, crf 23), аудио копируется
+**4. Правка: `supabase/functions/generate-video-heygen/index.ts`**
 
-5. **UI** — кнопка «Добавить субтитры» в `VideoSidePanel`:
-   - Появляется когда есть `heygen_video_url` и `word_timestamps`
-   - Показывает прогресс через Progress bar
-   - Результат загружается в Storage и сохраняется в `video_path`
+Единственное изменение — перед вызовом HeyGen прочитать `heygen_mode` из `app_settings` и выбрать endpoint:
+
+```typescript
+const { data: settings } = await supabase
+  .from('app_settings').select('value').eq('key', 'heygen_mode').single();
+const mode = settings?.value || 'v3';
+
+const endpoint = mode === 'v4'
+  ? 'https://api.heygen.com/v2/video/av4/generate'
+  : 'https://api.heygen.com/v2/video/generate';
+```
+
+Всё остальное (photo upload, voiceover, request body, response parsing) — без изменений. Оба эндпоинта принимают одинаковый `talking_photo` body и возвращают `video_id`.
+
+**Не меняется:** `check-video-status`, concat, субтитры, публикация.
+
+### Файлы
+1. Migration — `app_settings` table
+2. New — `src/components/settings/VideoFormatSettings.tsx`
+3. Edit — `src/components/settings/SettingsPage.tsx`
+4. Edit — `supabase/functions/generate-video-heygen/index.ts` (1 строка: выбор endpoint)
+
