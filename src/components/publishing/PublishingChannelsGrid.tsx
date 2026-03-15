@@ -19,7 +19,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { Plus, Globe, FileSpreadsheet, Image, Trash2 } from 'lucide-react';
+import { Plus, Globe, FileSpreadsheet, Image, Trash2, Upload } from 'lucide-react';
 import { FileUploader } from '@/components/upload/FileUploader';
 import { PublishingChannel, usePublishingChannels } from '@/hooks/usePublishingChannels';
 import { CsvImporter } from '@/components/import/CsvImporter';
@@ -49,6 +49,7 @@ export function PublishingChannelsGrid() {
     is_active: true,
     back_cover_url: '',
     back_cover_video_url: '',
+    upload_post_user: '',
   });
 
   const resetForm = () => {
@@ -58,6 +59,7 @@ export function PublishingChannelsGrid() {
       is_active: true,
       back_cover_url: '',
       back_cover_video_url: '',
+      upload_post_user: '',
     });
     setEditingChannel(null);
   };
@@ -71,6 +73,7 @@ export function PublishingChannelsGrid() {
         is_active: channel.is_active,
         back_cover_url: channel.back_cover_url || '',
         back_cover_video_url: channel.back_cover_video_url || '',
+        upload_post_user: channel.upload_post_user || '',
       });
     } else {
       resetForm();
@@ -87,6 +90,7 @@ export function PublishingChannelsGrid() {
         is_active: formData.is_active,
         back_cover_url: formData.back_cover_url || null,
         back_cover_video_url: formData.back_cover_video_url || null,
+        upload_post_user: formData.upload_post_user || null,
       };
       if (editingChannel) {
         await updateChannel(editingChannel.id, payload);
@@ -188,6 +192,12 @@ export function PublishingChannelsGrid() {
                           </Badge>
                         ) : null;
                       })()}
+                      {channel.upload_post_user && (
+                        <Badge variant="outline" className="text-xs w-fit">
+                          <Upload className="w-3 h-3 mr-1" />
+                          {channel.upload_post_user}
+                        </Badge>
+                      )}
                     </div>
                     <div className="flex items-center gap-2 pt-1">
                       <span className="text-xs">{channel.is_active ? 'Активен' : 'Неактивен'}</span>
@@ -293,6 +303,16 @@ export function PublishingChannelsGrid() {
                   </div>
                 </div>
               )}
+
+              <div className="space-y-2">
+                <Label>Upload-Post профиль</Label>
+                <Input
+                  value={formData.upload_post_user}
+                  onChange={(e) => setFormData({ ...formData, upload_post_user: e.target.value })}
+                  placeholder="Имя профиля в Upload-Post"
+                />
+                <p className="text-xs text-muted-foreground">Идентификатор профиля для автопубликации через Upload-Post.com</p>
+              </div>
 
               <div className="flex items-center justify-between">
                 <span className="text-sm">{formData.is_active ? 'Активен' : 'Неактивен'}</span>

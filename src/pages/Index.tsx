@@ -651,25 +651,34 @@ export default function Index() {
         }
       }
 
-      // Auto-upload to website for channels with network_type 'website'
+      // Auto-publish for non-website channels via Upload-Post
       if (isEnabled('prepare_publish', 'publish_social')) {
         const { data: allChannelDetails } = await supabase
           .from('publishing_channels')
-          .select('id, network_type')
+          .select('id, network_type, upload_post_user')
           .in('id', newChannelIds);
 
-        const websiteChannelIds = new Set(
-          (allChannelDetails || []).filter(c => c.network_type === 'website').map(c => c.id)
-        );
-
         for (const pub of (inserted || [])) {
-          if (websiteChannelIds.has(pub.channel_id)) {
+          const ch = (allChannelDetails || []).find(c => c.id === pub.channel_id);
+          if (!ch) continue;
+
+          if (ch.network_type === 'website') {
+            // Existing website upload flow
             supabase.functions.invoke('upload-to-website', {
               body: { publicationId: pub.id },
             }).then(() => {
               refetchPublications();
             }).catch(err => {
               console.error('Auto upload-to-website failed:', err);
+            });
+          } else if (ch.upload_post_user) {
+            // Upload-Post social publishing
+            supabase.functions.invoke('publish-to-social', {
+              body: { publicationId: pub.id },
+            }).then(() => {
+              refetchPublications();
+            }).catch(err => {
+              console.error('Auto publish-to-social failed:', err);
             });
           }
         }
