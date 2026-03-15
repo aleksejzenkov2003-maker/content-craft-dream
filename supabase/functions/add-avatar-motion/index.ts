@@ -7,7 +7,7 @@ const corsHeaders = {
 };
 
 interface MotionRequest {
-  videoId: string;
+  sceneId: string;
   motionType?: string;
   motionPrompt?: string;
 }
@@ -46,7 +46,7 @@ serve(async (req) => {
   const startTime = Date.now();
 
   try {
-    const { videoId, motionType, motionPrompt } = await req.json() as MotionRequest;
+    const { sceneId, motionType, motionPrompt } = await req.json() as MotionRequest;
 
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
     const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
@@ -54,37 +54,25 @@ serve(async (req) => {
 
     const supabase = createClient(supabaseUrl, supabaseKey);
 
-    // Get video with advisor info
-    const { data: video, error: videoError } = await supabase
-      .from('videos')
+    // Get scene with advisor info
+    const { data: scene, error: sceneError } = await supabase
+      .from('playlist_scenes')
       .select(`*, advisor:advisors (id, name, scene_photo_id)`)
-      .eq('id', videoId)
+      .eq('id', sceneId)
       .single();
 
-    if (videoError || !video) throw new Error('Video not found');
+    if (sceneError || !scene) throw new Error('Scene not found');
 
-    // Resolve image URL (same logic as generate-video-heygen)
-    let imageUrl: string | null = null;
+    // Resolve image URL: scene_url first, then advisor photo
+    let imageUrl: string | null = scene.scene_url || null;
 
-    // Try playlist scene first
-    if (video.playlist_id && video.advisor_id) {
-      const { data: scenes } = await supabase
-        .from('playlist_scenes')
-        .select('scene_url')
-        .eq('playlist_id', video.playlist_id)
-        .eq('advisor_id', video.advisor_id)
-        .eq('review_status', 'approved')
-        .not('scene_url', 'is', null)
-        .limit(1);
-      imageUrl = scenes?.[0]?.scene_url || null;
-    }
-
-    if (!imageUrl && video.advisor_id) {
-      if (video.advisor?.scene_photo_id) {
+    if (!imageUrl && scene.advisor_id) {
+      const advisor = scene.advisor;
+      if (advisor?.scene_photo_id) {
         const { data: scenePhoto } = await supabase
           .from('advisor_photos')
           .select('photo_url')
-          .eq('id', video.advisor.scene_photo_id)
+          .eq('id', advisor.scene_photo_id)
           .single();
         imageUrl = scenePhoto?.photo_url || null;
       }
@@ -92,16 +80,12 @@ serve(async (req) => {
         const { data: photos } = await supabase
           .from('advisor_photos')
           .select('photo_url, is_primary')
-          .eq('advisor_id', video.advisor_id)
+          .eq('advisor_id', scene.advisor_id)
           .not('photo_url', 'is', null)
           .order('is_primary', { ascending: false })
           .limit(1);
         imageUrl = photos?.[0]?.photo_url || null;
       }
-    }
-
-    if (!imageUrl) {
-      imageUrl = video.front_cover_url || video.atmosphere_url || null;
     }
 
     if (!imageUrl) throw new Error('No image found for motion avatar');
@@ -140,25 +124,24 @@ serve(async (req) => {
     const motionResult = await motionRes.json();
     console.log('add_motion response:', JSON.stringify(motionResult));
 
-    // Extract the new motion avatar ID
     const motionAvatarId = motionResult.data?.talking_photo_id 
       || motionResult.data?.avatar_id 
       || motionResult.data?.id;
 
     if (!motionAvatarId) throw new Error('No motion avatar ID returned: ' + JSON.stringify(motionResult));
 
-    // Save to video
-    await supabase.from('videos').update({
+    // Save to scene
+    await supabase.from('playlist_scenes').update({
       motion_avatar_id: motionAvatarId,
       motion_type: motionType || 'consistent',
       motion_prompt: motionPrompt || motionBody.prompt,
-    }).eq('id', videoId);
+    }).eq('id', sceneId);
 
     const durationMs = Date.now() - startTime;
     await supabase.from('activity_log').insert({
       action: 'add_avatar_motion',
-      entity_type: 'video',
-      entity_id: videoId,
+      entity_type: 'scene',
+      entity_id: sceneId,
       details: { motion_type: motionType, motion_avatar_id: motionAvatarId },
       duration_ms: durationMs,
     });

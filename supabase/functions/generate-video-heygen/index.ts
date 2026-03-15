@@ -112,10 +112,12 @@ serve(async (req) => {
     // Try to find an approved scene for this video
     // =============================================
     let sceneUrl: string | null = null;
+    let sceneMotionAvatarId: string | null = null;
+    let sceneMotionType: string | null = null;
     if (video.playlist_id && video.advisor_id) {
       const { data: scenes } = await supabase
         .from('playlist_scenes')
-        .select('scene_url')
+        .select('scene_url, motion_avatar_id, motion_type')
         .eq('playlist_id', video.playlist_id)
         .eq('advisor_id', video.advisor_id)
         .eq('review_status', 'approved')
@@ -123,7 +125,9 @@ serve(async (req) => {
         .limit(1);
       
       sceneUrl = scenes?.[0]?.scene_url || null;
-      console.log('Scene found:', sceneUrl ? 'YES' : 'NO');
+      sceneMotionAvatarId = scenes?.[0]?.motion_avatar_id || null;
+      sceneMotionType = scenes?.[0]?.motion_type || null;
+      console.log('Scene found:', sceneUrl ? 'YES' : 'NO', 'Motion:', sceneMotionAvatarId ? 'YES' : 'NO');
     }
 
     // =============================================
