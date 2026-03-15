@@ -49,6 +49,7 @@ interface VideoSidePanelProps {
   onPrev?: () => void;
   onNext?: () => void;
   autoSubtitleProgress?: { phase: string; progress: number } | null;
+  onNavigateToScene?: (playlistId: string, advisorId: string) => void;
 }
 
 /* Status resolution for asset badges */
@@ -63,6 +64,7 @@ export function VideoSidePanel({
   video, open, onOpenChange, advisors, publishingChannels,
   onGenerateAtmosphere, onGenerateCover, onGenerateVideo, onGenerateVoiceover,
   onUpdateVideo, onPublish, isGenerating, onPrev, onNext, autoSubtitleProgress,
+  onNavigateToScene,
 }: VideoSidePanelProps) {
   const [selectedChannels, setSelectedChannels] = useState<string[]>([]);
   const [isReady, setIsReady] = useState(false);
@@ -260,7 +262,23 @@ export function VideoSidePanel({
     <UnifiedPanel
       open={open}
       onOpenChange={onOpenChange}
-      title={`#${video.video_number || '—'} ${video.question || ''} — ${advisorName}`}
+      title={
+        <div>
+          <span>{`#${video.video_number || '—'} ${video.question || ''} — ${advisorName}`}</span>
+          {video.playlist?.name && (
+            <button
+              className="block text-xs text-primary hover:underline cursor-pointer mt-0.5 text-left font-normal"
+              onClick={() => {
+                if (onNavigateToScene && video.playlist_id && video.advisor_id) {
+                  onNavigateToScene(video.playlist_id, video.advisor_id);
+                }
+              }}
+            >
+              🎬 {video.playlist.name}
+            </button>
+          )}
+        </div>
+      }
       width="lg"
       onPrev={onPrev}
       onNext={onNext}
