@@ -128,6 +128,15 @@ serve(async (req) => {
       sceneMotionAvatarId = scenes?.[0]?.motion_avatar_id || null;
       sceneMotionType = scenes?.[0]?.motion_type || null;
       console.log('Scene found:', sceneUrl ? 'YES' : 'NO', 'Motion:', sceneMotionAvatarId ? 'YES' : 'NO');
+      
+      // Sync stale video motion_avatar_id with scene's
+      if (sceneMotionAvatarId && video.motion_avatar_id !== sceneMotionAvatarId) {
+        await supabase.from('videos').update({ 
+          motion_avatar_id: sceneMotionAvatarId,
+          motion_type: sceneMotionType,
+        }).eq('id', videoId);
+        console.log('Synced video motion_avatar_id from scene:', sceneMotionAvatarId);
+      }
     }
 
     // =============================================
