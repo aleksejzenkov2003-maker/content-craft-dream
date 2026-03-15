@@ -40,12 +40,7 @@ const statusColors: Record<string, string> = {
 };
 
 const MOTION_ENGINES = [
-  { value: 'consistent', label: 'Consistent (стандартный)' },
-  { value: 'expressive', label: 'Expressive (выразительный)' },
-  { value: 'consistent_gen_3', label: 'Runway Gen-3' },
-  { value: 'hailuo_2', label: 'Minimax Hailuo 2' },
   { value: 'veo2', label: 'Google Veo2' },
-  { value: 'seedance_lite', label: 'Seedance Lite' },
   { value: 'kling', label: 'Kling' },
 ];
 
