@@ -121,11 +121,6 @@ export function VideoSidePanel({
       .then(({ data }) => { if (data) setHeygenMode((data as any).value); });
   }, []);
 
-  // Sync motion state from video
-  useEffect(() => {
-    if (video?.motion_type) setMotionType(video.motion_type);
-    if (video?.motion_prompt) setMotionPrompt(video.motion_prompt);
-  }, [video?.id]);
 
   useEffect(() => {
     const fetchAtmospherePrompt = async () => {
