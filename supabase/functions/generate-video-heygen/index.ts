@@ -227,7 +227,9 @@ serve(async (req) => {
 
     // Use scene's motion_avatar_id first, then video's (backward compat), otherwise upload fresh
     let talkingPhotoIdFinal: string;
-    let effectiveMotionAvatarId = motionEnabled ? (sceneMotionAvatarId || video.motion_avatar_id) : null;
+    let effectiveMotionAvatarId = motionEnabled 
+      ? (sceneMotionAvatarId || (sceneUrl ? null : video.motion_avatar_id)) 
+      : null;
 
     // Auto-generate motion if enabled but not yet created for this scene
     if (motionEnabled && !effectiveMotionAvatarId && heygenMode === 'v3' && imageUrl) {
