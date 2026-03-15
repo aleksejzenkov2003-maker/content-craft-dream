@@ -212,11 +212,12 @@ serve(async (req) => {
       : 'https://api.heygen.com/v2/video/generate';
     console.log(`Using HeyGen mode: ${heygenMode}, endpoint: ${heygenEndpoint}`);
 
-    // Use motion_avatar_id if available (pre-processed with add_motion), otherwise upload fresh
+    // Use scene's motion_avatar_id first, then video's (backward compat), otherwise upload fresh
     let talkingPhotoIdFinal: string;
-    if (video.motion_avatar_id && heygenMode === 'v3') {
-      talkingPhotoIdFinal = video.motion_avatar_id;
-      console.log('Using motion_avatar_id:', talkingPhotoIdFinal);
+    const effectiveMotionAvatarId = sceneMotionAvatarId || video.motion_avatar_id;
+    if (effectiveMotionAvatarId && heygenMode === 'v3') {
+      talkingPhotoIdFinal = effectiveMotionAvatarId;
+      console.log('Using motion_avatar_id:', talkingPhotoIdFinal, 'source:', sceneMotionAvatarId ? 'scene' : 'video');
     } else {
       talkingPhotoIdFinal = await uploadTalkingPhoto(imageUrl, heygenKey);
       console.log('talking_photo_id (fresh upload):', talkingPhotoIdFinal);
