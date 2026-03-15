@@ -1,82 +1,35 @@
 
 
-## Решение: бинарная MP4-конкатенация + нормализация аудио через ffmpeg.wasm
+## Problem
 
-### Что сделано
+When user selects a new scene variant (different image), `selectVariant` in `usePlaylistScenes.ts` updates `scene_url` but **does NOT clear `motion_avatar_id`**. The old motion avatar (trained on the previous image) persists and gets used for video generation — wrong face/pose.
 
-1. **`supabase/functions/concat-video/index.ts`** — полная перезапись:
-   - Бинарный MP4-парсер: разбор боксов (moov/trak/stbl/stsz/stco/stsc/stts/stss/ctts)
-   - Извлечение сэмплов из обоих файлов, сборка нового mdat
-   - Объединение sample tables, пересчёт оффсетов, обновление duration
-   - Сохранение логики получения свежих HeyGen URL
-   - Загрузка результата в Storage
+The `generate-video-heygen` edge function correctly reads scene data, but it trusts whatever `motion_avatar_id` is stored on the scene record.
 
-2. **`src/lib/videoNormalizer.ts`** — утилита нормализации аудио через ffmpeg.wasm:
-   - Загружает ffmpeg WASM при первом использовании
-   - Перекодирует аудио в AAC-LC 48kHz mono 128kbps: `-c:v copy -c:a aac -ar 48000 -ac 1 -b:a 128k`
-   - Видео-поток копируется без потерь
+## Fix
 
-3. **`src/components/covers/BackCoversGrid.tsx`** — интеграция нормализации:
-   - При загрузке видео-обложки автоматически нормализует аудио через ffmpeg.wasm
-   - Показывает прогресс нормализации
-   - Загружает нормализованный файл в Storage
-   - Fallback на оригинал при ошибке
+### `src/hooks/usePlaylistScenes.ts` — `selectVariant` function
 
-### Зависимости
-- `@ffmpeg/ffmpeg@0.12.10`
-- `@ffmpeg/util@0.12.1`
+When the scene URL changes (new variant selected), clear motion fields so stale motion trained on the old image isn't reused:
 
----
+```typescript
+// Update scene_url AND clear stale motion on the main scene record
+await supabase
+  .from('playlist_scenes')
+  .update({ 
+    scene_url: (variant as SceneVariant).image_url,
+    motion_avatar_id: null,
+    motion_type: null,
+    motion_prompt: null,
+  })
+  .eq('id', sceneId);
+```
 
-## Субтитры: ElevenLabs timestamps → SRT → FFmpeg
+This ensures:
+1. New scene variant → motion is cleared → user must re-add motion for the new image ($1 cost)
+2. `generate-video-heygen` sees `motion_avatar_id = null` → uploads fresh talking photo from the new scene image
+3. If auto-motion is enabled, it will auto-generate motion for the new image (not reuse old)
 
-### Что сделано
+### No other files need changes
+The edge function already handles `null` motion correctly (falls back to fresh upload). The SceneSidePanel's reset/add motion UI already works independently.
 
-1. **БД миграция** — добавлено поле `word_timestamps jsonb` в таблицу `videos`
-
-2. **Edge Functions** — обновлены оба voiceover-генератора:
-   - `supabase/functions/generate-voiceover-for-video/index.ts` → endpoint `/with-timestamps`
-   - `supabase/functions/generate-voiceover/index.ts` → endpoint `/with-timestamps`
-   - Ответ содержит `audio_base64` + `alignment` (character-level timestamps)
-   - Функция `buildWordTimestamps()` собирает word-level timestamps из character-level
-   - Timestamps сохраняются в `videos.word_timestamps`
-
-3. **`src/lib/srtGenerator.ts`** — генерация субтитров:
-   - `generateSrt()` — SRT формат (группировка по N слов)
-   - `generateAss()` — ASS формат (со стилями: шрифт, размер, цвет, обводка)
-   - `generateSrtBlocks()` — промежуточная структура
-
-4. **`src/lib/videoSubtitles.ts`** — вшивание субтитров через ffmpeg.wasm:
-   - `burnSubtitles(videoUrl, timestamps, options, onProgress)` → File
-   - Использует ASS-фильтр для стилизованных субтитров
-   - Видео перекодируется libx264 (preset fast, crf 23), аудио копируется
-
-5. **UI** — кнопка «Добавить субтитры» в `VideoSidePanel`:
-   - Появляется когда есть `heygen_video_url` и `word_timestamps`
-   - Показывает прогресс через Progress bar
-    - Результат загружается в Storage и сохраняется в `video_path`
-
----
-
-## Add Motion для Avatar III
-
-### Что сделано
-
-1. **БД миграция** — добавлены поля `motion_type`, `motion_prompt`, `motion_avatar_id` в `videos`
-
-2. **Edge Function `add-avatar-motion`** — вызывает HeyGen `/v2/photo_avatar/add_motion`:
-   - Находит фото адвайзора, загружает как talking_photo
-   - Отправляет motion запрос с выбранным engine и промтом
-   - Сохраняет `motion_avatar_id` в videos
-
-3. **Edge Function `generate-video-heygen`** — обновлён:
-   - Если `motion_avatar_id` есть и режим v3 → использует его вместо свежей загрузки фото
-   - Добавляет `talking_style: 'expressive'` при наличии motion
-
-4. **UI в VideoSidePanel** — секция "Настройка аватара (Motion)":
-   - Показывается только в режиме v3
-   - Select из 7 motion engines
-   - Input для motion prompt
-   - Кнопка "Добавить движение ($1)"
-   - Бейдж "Motion готов" при наличии motion_avatar_id
-   - Кнопка сброса motion
