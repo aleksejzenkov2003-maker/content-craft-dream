@@ -218,7 +218,53 @@ serve(async (req) => {
 
     // Use scene's motion_avatar_id first, then video's (backward compat), otherwise upload fresh
     let talkingPhotoIdFinal: string;
-    const effectiveMotionAvatarId = motionEnabled ? (sceneMotionAvatarId || video.motion_avatar_id) : null;
+    let effectiveMotionAvatarId = motionEnabled ? (sceneMotionAvatarId || video.motion_avatar_id) : null;
+
+    // Auto-generate motion if enabled but not yet created for this scene
+    if (motionEnabled && !effectiveMotionAvatarId && heygenMode === 'v3' && imageUrl) {
+      console.log('Motion enabled but no motion_avatar_id — auto-generating motion...');
+      try {
+        const freshTalkingPhotoId = await uploadTalkingPhoto(imageUrl, heygenKey);
+        const motionPrompt = 'The person gestures naturally with their hands while explaining something';
+        const motionBody = {
+          id: freshTalkingPhotoId,
+          prompt: motionPrompt,
+          motion_type: 'consistent',
+        };
+        const motionRes = await fetch('https://api.heygen.com/v2/photo_avatar/add_motion', {
+          method: 'POST',
+          headers: { 'X-Api-Key': heygenKey, 'Content-Type': 'application/json' },
+          body: JSON.stringify(motionBody),
+        });
+        if (motionRes.ok) {
+          const motionResult = await motionRes.json();
+          const newMotionId = motionResult.data?.talking_photo_id || motionResult.data?.avatar_id || motionResult.data?.id;
+          if (newMotionId) {
+            effectiveMotionAvatarId = newMotionId;
+            console.log('Auto-generated motion_avatar_id:', newMotionId);
+            // Save to scene for reuse
+            if (video.playlist_id && video.advisor_id) {
+              await supabase.from('playlist_scenes').update({
+                motion_avatar_id: newMotionId,
+                motion_type: 'consistent',
+                motion_prompt: motionPrompt,
+              }).eq('playlist_id', video.playlist_id).eq('advisor_id', video.advisor_id);
+            }
+            // Also save to video
+            await supabase.from('videos').update({
+              motion_avatar_id: newMotionId,
+              motion_type: 'consistent',
+              motion_prompt: motionPrompt,
+            }).eq('id', videoId);
+          }
+        } else {
+          console.error('Auto motion generation failed:', await motionRes.text());
+        }
+      } catch (motionErr) {
+        console.error('Auto motion error (non-fatal):', motionErr);
+      }
+    }
+
     if (effectiveMotionAvatarId && heygenMode === 'v3') {
       talkingPhotoIdFinal = effectiveMotionAvatarId;
       console.log('Using motion_avatar_id:', talkingPhotoIdFinal, 'source:', sceneMotionAvatarId ? 'scene' : 'video');
