@@ -109,7 +109,7 @@ export function VideoSidePanel({
   // Reset local busy when server status changes
   useEffect(() => {
     setLocalBusy(null);
-  }, [video?.cover_status, video?.generation_status, video?.voiceover_status]);
+  }, [video?.cover_status, video?.generation_status, video?.voiceover_status, video?.reel_status]);
 
   useEffect(() => {
     const channels = video?.selected_channels;
