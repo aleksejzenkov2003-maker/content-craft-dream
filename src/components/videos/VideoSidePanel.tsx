@@ -262,19 +262,23 @@ export function VideoSidePanel({
     <UnifiedPanel
       open={open}
       onOpenChange={onOpenChange}
-      title={`#${video.video_number || '—'} ${video.question || ''} — ${advisorName}`}
-      subtitle={video.playlist?.name ? (
-        <button
-          className="text-xs text-primary hover:underline cursor-pointer mt-0.5 text-left"
-          onClick={() => {
-            if (onNavigateToScene && video.playlist_id && video.advisor_id) {
-              onNavigateToScene(video.playlist_id, video.advisor_id);
-            }
-          }}
-        >
-          🎬 {video.playlist.name}
-        </button>
-      ) : undefined}
+      title={
+        <div>
+          <span>{`#${video.video_number || '—'} ${video.question || ''} — ${advisorName}`}</span>
+          {video.playlist?.name && (
+            <button
+              className="block text-xs text-primary hover:underline cursor-pointer mt-0.5 text-left font-normal"
+              onClick={() => {
+                if (onNavigateToScene && video.playlist_id && video.advisor_id) {
+                  onNavigateToScene(video.playlist_id, video.advisor_id);
+                }
+              }}
+            >
+              🎬 {video.playlist.name}
+            </button>
+          )}
+        </div>
+      }
       width="lg"
       onPrev={onPrev}
       onNext={onNext}
