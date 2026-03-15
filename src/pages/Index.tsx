@@ -261,7 +261,7 @@ export default function Index() {
       }
 
       // Update video_path with final URL and mark as ready
-      await supabase.from('videos').update({ video_path: finalUrl, reel_status: 'ready' }).eq('id', videoId);
+      await supabase.from('videos').update({ video_path: finalUrl, reel_status: 'ready', generation_status: 'ready' }).eq('id', videoId);
       updateProgress('done', 100);
       refetchVideos();
     } catch (err) {
