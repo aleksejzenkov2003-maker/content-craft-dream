@@ -4,12 +4,15 @@ import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Badge } from '@/components/ui/badge';
+import { Label } from '@/components/ui/label';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { PlaylistScene, SceneVariant } from '@/hooks/usePlaylistScenes';
 import { Playlist } from '@/hooks/usePlaylists';
 import { Advisor } from '@/hooks/useAdvisors';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
-import { ChevronLeft, ChevronRight, Star, Loader2, Upload, Wand2, Check, RotateCcw, Save } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Star, Loader2, Upload, Wand2, Check, RotateCcw, Save, Sparkles } from 'lucide-react';
 
 interface SceneSidePanelProps {
   scene: PlaylistScene | null;
@@ -36,6 +39,16 @@ const statusColors: Record<string, string> = {
   cancelled: 'bg-red-100 text-red-800',
 };
 
+const MOTION_ENGINES = [
+  { value: 'consistent', label: 'Consistent (стандартный)' },
+  { value: 'expressive', label: 'Expressive (выразительный)' },
+  { value: 'consistent_gen_3', label: 'Runway Gen-3' },
+  { value: 'hailuo_2', label: 'Minimax Hailuo 2' },
+  { value: 'veo2', label: 'Google Veo2' },
+  { value: 'seedance_lite', label: 'Seedance Lite' },
+  { value: 'kling', label: 'Kling' },
+];
+
 export function SceneSidePanel({
   scene,
   playlist,
@@ -56,12 +69,17 @@ export function SceneSidePanel({
   const [isSavingPrompt, setIsSavingPrompt] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // Load variants when scene changes
+  // Motion state
+  const [motionType, setMotionType] = useState('consistent');
+  const [motionPromptText, setMotionPromptText] = useState('The person gestures naturally with their hands while explaining something');
+  const [isAddingMotion, setIsAddingMotion] = useState(false);
+  const [isSavingMotion, setIsSavingMotion] = useState(false);
+  const [heygenMode, setHeygenMode] = useState('v3');
+
   const loadVariants = useCallback(async () => {
     if (!scene) return;
     const v = await fetchVariants(scene.id);
     setVariants(v);
-    // Set current to the selected one
     const selectedIdx = v.findIndex(x => x.is_selected);
     setCurrentVariant(selectedIdx >= 0 ? selectedIdx : v.length - 1);
   }, [scene?.id, fetchVariants]);
@@ -70,11 +88,18 @@ export function SceneSidePanel({
     if (open && scene) {
       loadVariants();
       setPromptText(scene.scene_prompt || '');
+      setMotionType(scene.motion_type || 'consistent');
+      setMotionPromptText(scene.motion_prompt || 'The person gestures naturally with their hands while explaining something');
       loadSystemPrompt();
     }
   }, [open, scene?.id]);
 
-  // Load system prompt from active scene prompt template
+  // Fetch heygen_mode setting
+  useEffect(() => {
+    supabase.from('app_settings' as any).select('value').eq('key', 'heygen_mode').single()
+      .then(({ data }) => { if (data) setHeygenMode((data as any).value); });
+  }, []);
+
   const loadSystemPrompt = useCallback(async () => {
     const { data } = await supabase
       .from('prompts')
@@ -85,7 +110,6 @@ export function SceneSidePanel({
       .single();
     if (data) {
       setSystemPromptText(data.system_prompt || '');
-      // Prefill user prompt if scene has no prompt yet
       if (scene && !scene.scene_prompt && playlist && advisor) {
         const filled = data.user_template
           .replace(/\{\{playlist\}\}/g, playlist.name || '')
@@ -99,7 +123,6 @@ export function SceneSidePanel({
   if (!scene || !playlist || !advisor) return null;
 
   const status = scene.status || 'waiting';
-  // Build image list: from variants, or fallback to scene_url
   const imageUrls = variants.length > 0
     ? variants.map(v => v.image_url)
     : scene.scene_url ? [scene.scene_url] : [];
@@ -138,7 +161,6 @@ export function SceneSidePanel({
       if (error) throw error;
       const { data: urlData } = supabase.storage.from('media-files').getPublicUrl(fileName);
 
-      // Deselect all, insert new variant as selected
       await supabase.from('scene_variants').update({ is_selected: false }).eq('scene_id', scene.id);
       await supabase.from('scene_variants').insert({
         scene_id: scene.id,
@@ -201,6 +223,57 @@ export function SceneSidePanel({
     }
   };
 
+  const handleSaveMotion = async () => {
+    setIsSavingMotion(true);
+    try {
+      await onUpdateScene(scene.id, {
+        motion_type: motionType,
+        motion_prompt: motionPromptText,
+      } as any);
+      toast.success('Motion настройки сохранены');
+    } catch {
+      toast.error('Ошибка сохранения');
+    } finally {
+      setIsSavingMotion(false);
+    }
+  };
+
+  const handleAddMotion = async () => {
+    setIsAddingMotion(true);
+    try {
+      // Save motion settings first
+      await onUpdateScene(scene.id, {
+        motion_type: motionType,
+        motion_prompt: motionPromptText,
+      } as any);
+
+      const { data, error } = await supabase.functions.invoke('add-avatar-motion', {
+        body: { sceneId: scene.id, motionType, motionPrompt: motionPromptText },
+      });
+      if (error) throw error;
+      if (data?.error) throw new Error(data.error);
+
+      await onUpdateScene(scene.id, { motion_avatar_id: data.motionAvatarId } as any);
+      toast.success('Motion добавлен ($1)');
+    } catch (err: any) {
+      console.error('Add motion error:', err);
+      toast.error(err.message || 'Ошибка добавления motion');
+    } finally {
+      setIsAddingMotion(false);
+    }
+  };
+
+  const handleResetMotion = async () => {
+    await onUpdateScene(scene.id, {
+      motion_avatar_id: null,
+      motion_type: null,
+      motion_prompt: null,
+    } as any);
+    setMotionType('consistent');
+    setMotionPromptText('The person gestures naturally with their hands while explaining something');
+    toast.success('Motion сброшен');
+  };
+
   return (
     <UnifiedPanel
       open={open}
@@ -217,16 +290,19 @@ export function SceneSidePanel({
 
       {/* Tabs */}
       <Tabs value={activeTab} onValueChange={setActiveTab}>
-        <TabsList className="grid w-full grid-cols-2 h-8">
-          <TabsTrigger value="image" className="text-xs">Генерация изображения</TabsTrigger>
-          <TabsTrigger value="prompt" className="text-xs">Промт</TabsTrigger>
+        <TabsList className="grid w-full grid-cols-3 h-8">
+          <TabsTrigger value="image" className="text-xs">Генерация</TabsTrigger>
+          <TabsTrigger value="prompt" className="text-xs">Photo prompt</TabsTrigger>
+          <TabsTrigger value="motion" className="text-xs flex items-center gap-1">
+            <Sparkles className="w-3 h-3" />
+            Motion
+          </TabsTrigger>
         </TabsList>
 
         <div className="min-h-[420px]">
           <TabsContent value="image" className="mt-4 space-y-4">
             <div className="flex gap-4">
               <div className="flex-1 min-w-0">
-                {/* Variant indicators */}
                 {imageUrls.length > 1 && (
                   <div className="flex items-center gap-1 mb-2 flex-wrap">
                     {imageUrls.map((_, i) => (
@@ -277,7 +353,6 @@ export function SceneSidePanel({
                   </div>
                 </div>
 
-                {/* Prompt used for current variant */}
                 {variants[currentVariant]?.prompt_used && (
                   <p className="mt-2 text-xs text-muted-foreground line-clamp-2" title={variants[currentVariant].prompt_used!}>
                     <span className="font-medium">Промт:</span> {variants[currentVariant].prompt_used}
@@ -305,7 +380,6 @@ export function SceneSidePanel({
           </TabsContent>
 
           <TabsContent value="prompt" className="mt-4 space-y-3">
-            {/* System prompt (read-only) */}
             {systemPromptText && (
               <div>
                 <label className="text-xs font-medium text-muted-foreground mb-1 block">Системный промт</label>
@@ -315,7 +389,6 @@ export function SceneSidePanel({
               </div>
             )}
 
-            {/* Editable user prompt */}
             <div>
               <label className="text-xs font-medium text-muted-foreground mb-1 block">Пользовательский промт</label>
               <Textarea
@@ -340,6 +413,85 @@ export function SceneSidePanel({
 
             <p className="text-xs text-muted-foreground">
               «Восстановить» — подставит промт из активного шаблона с заполненными переменными.
+            </p>
+          </TabsContent>
+
+          <TabsContent value="motion" className="mt-4 space-y-3">
+            {heygenMode !== 'v3' && (
+              <p className="text-xs text-muted-foreground bg-muted/50 rounded-md p-3">
+                Motion доступен только в режиме Avatar III (v3). Текущий режим: {heygenMode}.
+              </p>
+            )}
+
+            {scene.motion_avatar_id && (
+              <Badge className="bg-green-500/20 text-green-700 border-green-500/30 text-xs">
+                Motion готов: {scene.motion_type || 'consistent'}
+              </Badge>
+            )}
+
+            <div>
+              <Label className="text-xs font-medium text-muted-foreground mb-1 block">Motion Prompt</Label>
+              <Textarea
+                value={motionPromptText}
+                onChange={(e) => setMotionPromptText(e.target.value)}
+                placeholder="Описание движений аватара..."
+                rows={6}
+                className="resize-none text-sm"
+                maxLength={512}
+              />
+              <p className="text-[10px] text-muted-foreground mt-1 text-right">{motionPromptText.length}/512</p>
+            </div>
+
+            {/* Footer buttons */}
+            <div className="flex gap-2">
+              <Select value={motionType} onValueChange={setMotionType}>
+                <SelectTrigger className="h-8 text-xs flex-1">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {MOTION_ENGINES.map(e => (
+                    <SelectItem key={e.value} value={e.value}>{e.label}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="flex gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                className="flex-1"
+                disabled={isAddingMotion || heygenMode !== 'v3'}
+                onClick={handleAddMotion}
+              >
+                {isAddingMotion ? <Loader2 className="w-4 h-4 animate-spin mr-1" /> : <Sparkles className="w-4 h-4 mr-1" />}
+                Добавить движение ($1)
+              </Button>
+              <Button
+                variant="default"
+                size="sm"
+                className="flex-1"
+                disabled={isSavingMotion}
+                onClick={handleSaveMotion}
+              >
+                {isSavingMotion ? <Loader2 className="w-4 h-4 animate-spin mr-1" /> : <Save className="w-4 h-4 mr-1" />}
+                Сохранить
+              </Button>
+            </div>
+
+            {scene.motion_avatar_id && (
+              <Button
+                variant="ghost"
+                size="sm"
+                className="w-full text-destructive"
+                onClick={handleResetMotion}
+              >
+                Сбросить motion
+              </Button>
+            )}
+
+            <p className="text-xs text-muted-foreground">
+              «Добавить движение» — отправляет фото в HeyGen для предобработки ($1). Результат используется для всех видео этого плейлиста + адвайзора.
             </p>
           </TabsContent>
         </div>
