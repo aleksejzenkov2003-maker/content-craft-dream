@@ -839,7 +839,7 @@ export default function Index() {
                 loading={videosLoading}
                 onEditVideo={(video) => { setEditingVideoId(video.id); setShowVideoEditor(true); }}
                 onDeleteVideo={deleteVideo}
-                onGenerateVideo={handleGenerateVideo}
+                onGenerateVideo={handleFullVideoPipeline}
                 onGenerateCover={handleGenerateCover}
                 onGenerateAtmosphere={handleGenerateAtmosphere}
                 onGenerateVoiceover={handleGenerateVoiceover}
