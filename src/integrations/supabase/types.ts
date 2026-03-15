@@ -397,6 +397,9 @@ export type Database = {
           advisor_id: string | null
           created_at: string
           id: string
+          motion_avatar_id: string | null
+          motion_prompt: string | null
+          motion_type: string | null
           playlist_id: string | null
           review_status: string | null
           scene_prompt: string | null
@@ -408,6 +411,9 @@ export type Database = {
           advisor_id?: string | null
           created_at?: string
           id?: string
+          motion_avatar_id?: string | null
+          motion_prompt?: string | null
+          motion_type?: string | null
           playlist_id?: string | null
           review_status?: string | null
           scene_prompt?: string | null
@@ -419,6 +425,9 @@ export type Database = {
           advisor_id?: string | null
           created_at?: string
           id?: string
+          motion_avatar_id?: string | null
+          motion_prompt?: string | null
+          motion_type?: string | null
           playlist_id?: string | null
           review_status?: string | null
           scene_prompt?: string | null
