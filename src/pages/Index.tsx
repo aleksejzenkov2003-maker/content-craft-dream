@@ -545,6 +545,7 @@ export default function Index() {
     } catch (error) {
       console.error('Error generating cover:', error);
       toast.error('Ошибка генерации обложки');
+      await updateVideo(video.id, { cover_status: 'error' } as any, { silent: true });
       refetchVideos();
     }
   };
