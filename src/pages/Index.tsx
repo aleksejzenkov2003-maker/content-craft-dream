@@ -856,7 +856,7 @@ export default function Index() {
                 }}
                 onBulkGenerateVideos={async (videoIds) => {
                   const videosToProcess = videos.filter(v => videoIds.includes(v.id));
-                  for (const video of videosToProcess) { await handleGenerateVideo(video); }
+                  for (const video of videosToProcess) { await handleFullVideoPipeline(video); }
                 }}
                 onBulkUpdateStatus={async (videoIds, status) => {
                   for (const id of videoIds) { await updateVideo(id, { generation_status: status }); }

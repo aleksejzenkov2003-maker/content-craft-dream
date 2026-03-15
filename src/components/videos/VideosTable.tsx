@@ -710,8 +710,8 @@ export function VideosTable({
                               size="xs"
                               variant="generate-video"
                               onClick={() => onGenerateVideo(video)}
-                              disabled={!video.voiceover_url || effectiveCoverStatus === 'generating' || effectiveVoiceoverStatus === 'generating'}
-                              title={!video.voiceover_url ? 'Сначала создайте озвучку' : undefined}
+                              disabled={!video.advisor_answer || effectiveCoverStatus === 'generating' || effectiveVoiceoverStatus === 'generating'}
+                              title={!video.advisor_answer ? 'Сначала нужен ответ духовника' : undefined}
                             >
                               Видео
                             </Button>
