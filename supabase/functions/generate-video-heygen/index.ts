@@ -120,7 +120,7 @@ serve(async (req) => {
         .select('scene_url, motion_avatar_id, motion_type')
         .eq('playlist_id', video.playlist_id)
         .eq('advisor_id', video.advisor_id)
-        .eq('review_status', 'approved')
+        .eq('status', 'approved')
         .not('scene_url', 'is', null)
         .limit(1);
       
@@ -128,6 +128,15 @@ serve(async (req) => {
       sceneMotionAvatarId = scenes?.[0]?.motion_avatar_id || null;
       sceneMotionType = scenes?.[0]?.motion_type || null;
       console.log('Scene found:', sceneUrl ? 'YES' : 'NO', 'Motion:', sceneMotionAvatarId ? 'YES' : 'NO');
+      
+      // Sync stale video motion_avatar_id with scene's
+      if (sceneMotionAvatarId && video.motion_avatar_id !== sceneMotionAvatarId) {
+        await supabase.from('videos').update({ 
+          motion_avatar_id: sceneMotionAvatarId,
+          motion_type: sceneMotionType,
+        }).eq('id', videoId);
+        console.log('Synced video motion_avatar_id from scene:', sceneMotionAvatarId);
+      }
     }
 
     // =============================================
@@ -218,7 +227,9 @@ serve(async (req) => {
 
     // Use scene's motion_avatar_id first, then video's (backward compat), otherwise upload fresh
     let talkingPhotoIdFinal: string;
-    let effectiveMotionAvatarId = motionEnabled ? (sceneMotionAvatarId || video.motion_avatar_id) : null;
+    let effectiveMotionAvatarId = motionEnabled 
+      ? (sceneMotionAvatarId || (sceneUrl ? null : video.motion_avatar_id)) 
+      : null;
 
     // Auto-generate motion if enabled but not yet created for this scene
     if (motionEnabled && !effectiveMotionAvatarId && heygenMode === 'v3' && imageUrl) {
