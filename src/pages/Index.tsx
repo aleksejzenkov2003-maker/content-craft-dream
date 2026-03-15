@@ -408,6 +408,63 @@ export default function Index() {
     }
   };
 
+  // Full pipeline: voiceover → HeyGen video (post-processing auto-triggers via polling)
+  const handleFullVideoPipeline = async (video: Video) => {
+    if (!video.advisor_answer) {
+      toast.error('Сначала нужен ответ духовника');
+      return;
+    }
+    try {
+      // Step 1: Generate voiceover if missing
+      if (!video.voiceover_url) {
+        toast.info('Шаг 1/2: Генерация озвучки...');
+        await updateVideo(video.id, { voiceover_status: 'generating' } as any, { silent: true });
+        refetchVideos();
+
+        const voiceRes = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/generate-voiceover-for-video`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
+          },
+          body: JSON.stringify({ videoId: video.id }),
+        });
+
+        if (!voiceRes.ok) throw new Error('Voiceover generation failed');
+        toast.success('Озвучка готова!');
+        refetchVideos();
+      }
+
+      // Step 2: Launch HeyGen video generation
+      toast.info(video.voiceover_url ? 'Запуск генерации видео...' : 'Шаг 2/2: Запуск генерации видео...');
+      await updateVideo(video.id, { 
+        generation_status: 'generating',
+        heygen_video_url: null,
+        video_path: null,
+        reduced_video_url: null,
+        reel_status: null,
+      } as any, { silent: true });
+      refetchVideos();
+
+      const { data, error } = await supabase.functions.invoke('generate-video-heygen', {
+        body: { videoId: video.id },
+      });
+
+      if (error) throw error;
+      if (!data?.success) throw new Error(data?.error || 'Failed to start video generation');
+
+      toast.success('Генерация видео запущена — постобработка начнётся автоматически');
+      startVideoPolling(video.id);
+    } catch (error: any) {
+      console.error('Full pipeline error:', error);
+      toast.error(error.message || 'Ошибка запуска пайплайна');
+      await updateVideo(video.id, { generation_status: 'error' }, { silent: true });
+      refetchVideos();
+    }
+  };
+
+
+
   const handleUploadPhotoToHeygen = async (photo: any) => {
     return await uploadPhotoToHeygen(photo);
   };
@@ -782,7 +839,7 @@ export default function Index() {
                 loading={videosLoading}
                 onEditVideo={(video) => { setEditingVideoId(video.id); setShowVideoEditor(true); }}
                 onDeleteVideo={deleteVideo}
-                onGenerateVideo={handleGenerateVideo}
+                onGenerateVideo={handleFullVideoPipeline}
                 onGenerateCover={handleGenerateCover}
                 onGenerateAtmosphere={handleGenerateAtmosphere}
                 onGenerateVoiceover={handleGenerateVoiceover}
@@ -799,7 +856,7 @@ export default function Index() {
                 }}
                 onBulkGenerateVideos={async (videoIds) => {
                   const videosToProcess = videos.filter(v => videoIds.includes(v.id));
-                  for (const video of videosToProcess) { await handleGenerateVideo(video); }
+                  for (const video of videosToProcess) { await handleFullVideoPipeline(video); }
                 }}
                 onBulkUpdateStatus={async (videoIds, status) => {
                   for (const id of videoIds) { await updateVideo(id, { generation_status: status }); }
