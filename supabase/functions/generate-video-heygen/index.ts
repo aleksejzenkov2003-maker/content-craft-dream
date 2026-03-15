@@ -237,7 +237,7 @@ serve(async (req) => {
           character: {
             type: 'talking_photo',
             talking_photo_id: talkingPhotoIdFinal,
-            ...(video.motion_avatar_id && heygenMode === 'v3' ? { talking_style: 'expressive' } : {}),
+            ...(effectiveMotionAvatarId && heygenMode === 'v3' ? { talking_style: 'expressive' } : {}),
           },
           voice: {
             type: 'audio',
