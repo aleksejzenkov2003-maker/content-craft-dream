@@ -83,7 +83,7 @@ export function SceneSidePanel({
     if (open && scene) {
       loadVariants();
       setPromptText(scene.scene_prompt || '');
-      setMotionType(scene.motion_type || 'consistent');
+      setMotionType(scene.motion_type || 'veo2');
       setMotionPromptText(scene.motion_prompt || 'The person gestures naturally with their hands while explaining something');
       loadSystemPrompt();
     }
