@@ -200,21 +200,25 @@ serve(async (req) => {
       throw new Error('No image found. Upload advisor photo or generate a cover first.');
     }
 
-    // --- Determine HeyGen mode (v3 = Avatar III, v4 = Avatar IV) ---
-    const { data: modeSettings } = await supabase
+    // --- Determine HeyGen mode and motion setting ---
+    const { data: settingsRows } = await supabase
       .from('app_settings')
-      .select('value')
-      .eq('key', 'heygen_mode')
-      .single();
-    const heygenMode = modeSettings?.value || 'v3';
+      .select('key, value')
+      .in('key', ['heygen_mode', 'motion_enabled']);
+    
+    const settingsMap: Record<string, string> = {};
+    (settingsRows || []).forEach((r: any) => { settingsMap[r.key] = r.value; });
+    
+    const heygenMode = settingsMap['heygen_mode'] || 'v3';
+    const motionEnabled = settingsMap['motion_enabled'] !== 'false'; // default true
     const heygenEndpoint = heygenMode === 'v4'
       ? 'https://api.heygen.com/v2/video/av4/generate'
       : 'https://api.heygen.com/v2/video/generate';
-    console.log(`Using HeyGen mode: ${heygenMode}, endpoint: ${heygenEndpoint}`);
+    console.log(`Using HeyGen mode: ${heygenMode}, motion_enabled: ${motionEnabled}, endpoint: ${heygenEndpoint}`);
 
     // Use scene's motion_avatar_id first, then video's (backward compat), otherwise upload fresh
     let talkingPhotoIdFinal: string;
-    const effectiveMotionAvatarId = sceneMotionAvatarId || video.motion_avatar_id;
+    const effectiveMotionAvatarId = motionEnabled ? (sceneMotionAvatarId || video.motion_avatar_id) : null;
     if (effectiveMotionAvatarId && heygenMode === 'v3') {
       talkingPhotoIdFinal = effectiveMotionAvatarId;
       console.log('Using motion_avatar_id:', talkingPhotoIdFinal, 'source:', sceneMotionAvatarId ? 'scene' : 'video');
