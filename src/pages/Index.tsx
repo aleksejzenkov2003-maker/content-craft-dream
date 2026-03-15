@@ -381,7 +381,14 @@ export default function Index() {
     }
     try {
       toast.info('Запуск генерации видео...');
-      await updateVideo(video.id, { generation_status: 'generating' }, { silent: true });
+      // Clear old video artifacts so player shows fresh result
+      await updateVideo(video.id, { 
+        generation_status: 'generating',
+        heygen_video_url: null,
+        video_path: null,
+        reduced_video_url: null,
+        reel_status: null,
+      } as any, { silent: true });
       refetchVideos();
 
       const { data, error } = await supabase.functions.invoke('generate-video-heygen', {
