@@ -462,13 +462,8 @@ export default function Index() {
       refetchVideos();
     }
   };
-    } catch (error: any) {
-      console.error('Error generating video:', error);
-      toast.error('Ошибка запуска генерации видео');
-      await updateVideo(video.id, { generation_status: 'error' }, { silent: true });
-      refetchVideos();
-    }
-  };
+
+
 
   const handleUploadPhotoToHeygen = async (photo: any) => {
     return await uploadPhotoToHeygen(photo);
