@@ -56,6 +56,8 @@ export interface Video {
   motion_type: string | null;
   motion_prompt: string | null;
   motion_avatar_id: string | null;
+  // Generation tracking
+  generation_count: number | null;
   // Joined data
   advisor?: {
     id: string;

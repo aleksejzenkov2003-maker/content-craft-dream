@@ -109,7 +109,7 @@ export function VideoSidePanel({
   // Reset local busy when server status changes
   useEffect(() => {
     setLocalBusy(null);
-  }, [video?.cover_status, video?.generation_status, video?.voiceover_status]);
+  }, [video?.cover_status, video?.generation_status, video?.voiceover_status, video?.reel_status]);
 
   useEffect(() => {
     const channels = video?.selected_channels;
@@ -299,15 +299,47 @@ export function VideoSidePanel({
         </TabsList>
 
         <TabsContent value="generation" className="space-y-2 mt-2">
+          {/* Pipeline status banner */}
+          {(() => {
+            const reelBusy = video.reel_status === 'generating';
+            const genBusy = video.generation_status === 'generating';
+            const hasError = video.generation_status === 'error' || video.reel_status === 'error';
+            const genCount = (video as any).generation_count || 0;
+            if (genBusy || reelBusy || hasError) {
+              return (
+                <div className={cn(
+                  "flex items-center gap-2 px-2 py-1.5 rounded-md text-xs font-medium",
+                  hasError ? "bg-destructive/10 text-destructive" : "bg-yellow-500/10 text-yellow-700 dark:text-yellow-400"
+                )}>
+                  {hasError ? '❌' : <Loader2 className="w-3 h-3 animate-spin" />}
+                  <span>
+                    {hasError ? 'Ошибка генерации' :
+                     genBusy ? 'Генерация видео HeyGen...' :
+                     reelBusy ? 'Постобработка (битрейт/субтитры)...' : ''}
+                  </span>
+                  {genCount > 0 && <Badge variant="secondary" className="ml-auto text-[9px] px-1.5 py-0">#{genCount}</Badge>}
+                </div>
+              );
+            }
+            if (genCount > 0) {
+              return (
+                <div className="flex items-center gap-2 px-2 py-1 rounded-md text-[10px] text-muted-foreground bg-muted/50">
+                  <span>Генераций: {genCount}</span>
+                </div>
+              );
+            }
+            return null;
+          })()}
+
           {/* Action buttons row */}
           <div className="grid grid-cols-3 gap-2">
-             <Button size="xs" variant="outline" className="border-amber-500/50 text-amber-700 hover:bg-amber-50 dark:hover:bg-amber-950/20" onClick={() => { setLocalBusy('atmosphere'); onGenerateAtmosphere(video, atmospherePromptText || undefined); }} disabled={isGeneratingCover || video.generation_status === 'generating' || isGenerating || localBusy !== null}>
+             <Button size="xs" variant="outline" className="border-amber-500/50 text-amber-700 hover:bg-amber-50 dark:hover:bg-amber-950/20" onClick={() => { setLocalBusy('atmosphere'); onGenerateAtmosphere(video, atmospherePromptText || undefined); }} disabled={isGeneratingCover || video.generation_status === 'generating' || video.reel_status === 'generating' || isGenerating || localBusy !== null}>
                 {isGeneratingCover || localBusy === 'atmosphere' ? <Loader2 className="w-3 h-3 mr-1 animate-spin" /> : <RefreshCw className="w-3 h-3 mr-1" />}Шаг 1. ФОН
               </Button>
-              <Button size="xs" variant="outline" className="border-orange-500/50 text-orange-700 hover:bg-orange-50 dark:hover:bg-orange-950/20" onClick={() => { setLocalBusy('cover'); onGenerateCover(video); }} disabled={isGeneratingCover || !atmosphereUrl || video.generation_status === 'generating' || isGenerating || localBusy !== null}>
+              <Button size="xs" variant="outline" className="border-orange-500/50 text-orange-700 hover:bg-orange-50 dark:hover:bg-orange-950/20" onClick={() => { setLocalBusy('cover'); onGenerateCover(video); }} disabled={isGeneratingCover || !atmosphereUrl || video.generation_status === 'generating' || video.reel_status === 'generating' || isGenerating || localBusy !== null}>
                 {isGeneratingCover || localBusy === 'cover' ? <Loader2 className="w-3 h-3 mr-1 animate-spin" /> : <RefreshCw className="w-3 h-3 mr-1" />}Шаг 2. Обложка
               </Button>
-              <Button size="xs" variant="outline" className="border-green-500/50 text-green-700 hover:bg-green-50 dark:hover:bg-green-950/20" onClick={() => { setLocalBusy('video'); onGenerateVideo(video); }} disabled={video.generation_status === 'generating' || isGenerating || isGeneratingCover || localBusy !== null}>
+              <Button size="xs" variant="outline" className="border-green-500/50 text-green-700 hover:bg-green-50 dark:hover:bg-green-950/20" onClick={() => { setLocalBusy('video'); onGenerateVideo(video); }} disabled={video.generation_status === 'generating' || video.reel_status === 'generating' || isGenerating || isGeneratingCover || localBusy !== null}>
                 {video.generation_status === 'generating' || isGenerating || localBusy === 'video' ? <Loader2 className="w-3 h-3 mr-1 animate-spin" /> : <RefreshCw className="w-3 h-3 mr-1" />}Шаг 3. Видео
               </Button>
           </div>
@@ -405,8 +437,19 @@ export function VideoSidePanel({
                 </div>
               ) : (
                 <div className="relative aspect-[9/16] rounded-md border-2 border-dashed border-muted-foreground/20 bg-muted/30 flex flex-col items-center justify-center gap-1">
-                  <div className="w-8 h-8 rounded-full bg-muted flex items-center justify-center"><Play className="w-4 h-4 text-muted-foreground/40" /></div>
-                  <span className="text-[8px] text-muted-foreground/40">Видео не сгенерировано</span>
+                  {video.generation_status === 'generating' || video.reel_status === 'generating' ? (
+                    <>
+                      <Loader2 className="w-6 h-6 animate-spin text-primary" />
+                      <span className="text-[8px] text-muted-foreground">
+                        {video.generation_status === 'generating' ? 'Генерация...' : 'Постобработка...'}
+                      </span>
+                    </>
+                  ) : (
+                    <>
+                      <div className="w-8 h-8 rounded-full bg-muted flex items-center justify-center"><Play className="w-4 h-4 text-muted-foreground/40" /></div>
+                      <span className="text-[8px] text-muted-foreground/40">Видео не сгенерировано</span>
+                    </>
+                  )}
                   <div className={cn("absolute bottom-1 left-1 right-1 text-center text-[8px] font-medium py-0.5 rounded", videoStatus.colorClass)}>{videoStatus.label}</div>
                 </div>
               )}

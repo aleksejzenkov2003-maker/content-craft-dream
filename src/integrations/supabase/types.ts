@@ -962,6 +962,7 @@ export type Database = {
           created_at: string
           facebook_url: string | null
           front_cover_url: string | null
+          generation_count: number | null
           generation_status: string | null
           heygen_video_id: string | null
           heygen_video_url: string | null
@@ -1013,6 +1014,7 @@ export type Database = {
           created_at?: string
           facebook_url?: string | null
           front_cover_url?: string | null
+          generation_count?: number | null
           generation_status?: string | null
           heygen_video_id?: string | null
           heygen_video_url?: string | null
@@ -1064,6 +1066,7 @@ export type Database = {
           created_at?: string
           facebook_url?: string | null
           front_cover_url?: string | null
+          generation_count?: number | null
           generation_status?: string | null
           heygen_video_id?: string | null
           heygen_video_url?: string | null
