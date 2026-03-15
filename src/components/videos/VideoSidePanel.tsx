@@ -106,6 +106,11 @@ export function VideoSidePanel({
 
   useEffect(() => { fetchVariants(); }, [fetchVariants, (video as any)?.atmosphere_url, video?.front_cover_url]);
 
+  // Reset local busy when server status changes
+  useEffect(() => {
+    setLocalBusy(null);
+  }, [video?.cover_status, video?.generation_status, video?.voiceover_status]);
+
   useEffect(() => {
     const channels = video?.selected_channels;
     if (channels && channels.length > 0) setSelectedChannels(channels);
