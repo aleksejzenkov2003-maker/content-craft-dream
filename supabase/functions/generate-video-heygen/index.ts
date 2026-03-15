@@ -120,7 +120,7 @@ serve(async (req) => {
         .select('scene_url, motion_avatar_id, motion_type')
         .eq('playlist_id', video.playlist_id)
         .eq('advisor_id', video.advisor_id)
-        .eq('review_status', 'approved')
+        .eq('status', 'approved')
         .not('scene_url', 'is', null)
         .limit(1);
       
