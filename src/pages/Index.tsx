@@ -524,6 +524,8 @@ export default function Index() {
       }
       
       toast.info('Генерация обложки...');
+      await updateVideo(video.id, { cover_status: 'generating' } as any, { silent: true });
+      refetchVideos();
       
       const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/generate-cover`, {
         method: 'POST',
@@ -543,6 +545,7 @@ export default function Index() {
     } catch (error) {
       console.error('Error generating cover:', error);
       toast.error('Ошибка генерации обложки');
+      await updateVideo(video.id, { cover_status: 'error' } as any, { silent: true });
       refetchVideos();
     }
   };
