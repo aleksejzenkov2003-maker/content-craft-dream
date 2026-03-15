@@ -698,6 +698,7 @@ export type Database = {
           proxy_id: string | null
           proxy_server: string | null
           updated_at: string
+          upload_post_user: string | null
         }
         Insert: {
           api_credentials?: Json | null
@@ -714,6 +715,7 @@ export type Database = {
           proxy_id?: string | null
           proxy_server?: string | null
           updated_at?: string
+          upload_post_user?: string | null
         }
         Update: {
           api_credentials?: Json | null
@@ -730,6 +732,7 @@ export type Database = {
           proxy_id?: string | null
           proxy_server?: string | null
           updated_at?: string
+          upload_post_user?: string | null
         }
         Relationships: [
           {

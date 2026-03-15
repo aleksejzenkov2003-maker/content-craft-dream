@@ -1,0 +1,1 @@
+ALTER TABLE public.publishing_channels ADD COLUMN upload_post_user TEXT DEFAULT NULL;
