@@ -281,29 +281,50 @@ serve(async (req) => {
     }
 
 
-    // --- Call HeyGen API ---
-    const heygenResponse = await fetch(heygenEndpoint, {
-      method: 'POST',
-      headers: {
-        'X-Api-Key': heygenKey,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        title: video.video_title || video.question || `Video ${videoId}`,
-        video_inputs: [{
-          character: {
-            type: 'talking_photo',
-            talking_photo_id: talkingPhotoIdFinal,
-            ...(effectiveMotionAvatarId && heygenMode === 'v3' ? { talking_style: 'expressive' } : {}),
-          },
-          voice: {
-            type: 'audio',
-            audio_url: voiceoverUrl,
-          },
-        }],
-        dimension,
-      }),
+    // --- Call HeyGen API (with retry on bad motion_avatar_id) ---
+    const buildHeygenBody = (photoId: string, useExpressive: boolean) => JSON.stringify({
+      title: video.video_title || video.question || `Video ${videoId}`,
+      video_inputs: [{
+        character: {
+          type: 'talking_photo',
+          talking_photo_id: photoId,
+          ...(useExpressive ? { talking_style: 'expressive' } : {}),
+        },
+        voice: {
+          type: 'audio',
+          audio_url: voiceoverUrl,
+        },
+      }],
+      dimension,
     });
+
+    let heygenResponse = await fetch(heygenEndpoint, {
+      method: 'POST',
+      headers: { 'X-Api-Key': heygenKey, 'Content-Type': 'application/json' },
+      body: buildHeygenBody(talkingPhotoIdFinal, !!effectiveMotionAvatarId && heygenMode === 'v3'),
+    });
+
+    // If motion_avatar_id failed (missing dimensions), clear it and retry with fresh upload
+    if (!heygenResponse.ok) {
+      const errorText = await heygenResponse.text();
+      if (errorText.includes('missing image dimensions') && effectiveMotionAvatarId) {
+        console.warn('Motion avatar rejected by HeyGen — clearing and retrying with fresh upload...');
+        // Clear bad motion_avatar_id from DB
+        await supabase.from('videos').update({ motion_avatar_id: null, motion_type: null, motion_prompt: null }).eq('id', videoId);
+        if (video.playlist_id && video.advisor_id) {
+          await supabase.from('playlist_scenes').update({ motion_avatar_id: null, motion_type: null, motion_prompt: null })
+            .eq('playlist_id', video.playlist_id).eq('advisor_id', video.advisor_id);
+        }
+        // Fresh upload and retry
+        talkingPhotoIdFinal = await uploadTalkingPhoto(imageUrl!, heygenKey);
+        console.log('Retrying with fresh talking_photo_id:', talkingPhotoIdFinal);
+        heygenResponse = await fetch(heygenEndpoint, {
+          method: 'POST',
+          headers: { 'X-Api-Key': heygenKey, 'Content-Type': 'application/json' },
+          body: buildHeygenBody(talkingPhotoIdFinal, false),
+        });
+      }
+    }
 
     if (!heygenResponse.ok) {
       const errorText = await heygenResponse.text();
