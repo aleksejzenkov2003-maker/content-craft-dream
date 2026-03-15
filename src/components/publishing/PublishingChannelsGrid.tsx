@@ -90,6 +90,7 @@ export function PublishingChannelsGrid() {
         is_active: formData.is_active,
         back_cover_url: formData.back_cover_url || null,
         back_cover_video_url: formData.back_cover_video_url || null,
+        upload_post_user: formData.upload_post_user || null,
       };
       if (editingChannel) {
         await updateChannel(editingChannel.id, payload);
