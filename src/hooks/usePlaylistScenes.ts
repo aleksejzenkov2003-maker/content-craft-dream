@@ -183,10 +183,15 @@ export function usePlaylistScenes() {
 
       if (selectError) throw selectError;
 
-      // Update scene_url on the main scene record
+      // Update scene_url AND clear stale motion on the main scene record
       await supabase
         .from('playlist_scenes')
-        .update({ scene_url: (variant as SceneVariant).image_url })
+        .update({ 
+          scene_url: (variant as SceneVariant).image_url,
+          motion_avatar_id: null,
+          motion_type: null,
+          motion_prompt: null,
+        })
         .eq('id', sceneId);
 
       await fetchScenes();
