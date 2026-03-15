@@ -304,6 +304,16 @@ export function PublishingChannelsGrid() {
                 </div>
               )}
 
+              <div className="space-y-2">
+                <Label>Upload-Post профиль</Label>
+                <Input
+                  value={formData.upload_post_user}
+                  onChange={(e) => setFormData({ ...formData, upload_post_user: e.target.value })}
+                  placeholder="Имя профиля в Upload-Post"
+                />
+                <p className="text-xs text-muted-foreground">Идентификатор профиля для автопубликации через Upload-Post.com</p>
+              </div>
+
               <div className="flex items-center justify-between">
                 <span className="text-sm">{formData.is_active ? 'Активен' : 'Неактивен'}</span>
                 <Switch
