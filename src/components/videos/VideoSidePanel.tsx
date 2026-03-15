@@ -77,9 +77,6 @@ export function VideoSidePanel({
   const [highlightMode, setHighlightMode] = useState(true);
   const [detectedDuration, setDetectedDuration] = useState<number | null>(null);
   const [videoSizeBytes, setVideoSizeBytes] = useState<number | null>(null);
-  const [motionType, setMotionType] = useState<string>('consistent');
-  const [motionPrompt, setMotionPrompt] = useState('The person gestures naturally with their hands while explaining something');
-  const [isAddingMotion, setIsAddingMotion] = useState(false);
   const [heygenMode, setHeygenMode] = useState<string>('v3');
 
   const advisor = advisors.find((a) => a.id === video?.advisor_id);
