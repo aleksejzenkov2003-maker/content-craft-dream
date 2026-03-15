@@ -437,8 +437,19 @@ export function VideoSidePanel({
                 </div>
               ) : (
                 <div className="relative aspect-[9/16] rounded-md border-2 border-dashed border-muted-foreground/20 bg-muted/30 flex flex-col items-center justify-center gap-1">
-                  <div className="w-8 h-8 rounded-full bg-muted flex items-center justify-center"><Play className="w-4 h-4 text-muted-foreground/40" /></div>
-                  <span className="text-[8px] text-muted-foreground/40">Видео не сгенерировано</span>
+                  {video.generation_status === 'generating' || video.reel_status === 'generating' ? (
+                    <>
+                      <Loader2 className="w-6 h-6 animate-spin text-primary" />
+                      <span className="text-[8px] text-muted-foreground">
+                        {video.generation_status === 'generating' ? 'Генерация...' : 'Постобработка...'}
+                      </span>
+                    </>
+                  ) : (
+                    <>
+                      <div className="w-8 h-8 rounded-full bg-muted flex items-center justify-center"><Play className="w-4 h-4 text-muted-foreground/40" /></div>
+                      <span className="text-[8px] text-muted-foreground/40">Видео не сгенерировано</span>
+                    </>
+                  )}
                   <div className={cn("absolute bottom-1 left-1 right-1 text-center text-[8px] font-medium py-0.5 rounded", videoStatus.colorClass)}>{videoStatus.label}</div>
                 </div>
               )}

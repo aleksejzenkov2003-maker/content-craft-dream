@@ -444,6 +444,7 @@ export default function Index() {
         video_path: null,
         reduced_video_url: null,
         reel_status: null,
+        generation_count: ((video as any).generation_count || 0) + 1,
       } as any, { silent: true });
       refetchVideos();
 
