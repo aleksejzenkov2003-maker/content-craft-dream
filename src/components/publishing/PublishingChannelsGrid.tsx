@@ -49,6 +49,7 @@ export function PublishingChannelsGrid() {
     is_active: true,
     back_cover_url: '',
     back_cover_video_url: '',
+    upload_post_user: '',
   });
 
   const resetForm = () => {

@@ -14,6 +14,7 @@ export interface PublishingChannel {
   is_active: boolean;
   back_cover_url: string | null;
   back_cover_video_url: string | null;
+  upload_post_user: string | null;
   proxy_id: string | null;
   prompt_id: string | null;
   created_at: string;
