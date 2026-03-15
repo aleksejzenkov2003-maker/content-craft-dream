@@ -14,7 +14,7 @@ import { PublishingChannel } from '@/hooks/usePublishingChannels';
 import {
   Loader2, ChevronLeft, ChevronRight, Link as LinkIcon,
   Image as ImageIcon, Play, Check, Trash2, Copy,
-  Sun, Layers, Volume2, MessageSquare, Subtitles, X, ExternalLink, RefreshCw, Sparkles,
+  Sun, Layers, Volume2, MessageSquare, Subtitles, X, ExternalLink, RefreshCw,
 } from 'lucide-react';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Progress } from '@/components/ui/progress';
@@ -77,9 +77,6 @@ export function VideoSidePanel({
   const [highlightMode, setHighlightMode] = useState(true);
   const [detectedDuration, setDetectedDuration] = useState<number | null>(null);
   const [videoSizeBytes, setVideoSizeBytes] = useState<number | null>(null);
-  const [motionType, setMotionType] = useState<string>('consistent');
-  const [motionPrompt, setMotionPrompt] = useState('The person gestures naturally with their hands while explaining something');
-  const [isAddingMotion, setIsAddingMotion] = useState(false);
   const [heygenMode, setHeygenMode] = useState<string>('v3');
 
   const advisor = advisors.find((a) => a.id === video?.advisor_id);
@@ -124,11 +121,6 @@ export function VideoSidePanel({
       .then(({ data }) => { if (data) setHeygenMode((data as any).value); });
   }, []);
 
-  // Sync motion state from video
-  useEffect(() => {
-    if (video?.motion_type) setMotionType(video.motion_type);
-    if (video?.motion_prompt) setMotionPrompt(video.motion_prompt);
-  }, [video?.id]);
 
   useEffect(() => {
     const fetchAtmospherePrompt = async () => {
@@ -412,89 +404,6 @@ export function VideoSidePanel({
 
       <Separator />
 
-      {/* === Motion Settings (v3 only) === */}
-      {heygenMode === 'v3' && (
-        <>
-          <PanelSection
-            title="Настройка аватара (Motion)"
-            icon={<Sparkles className="w-3.5 h-3.5" />}
-          >
-            {video.motion_avatar_id && (
-              <Badge className="bg-green-500/20 text-green-700 border-green-500/30 text-[10px] mb-2">
-                Motion готов: {video.motion_type || 'consistent'}
-              </Badge>
-            )}
-            <div className="space-y-2">
-              <div>
-                <Label className="text-[10px]">Motion Engine</Label>
-                <Select value={motionType} onValueChange={setMotionType}>
-                  <SelectTrigger className="h-7 text-xs">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="consistent">Consistent (стандартный)</SelectItem>
-                    <SelectItem value="expressive">Expressive (выразительный)</SelectItem>
-                    <SelectItem value="consistent_gen_3">Runway Gen-3</SelectItem>
-                    <SelectItem value="hailuo_2">Minimax Hailuo 2</SelectItem>
-                    <SelectItem value="veo2">Google Veo2</SelectItem>
-                    <SelectItem value="seedance_lite">Seedance Lite</SelectItem>
-                    <SelectItem value="kling">Kling</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              <div>
-                <Label className="text-[10px]">Motion Prompt</Label>
-                <Input
-                  value={motionPrompt}
-                  onChange={(e) => setMotionPrompt(e.target.value)}
-                  className="h-7 text-xs"
-                  placeholder="Описание движений..."
-                />
-              </div>
-              <Button
-                size="xs"
-                variant="outline"
-                className="w-full"
-                disabled={isAddingMotion}
-                onClick={async () => {
-                  setIsAddingMotion(true);
-                  try {
-                    const { data, error } = await supabase.functions.invoke('add-avatar-motion', {
-                      body: { videoId: video.id, motionType, motionPrompt },
-                    });
-                    if (error) throw error;
-                    if (data?.error) throw new Error(data.error);
-                    onUpdateVideo(video.id, {
-                      motion_avatar_id: data.motionAvatarId,
-                      motion_type: motionType,
-                      motion_prompt: motionPrompt,
-                    } as any);
-                    toast.success('Motion добавлен ($1)');
-                  } catch (err: any) {
-                    console.error('Add motion error:', err);
-                    toast.error(err.message || 'Ошибка добавления motion');
-                  } finally {
-                    setIsAddingMotion(false);
-                  }
-                }}
-              >
-                {isAddingMotion ? <><Loader2 className="w-3 h-3 mr-1 animate-spin" />Добавляю motion...</> : <><Sparkles className="w-3 h-3 mr-1" />Добавить движение ($1)</>}
-              </Button>
-              {video.motion_avatar_id && (
-                <Button
-                  size="xs"
-                  variant="ghost"
-                  className="w-full text-destructive"
-                  onClick={() => onUpdateVideo(video.id, { motion_avatar_id: null, motion_type: null, motion_prompt: null } as any)}
-                >
-                  Сбросить motion
-                </Button>
-              )}
-            </div>
-          </PanelSection>
-          <Separator />
-        </>
-      )}
 
       {/* === 2. Publication channels + Readiness === */}
       <PanelSection title="Каналы публикации">

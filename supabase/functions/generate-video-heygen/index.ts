@@ -112,10 +112,12 @@ serve(async (req) => {
     // Try to find an approved scene for this video
     // =============================================
     let sceneUrl: string | null = null;
+    let sceneMotionAvatarId: string | null = null;
+    let sceneMotionType: string | null = null;
     if (video.playlist_id && video.advisor_id) {
       const { data: scenes } = await supabase
         .from('playlist_scenes')
-        .select('scene_url')
+        .select('scene_url, motion_avatar_id, motion_type')
         .eq('playlist_id', video.playlist_id)
         .eq('advisor_id', video.advisor_id)
         .eq('review_status', 'approved')
@@ -123,7 +125,9 @@ serve(async (req) => {
         .limit(1);
       
       sceneUrl = scenes?.[0]?.scene_url || null;
-      console.log('Scene found:', sceneUrl ? 'YES' : 'NO');
+      sceneMotionAvatarId = scenes?.[0]?.motion_avatar_id || null;
+      sceneMotionType = scenes?.[0]?.motion_type || null;
+      console.log('Scene found:', sceneUrl ? 'YES' : 'NO', 'Motion:', sceneMotionAvatarId ? 'YES' : 'NO');
     }
 
     // =============================================
@@ -208,11 +212,12 @@ serve(async (req) => {
       : 'https://api.heygen.com/v2/video/generate';
     console.log(`Using HeyGen mode: ${heygenMode}, endpoint: ${heygenEndpoint}`);
 
-    // Use motion_avatar_id if available (pre-processed with add_motion), otherwise upload fresh
+    // Use scene's motion_avatar_id first, then video's (backward compat), otherwise upload fresh
     let talkingPhotoIdFinal: string;
-    if (video.motion_avatar_id && heygenMode === 'v3') {
-      talkingPhotoIdFinal = video.motion_avatar_id;
-      console.log('Using motion_avatar_id:', talkingPhotoIdFinal);
+    const effectiveMotionAvatarId = sceneMotionAvatarId || video.motion_avatar_id;
+    if (effectiveMotionAvatarId && heygenMode === 'v3') {
+      talkingPhotoIdFinal = effectiveMotionAvatarId;
+      console.log('Using motion_avatar_id:', talkingPhotoIdFinal, 'source:', sceneMotionAvatarId ? 'scene' : 'video');
     } else {
       talkingPhotoIdFinal = await uploadTalkingPhoto(imageUrl, heygenKey);
       console.log('talking_photo_id (fresh upload):', talkingPhotoIdFinal);
@@ -232,7 +237,7 @@ serve(async (req) => {
           character: {
             type: 'talking_photo',
             talking_photo_id: talkingPhotoIdFinal,
-            ...(video.motion_avatar_id && heygenMode === 'v3' ? { talking_style: 'expressive' } : {}),
+            ...(effectiveMotionAvatarId && heygenMode === 'v3' ? { talking_style: 'expressive' } : {}),
           },
           voice: {
             type: 'audio',

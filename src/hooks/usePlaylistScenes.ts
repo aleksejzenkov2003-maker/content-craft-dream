@@ -10,6 +10,9 @@ export interface PlaylistScene {
   scene_url: string | null;
   status: string;
   review_status: string | null;
+  motion_type: string | null;
+  motion_prompt: string | null;
+  motion_avatar_id: string | null;
   created_at: string;
   updated_at: string;
   // Joined data
