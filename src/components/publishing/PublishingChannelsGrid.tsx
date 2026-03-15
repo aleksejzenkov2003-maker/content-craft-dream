@@ -73,6 +73,7 @@ export function PublishingChannelsGrid() {
         is_active: channel.is_active,
         back_cover_url: channel.back_cover_url || '',
         back_cover_video_url: channel.back_cover_video_url || '',
+        upload_post_user: channel.upload_post_user || '',
       });
     } else {
       resetForm();
