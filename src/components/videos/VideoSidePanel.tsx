@@ -301,14 +301,14 @@ export function VideoSidePanel({
         <TabsContent value="generation" className="space-y-2 mt-2">
           {/* Action buttons row */}
           <div className="grid grid-cols-3 gap-2">
-             <Button size="xs" variant="outline" className="border-amber-500/50 text-amber-700 hover:bg-amber-50 dark:hover:bg-amber-950/20" onClick={() => onGenerateAtmosphere(video, atmospherePromptText || undefined)} disabled={isGeneratingCover || video.generation_status === 'generating' || isGenerating}>
-                {isGeneratingCover ? <Loader2 className="w-3 h-3 mr-1 animate-spin" /> : <RefreshCw className="w-3 h-3 mr-1" />}Шаг 1. ФОН
+             <Button size="xs" variant="outline" className="border-amber-500/50 text-amber-700 hover:bg-amber-50 dark:hover:bg-amber-950/20" onClick={() => { setLocalBusy('atmosphere'); onGenerateAtmosphere(video, atmospherePromptText || undefined); }} disabled={isGeneratingCover || video.generation_status === 'generating' || isGenerating || localBusy !== null}>
+                {isGeneratingCover || localBusy === 'atmosphere' ? <Loader2 className="w-3 h-3 mr-1 animate-spin" /> : <RefreshCw className="w-3 h-3 mr-1" />}Шаг 1. ФОН
               </Button>
-              <Button size="xs" variant="outline" className="border-orange-500/50 text-orange-700 hover:bg-orange-50 dark:hover:bg-orange-950/20" onClick={() => onGenerateCover(video)} disabled={isGeneratingCover || !atmosphereUrl || video.generation_status === 'generating' || isGenerating}>
-                {isGeneratingCover ? <Loader2 className="w-3 h-3 mr-1 animate-spin" /> : <RefreshCw className="w-3 h-3 mr-1" />}Шаг 2. Обложка
+              <Button size="xs" variant="outline" className="border-orange-500/50 text-orange-700 hover:bg-orange-50 dark:hover:bg-orange-950/20" onClick={() => { setLocalBusy('cover'); onGenerateCover(video); }} disabled={isGeneratingCover || !atmosphereUrl || video.generation_status === 'generating' || isGenerating || localBusy !== null}>
+                {isGeneratingCover || localBusy === 'cover' ? <Loader2 className="w-3 h-3 mr-1 animate-spin" /> : <RefreshCw className="w-3 h-3 mr-1" />}Шаг 2. Обложка
               </Button>
-              <Button size="xs" variant="outline" className="border-green-500/50 text-green-700 hover:bg-green-50 dark:hover:bg-green-950/20" onClick={() => onGenerateVideo(video)} disabled={video.generation_status === 'generating' || isGenerating || isGeneratingCover || !video.voiceover_url} title={!video.voiceover_url ? 'Сначала создайте озвучку' : undefined}>
-                {video.generation_status === 'generating' || isGenerating ? <Loader2 className="w-3 h-3 mr-1 animate-spin" /> : <RefreshCw className="w-3 h-3 mr-1" />}Шаг 3. Видео
+              <Button size="xs" variant="outline" className="border-green-500/50 text-green-700 hover:bg-green-50 dark:hover:bg-green-950/20" onClick={() => { setLocalBusy('video'); onGenerateVideo(video); }} disabled={video.generation_status === 'generating' || isGenerating || isGeneratingCover || !video.voiceover_url || localBusy !== null} title={!video.voiceover_url ? 'Сначала создайте озвучку' : undefined}>
+                {video.generation_status === 'generating' || isGenerating || localBusy === 'video' ? <Loader2 className="w-3 h-3 mr-1 animate-spin" /> : <RefreshCw className="w-3 h-3 mr-1" />}Шаг 3. Видео
               </Button>
           </div>
 
