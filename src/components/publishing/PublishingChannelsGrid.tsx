@@ -192,6 +192,12 @@ export function PublishingChannelsGrid() {
                           </Badge>
                         ) : null;
                       })()}
+                      {channel.upload_post_user && (
+                        <Badge variant="outline" className="text-xs w-fit">
+                          <Upload className="w-3 h-3 mr-1" />
+                          {channel.upload_post_user}
+                        </Badge>
+                      )}
                     </div>
                     <div className="flex items-center gap-2 pt-1">
                       <span className="text-xs">{channel.is_active ? 'Активен' : 'Неактивен'}</span>
