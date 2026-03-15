@@ -264,7 +264,7 @@ export function SceneSidePanel({
       motion_type: null,
       motion_prompt: null,
     } as any);
-    setMotionType('consistent');
+    setMotionType('veo2');
     setMotionPromptText('The person gestures naturally with their hands while explaining something');
     toast.success('Motion сброшен');
   };
