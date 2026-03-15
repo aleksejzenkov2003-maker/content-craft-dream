@@ -40,12 +40,7 @@ const statusColors: Record<string, string> = {
 };
 
 const MOTION_ENGINES = [
-  { value: 'consistent', label: 'Consistent (стандартный)' },
-  { value: 'expressive', label: 'Expressive (выразительный)' },
-  { value: 'consistent_gen_3', label: 'Runway Gen-3' },
-  { value: 'hailuo_2', label: 'Minimax Hailuo 2' },
   { value: 'veo2', label: 'Google Veo2' },
-  { value: 'seedance_lite', label: 'Seedance Lite' },
   { value: 'kling', label: 'Kling' },
 ];
 
@@ -70,7 +65,7 @@ export function SceneSidePanel({
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Motion state
-  const [motionType, setMotionType] = useState('consistent');
+  const [motionType, setMotionType] = useState('veo2');
   const [motionPromptText, setMotionPromptText] = useState('The person gestures naturally with their hands while explaining something');
   const [isAddingMotion, setIsAddingMotion] = useState(false);
   const [isSavingMotion, setIsSavingMotion] = useState(false);
@@ -88,7 +83,7 @@ export function SceneSidePanel({
     if (open && scene) {
       loadVariants();
       setPromptText(scene.scene_prompt || '');
-      setMotionType(scene.motion_type || 'consistent');
+      setMotionType(scene.motion_type || 'veo2');
       setMotionPromptText(scene.motion_prompt || 'The person gestures naturally with their hands while explaining something');
       loadSystemPrompt();
     }
@@ -269,7 +264,7 @@ export function SceneSidePanel({
       motion_type: null,
       motion_prompt: null,
     } as any);
-    setMotionType('consistent');
+    setMotionType('veo2');
     setMotionPromptText('The person gestures naturally with their hands while explaining something');
     toast.success('Motion сброшен');
   };

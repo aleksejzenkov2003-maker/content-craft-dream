@@ -2,6 +2,8 @@ import { useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Label } from '@/components/ui/label';
+import { Switch } from '@/components/ui/switch';
+import { Separator } from '@/components/ui/separator';
 import { toast } from 'sonner';
 import { Loader2 } from 'lucide-react';
 
@@ -20,22 +22,22 @@ const MODES = [
 
 export function VideoFormatSettings() {
   const [mode, setMode] = useState<string>('v3');
+  const [motionEnabled, setMotionEnabled] = useState(true);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
-    supabase
-      .from('app_settings' as any)
-      .select('value')
-      .eq('key', 'heygen_mode')
-      .single()
-      .then(({ data }) => {
-        if (data) setMode((data as any).value);
-        setLoading(false);
-      });
+    Promise.all([
+      supabase.from('app_settings' as any).select('value').eq('key', 'heygen_mode').single(),
+      supabase.from('app_settings' as any).select('value').eq('key', 'motion_enabled').single(),
+    ]).then(([modeRes, motionRes]) => {
+      if (modeRes.data) setMode((modeRes.data as any).value);
+      if (motionRes.data) setMotionEnabled((motionRes.data as any).value === 'true');
+      setLoading(false);
+    });
   }, []);
 
-  const handleChange = async (newMode: string) => {
+  const handleModeChange = async (newMode: string) => {
     setMode(newMode);
     setSaving(true);
     const { error } = await (supabase.from('app_settings' as any) as any).upsert(
@@ -50,6 +52,21 @@ export function VideoFormatSettings() {
     }
   };
 
+  const handleMotionToggle = async (enabled: boolean) => {
+    setMotionEnabled(enabled);
+    setSaving(true);
+    const { error } = await (supabase.from('app_settings' as any) as any).upsert(
+      { key: 'motion_enabled', value: String(enabled), updated_at: new Date().toISOString() },
+      { onConflict: 'key' }
+    );
+    setSaving(false);
+    if (error) {
+      toast.error('Ошибка сохранения');
+    } else {
+      toast.success(enabled ? 'Motion включён' : 'Motion отключён');
+    }
+  };
+
   if (loading) {
     return (
       <div className="flex items-center gap-2 p-8 text-muted-foreground">
@@ -59,7 +76,7 @@ export function VideoFormatSettings() {
   }
 
   return (
-    <div className="rounded-lg border p-6 space-y-4">
+    <div className="rounded-lg border p-6 space-y-6">
       <div>
         <h3 className="text-lg font-semibold">Режим генерации HeyGen</h3>
         <p className="text-sm text-muted-foreground">
@@ -67,7 +84,7 @@ export function VideoFormatSettings() {
         </p>
       </div>
 
-      <RadioGroup value={mode} onValueChange={handleChange} className="space-y-3">
+      <RadioGroup value={mode} onValueChange={handleModeChange} className="space-y-3">
         {MODES.map((m) => (
           <div key={m.value} className="flex items-start gap-3 rounded-md border p-4 hover:bg-muted/50 transition-colors">
             <RadioGroupItem value={m.value} id={`mode-${m.value}`} className="mt-0.5" />
@@ -80,6 +97,25 @@ export function VideoFormatSettings() {
           </div>
         ))}
       </RadioGroup>
+
+      <Separator />
+
+      <div>
+        <h3 className="text-lg font-semibold">Motion (движения)</h3>
+        <p className="text-sm text-muted-foreground mb-3">
+          Включает предобработку аватара с естественными жестами ($1 за обработку). При отключении motion_avatar_id из сцен игнорируется.
+        </p>
+        <div className="flex items-center gap-3">
+          <Switch
+            id="motion-toggle"
+            checked={motionEnabled}
+            onCheckedChange={handleMotionToggle}
+          />
+          <Label htmlFor="motion-toggle" className="cursor-pointer">
+            {motionEnabled ? 'Motion включён' : 'Motion отключён'}
+          </Label>
+        </div>
+      </div>
 
       {saving && (
         <p className="text-xs text-muted-foreground flex items-center gap-1">
