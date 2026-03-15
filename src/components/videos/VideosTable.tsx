@@ -673,6 +673,7 @@ export function VideosTable({
                               size="xs"
                               variant="generate-cover"
                               onClick={() => onGenerateCover(video)}
+                              disabled={effectiveVoiceoverStatus === 'generating' || effectiveVideoStatus === 'generating'}
                             >
                               Обложка
                             </Button>
@@ -690,7 +691,7 @@ export function VideosTable({
                               size="xs"
                               variant="generate-voiceover"
                               onClick={() => onGenerateVoiceover?.(video)}
-                              disabled={!video.advisor_answer}
+                              disabled={!video.advisor_answer || effectiveCoverStatus === 'generating' || effectiveVideoStatus === 'generating'}
                               title={!video.advisor_answer ? 'Сначала нужен ответ' : undefined}
                             >
                               Звук
@@ -709,7 +710,7 @@ export function VideosTable({
                               size="xs"
                               variant="generate-video"
                               onClick={() => onGenerateVideo(video)}
-                              disabled={!video.voiceover_url}
+                              disabled={!video.voiceover_url || effectiveCoverStatus === 'generating' || effectiveVoiceoverStatus === 'generating'}
                               title={!video.voiceover_url ? 'Сначала создайте озвучку' : undefined}
                             >
                               Видео
