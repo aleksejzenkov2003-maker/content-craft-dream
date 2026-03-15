@@ -49,6 +49,7 @@ interface VideoSidePanelProps {
   onPrev?: () => void;
   onNext?: () => void;
   autoSubtitleProgress?: { phase: string; progress: number } | null;
+  onNavigateToScene?: (playlistId: string, advisorId: string) => void;
 }
 
 /* Status resolution for asset badges */
