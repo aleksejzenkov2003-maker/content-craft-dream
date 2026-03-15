@@ -1086,7 +1086,7 @@ export default function Index() {
                 onGenerateAtmosphere={handleGenerateAtmosphere}
                 onGenerateCover={handleGenerateCover}
                 onGenerateVoiceover={handleGenerateVoiceover}
-                onGenerateVideo={(video) => { setShowVideoDetail(true); }}
+                onGenerateVideo={handleFullVideoPipeline}
                 onUpdateVideo={updateVideo}
                 onPublish={handlePublishVideo}
                 isGenerating={isGenerating}
