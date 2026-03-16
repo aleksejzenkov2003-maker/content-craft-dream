@@ -473,7 +473,11 @@ export function PromptsPage() {
                   </Select>
                 </div>
                 <div className="space-y-1.5">
-                  <Label className="text-xs">Модель AI {isImageType && <Badge variant="secondary" className="ml-1 text-[10px]">IMG</Badge>}</Label>
+                  <Label className="text-xs">
+                    {isMotionType ? 'Motion Engine' : 'Модель AI'}
+                    {isImageType && <Badge variant="secondary" className="ml-1 text-[10px]">IMG</Badge>}
+                    {isMotionType && <Badge variant="secondary" className="ml-1 text-[10px]">MOTION</Badge>}
+                  </Label>
                   <Select value={form.model} onValueChange={(v) => setForm({ ...form, model: v })}>
                     <SelectTrigger><SelectValue /></SelectTrigger>
                     <SelectContent>
