@@ -280,17 +280,19 @@ export function PromptsPage() {
   };
 
   const handleApplyMotionToScenes = async () => {
-    if (!form.user_template.trim()) return;
+    const effectiveTemplate = form.user_template.trim() || form.system_prompt.trim();
+    if (!effectiveTemplate) {
+      toast.error('Заполните motion шаблон (user_template или system_prompt)');
+      return;
+    }
     setIsApplying(true);
     try {
       // Determine target scene IDs
       let targetSceneIds: string[] = [];
       
       if (selectedSceneIds.length > 0) {
-        // Apply to specifically selected scenes
         targetSceneIds = selectedSceneIds;
       } else {
-        // Apply to ALL scenes in selected playlists
         for (const plId of selectedPlaylistIds) {
           const scenes = playlistScenes[plId] || [];
           targetSceneIds.push(...scenes.map((s: any) => s.id));
@@ -298,32 +300,40 @@ export function PromptsPage() {
       }
 
       if (targetSceneIds.length === 0) {
-        toast.error('Выберите плейлисты или сцены');
+        toast.error('Нет сцен для выбранных плейлистов');
         return;
       }
 
-      // For each scene, fill template with variables and update
-      let count = 0;
+      let successCount = 0;
+      let errorCount = 0;
       for (const plId of selectedPlaylistIds) {
         const scenes = (playlistScenes[plId] || []).filter((s: any) => targetSceneIds.includes(s.id));
-        const pl = playlists.find(p => p.id === plId);
         for (const scene of scenes) {
-          const filled = form.user_template
+          const filled = effectiveTemplate
             .replace(/\{\{monologue_scene_photo\}\}/g, scene.scene_url || '')
             .replace(/\{\{advisor\}\}/g, scene.advisorName || '');
           
-          await supabase
+          const { error } = await supabase
             .from('playlist_scenes')
             .update({ 
               motion_prompt: filled, 
-              motion_type: form.model, // veo2 or kling
+              motion_type: form.model,
             })
             .eq('id', scene.id);
-          count++;
+          if (error) {
+            console.error('Update scene error:', scene.id, error);
+            errorCount++;
+          } else {
+            successCount++;
+          }
         }
       }
       
-      toast.success(`Motion промт применён к ${count} сценам`);
+      if (errorCount > 0) {
+        toast.warning(`Обновлено ${successCount} сцен, ошибок: ${errorCount}`);
+      } else {
+        toast.success(`Motion промт применён к ${successCount} сценам`);
+      }
       // Refresh scenes
       loadScenesForPlaylists(selectedPlaylistIds);
     } catch (err: any) {
