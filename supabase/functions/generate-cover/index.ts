@@ -144,7 +144,7 @@ async function composeCover(
           style: {
             position: 'absolute',
             top: 200,
-            left: 100,
+            right: 60,
             width: 300,
             height: 529,
             borderRadius: 24,
