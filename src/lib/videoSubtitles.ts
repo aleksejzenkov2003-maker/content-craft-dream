@@ -39,8 +39,8 @@ export function getPhaseLabel(phase: SubtitlePhase): string {
 // ── Font management ──
 
 let fontData: Uint8Array | null = null;
-const FONT_URL = 'https://cdn.jsdelivr.net/fontsource/fonts/montserrat@latest/latin-700-normal.ttf';
-const FONT_PATH = 'Montserrat-Bold.ttf';
+const FONT_URL = 'https://cdn.jsdelivr.net/fontsource/fonts/montserrat@latest/latin-900-normal.ttf';
+const FONT_PATH = 'Montserrat-Black.ttf';
 
 async function ensureFont(ff: FFmpeg): Promise<void> {
   if (!fontData) {
@@ -99,7 +99,7 @@ function escapeDrawtext(text: string): string {
 
 function buildDrawtextFilter(
   blocks: TimedBlock[],
-  fontSize = 44,
+  fontSize = 56,
   _marginV = 160,
 ): string {
   if (blocks.length === 0) return 'null';
@@ -117,7 +117,7 @@ function buildDrawtextFilter(
 
 function buildHighlightDrawtextFilter(
   blocks: TimedBlock[],
-  fontSize = 44,
+  fontSize = 56,
 ): string {
   if (blocks.length === 0) return 'null';
   const filters: string[] = [];

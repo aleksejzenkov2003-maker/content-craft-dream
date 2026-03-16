@@ -143,10 +143,10 @@ async function composeCover(
           src: advisorPhotoUrl,
           style: {
             position: 'absolute',
-            top: 100,
+            top: 200,
             left: 100,
-            width: 350,
-            height: 618,
+            width: 300,
+            height: 529,
             borderRadius: 24,
             objectFit: 'cover',
             zIndex: 10,
