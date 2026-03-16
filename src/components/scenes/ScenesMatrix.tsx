@@ -1,4 +1,4 @@
-import { useState, useMemo, useRef } from 'react';
+import { useState, useMemo, useRef, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -47,7 +47,13 @@ const reviewStatusLabels: Record<string, { label: string; variant: 'default' | '
   Rejected: { label: 'Отклонено', variant: 'destructive' },
 };
 
-export function ScenesMatrix() {
+interface ScenesMatrixProps {
+  initialAdvisorId?: string;
+  initialPlaylistId?: string;
+  onConsumeNavTarget?: () => void;
+}
+
+export function ScenesMatrix({ initialAdvisorId, initialPlaylistId, onConsumeNavTarget }: ScenesMatrixProps) {
   const { scenes, loading: scenesLoading, addScene, updateScene, refetch, bulkImport, fetchVariants, selectVariant } = usePlaylistScenes();
   const { advisors, loading: advisorsLoading } = useAdvisors();
   const { playlists, loading: playlistsLoading } = usePlaylists();
