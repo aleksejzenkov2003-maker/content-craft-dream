@@ -134,7 +134,7 @@ function buildHighlightDrawtextFilter(
     for (const w of b.words) {
       const escaped = escapeDrawtext(w.word);
       filters.push(
-        `drawtext=fontfile=${FONT_PATH}:text='${escaped}':fontsize=${fontSize}:fontcolor=0xFFCC00:borderw=3:bordercolor=black:x=(w-text_w)/2:y=(h*0.55):enable='between(t,${w.start.toFixed(3)},${w.end.toFixed(3)})'`
+        `drawtext=fontfile=${FONT_PATH}:text='${escaped}':fontsize=${fontSize}:fontcolor=white:borderw=3:bordercolor=black:x=(w-text_w)/2:y=(h*0.55):enable='between(t,${w.start.toFixed(3)},${w.end.toFixed(3)})'`
       );
     }
   }
