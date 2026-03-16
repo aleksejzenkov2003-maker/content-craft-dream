@@ -577,6 +577,14 @@ export function ScenesMatrix() {
         >
           Сгенерировать {selectedPairs.size} сцен
         </BulkActionButton>
+        <BulkActionButton
+          onClick={handleBulkAddMotion}
+          loading={bulkMotioning}
+          icon={<Sparkles className="w-3 h-3" />}
+          variant="secondary"
+        >
+          Добавить Motion
+        </BulkActionButton>
       </BulkActionsBar>
 
       {/* Side Panel */}
