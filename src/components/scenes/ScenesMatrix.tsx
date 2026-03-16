@@ -69,23 +69,6 @@ export function ScenesMatrix({ initialAdvisorId, initialPlaylistId, onConsumeNav
   const [selectedAdvisorId, setSelectedAdvisorId] = useState<string | null>(null);
   const [showSidePanel, setShowSidePanel] = useState(false);
 
-  // Auto-expand advisor and open scene when navigating from VideoSidePanel
-  useEffect(() => {
-    if (initialAdvisorId && initialPlaylistId && !advisorsLoading && !scenesLoading && !playlistsLoading) {
-      setExpandedAdvisors(prev => new Set(prev).add(initialAdvisorId));
-      // Find and open the scene for this playlist+advisor
-      const scene = getScene(initialPlaylistId, initialAdvisorId);
-      const playlist = playlists.find(p => p.id === initialPlaylistId);
-      const advisor = advisors.find(a => a.id === initialAdvisorId);
-      if (scene && playlist && advisor) {
-        handleOpenScene(scene, playlist, advisor);
-      }
-      onConsumeNavTarget?.();
-    } else if (initialAdvisorId && !advisorsLoading) {
-      setExpandedAdvisors(prev => new Set(prev).add(initialAdvisorId));
-      onConsumeNavTarget?.();
-    }
-  }, [initialAdvisorId, initialPlaylistId, advisorsLoading, scenesLoading, playlistsLoading]);
   const [showImporter, setShowImporter] = useState(false);
 
   const loading = scenesLoading || advisorsLoading || playlistsLoading;
@@ -97,9 +80,6 @@ export function ScenesMatrix({ initialAdvisorId, initialPlaylistId, onConsumeNav
 
   const sceneMap = useMemo(() => {
     const map = new Map<string, PlaylistScene>();
-    // scenes are ordered by created_at DESC (newest first)
-    // For duplicate playlist+advisor combos, keep the best one:
-    // priority: approved with URL > approved > generating > waiting
     const priority = (s: PlaylistScene): number => {
       const status = normalizeStatus(s.status);
       if (status === 'approved' && s.scene_url) return 4;
@@ -122,6 +102,26 @@ export function ScenesMatrix({ initialAdvisorId, initialPlaylistId, onConsumeNav
   const getScene = (playlistId: string, advisorId: string): PlaylistScene | undefined => {
     return sceneMap.get(`${playlistId}-${advisorId}`);
   };
+
+  // Auto-expand advisor and open scene when navigating from VideoSidePanel
+  useEffect(() => {
+    if (initialAdvisorId && initialPlaylistId && !advisorsLoading && !scenesLoading && !playlistsLoading) {
+      setExpandedAdvisors(prev => new Set(prev).add(initialAdvisorId));
+      const scene = getScene(initialPlaylistId, initialAdvisorId);
+      const playlist = playlists.find(p => p.id === initialPlaylistId);
+      const advisor = advisors.find(a => a.id === initialAdvisorId);
+      if (scene && playlist && advisor) {
+        setSelectedSceneId(scene.id);
+        setSelectedPlaylistId(playlist.id);
+        setSelectedAdvisorId(advisor.id);
+        setShowSidePanel(true);
+      }
+      onConsumeNavTarget?.();
+    } else if (initialAdvisorId && !advisorsLoading) {
+      setExpandedAdvisors(prev => new Set(prev).add(initialAdvisorId));
+      onConsumeNavTarget?.();
+    }
+  }, [initialAdvisorId, initialPlaylistId, advisorsLoading, scenesLoading, playlistsLoading]);
 
   const toggleAdvisor = (advisorId: string) => {
     setExpandedAdvisors(prev => {
