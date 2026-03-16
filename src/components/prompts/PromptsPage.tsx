@@ -41,10 +41,12 @@ const TYPES = [
   { value: 'atmosphere', label: 'Фон обложки' },
   { value: 'scene', label: 'Сцена монологов' },
   { value: 'post_text', label: 'Текст публикации' },
+  { value: 'scene_motion', label: 'Motion для сцены' },
 ];
 
 const typeLabels: Record<string, string> = {
   atmosphere: 'Фон обложки', scene: 'Сцена монологов', post_text: 'Текст публикации',
+  scene_motion: 'Motion для сцены',
 };
 
 const modelLabels: Record<string, string> = {
