@@ -117,7 +117,7 @@ function buildDrawtextFilter(
 
 function buildHighlightDrawtextFilter(
   blocks: TimedBlock[],
-  fontSize = 44,
+  fontSize = 56,
 ): string {
   if (blocks.length === 0) return 'null';
   const filters: string[] = [];
