@@ -4,7 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Loader2, ChevronRight, ChevronDown, Image, Wand2, Check, X, FileSpreadsheet } from 'lucide-react';
+import { Loader2, ChevronRight, ChevronDown, Image, Wand2, Check, X, FileSpreadsheet, Sparkles } from 'lucide-react';
 import { usePlaylistScenes, PlaylistScene } from '@/hooks/usePlaylistScenes';
 import { useAdvisors, Advisor } from '@/hooks/useAdvisors';
 import { usePlaylists, Playlist } from '@/hooks/usePlaylists';
@@ -49,6 +49,7 @@ export function ScenesMatrix() {
   const [generatingScenes, setGeneratingScenes] = useState<Set<string>>(new Set());
   const [selectedPairs, setSelectedPairs] = useState<Set<string>>(new Set());
   const [bulkGenerating, setBulkGenerating] = useState(false);
+  const [bulkMotioning, setBulkMotioning] = useState(false);
   const bulkCancelRef = useRef(false);
   const [selectedSceneId, setSelectedSceneId] = useState<string | null>(null);
   const [selectedPlaylistId, setSelectedPlaylistId] = useState<string | null>(null);
@@ -222,6 +223,61 @@ export function ScenesMatrix() {
     setSelectedPairs(new Set());
     setBulkGenerating(false);
     toast.success(`Генерация завершена: ${success} успешно${failed ? `, ${failed} с ошибкой` : ''}`);
+  };
+
+  
+
+  const handleBulkAddMotion = async () => {
+    // Get unique scene IDs for selected pairs that have approved scenes
+    const sceneIds: { sceneId: string; key: string }[] = [];
+    for (const key of selectedPairs) {
+      const [playlistId, advisorId] = key.split('-');
+      const scene = sceneMap.get(key);
+      if (scene && normalizeStatus(scene.status) === 'approved' && scene.scene_url && !scene.motion_avatar_id) {
+        sceneIds.push({ sceneId: scene.id, key });
+      }
+    }
+
+    if (sceneIds.length === 0) {
+      toast.error('Нет одобренных сцен без motion среди выбранных');
+      return;
+    }
+
+    setBulkMotioning(true);
+    let success = 0;
+    let failed = 0;
+
+    for (const { sceneId, key } of sceneIds) {
+      if (bulkCancelRef.current) break;
+      setGeneratingScenes(prev => new Set(prev).add(key));
+      try {
+        const { data, error } = await supabase.functions.invoke('add-avatar-motion', {
+          body: {
+            sceneId,
+            motionType: 'consistent',
+            motionPrompt: 'The person gestures naturally with their hands while explaining something',
+          },
+        });
+        if (error || data?.error) {
+          failed++;
+        } else {
+          success++;
+        }
+      } catch {
+        failed++;
+      } finally {
+        setGeneratingScenes(prev => {
+          const next = new Set(prev);
+          next.delete(key);
+          return next;
+        });
+      }
+    }
+
+    await refetch();
+    setSelectedPairs(new Set());
+    setBulkMotioning(false);
+    toast.success(`Motion: ${success} добавлено${failed ? `, ${failed} ошибок` : ''}`);
   };
 
   const handleOpenScene = (scene: PlaylistScene, playlist: Playlist, advisor: Advisor) => {
@@ -521,6 +577,14 @@ export function ScenesMatrix() {
           variant="default"
         >
           Сгенерировать {selectedPairs.size} сцен
+        </BulkActionButton>
+        <BulkActionButton
+          onClick={handleBulkAddMotion}
+          loading={bulkMotioning}
+          icon={<Sparkles className="w-3 h-3" />}
+          variant="secondary"
+        >
+          Добавить Motion
         </BulkActionButton>
       </BulkActionsBar>
 
