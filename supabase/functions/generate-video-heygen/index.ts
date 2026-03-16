@@ -114,10 +114,11 @@ serve(async (req) => {
     let sceneUrl: string | null = null;
     let sceneMotionAvatarId: string | null = null;
     let sceneMotionType: string | null = null;
+    let sceneMotionPrompt: string | null = null;
     if (video.playlist_id && video.advisor_id) {
       const { data: scenes } = await supabase
         .from('playlist_scenes')
-        .select('scene_url, motion_avatar_id, motion_type')
+        .select('scene_url, motion_avatar_id, motion_type, motion_prompt')
         .eq('playlist_id', video.playlist_id)
         .eq('advisor_id', video.advisor_id)
         .eq('status', 'approved')
@@ -127,6 +128,7 @@ serve(async (req) => {
       sceneUrl = scenes?.[0]?.scene_url || null;
       sceneMotionAvatarId = scenes?.[0]?.motion_avatar_id || null;
       sceneMotionType = scenes?.[0]?.motion_type || null;
+      sceneMotionPrompt = scenes?.[0]?.motion_prompt || null;
       console.log('Scene found:', sceneUrl ? 'YES' : 'NO', 'Motion:', sceneMotionAvatarId ? 'YES' : 'NO');
       
       // Sync stale video motion_avatar_id with scene's
