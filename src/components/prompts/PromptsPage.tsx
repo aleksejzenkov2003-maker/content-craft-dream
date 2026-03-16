@@ -646,7 +646,7 @@ export function PromptsPage() {
 
                   <Button
                     onClick={handleApplyMotionToScenes}
-                    disabled={isApplying || selectedPlaylistIds.length === 0 || !form.user_template.trim()}
+                    disabled={isApplying || selectedPlaylistIds.length === 0 || !(form.user_template.trim() || form.system_prompt.trim())}
                     className="w-full"
                   >
                     {isApplying ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Wand2 className="h-4 w-4 mr-2" />}
