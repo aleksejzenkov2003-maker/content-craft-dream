@@ -454,7 +454,7 @@ export function ScenesMatrix() {
         <BulkActionButton
           onClick={handleBulkGenerate}
           loading={bulkGenerating}
-          disabled={bulkMotioning}
+          disabled={bulkMotioning || bulkGenerating || generatingScenes.size > 0}
           icon={<Wand2 className="w-3 h-3" />}
           variant="default"
         >
@@ -463,7 +463,7 @@ export function ScenesMatrix() {
         <BulkActionButton
           onClick={handleBulkAddMotion}
           loading={bulkMotioning}
-          disabled={bulkGenerating}
+          disabled={bulkGenerating || bulkMotioning || generatingScenes.size > 0}
           icon={<Sparkles className="w-3 h-3" />}
           variant="secondary"
         >
