@@ -456,6 +456,19 @@ export function SceneSidePanel({
                 variant="outline"
                 size="sm"
                 className="flex-1"
+                disabled={isAddingMotion || heygenMode !== 'v3'}
+                onClick={handleAddMotion}
+              >
+                {isAddingMotion ? <Loader2 className="w-4 h-4 animate-spin mr-1" /> : <Sparkles className="w-4 h-4 mr-1" />}
+                Добавить движение ($1)
+              </Button>
+            </div>
+
+            <div className="flex gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                className="flex-1"
                 onClick={async () => {
                   const { data } = await supabase
                     .from('prompts')
@@ -475,7 +488,7 @@ export function SceneSidePanel({
                   }
                 }}
               >
-                <Sparkles className="w-4 h-4 mr-1" />
+                <RotateCcw className="w-4 h-4 mr-1" />
                 Восстановить
               </Button>
               <Button
