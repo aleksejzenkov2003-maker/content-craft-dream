@@ -184,7 +184,7 @@ export function ScenesMatrix() {
 
   const handleBulkGenerate = async () => {
     const pairs = Array.from(selectedPairs).map(key => {
-      const [playlistId, advisorId] = key.split('-');
+      const { playlistId, advisorId } = parsePairKey(key);
       return {
         playlist: playlists.find(p => p.id === playlistId)!,
         advisor: advisors.find(a => a.id === advisorId)!,
