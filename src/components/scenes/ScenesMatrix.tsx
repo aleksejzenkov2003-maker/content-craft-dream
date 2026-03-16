@@ -224,7 +224,7 @@ export function ScenesMatrix() {
     toast.success(`Генерация завершена: ${success} успешно${failed ? `, ${failed} с ошибкой` : ''}`);
   };
 
-  const [bulkMotioning, setBulkMotioning] = useState(false);
+  
 
   const handleBulkAddMotion = async () => {
     // Get unique scene IDs for selected pairs that have approved scenes
