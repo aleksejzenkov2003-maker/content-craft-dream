@@ -460,15 +460,6 @@ export function ScenesMatrix() {
         >
           Сгенерировать {selectedPairs.size} сцен
         </BulkActionButton>
-        <BulkActionButton
-          onClick={handleBulkAddMotion}
-          loading={bulkMotioning}
-          disabled={bulkGenerating || bulkMotioning || generatingScenes.size > 0}
-          icon={<Sparkles className="w-3 h-3" />}
-          variant="secondary"
-        >
-          Добавить Motion
-        </BulkActionButton>
       </BulkActionsBar>
 
       {/* Advisors list with nested playlists */}
