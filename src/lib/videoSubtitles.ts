@@ -106,7 +106,7 @@ function buildDrawtextFilter(
 
   const filters = blocks.map((b) => {
     const escapedText = escapeDrawtext(b.text);
-    return `drawtext=fontfile=${FONT_PATH}:text='${escapedText}':fontsize=${fontSize}:fontcolor=0xFFCC00:borderw=3:bordercolor=black:x=(w-text_w)/2:y=(h*0.55):enable='between(t,${b.startSec.toFixed(3)},${b.endSec.toFixed(3)})'`;
+    return `drawtext=fontfile=${FONT_PATH}:text='${escapedText}':fontsize=${fontSize}:fontcolor=white:borderw=3:bordercolor=black:x=(w-text_w)/2:y=(h*0.55):enable='between(t,${b.startSec.toFixed(3)},${b.endSec.toFixed(3)})'`;
   });
 
   return filters.join(',');
