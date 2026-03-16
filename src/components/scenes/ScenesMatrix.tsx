@@ -224,6 +224,61 @@ export function ScenesMatrix() {
     toast.success(`Генерация завершена: ${success} успешно${failed ? `, ${failed} с ошибкой` : ''}`);
   };
 
+  const [bulkMotioning, setBulkMotioning] = useState(false);
+
+  const handleBulkAddMotion = async () => {
+    // Get unique scene IDs for selected pairs that have approved scenes
+    const sceneIds: { sceneId: string; key: string }[] = [];
+    for (const key of selectedPairs) {
+      const [playlistId, advisorId] = key.split('-');
+      const scene = sceneMap.get(key);
+      if (scene && normalizeStatus(scene.status) === 'approved' && scene.scene_url && !scene.motion_avatar_id) {
+        sceneIds.push({ sceneId: scene.id, key });
+      }
+    }
+
+    if (sceneIds.length === 0) {
+      toast.error('Нет одобренных сцен без motion среди выбранных');
+      return;
+    }
+
+    setBulkMotioning(true);
+    let success = 0;
+    let failed = 0;
+
+    for (const { sceneId, key } of sceneIds) {
+      if (bulkCancelRef.current) break;
+      setGeneratingScenes(prev => new Set(prev).add(key));
+      try {
+        const { data, error } = await supabase.functions.invoke('add-avatar-motion', {
+          body: {
+            sceneId,
+            motionType: 'consistent',
+            motionPrompt: 'The person gestures naturally with their hands while explaining something',
+          },
+        });
+        if (error || data?.error) {
+          failed++;
+        } else {
+          success++;
+        }
+      } catch {
+        failed++;
+      } finally {
+        setGeneratingScenes(prev => {
+          const next = new Set(prev);
+          next.delete(key);
+          return next;
+        });
+      }
+    }
+
+    await refetch();
+    setSelectedPairs(new Set());
+    setBulkMotioning(false);
+    toast.success(`Motion: ${success} добавлено${failed ? `, ${failed} ошибок` : ''}`);
+  };
+
   const handleOpenScene = (scene: PlaylistScene, playlist: Playlist, advisor: Advisor) => {
     setSelectedSceneId(scene.id);
     setSelectedPlaylistId(playlist.id);
