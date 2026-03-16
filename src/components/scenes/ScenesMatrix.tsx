@@ -565,28 +565,6 @@ export function ScenesMatrix() {
         })}
       </div>
 
-      {/* Bulk Actions */}
-      <BulkActionsBar
-        selectedCount={selectedPairs.size}
-        onClearSelection={() => setSelectedPairs(new Set())}
-      >
-        <BulkActionButton
-          onClick={handleBulkGenerate}
-          loading={bulkGenerating}
-          icon={<Wand2 className="w-3 h-3" />}
-          variant="default"
-        >
-          Сгенерировать {selectedPairs.size} сцен
-        </BulkActionButton>
-        <BulkActionButton
-          onClick={handleBulkAddMotion}
-          loading={bulkMotioning}
-          icon={<Sparkles className="w-3 h-3" />}
-          variant="secondary"
-        >
-          Добавить Motion
-        </BulkActionButton>
-      </BulkActionsBar>
 
       {/* Side Panel */}
       <SceneSidePanel
