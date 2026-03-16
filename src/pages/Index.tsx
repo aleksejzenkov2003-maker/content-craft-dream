@@ -1115,6 +1115,7 @@ export default function Index() {
                 onNavigateToScene={(playlistId, advisorId) => {
                   setShowSidePanel(false);
                   setViewingVideoId(null);
+                  setSceneNavTarget({ playlistId, advisorId });
                   setActiveTab('scenes');
                 }}
                 onPrev={viewingVideo ? (() => {
