@@ -120,7 +120,7 @@ export function ScenesMatrix() {
   };
 
   const togglePair = (playlistId: string, advisorId: string) => {
-    const key = `${playlistId}-${advisorId}`;
+    const key = getPairKey(playlistId, advisorId);
     setSelectedPairs(prev => {
       const next = new Set(prev);
       if (next.has(key)) next.delete(key); else next.add(key);
@@ -129,7 +129,7 @@ export function ScenesMatrix() {
   };
 
   const toggleAllForAdvisor = (advisorId: string) => {
-    const keys = playlists.map(p => `${p.id}-${advisorId}`);
+    const keys = playlists.map(p => getPairKey(p.id, advisorId));
     setSelectedPairs(prev => {
       const next = new Set(prev);
       const allSelected = keys.every(k => next.has(k));
@@ -139,10 +139,10 @@ export function ScenesMatrix() {
   };
 
   const isAllSelectedForAdvisor = (advisorId: string) =>
-    playlists.length > 0 && playlists.every(p => selectedPairs.has(`${p.id}-${advisorId}`));
+    playlists.length > 0 && playlists.every(p => selectedPairs.has(getPairKey(p.id, advisorId)));
 
   const isSomeSelectedForAdvisor = (advisorId: string) =>
-    playlists.some(p => selectedPairs.has(`${p.id}-${advisorId}`));
+    playlists.some(p => selectedPairs.has(getPairKey(p.id, advisorId)));
 
   const handleGenerateScene = async (playlist: Playlist, advisor: Advisor) => {
     const key = `${playlist.id}-${advisor.id}`;
