@@ -220,12 +220,98 @@ export function PromptsPage() {
   // Auto-switch model when type changes
   const handleTypeChange = (type: string) => {
     const isImage = IMAGE_TYPES.includes(type);
+    const isMotion = MOTION_TYPES.includes(type);
     const imageVals = IMAGE_MODELS.map(m => m.value);
     const textVals = TEXT_MODELS.map(m => m.value);
+    const motionVals = MOTION_MODELS.map(m => m.value);
     let model = form.model;
-    if (isImage && !imageVals.includes(model)) model = IMAGE_MODELS[0].value;
-    if (!isImage && !textVals.includes(model)) model = TEXT_MODELS[0].value;
+    if (isMotion && !motionVals.includes(model)) model = MOTION_MODELS[0].value;
+    else if (isImage && !imageVals.includes(model)) model = IMAGE_MODELS[0].value;
+    else if (!isImage && !isMotion && !textVals.includes(model)) model = TEXT_MODELS[0].value;
     setForm({ ...form, type, model });
+  };
+
+  // Fetch scenes for selected playlists
+  const loadScenesForPlaylists = async (playlistIds: string[]) => {
+    if (playlistIds.length === 0) {
+      setPlaylistScenes({});
+      return;
+    }
+    const { data } = await supabase
+      .from('playlist_scenes')
+      .select('id, playlist_id, advisor_id, scene_url, motion_prompt, motion_type')
+      .in('playlist_id', playlistIds);
+    
+    const grouped: Record<string, any[]> = {};
+    for (const s of data || []) {
+      if (!grouped[s.playlist_id]) grouped[s.playlist_id] = [];
+      // Resolve advisor name
+      const adv = advisors.find((a: any) => a.id === s.advisor_id);
+      grouped[s.playlist_id].push({ ...s, advisorName: adv?.display_name || adv?.name || '?' });
+    }
+    setPlaylistScenes(grouped);
+  };
+
+  const handleTogglePlaylist = (playlistId: string) => {
+    const next = selectedPlaylistIds.includes(playlistId)
+      ? selectedPlaylistIds.filter(id => id !== playlistId)
+      : [...selectedPlaylistIds, playlistId];
+    setSelectedPlaylistIds(next);
+    loadScenesForPlaylists(next);
+  };
+
+  const handleApplyMotionToScenes = async () => {
+    if (!form.user_template.trim()) return;
+    setIsApplying(true);
+    try {
+      // Determine target scene IDs
+      let targetSceneIds: string[] = [];
+      
+      if (selectedSceneIds.length > 0) {
+        // Apply to specifically selected scenes
+        targetSceneIds = selectedSceneIds;
+      } else {
+        // Apply to ALL scenes in selected playlists
+        for (const plId of selectedPlaylistIds) {
+          const scenes = playlistScenes[plId] || [];
+          targetSceneIds.push(...scenes.map((s: any) => s.id));
+        }
+      }
+
+      if (targetSceneIds.length === 0) {
+        toast.error('Выберите плейлисты или сцены');
+        return;
+      }
+
+      // For each scene, fill template with variables and update
+      let count = 0;
+      for (const plId of selectedPlaylistIds) {
+        const scenes = (playlistScenes[plId] || []).filter((s: any) => targetSceneIds.includes(s.id));
+        const pl = playlists.find(p => p.id === plId);
+        for (const scene of scenes) {
+          const filled = form.user_template
+            .replace(/\{\{monologue_scene_photo\}\}/g, scene.scene_url || '')
+            .replace(/\{\{advisor\}\}/g, scene.advisorName || '');
+          
+          await supabase
+            .from('playlist_scenes')
+            .update({ 
+              motion_prompt: filled, 
+              motion_type: form.model, // veo2 or kling
+            })
+            .eq('id', scene.id);
+          count++;
+        }
+      }
+      
+      toast.success(`Motion промт применён к ${count} сценам`);
+      // Refresh scenes
+      loadScenesForPlaylists(selectedPlaylistIds);
+    } catch (err: any) {
+      toast.error('Ошибка применения: ' + (err.message || 'Unknown'));
+    } finally {
+      setIsApplying(false);
+    }
   };
 
   // Group channels by network_type for the Link dropdown
