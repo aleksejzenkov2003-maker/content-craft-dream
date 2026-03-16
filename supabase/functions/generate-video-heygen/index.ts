@@ -234,16 +234,18 @@ serve(async (req) => {
       : null;
 
     // Auto-generate motion if enabled but not yet created for this scene
-    if (motionEnabled && !effectiveMotionAvatarId && heygenMode === 'v3' && imageUrl) {
-      console.log('Motion enabled but no motion_avatar_id — auto-generating motion...');
+    if (motionEnabled && !effectiveMotionAvatarId && heygenMode === 'v3' && imageUrl && sceneMotionPrompt) {
+      console.log('Motion enabled with prompt but no motion_avatar_id — auto-generating motion...');
       try {
         const freshTalkingPhotoId = await uploadTalkingPhoto(imageUrl, heygenKey);
-        const motionPrompt = 'The person gestures naturally with their hands while explaining something';
+        const motionPrompt = sceneMotionPrompt || 'The person gestures naturally with their hands while explaining something';
+        const resolvedMotionType = sceneMotionType || 'consistent';
         const motionBody = {
           id: freshTalkingPhotoId,
-          prompt: motionPrompt,
-          motion_type: 'consistent',
+          prompt: motionPrompt.slice(0, 512),
+          motion_type: resolvedMotionType,
         };
+        console.log('Auto add_motion:', JSON.stringify(motionBody));
         const motionRes = await fetch('https://api.heygen.com/v2/photo_avatar/add_motion', {
           method: 'POST',
           headers: { 'X-Api-Key': heygenKey, 'Content-Type': 'application/json' },
@@ -259,14 +261,13 @@ serve(async (req) => {
             if (video.playlist_id && video.advisor_id) {
               await supabase.from('playlist_scenes').update({
                 motion_avatar_id: newMotionId,
-                motion_type: 'consistent',
-                motion_prompt: motionPrompt,
+                motion_type: resolvedMotionType,
               }).eq('playlist_id', video.playlist_id).eq('advisor_id', video.advisor_id);
             }
             // Also save to video
             await supabase.from('videos').update({
               motion_avatar_id: newMotionId,
-              motion_type: 'consistent',
+              motion_type: resolvedMotionType,
               motion_prompt: motionPrompt,
             }).eq('id', videoId);
           }
