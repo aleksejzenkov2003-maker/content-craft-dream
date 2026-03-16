@@ -113,82 +113,28 @@ function buildDrawtextFilter(
 }
 
 // ── Highlight (karaoke) drawtext filter ──
-
-/**
- * Measure pixel widths using OffscreenCanvas for precise word positioning.
- * Returns a map of prefix widths for each block's words.
- */
-function measureWordOffsets(
-  blocks: TimedBlock[],
-  fontSize: number,
-): Map<TimedBlock, { totalWidth: number; offsets: number[] }> {
-  const result = new Map<TimedBlock, { totalWidth: number; offsets: number[] }>();
-
-  let canvas: OffscreenCanvas | HTMLCanvasElement;
-  try {
-    canvas = new OffscreenCanvas(1, 1);
-  } catch {
-    canvas = document.createElement('canvas');
-  }
-  const ctx = canvas.getContext('2d') as OffscreenCanvasRenderingContext2D | CanvasRenderingContext2D;
-  if (!ctx) return result;
-
-  // Use the same font loaded into FFmpeg
-  ctx.font = `bold ${fontSize}px Montserrat, sans-serif`;
-
-  for (const b of blocks) {
-    if (!b.words || b.words.length === 0) continue;
-    const totalWidth = ctx.measureText(b.text).width;
-    const offsets: number[] = [];
-    let charOffset = 0;
-    for (const w of b.words) {
-      const prefix = b.text.substring(0, charOffset);
-      offsets.push(ctx.measureText(prefix).width);
-      charOffset += w.word.length + 1; // +1 for space
-    }
-    result.set(b, { totalWidth, offsets });
-  }
-  return result;
-}
+// Shows one word at a time, centered, yellow. No overlay alignment needed.
 
 function buildHighlightDrawtextFilter(
   blocks: TimedBlock[],
   fontSize = 44,
 ): string {
   if (blocks.length === 0) return 'null';
-
-  // Pre-compute precise pixel offsets using Canvas measureText
-  const measurements = measureWordOffsets(blocks, fontSize);
   const filters: string[] = [];
 
   for (const b of blocks) {
-    if (!b.words || b.words.length <= 1) {
-      const escapedText = escapeDrawtext(b.text);
+    if (!b.words || b.words.length === 0) {
+      const escaped = escapeDrawtext(b.text);
       filters.push(
-        `drawtext=fontfile=${FONT_PATH}:text='${escapedText}':fontsize=${fontSize}:fontcolor=0xFFCC00:borderw=3:bordercolor=black:x=(w-text_w)/2:y=(h*0.55):enable='between(t,${b.startSec.toFixed(3)},${b.endSec.toFixed(3)})'`
+        `drawtext=fontfile=${FONT_PATH}:text='${escaped}':fontsize=${fontSize}:fontcolor=0xFFCC00:borderw=3:bordercolor=black:x=(w-text_w)/2:y=(h*0.55):enable='between(t,${b.startSec.toFixed(3)},${b.endSec.toFixed(3)})'`
       );
       continue;
     }
 
-    // Base layer: full text in white
-    const escapedFull = escapeDrawtext(b.text);
-    filters.push(
-      `drawtext=fontfile=${FONT_PATH}:text='${escapedFull}':fontsize=${fontSize}:fontcolor=white:borderw=3:bordercolor=black:x=(w-text_w)/2:y=(h*0.55):enable='between(t,${b.startSec.toFixed(3)},${b.endSec.toFixed(3)})'`
-    );
-
-    // Overlay layers: each word in yellow during its spoken time
-    const m = measurements.get(b);
-    if (!m) continue;
-
-    for (let i = 0; i < b.words.length; i++) {
-      const w = b.words[i];
-      const escapedWord = escapeDrawtext(w.word);
-      const totalWidthPx = m.totalWidth.toFixed(1);
-      const offsetPx = m.offsets[i].toFixed(1);
-      const xExpr = `(w-${totalWidthPx})/2+${offsetPx}`;
-
+    for (const w of b.words) {
+      const escaped = escapeDrawtext(w.word);
       filters.push(
-        `drawtext=fontfile=${FONT_PATH}:text='${escapedWord}':fontsize=${fontSize}:fontcolor=0xFFCC00:x=${xExpr}:y=(h*0.55):enable='between(t,${w.start.toFixed(3)},${w.end.toFixed(3)})'`
+        `drawtext=fontfile=${FONT_PATH}:text='${escaped}':fontsize=${fontSize}:fontcolor=0xFFCC00:borderw=3:bordercolor=black:x=(w-text_w)/2:y=(h*0.55):enable='between(t,${w.start.toFixed(3)},${w.end.toFixed(3)})'`
       );
     }
   }
