@@ -456,11 +456,27 @@ export function SceneSidePanel({
                 variant="outline"
                 size="sm"
                 className="flex-1"
-                disabled={isAddingMotion || heygenMode !== 'v3'}
-                onClick={handleAddMotion}
+                onClick={async () => {
+                  const { data } = await supabase
+                    .from('prompts')
+                    .select('user_template')
+                    .eq('type', 'scene_motion')
+                    .eq('is_active', true)
+                    .limit(1)
+                    .single();
+                  if (data) {
+                    const filled = data.user_template
+                      .replace(/\{\{monologue_scene_photo\}\}/g, scene.scene_url || '')
+                      .replace(/\{\{advisor\}\}/g, advisor.display_name || advisor.name || '');
+                    setMotionPromptText(filled);
+                    toast.success('Motion промт восстановлен из шаблона');
+                  } else {
+                    toast.error('Активный шаблон Motion не найден');
+                  }
+                }}
               >
-                {isAddingMotion ? <Loader2 className="w-4 h-4 animate-spin mr-1" /> : <Sparkles className="w-4 h-4 mr-1" />}
-                Добавить движение ($1)
+                <Sparkles className="w-4 h-4 mr-1" />
+                Восстановить
               </Button>
               <Button
                 variant="default"
