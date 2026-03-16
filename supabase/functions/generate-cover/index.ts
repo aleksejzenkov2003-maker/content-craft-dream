@@ -394,8 +394,10 @@ serve(async (req) => {
         body: JSON.stringify({
           model: 'google/nano-banana',
           input: {
-            prompt: generatedAtmospherePrompt + '. Ultra high resolution, 9:16 aspect ratio.',
+            prompt: generatedAtmospherePrompt + '. Ultra high resolution, 9:16 vertical portrait orientation, 1080x1920 pixels.',
             aspect_ratio: '9:16',
+            width: 1080,
+            height: 1920,
           },
         }),
       });
