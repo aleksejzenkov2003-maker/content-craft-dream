@@ -455,6 +455,7 @@ export default function Index() {
       toast.info(video.voiceover_url ? 'Запуск генерации видео...' : 'Шаг 2/2: Запуск генерации видео...');
       await updateVideo(video.id, { 
         generation_status: 'generating',
+        heygen_video_id: null,
         heygen_video_url: null,
         video_path: null,
         reduced_video_url: null,
