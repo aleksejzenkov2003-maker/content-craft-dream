@@ -127,21 +127,40 @@ export function PromptsPage() {
     setEditingPrompt(null);
     setForm({ name: '', type: 'atmosphere', model: 'google/gemini-2.5-flash-image', temperature: 0.7, max_tokens: 4000, system_prompt: '', user_template: '' });
     setLinkedChannelIds([]);
+    setSelectedPlaylistIds([]);
+    setPlaylistScenes({});
+    setSelectedSceneIds([]);
+    setSaveSuccess(false);
     setTestResult('');
     setTestContent('');
     setIsDialogOpen(true);
   };
 
-  const openEdit = (prompt: DbPrompt) => {
-    setEditingPrompt(prompt);
+  const openEdit = async (prompt: DbPrompt) => {
+    const { data: freshPrompt } = await supabase
+      .from('prompts')
+      .select('*')
+      .eq('id', prompt.id)
+      .single();
+
+    const resolvedPrompt = freshPrompt || prompt;
+
+    setEditingPrompt(resolvedPrompt);
     setForm({
-      name: prompt.name, type: prompt.type, model: prompt.model,
-      temperature: prompt.temperature, max_tokens: prompt.max_tokens,
-      system_prompt: prompt.system_prompt, user_template: prompt.user_template,
+      name: resolvedPrompt.name,
+      type: resolvedPrompt.type,
+      model: resolvedPrompt.model,
+      temperature: resolvedPrompt.temperature,
+      max_tokens: resolvedPrompt.max_tokens,
+      system_prompt: resolvedPrompt.system_prompt,
+      user_template: resolvedPrompt.user_template || '',
     });
-    // Find all linked channels
-    const linked = channels.filter(c => c.prompt_id === prompt.id).map(c => c.id);
+    const linked = channels.filter(c => c.prompt_id === resolvedPrompt.id).map(c => c.id);
     setLinkedChannelIds(linked);
+    setSelectedPlaylistIds([]);
+    setPlaylistScenes({});
+    setSelectedSceneIds([]);
+    setSaveSuccess(false);
     setTestResult('');
     setTestContent('');
     setIsDialogOpen(true);
