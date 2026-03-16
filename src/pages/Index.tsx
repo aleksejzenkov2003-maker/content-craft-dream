@@ -322,6 +322,20 @@ export default function Index() {
 
       if (data?.status === 'ready') {
         stopVideoPolling(videoId);
+        
+        // Verify video has a fresh heygen_video_url before post-processing
+        const { data: freshVideo } = await supabase
+          .from('videos')
+          .select('heygen_video_url, heygen_video_id')
+          .eq('id', videoId)
+          .single();
+        
+        if (!freshVideo?.heygen_video_url) {
+          console.warn(`[poll] Video ${videoId} reported ready but no heygen_video_url found, skipping post-processing`);
+          refetchVideos();
+          return;
+        }
+        
         toast.success('Видео от HeyGen готово! Запуск постобработки...');
         refetchVideos();
         
