@@ -4,7 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Loader2, ChevronRight, ChevronDown, Image, Wand2, Check, X, FileSpreadsheet } from 'lucide-react';
+import { Loader2, ChevronRight, ChevronDown, Image, Wand2, Check, X, FileSpreadsheet, Sparkles } from 'lucide-react';
 import { usePlaylistScenes, PlaylistScene } from '@/hooks/usePlaylistScenes';
 import { useAdvisors, Advisor } from '@/hooks/useAdvisors';
 import { usePlaylists, Playlist } from '@/hooks/usePlaylists';
