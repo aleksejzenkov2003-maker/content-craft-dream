@@ -174,7 +174,7 @@ async function composeCover(
         {
           style: {
             color: 'white',
-            fontSize: hookText.length > 80 ? 48 : hookText.length > 40 ? 56 : 64,
+            fontSize: 64,
             fontWeight: 900,
             textAlign: 'center',
             lineHeight: 1.25,
