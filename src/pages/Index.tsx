@@ -287,7 +287,7 @@ export default function Index() {
   useEffect(() => {
     if (!videos.length) return;
     const stuckVideos = videos.filter(
-      v => v.reel_status === 'generating' && v.heygen_video_url && !resumedRef.current.has(v.id)
+      v => v.reel_status === 'generating' && v.generation_status !== 'generating' && v.heygen_video_url && !resumedRef.current.has(v.id)
     );
     for (const v of stuckVideos) {
       resumedRef.current.add(v.id);
@@ -322,6 +322,20 @@ export default function Index() {
 
       if (data?.status === 'ready') {
         stopVideoPolling(videoId);
+        
+        // Verify video has a fresh heygen_video_url before post-processing
+        const { data: freshVideo } = await supabase
+          .from('videos')
+          .select('heygen_video_url, heygen_video_id')
+          .eq('id', videoId)
+          .single();
+        
+        if (!freshVideo?.heygen_video_url) {
+          console.warn(`[poll] Video ${videoId} reported ready but no heygen_video_url found, skipping post-processing`);
+          refetchVideos();
+          return;
+        }
+        
         toast.success('Видео от HeyGen готово! Запуск постобработки...');
         refetchVideos();
         
@@ -384,6 +398,7 @@ export default function Index() {
       // Clear old video artifacts so player shows fresh result
       await updateVideo(video.id, { 
         generation_status: 'generating',
+        heygen_video_id: null,
         heygen_video_url: null,
         video_path: null,
         reduced_video_url: null,
@@ -440,6 +455,7 @@ export default function Index() {
       toast.info(video.voiceover_url ? 'Запуск генерации видео...' : 'Шаг 2/2: Запуск генерации видео...');
       await updateVideo(video.id, { 
         generation_status: 'generating',
+        heygen_video_id: null,
         heygen_video_url: null,
         video_path: null,
         reduced_video_url: null,
