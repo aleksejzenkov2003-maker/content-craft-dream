@@ -99,7 +99,7 @@ function escapeDrawtext(text: string): string {
 
 function buildDrawtextFilter(
   blocks: TimedBlock[],
-  fontSize = 44,
+  fontSize = 56,
   _marginV = 160,
 ): string {
   if (blocks.length === 0) return 'null';
