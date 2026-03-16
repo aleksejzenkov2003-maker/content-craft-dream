@@ -393,38 +393,48 @@ export function ScenesMatrix() {
           return (
             <div key={advisor.id}>
               <Collapsible open={isExpanded} onOpenChange={() => toggleAdvisor(advisor.id)}>
-                <CollapsibleTrigger asChild>
-                  <div className="flex items-center gap-3 cursor-pointer py-2 group">
-                    {isExpanded ? (
-                      <ChevronDown className="w-4 h-4 text-muted-foreground" />
-                    ) : (
-                      <ChevronRight className="w-4 h-4 text-muted-foreground" />
-                    )}
-                    {(advisor.photos?.find(p => p.id === advisor.scene_photo_id) || advisor.photos?.[0])?.photo_url ? (
-                      <img
-                        src={(advisor.photos?.find(p => p.id === advisor.scene_photo_id) || advisor.photos?.[0])!.photo_url}
-                        alt={advisor.name}
-                        className="w-12 h-12 rounded-full object-cover"
-                      />
-                    ) : (
-                      <div className="w-12 h-12 rounded-full bg-muted flex items-center justify-center">
-                        <Image className="w-5 h-5 text-muted-foreground" />
-                      </div>
-                    )}
-                    <div>
-                      <div className="text-lg font-semibold">
-                        {advisor.display_name || advisor.name}
-                      </div>
-                      <p className="text-sm text-muted-foreground">
-                        {approvedScenes}/{playlists.length} сцен готово
-                      </p>
-                    </div>
+                <div className="flex items-center gap-3 py-2">
+                  <div onClick={(e) => e.stopPropagation()}>
+                    <Checkbox
+                      checked={isAllSelectedForAdvisor(advisor.id)}
+                      data-indeterminate={!isAllSelectedForAdvisor(advisor.id) && isSomeSelectedForAdvisor(advisor.id)}
+                      onCheckedChange={() => toggleAllForAdvisor(advisor.id)}
+                    />
                   </div>
-                </CollapsibleTrigger>
+                  <CollapsibleTrigger asChild>
+                    <div className="flex items-center gap-3 cursor-pointer flex-1 group">
+                      {isExpanded ? (
+                        <ChevronDown className="w-4 h-4 text-muted-foreground" />
+                      ) : (
+                        <ChevronRight className="w-4 h-4 text-muted-foreground" />
+                      )}
+                      {(advisor.photos?.find(p => p.id === advisor.scene_photo_id) || advisor.photos?.[0])?.photo_url ? (
+                        <img
+                          src={(advisor.photos?.find(p => p.id === advisor.scene_photo_id) || advisor.photos?.[0])!.photo_url}
+                          alt={advisor.name}
+                          className="w-12 h-12 rounded-full object-cover"
+                        />
+                      ) : (
+                        <div className="w-12 h-12 rounded-full bg-muted flex items-center justify-center">
+                          <Image className="w-5 h-5 text-muted-foreground" />
+                        </div>
+                      )}
+                      <div>
+                        <div className="text-lg font-semibold">
+                          {advisor.display_name || advisor.name}
+                        </div>
+                        <p className="text-sm text-muted-foreground">
+                          {approvedScenes}/{playlists.length} сцен готово
+                        </p>
+                      </div>
+                    </div>
+                  </CollapsibleTrigger>
+                </div>
                 <CollapsibleContent>
                   <div className="ml-8 mt-1">
                     {/* Column headers */}
                     <div className="flex items-center py-2 text-sm font-medium text-muted-foreground border-b">
+                      <div className="w-8" />
                       <div className="flex-1" />
                       <div className="w-28 text-center">Статус</div>
                       <div className="w-20 text-center">Сцена</div>
@@ -434,6 +444,7 @@ export function ScenesMatrix() {
                       const scene = getScene(playlist.id, advisor.id);
                       const isGenerating = generatingScenes.has(`${playlist.id}-${advisor.id}`);
                       const sceneStatus = normalizeStatus(scene?.status);
+                      const pairKey = `${playlist.id}-${advisor.id}`;
 
                       const statusText = sceneStatus === 'approved' ? 'ГОТОВО' : sceneStatus === 'generating' ? 'генерация' : 'ожидает';
                       const statusColor = sceneStatus === 'approved' 
@@ -451,7 +462,13 @@ export function ScenesMatrix() {
                             : handleCreateAndOpenScene(playlist, advisor)
                           }
                         >
-                          <div className="flex-1 pl-4 text-sm">
+                          <div className="w-8 flex justify-center" onClick={(e) => e.stopPropagation()}>
+                            <Checkbox
+                              checked={selectedPairs.has(pairKey)}
+                              onCheckedChange={() => togglePair(playlist.id, advisor.id)}
+                            />
+                          </div>
+                          <div className="flex-1 pl-2 text-sm">
                             {playlist.name}
                           </div>
                           <div className={`w-28 text-center text-sm ${statusColor}`}>
