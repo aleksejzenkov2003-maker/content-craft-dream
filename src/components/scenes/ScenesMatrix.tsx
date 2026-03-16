@@ -529,9 +529,9 @@ export function ScenesMatrix() {
                     </div>
                     {playlists.map(playlist => {
                       const scene = getScene(playlist.id, advisor.id);
-                      const isGenerating = generatingScenes.has(`${playlist.id}-${advisor.id}`);
-                      const sceneStatus = normalizeStatus(scene?.status);
-                      const pairKey = `${playlist.id}-${advisor.id}`;
+                      const pairKey = getPairKey(playlist.id, advisor.id);
+                      const isGenerating = generatingScenes.has(pairKey);
+
 
                       const statusText = sceneStatus === 'approved' ? 'ГОТОВО' : sceneStatus === 'generating' ? 'генерация' : 'ожидает';
                       const statusColor = sceneStatus === 'approved' 
