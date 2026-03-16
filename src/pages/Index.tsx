@@ -1246,7 +1246,13 @@ export default function Index() {
             />
           )}
 
-          {activeTab === 'scenes' && <ScenesMatrix />}
+          {activeTab === 'scenes' && (
+            <ScenesMatrix
+              initialAdvisorId={sceneNavTarget?.advisorId}
+              initialPlaylistId={sceneNavTarget?.playlistId}
+              onConsumeNavTarget={() => setSceneNavTarget(null)}
+            />
+          )}
 
           {activeTab === 'publications-list' && (
             <div className="space-y-6">
