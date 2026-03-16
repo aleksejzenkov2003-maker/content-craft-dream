@@ -16,6 +16,13 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { BulkActionsBar, BulkActionButton } from '@/components/ui/bulk-actions-bar';
 import { SCENE_COLUMN_MAPPING, SCENE_PREVIEW_COLUMNS, SCENE_FIELD_DEFINITIONS } from '@/components/import/importConfigs';
 
+const PAIR_KEY_SEPARATOR = '::';
+const getPairKey = (playlistId: string, advisorId: string) => `${playlistId}${PAIR_KEY_SEPARATOR}${advisorId}`;
+const parsePairKey = (key: string) => {
+  const [playlistId, advisorId] = key.split(PAIR_KEY_SEPARATOR);
+  return { playlistId, advisorId };
+};
+
 // Normalize various status values to canonical ones
 const normalizeStatus = (status: string | null | undefined): string => {
   if (!status) return 'waiting';
@@ -113,7 +120,7 @@ export function ScenesMatrix() {
   };
 
   const togglePair = (playlistId: string, advisorId: string) => {
-    const key = `${playlistId}-${advisorId}`;
+    const key = getPairKey(playlistId, advisorId);
     setSelectedPairs(prev => {
       const next = new Set(prev);
       if (next.has(key)) next.delete(key); else next.add(key);
@@ -122,7 +129,7 @@ export function ScenesMatrix() {
   };
 
   const toggleAllForAdvisor = (advisorId: string) => {
-    const keys = playlists.map(p => `${p.id}-${advisorId}`);
+    const keys = playlists.map(p => getPairKey(p.id, advisorId));
     setSelectedPairs(prev => {
       const next = new Set(prev);
       const allSelected = keys.every(k => next.has(k));
@@ -132,10 +139,10 @@ export function ScenesMatrix() {
   };
 
   const isAllSelectedForAdvisor = (advisorId: string) =>
-    playlists.length > 0 && playlists.every(p => selectedPairs.has(`${p.id}-${advisorId}`));
+    playlists.length > 0 && playlists.every(p => selectedPairs.has(getPairKey(p.id, advisorId)));
 
   const isSomeSelectedForAdvisor = (advisorId: string) =>
-    playlists.some(p => selectedPairs.has(`${p.id}-${advisorId}`));
+    playlists.some(p => selectedPairs.has(getPairKey(p.id, advisorId)));
 
   const handleGenerateScene = async (playlist: Playlist, advisor: Advisor) => {
     const key = `${playlist.id}-${advisor.id}`;
@@ -177,7 +184,7 @@ export function ScenesMatrix() {
 
   const handleBulkGenerate = async () => {
     const pairs = Array.from(selectedPairs).map(key => {
-      const [playlistId, advisorId] = key.split('-');
+      const { playlistId, advisorId } = parsePairKey(key);
       return {
         playlist: playlists.find(p => p.id === playlistId)!,
         advisor: advisors.find(a => a.id === advisorId)!,
@@ -231,7 +238,6 @@ export function ScenesMatrix() {
     // Get unique scene IDs for selected pairs that have approved scenes
     const sceneIds: { sceneId: string; key: string }[] = [];
     for (const key of selectedPairs) {
-      const [playlistId, advisorId] = key.split('-');
       const scene = sceneMap.get(key);
       if (scene && normalizeStatus(scene.status) === 'approved' && scene.scene_url && !scene.motion_avatar_id) {
         sceneIds.push({ sceneId: scene.id, key });
@@ -448,7 +454,7 @@ export function ScenesMatrix() {
         <BulkActionButton
           onClick={handleBulkGenerate}
           loading={bulkGenerating}
-          disabled={bulkMotioning}
+          disabled={bulkMotioning || bulkGenerating || generatingScenes.size > 0}
           icon={<Wand2 className="w-3 h-3" />}
           variant="default"
         >
@@ -457,7 +463,7 @@ export function ScenesMatrix() {
         <BulkActionButton
           onClick={handleBulkAddMotion}
           loading={bulkMotioning}
-          disabled={bulkGenerating}
+          disabled={bulkGenerating || bulkMotioning || generatingScenes.size > 0}
           icon={<Sparkles className="w-3 h-3" />}
           variant="secondary"
         >
@@ -523,9 +529,9 @@ export function ScenesMatrix() {
                     </div>
                     {playlists.map(playlist => {
                       const scene = getScene(playlist.id, advisor.id);
-                      const isGenerating = generatingScenes.has(`${playlist.id}-${advisor.id}`);
+                      const pairKey = getPairKey(playlist.id, advisor.id);
+                      const isGenerating = generatingScenes.has(pairKey);
                       const sceneStatus = normalizeStatus(scene?.status);
-                      const pairKey = `${playlist.id}-${advisor.id}`;
 
                       const statusText = sceneStatus === 'approved' ? 'ГОТОВО' : sceneStatus === 'generating' ? 'генерация' : 'ожидает';
                       const statusColor = sceneStatus === 'approved' 
