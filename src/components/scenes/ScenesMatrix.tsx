@@ -238,7 +238,6 @@ export function ScenesMatrix() {
     // Get unique scene IDs for selected pairs that have approved scenes
     const sceneIds: { sceneId: string; key: string }[] = [];
     for (const key of selectedPairs) {
-      const [playlistId, advisorId] = key.split('-');
       const scene = sceneMap.get(key);
       if (scene && normalizeStatus(scene.status) === 'approved' && scene.scene_url && !scene.motion_avatar_id) {
         sceneIds.push({ sceneId: scene.id, key });
