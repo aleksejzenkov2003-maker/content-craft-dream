@@ -472,13 +472,18 @@ export function SceneSidePanel({
                 onClick={async () => {
                   const { data } = await supabase
                     .from('prompts')
-                    .select('user_template')
+                    .select('user_template, system_prompt')
                     .eq('type', 'scene_motion')
                     .eq('is_active', true)
                     .limit(1)
                     .single();
                   if (data) {
-                    const filled = data.user_template
+                    const template = (data.user_template?.trim() || data.system_prompt?.trim() || '');
+                    if (!template) {
+                      toast.error('Motion шаблон пуст');
+                      return;
+                    }
+                    const filled = template
                       .replace(/\{\{monologue_scene_photo\}\}/g, scene.scene_url || '')
                       .replace(/\{\{advisor\}\}/g, advisor.display_name || advisor.name || '');
                     setMotionPromptText(filled);
