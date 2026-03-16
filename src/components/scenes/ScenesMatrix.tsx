@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useRef } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -12,6 +12,8 @@ import { SceneSidePanel } from './SceneSidePanel';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { CsvImporter, Lookups } from '@/components/import/CsvImporter';
+import { Checkbox } from '@/components/ui/checkbox';
+import { BulkActionsBar, BulkActionButton } from '@/components/ui/bulk-actions-bar';
 import { SCENE_COLUMN_MAPPING, SCENE_PREVIEW_COLUMNS, SCENE_FIELD_DEFINITIONS } from '@/components/import/importConfigs';
 
 // Normalize various status values to canonical ones
