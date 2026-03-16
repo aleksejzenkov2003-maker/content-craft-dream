@@ -49,6 +49,7 @@ export function ScenesMatrix() {
   const [generatingScenes, setGeneratingScenes] = useState<Set<string>>(new Set());
   const [selectedPairs, setSelectedPairs] = useState<Set<string>>(new Set());
   const [bulkGenerating, setBulkGenerating] = useState(false);
+  const [bulkMotioning, setBulkMotioning] = useState(false);
   const bulkCancelRef = useRef(false);
   const [selectedSceneId, setSelectedSceneId] = useState<string | null>(null);
   const [selectedPlaylistId, setSelectedPlaylistId] = useState<string | null>(null);
