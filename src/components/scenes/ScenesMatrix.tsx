@@ -69,13 +69,23 @@ export function ScenesMatrix({ initialAdvisorId, initialPlaylistId, onConsumeNav
   const [selectedAdvisorId, setSelectedAdvisorId] = useState<string | null>(null);
   const [showSidePanel, setShowSidePanel] = useState(false);
 
-  // Auto-expand advisor when navigating from VideoSidePanel
+  // Auto-expand advisor and open scene when navigating from VideoSidePanel
   useEffect(() => {
-    if (initialAdvisorId && !advisorsLoading) {
+    if (initialAdvisorId && initialPlaylistId && !advisorsLoading && !scenesLoading && !playlistsLoading) {
+      setExpandedAdvisors(prev => new Set(prev).add(initialAdvisorId));
+      // Find and open the scene for this playlist+advisor
+      const scene = getScene(initialPlaylistId, initialAdvisorId);
+      const playlist = playlists.find(p => p.id === initialPlaylistId);
+      const advisor = advisors.find(a => a.id === initialAdvisorId);
+      if (scene && playlist && advisor) {
+        handleOpenScene(scene, playlist, advisor);
+      }
+      onConsumeNavTarget?.();
+    } else if (initialAdvisorId && !advisorsLoading) {
       setExpandedAdvisors(prev => new Set(prev).add(initialAdvisorId));
       onConsumeNavTarget?.();
     }
-  }, [initialAdvisorId, advisorsLoading]);
+  }, [initialAdvisorId, initialPlaylistId, advisorsLoading, scenesLoading, playlistsLoading]);
   const [showImporter, setShowImporter] = useState(false);
 
   const loading = scenesLoading || advisorsLoading || playlistsLoading;
