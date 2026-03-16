@@ -16,6 +16,13 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { BulkActionsBar, BulkActionButton } from '@/components/ui/bulk-actions-bar';
 import { SCENE_COLUMN_MAPPING, SCENE_PREVIEW_COLUMNS, SCENE_FIELD_DEFINITIONS } from '@/components/import/importConfigs';
 
+const PAIR_KEY_SEPARATOR = '::';
+const getPairKey = (playlistId: string, advisorId: string) => `${playlistId}${PAIR_KEY_SEPARATOR}${advisorId}`;
+const parsePairKey = (key: string) => {
+  const [playlistId, advisorId] = key.split(PAIR_KEY_SEPARATOR);
+  return { playlistId, advisorId };
+};
+
 // Normalize various status values to canonical ones
 const normalizeStatus = (status: string | null | undefined): string => {
   if (!status) return 'waiting';
