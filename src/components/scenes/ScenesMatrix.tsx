@@ -111,6 +111,31 @@ export function ScenesMatrix() {
     setExpandedAdvisors(new Set());
   };
 
+  const togglePair = (playlistId: string, advisorId: string) => {
+    const key = `${playlistId}-${advisorId}`;
+    setSelectedPairs(prev => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key); else next.add(key);
+      return next;
+    });
+  };
+
+  const toggleAllForAdvisor = (advisorId: string) => {
+    const keys = playlists.map(p => `${p.id}-${advisorId}`);
+    setSelectedPairs(prev => {
+      const next = new Set(prev);
+      const allSelected = keys.every(k => next.has(k));
+      keys.forEach(k => allSelected ? next.delete(k) : next.add(k));
+      return next;
+    });
+  };
+
+  const isAllSelectedForAdvisor = (advisorId: string) =>
+    playlists.length > 0 && playlists.every(p => selectedPairs.has(`${p.id}-${advisorId}`));
+
+  const isSomeSelectedForAdvisor = (advisorId: string) =>
+    playlists.some(p => selectedPairs.has(`${p.id}-${advisorId}`));
+
   const handleGenerateScene = async (playlist: Playlist, advisor: Advisor) => {
     const key = `${playlist.id}-${advisor.id}`;
     setGeneratingScenes(prev => new Set(prev).add(key));
@@ -147,6 +172,56 @@ export function ScenesMatrix() {
         return next;
       });
     }
+  };
+
+  const handleBulkGenerate = async () => {
+    const pairs = Array.from(selectedPairs).map(key => {
+      const [playlistId, advisorId] = key.split('-');
+      return {
+        playlist: playlists.find(p => p.id === playlistId)!,
+        advisor: advisors.find(a => a.id === advisorId)!,
+      };
+    }).filter(p => p.playlist && p.advisor);
+
+    if (pairs.length === 0) return;
+
+    setBulkGenerating(true);
+    bulkCancelRef.current = false;
+    let success = 0;
+    let failed = 0;
+
+    for (const { playlist, advisor } of pairs) {
+      if (bulkCancelRef.current) break;
+      const key = `${playlist.id}-${advisor.id}`;
+      setGeneratingScenes(prev => new Set(prev).add(key));
+      try {
+        const response = await supabase.functions.invoke('generate-scene', {
+          body: {
+            playlistId: playlist.id,
+            advisorId: advisor.id,
+            prompt: playlist.scene_prompt || `Professional scene for ${playlist.name}`,
+          },
+        });
+        if (response.error || response.data?.error) {
+          failed++;
+        } else {
+          success++;
+        }
+      } catch {
+        failed++;
+      } finally {
+        setGeneratingScenes(prev => {
+          const next = new Set(prev);
+          next.delete(key);
+          return next;
+        });
+      }
+    }
+
+    await refetch();
+    setSelectedPairs(new Set());
+    setBulkGenerating(false);
+    toast.success(`Генерация завершена: ${success} успешно${failed ? `, ${failed} с ошибкой` : ''}`);
   };
 
   const handleOpenScene = (scene: PlaylistScene, playlist: Playlist, advisor: Advisor) => {
