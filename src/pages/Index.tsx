@@ -398,6 +398,7 @@ export default function Index() {
       // Clear old video artifacts so player shows fresh result
       await updateVideo(video.id, { 
         generation_status: 'generating',
+        heygen_video_id: null,
         heygen_video_url: null,
         video_path: null,
         reduced_video_url: null,
