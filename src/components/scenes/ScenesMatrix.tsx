@@ -531,7 +531,7 @@ export function ScenesMatrix() {
                       const scene = getScene(playlist.id, advisor.id);
                       const pairKey = getPairKey(playlist.id, advisor.id);
                       const isGenerating = generatingScenes.has(pairKey);
-
+                      const sceneStatus = normalizeStatus(scene?.status);
 
                       const statusText = sceneStatus === 'approved' ? 'ГОТОВО' : sceneStatus === 'generating' ? 'генерация' : 'ожидает';
                       const statusColor = sceneStatus === 'approved' 
