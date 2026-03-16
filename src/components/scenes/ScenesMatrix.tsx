@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useRef } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -12,6 +12,8 @@ import { SceneSidePanel } from './SceneSidePanel';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { CsvImporter, Lookups } from '@/components/import/CsvImporter';
+import { Checkbox } from '@/components/ui/checkbox';
+import { BulkActionsBar, BulkActionButton } from '@/components/ui/bulk-actions-bar';
 import { SCENE_COLUMN_MAPPING, SCENE_PREVIEW_COLUMNS, SCENE_FIELD_DEFINITIONS } from '@/components/import/importConfigs';
 
 // Normalize various status values to canonical ones
@@ -45,6 +47,9 @@ export function ScenesMatrix() {
   
   const [expandedAdvisors, setExpandedAdvisors] = useState<Set<string>>(new Set());
   const [generatingScenes, setGeneratingScenes] = useState<Set<string>>(new Set());
+  const [selectedPairs, setSelectedPairs] = useState<Set<string>>(new Set());
+  const [bulkGenerating, setBulkGenerating] = useState(false);
+  const bulkCancelRef = useRef(false);
   const [selectedSceneId, setSelectedSceneId] = useState<string | null>(null);
   const [selectedPlaylistId, setSelectedPlaylistId] = useState<string | null>(null);
   const [selectedAdvisorId, setSelectedAdvisorId] = useState<string | null>(null);
@@ -106,6 +111,31 @@ export function ScenesMatrix() {
     setExpandedAdvisors(new Set());
   };
 
+  const togglePair = (playlistId: string, advisorId: string) => {
+    const key = `${playlistId}-${advisorId}`;
+    setSelectedPairs(prev => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key); else next.add(key);
+      return next;
+    });
+  };
+
+  const toggleAllForAdvisor = (advisorId: string) => {
+    const keys = playlists.map(p => `${p.id}-${advisorId}`);
+    setSelectedPairs(prev => {
+      const next = new Set(prev);
+      const allSelected = keys.every(k => next.has(k));
+      keys.forEach(k => allSelected ? next.delete(k) : next.add(k));
+      return next;
+    });
+  };
+
+  const isAllSelectedForAdvisor = (advisorId: string) =>
+    playlists.length > 0 && playlists.every(p => selectedPairs.has(`${p.id}-${advisorId}`));
+
+  const isSomeSelectedForAdvisor = (advisorId: string) =>
+    playlists.some(p => selectedPairs.has(`${p.id}-${advisorId}`));
+
   const handleGenerateScene = async (playlist: Playlist, advisor: Advisor) => {
     const key = `${playlist.id}-${advisor.id}`;
     setGeneratingScenes(prev => new Set(prev).add(key));
@@ -142,6 +172,56 @@ export function ScenesMatrix() {
         return next;
       });
     }
+  };
+
+  const handleBulkGenerate = async () => {
+    const pairs = Array.from(selectedPairs).map(key => {
+      const [playlistId, advisorId] = key.split('-');
+      return {
+        playlist: playlists.find(p => p.id === playlistId)!,
+        advisor: advisors.find(a => a.id === advisorId)!,
+      };
+    }).filter(p => p.playlist && p.advisor);
+
+    if (pairs.length === 0) return;
+
+    setBulkGenerating(true);
+    bulkCancelRef.current = false;
+    let success = 0;
+    let failed = 0;
+
+    for (const { playlist, advisor } of pairs) {
+      if (bulkCancelRef.current) break;
+      const key = `${playlist.id}-${advisor.id}`;
+      setGeneratingScenes(prev => new Set(prev).add(key));
+      try {
+        const response = await supabase.functions.invoke('generate-scene', {
+          body: {
+            playlistId: playlist.id,
+            advisorId: advisor.id,
+            prompt: playlist.scene_prompt || `Professional scene for ${playlist.name}`,
+          },
+        });
+        if (response.error || response.data?.error) {
+          failed++;
+        } else {
+          success++;
+        }
+      } catch {
+        failed++;
+      } finally {
+        setGeneratingScenes(prev => {
+          const next = new Set(prev);
+          next.delete(key);
+          return next;
+        });
+      }
+    }
+
+    await refetch();
+    setSelectedPairs(new Set());
+    setBulkGenerating(false);
+    toast.success(`Генерация завершена: ${success} успешно${failed ? `, ${failed} с ошибкой` : ''}`);
   };
 
   const handleOpenScene = (scene: PlaylistScene, playlist: Playlist, advisor: Advisor) => {
@@ -313,38 +393,48 @@ export function ScenesMatrix() {
           return (
             <div key={advisor.id}>
               <Collapsible open={isExpanded} onOpenChange={() => toggleAdvisor(advisor.id)}>
-                <CollapsibleTrigger asChild>
-                  <div className="flex items-center gap-3 cursor-pointer py-2 group">
-                    {isExpanded ? (
-                      <ChevronDown className="w-4 h-4 text-muted-foreground" />
-                    ) : (
-                      <ChevronRight className="w-4 h-4 text-muted-foreground" />
-                    )}
-                    {(advisor.photos?.find(p => p.id === advisor.scene_photo_id) || advisor.photos?.[0])?.photo_url ? (
-                      <img
-                        src={(advisor.photos?.find(p => p.id === advisor.scene_photo_id) || advisor.photos?.[0])!.photo_url}
-                        alt={advisor.name}
-                        className="w-12 h-12 rounded-full object-cover"
-                      />
-                    ) : (
-                      <div className="w-12 h-12 rounded-full bg-muted flex items-center justify-center">
-                        <Image className="w-5 h-5 text-muted-foreground" />
-                      </div>
-                    )}
-                    <div>
-                      <div className="text-lg font-semibold">
-                        {advisor.display_name || advisor.name}
-                      </div>
-                      <p className="text-sm text-muted-foreground">
-                        {approvedScenes}/{playlists.length} сцен готово
-                      </p>
-                    </div>
+                <div className="flex items-center gap-3 py-2">
+                  <div onClick={(e) => e.stopPropagation()}>
+                    <Checkbox
+                      checked={isAllSelectedForAdvisor(advisor.id)}
+                      data-indeterminate={!isAllSelectedForAdvisor(advisor.id) && isSomeSelectedForAdvisor(advisor.id)}
+                      onCheckedChange={() => toggleAllForAdvisor(advisor.id)}
+                    />
                   </div>
-                </CollapsibleTrigger>
+                  <CollapsibleTrigger asChild>
+                    <div className="flex items-center gap-3 cursor-pointer flex-1 group">
+                      {isExpanded ? (
+                        <ChevronDown className="w-4 h-4 text-muted-foreground" />
+                      ) : (
+                        <ChevronRight className="w-4 h-4 text-muted-foreground" />
+                      )}
+                      {(advisor.photos?.find(p => p.id === advisor.scene_photo_id) || advisor.photos?.[0])?.photo_url ? (
+                        <img
+                          src={(advisor.photos?.find(p => p.id === advisor.scene_photo_id) || advisor.photos?.[0])!.photo_url}
+                          alt={advisor.name}
+                          className="w-12 h-12 rounded-full object-cover"
+                        />
+                      ) : (
+                        <div className="w-12 h-12 rounded-full bg-muted flex items-center justify-center">
+                          <Image className="w-5 h-5 text-muted-foreground" />
+                        </div>
+                      )}
+                      <div>
+                        <div className="text-lg font-semibold">
+                          {advisor.display_name || advisor.name}
+                        </div>
+                        <p className="text-sm text-muted-foreground">
+                          {approvedScenes}/{playlists.length} сцен готово
+                        </p>
+                      </div>
+                    </div>
+                  </CollapsibleTrigger>
+                </div>
                 <CollapsibleContent>
                   <div className="ml-8 mt-1">
                     {/* Column headers */}
                     <div className="flex items-center py-2 text-sm font-medium text-muted-foreground border-b">
+                      <div className="w-8" />
                       <div className="flex-1" />
                       <div className="w-28 text-center">Статус</div>
                       <div className="w-20 text-center">Сцена</div>
@@ -354,6 +444,7 @@ export function ScenesMatrix() {
                       const scene = getScene(playlist.id, advisor.id);
                       const isGenerating = generatingScenes.has(`${playlist.id}-${advisor.id}`);
                       const sceneStatus = normalizeStatus(scene?.status);
+                      const pairKey = `${playlist.id}-${advisor.id}`;
 
                       const statusText = sceneStatus === 'approved' ? 'ГОТОВО' : sceneStatus === 'generating' ? 'генерация' : 'ожидает';
                       const statusColor = sceneStatus === 'approved' 
@@ -371,7 +462,13 @@ export function ScenesMatrix() {
                             : handleCreateAndOpenScene(playlist, advisor)
                           }
                         >
-                          <div className="flex-1 pl-4 text-sm">
+                          <div className="w-8 flex justify-center" onClick={(e) => e.stopPropagation()}>
+                            <Checkbox
+                              checked={selectedPairs.has(pairKey)}
+                              onCheckedChange={() => togglePair(playlist.id, advisor.id)}
+                            />
+                          </div>
+                          <div className="flex-1 pl-2 text-sm">
                             {playlist.name}
                           </div>
                           <div className={`w-28 text-center text-sm ${statusColor}`}>
@@ -411,6 +508,21 @@ export function ScenesMatrix() {
           );
         })}
       </div>
+
+      {/* Bulk Actions */}
+      <BulkActionsBar
+        selectedCount={selectedPairs.size}
+        onClearSelection={() => setSelectedPairs(new Set())}
+      >
+        <BulkActionButton
+          onClick={handleBulkGenerate}
+          loading={bulkGenerating}
+          icon={<Wand2 className="w-3 h-3" />}
+          variant="default"
+        >
+          Сгенерировать {selectedPairs.size} сцен
+        </BulkActionButton>
+      </BulkActionsBar>
 
       {/* Side Panel */}
       <SceneSidePanel
