@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -16,11 +16,14 @@ import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
-import { Plus, Trash2, Pencil, Play, Loader2, FileText, X, Check } from 'lucide-react';
+import { Plus, Trash2, Pencil, Play, Loader2, FileText, X, Check, Wand2 } from 'lucide-react';
 import { useRef } from 'react';
 import { DbPrompt, usePrompts } from '@/hooks/usePrompts';
 import { usePublishingChannels, PublishingChannel } from '@/hooks/usePublishingChannels';
 import { useAdvisors } from '@/hooks/useAdvisors';
+import { usePlaylists } from '@/hooks/usePlaylists';
+import { supabase } from '@/integrations/supabase/client';
+import { toast } from 'sonner';
 
 const TEXT_MODELS = [
   { value: 'claude-sonnet-4-5', label: 'Claude Sonnet 4.5' },
@@ -35,7 +38,13 @@ const IMAGE_MODELS = [
   { value: 'nano-banana-pro', label: 'Kie.ai Nano Banana Pro' },
 ];
 
+const MOTION_MODELS = [
+  { value: 'veo2', label: 'Google Veo2' },
+  { value: 'kling', label: 'Kling' },
+];
+
 const IMAGE_TYPES = ['atmosphere', 'scene'];
+const MOTION_TYPES = ['scene_motion'];
 
 const TYPES = [
   { value: 'atmosphere', label: 'Фон обложки' },
@@ -57,6 +66,8 @@ const modelLabels: Record<string, string> = {
   'google/gemini-2.5-flash-image': 'Nano Banana',
   'google/gemini-3-pro-image-preview': 'Nano Banana Pro',
   'nano-banana-pro': 'Kie.ai Nano Banana Pro',
+  'veo2': 'Google Veo2',
+  'kling': 'Kling',
 };
 
 const VARIABLES_BY_TYPE: Record<string, { name: string; desc: string }[]> = {
@@ -80,6 +91,7 @@ export function PromptsPage() {
   const { prompts, loading, updatePrompt, testPrompt, addPrompt, deletePrompt } = usePrompts();
   const { channels, updateChannel } = usePublishingChannels();
   const { advisors } = useAdvisors();
+  const { playlists } = usePlaylists();
 
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingPrompt, setEditingPrompt] = useState<DbPrompt | null>(null);
@@ -94,6 +106,12 @@ export function PromptsPage() {
   const [linkedChannelIds, setLinkedChannelIds] = useState<string[]>([]);
   const [saving, setSaving] = useState(false);
 
+  // Scene motion: playlist/scene linking
+  const [selectedPlaylistIds, setSelectedPlaylistIds] = useState<string[]>([]);
+  const [playlistScenes, setPlaylistScenes] = useState<Record<string, any[]>>({});
+  const [selectedSceneIds, setSelectedSceneIds] = useState<string[]>([]);
+  const [isApplying, setIsApplying] = useState(false);
+
   // Test state
   const [testing, setTesting] = useState(false);
   const [testContent, setTestContent] = useState('');
@@ -102,7 +120,8 @@ export function PromptsPage() {
 
   const userTemplateRef = useRef<HTMLTextAreaElement>(null);
   const isImageType = IMAGE_TYPES.includes(form.type);
-  const currentModels = isImageType ? IMAGE_MODELS : TEXT_MODELS;
+  const isMotionType = MOTION_TYPES.includes(form.type);
+  const currentModels = isMotionType ? MOTION_MODELS : isImageType ? IMAGE_MODELS : TEXT_MODELS;
 
   const openNew = () => {
     setEditingPrompt(null);
@@ -201,12 +220,98 @@ export function PromptsPage() {
   // Auto-switch model when type changes
   const handleTypeChange = (type: string) => {
     const isImage = IMAGE_TYPES.includes(type);
+    const isMotion = MOTION_TYPES.includes(type);
     const imageVals = IMAGE_MODELS.map(m => m.value);
     const textVals = TEXT_MODELS.map(m => m.value);
+    const motionVals = MOTION_MODELS.map(m => m.value);
     let model = form.model;
-    if (isImage && !imageVals.includes(model)) model = IMAGE_MODELS[0].value;
-    if (!isImage && !textVals.includes(model)) model = TEXT_MODELS[0].value;
+    if (isMotion && !motionVals.includes(model)) model = MOTION_MODELS[0].value;
+    else if (isImage && !imageVals.includes(model)) model = IMAGE_MODELS[0].value;
+    else if (!isImage && !isMotion && !textVals.includes(model)) model = TEXT_MODELS[0].value;
     setForm({ ...form, type, model });
+  };
+
+  // Fetch scenes for selected playlists
+  const loadScenesForPlaylists = async (playlistIds: string[]) => {
+    if (playlistIds.length === 0) {
+      setPlaylistScenes({});
+      return;
+    }
+    const { data } = await supabase
+      .from('playlist_scenes')
+      .select('id, playlist_id, advisor_id, scene_url, motion_prompt, motion_type')
+      .in('playlist_id', playlistIds);
+    
+    const grouped: Record<string, any[]> = {};
+    for (const s of data || []) {
+      if (!grouped[s.playlist_id]) grouped[s.playlist_id] = [];
+      // Resolve advisor name
+      const adv = advisors.find((a: any) => a.id === s.advisor_id);
+      grouped[s.playlist_id].push({ ...s, advisorName: adv?.display_name || adv?.name || '?' });
+    }
+    setPlaylistScenes(grouped);
+  };
+
+  const handleTogglePlaylist = (playlistId: string) => {
+    const next = selectedPlaylistIds.includes(playlistId)
+      ? selectedPlaylistIds.filter(id => id !== playlistId)
+      : [...selectedPlaylistIds, playlistId];
+    setSelectedPlaylistIds(next);
+    loadScenesForPlaylists(next);
+  };
+
+  const handleApplyMotionToScenes = async () => {
+    if (!form.user_template.trim()) return;
+    setIsApplying(true);
+    try {
+      // Determine target scene IDs
+      let targetSceneIds: string[] = [];
+      
+      if (selectedSceneIds.length > 0) {
+        // Apply to specifically selected scenes
+        targetSceneIds = selectedSceneIds;
+      } else {
+        // Apply to ALL scenes in selected playlists
+        for (const plId of selectedPlaylistIds) {
+          const scenes = playlistScenes[plId] || [];
+          targetSceneIds.push(...scenes.map((s: any) => s.id));
+        }
+      }
+
+      if (targetSceneIds.length === 0) {
+        toast.error('Выберите плейлисты или сцены');
+        return;
+      }
+
+      // For each scene, fill template with variables and update
+      let count = 0;
+      for (const plId of selectedPlaylistIds) {
+        const scenes = (playlistScenes[plId] || []).filter((s: any) => targetSceneIds.includes(s.id));
+        const pl = playlists.find(p => p.id === plId);
+        for (const scene of scenes) {
+          const filled = form.user_template
+            .replace(/\{\{monologue_scene_photo\}\}/g, scene.scene_url || '')
+            .replace(/\{\{advisor\}\}/g, scene.advisorName || '');
+          
+          await supabase
+            .from('playlist_scenes')
+            .update({ 
+              motion_prompt: filled, 
+              motion_type: form.model, // veo2 or kling
+            })
+            .eq('id', scene.id);
+          count++;
+        }
+      }
+      
+      toast.success(`Motion промт применён к ${count} сценам`);
+      // Refresh scenes
+      loadScenesForPlaylists(selectedPlaylistIds);
+    } catch (err: any) {
+      toast.error('Ошибка применения: ' + (err.message || 'Unknown'));
+    } finally {
+      setIsApplying(false);
+    }
   };
 
   // Group channels by network_type for the Link dropdown
@@ -368,7 +473,11 @@ export function PromptsPage() {
                   </Select>
                 </div>
                 <div className="space-y-1.5">
-                  <Label className="text-xs">Модель AI {isImageType && <Badge variant="secondary" className="ml-1 text-[10px]">IMG</Badge>}</Label>
+                  <Label className="text-xs">
+                    {isMotionType ? 'Motion Engine' : 'Модель AI'}
+                    {isImageType && <Badge variant="secondary" className="ml-1 text-[10px]">IMG</Badge>}
+                    {isMotionType && <Badge variant="secondary" className="ml-1 text-[10px]">MOTION</Badge>}
+                  </Label>
                   <Select value={form.model} onValueChange={(v) => setForm({ ...form, model: v })}>
                     <SelectTrigger><SelectValue /></SelectTrigger>
                     <SelectContent>
@@ -439,49 +548,131 @@ export function PromptsPage() {
               </div>
             </div>
 
-            {/* Right column: testing */}
+            {/* Right column: testing or scene assignment */}
             <div className="space-y-4">
-              <div className="space-y-1.5">
-                <Label className="text-xs">Тестовый контент</Label>
-                <Textarea
-                  value={testContent}
-                  onChange={(e) => setTestContent(e.target.value)}
-                  placeholder="Вставьте текст для тестирования..."
-                  className="min-h-[100px]"
-                />
-              </div>
-
-              {isImageType && advisors.length > 0 && (
-                <div className="space-y-1.5">
-                  <Label className="text-xs">Духовник (для композитинга)</Label>
-                  <Select value={selectedAdvisorId || 'none'} onValueChange={(v) => setSelectedAdvisorId(v === 'none' ? '' : v)}>
-                    <SelectTrigger><SelectValue placeholder="Без духовника" /></SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="none">Без духовника</SelectItem>
-                      {advisors.filter((a: any) => a.photos?.length > 0).map((a: any) => (
-                        <SelectItem key={a.id} value={a.id}>{a.display_name || a.name}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-              )}
-
-              <Button onClick={handleTest} disabled={testing || !testContent.trim()} className="w-full">
-                {testing ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Play className="h-4 w-4 mr-2" />}
-                Запустить тест
-              </Button>
-
-              {testResult && (
-                <div className="space-y-1.5">
-                  <Label className="text-xs">Результат</Label>
-                  <div className="p-3 bg-muted rounded-lg max-h-[350px] overflow-auto">
-                    {isImageType && (testResult.startsWith('data:image') || testResult.startsWith('http')) ? (
-                      <img src={testResult} alt="Результат" className="max-w-full rounded" />
-                    ) : (
-                      <p className="text-xs whitespace-pre-wrap">{testResult}</p>
-                    )}
+              {isMotionType ? (
+                <>
+                  <div className="space-y-1.5">
+                    <Label className="text-xs font-medium">Назначить на плейлисты / сцены</Label>
+                    <p className="text-[10px] text-muted-foreground">
+                      Выберите плейлисты для массового применения промта. Можно выбрать конкретные сцены внутри.
+                    </p>
                   </div>
-                </div>
+                  
+                  <div className="border rounded-md p-2 max-h-[300px] overflow-y-auto space-y-1">
+                    {playlists.length === 0 && (
+                      <p className="text-xs text-muted-foreground p-2">Нет плейлистов</p>
+                    )}
+                    {playlists.map(pl => {
+                      const checked = selectedPlaylistIds.includes(pl.id);
+                      const scenes = playlistScenes[pl.id] || [];
+                      return (
+                        <div key={pl.id}>
+                          <label className="flex items-center gap-2 px-2 py-1.5 rounded hover:bg-muted/50 cursor-pointer text-sm font-medium">
+                            <input
+                              type="checkbox"
+                              checked={checked}
+                              onChange={() => handleTogglePlaylist(pl.id)}
+                              className="rounded border-input"
+                            />
+                            <span>{pl.name}</span>
+                            {checked && scenes.length > 0 && (
+                              <Badge variant="secondary" className="text-[10px] ml-auto">{scenes.length} сцен</Badge>
+                            )}
+                          </label>
+                          {checked && scenes.length > 0 && (
+                            <div className="ml-6 space-y-0.5 mt-1 mb-2">
+                              {scenes.map((sc: any) => {
+                                const scChecked = selectedSceneIds.includes(sc.id);
+                                return (
+                                  <label key={sc.id} className="flex items-center gap-2 px-2 py-1 rounded hover:bg-muted/30 cursor-pointer text-xs">
+                                    <input
+                                      type="checkbox"
+                                      checked={scChecked}
+                                      onChange={() => {
+                                        setSelectedSceneIds(prev =>
+                                          scChecked ? prev.filter(id => id !== sc.id) : [...prev, sc.id]
+                                        );
+                                      }}
+                                      className="rounded border-input"
+                                    />
+                                    <span className="truncate">{sc.advisorName}</span>
+                                    {sc.motion_prompt && (
+                                      <Badge variant="outline" className="text-[10px] ml-auto shrink-0">✓ motion</Badge>
+                                    )}
+                                  </label>
+                                );
+                              })}
+                              <p className="text-[10px] text-muted-foreground px-2 mt-1">
+                                {selectedSceneIds.filter(id => scenes.some((s: any) => s.id === id)).length > 0
+                                  ? `Выбрано ${selectedSceneIds.filter(id => scenes.some((s: any) => s.id === id)).length} из ${scenes.length}`
+                                  : 'Все сцены (если ни одна не выбрана)'}
+                              </p>
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+
+                  <Button
+                    onClick={handleApplyMotionToScenes}
+                    disabled={isApplying || selectedPlaylistIds.length === 0 || !form.user_template.trim()}
+                    className="w-full"
+                  >
+                    {isApplying ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Wand2 className="h-4 w-4 mr-2" />}
+                    Применить промт к сценам
+                  </Button>
+
+                  <p className="text-[10px] text-muted-foreground">
+                    Промт будет заполнен переменными для каждой сцены и записан в motion_prompt + motion_type ({form.model}).
+                  </p>
+                </>
+              ) : (
+                <>
+                  <div className="space-y-1.5">
+                    <Label className="text-xs">Тестовый контент</Label>
+                    <Textarea
+                      value={testContent}
+                      onChange={(e) => setTestContent(e.target.value)}
+                      placeholder="Вставьте текст для тестирования..."
+                      className="min-h-[100px]"
+                    />
+                  </div>
+
+                  {isImageType && advisors.length > 0 && (
+                    <div className="space-y-1.5">
+                      <Label className="text-xs">Духовник (для композитинга)</Label>
+                      <Select value={selectedAdvisorId || 'none'} onValueChange={(v) => setSelectedAdvisorId(v === 'none' ? '' : v)}>
+                        <SelectTrigger><SelectValue placeholder="Без духовника" /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="none">Без духовника</SelectItem>
+                          {advisors.filter((a: any) => a.photos?.length > 0).map((a: any) => (
+                            <SelectItem key={a.id} value={a.id}>{a.display_name || a.name}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  )}
+
+                  <Button onClick={handleTest} disabled={testing || !testContent.trim()} className="w-full">
+                    {testing ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Play className="h-4 w-4 mr-2" />}
+                    Запустить тест
+                  </Button>
+
+                  {testResult && (
+                    <div className="space-y-1.5">
+                      <Label className="text-xs">Результат</Label>
+                      <div className="p-3 bg-muted rounded-lg max-h-[350px] overflow-auto">
+                        {isImageType && (testResult.startsWith('data:image') || testResult.startsWith('http')) ? (
+                          <img src={testResult} alt="Результат" className="max-w-full rounded" />
+                        ) : (
+                          <p className="text-xs whitespace-pre-wrap">{testResult}</p>
+                        )}
+                      </div>
+                    </div>
+                  )}
+                </>
               )}
             </div>
           </div>
