@@ -41,10 +41,12 @@ const TYPES = [
   { value: 'atmosphere', label: 'Фон обложки' },
   { value: 'scene', label: 'Сцена монологов' },
   { value: 'post_text', label: 'Текст публикации' },
+  { value: 'scene_motion', label: 'Motion для сцены' },
 ];
 
 const typeLabels: Record<string, string> = {
   atmosphere: 'Фон обложки', scene: 'Сцена монологов', post_text: 'Текст публикации',
+  scene_motion: 'Motion для сцены',
 };
 
 const modelLabels: Record<string, string> = {
@@ -67,6 +69,10 @@ const VARIABLES_BY_TYPE: Record<string, { name: string; desc: string }[]> = {
   post_text: [
     { name: '{{question}}', desc: 'Вопрос' }, { name: '{{hook}}', desc: 'Хук' },
     { name: '{{answer}}', desc: 'Ответ' }, { name: '{{advisor}}', desc: 'Духовник' },
+  ],
+  scene_motion: [
+    { name: '{{monologue_scene_photo}}', desc: 'Фото сцены' },
+    { name: '{{advisor}}', desc: 'Название духовника' },
   ],
 };
 
