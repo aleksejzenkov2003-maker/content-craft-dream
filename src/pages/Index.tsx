@@ -60,6 +60,7 @@ export default function Index() {
   const [showVideoDetail, setShowVideoDetail] = useState(false);
   const [showSidePanel, setShowSidePanel] = useState(false);
   const [showImportDialog, setShowImportDialog] = useState(false);
+  const [sceneNavTarget, setSceneNavTarget] = useState<{ playlistId: string; advisorId: string } | null>(null);
   const [publicationsTab, setPublicationsTab] = useState('by-channel');
   const [autoSubtitleProgress, setAutoSubtitleProgress] = useState<Record<string, { phase: string; progress: number }>>({});
   const { advisors, loading: advisorsLoading, addAdvisor, updateAdvisor, deleteAdvisor, addPhoto, deletePhoto, setPrimaryPhoto, updatePhotoAssetId, bulkImport: bulkImportAdvisors } = useAdvisors();
@@ -1115,6 +1116,7 @@ export default function Index() {
                 onNavigateToScene={(playlistId, advisorId) => {
                   setShowSidePanel(false);
                   setViewingVideoId(null);
+                  setSceneNavTarget({ playlistId, advisorId });
                   setActiveTab('scenes');
                 }}
                 onPrev={viewingVideo ? (() => {
@@ -1245,7 +1247,13 @@ export default function Index() {
             />
           )}
 
-          {activeTab === 'scenes' && <ScenesMatrix />}
+          {activeTab === 'scenes' && (
+            <ScenesMatrix
+              initialAdvisorId={sceneNavTarget?.advisorId}
+              initialPlaylistId={sceneNavTarget?.playlistId}
+              onConsumeNavTarget={() => setSceneNavTarget(null)}
+            />
+          )}
 
           {activeTab === 'publications-list' && (
             <div className="space-y-6">
