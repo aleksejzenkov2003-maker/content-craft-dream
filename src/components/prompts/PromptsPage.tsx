@@ -70,6 +70,10 @@ const VARIABLES_BY_TYPE: Record<string, { name: string; desc: string }[]> = {
     { name: '{{question}}', desc: 'Вопрос' }, { name: '{{hook}}', desc: 'Хук' },
     { name: '{{answer}}', desc: 'Ответ' }, { name: '{{advisor}}', desc: 'Духовник' },
   ],
+  scene_motion: [
+    { name: '{{monologue_scene_photo}}', desc: 'Фото сцены' },
+    { name: '{{advisor}}', desc: 'Название духовника' },
+  ],
 };
 
 export function PromptsPage() {
