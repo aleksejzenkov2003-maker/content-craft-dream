@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -16,11 +16,14 @@ import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
-import { Plus, Trash2, Pencil, Play, Loader2, FileText, X, Check } from 'lucide-react';
+import { Plus, Trash2, Pencil, Play, Loader2, FileText, X, Check, Wand2 } from 'lucide-react';
 import { useRef } from 'react';
 import { DbPrompt, usePrompts } from '@/hooks/usePrompts';
 import { usePublishingChannels, PublishingChannel } from '@/hooks/usePublishingChannels';
 import { useAdvisors } from '@/hooks/useAdvisors';
+import { usePlaylists } from '@/hooks/usePlaylists';
+import { supabase } from '@/integrations/supabase/client';
+import { toast } from 'sonner';
 
 const TEXT_MODELS = [
   { value: 'claude-sonnet-4-5', label: 'Claude Sonnet 4.5' },
@@ -35,7 +38,13 @@ const IMAGE_MODELS = [
   { value: 'nano-banana-pro', label: 'Kie.ai Nano Banana Pro' },
 ];
 
+const MOTION_MODELS = [
+  { value: 'veo2', label: 'Google Veo2' },
+  { value: 'kling', label: 'Kling' },
+];
+
 const IMAGE_TYPES = ['atmosphere', 'scene'];
+const MOTION_TYPES = ['scene_motion'];
 
 const TYPES = [
   { value: 'atmosphere', label: 'Фон обложки' },
@@ -57,6 +66,8 @@ const modelLabels: Record<string, string> = {
   'google/gemini-2.5-flash-image': 'Nano Banana',
   'google/gemini-3-pro-image-preview': 'Nano Banana Pro',
   'nano-banana-pro': 'Kie.ai Nano Banana Pro',
+  'veo2': 'Google Veo2',
+  'kling': 'Kling',
 };
 
 const VARIABLES_BY_TYPE: Record<string, { name: string; desc: string }[]> = {
@@ -80,6 +91,7 @@ export function PromptsPage() {
   const { prompts, loading, updatePrompt, testPrompt, addPrompt, deletePrompt } = usePrompts();
   const { channels, updateChannel } = usePublishingChannels();
   const { advisors } = useAdvisors();
+  const { playlists } = usePlaylists();
 
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingPrompt, setEditingPrompt] = useState<DbPrompt | null>(null);
@@ -94,6 +106,12 @@ export function PromptsPage() {
   const [linkedChannelIds, setLinkedChannelIds] = useState<string[]>([]);
   const [saving, setSaving] = useState(false);
 
+  // Scene motion: playlist/scene linking
+  const [selectedPlaylistIds, setSelectedPlaylistIds] = useState<string[]>([]);
+  const [playlistScenes, setPlaylistScenes] = useState<Record<string, any[]>>({});
+  const [selectedSceneIds, setSelectedSceneIds] = useState<string[]>([]);
+  const [isApplying, setIsApplying] = useState(false);
+
   // Test state
   const [testing, setTesting] = useState(false);
   const [testContent, setTestContent] = useState('');
@@ -102,7 +120,8 @@ export function PromptsPage() {
 
   const userTemplateRef = useRef<HTMLTextAreaElement>(null);
   const isImageType = IMAGE_TYPES.includes(form.type);
-  const currentModels = isImageType ? IMAGE_MODELS : TEXT_MODELS;
+  const isMotionType = MOTION_TYPES.includes(form.type);
+  const currentModels = isMotionType ? MOTION_MODELS : isImageType ? IMAGE_MODELS : TEXT_MODELS;
 
   const openNew = () => {
     setEditingPrompt(null);
