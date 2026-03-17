@@ -358,7 +358,7 @@ export function VideoSidePanel({
                       <Button size="icon" variant="ghost" className="h-5 w-5 text-white hover:text-white hover:bg-white/20" onClick={(e) => { e.stopPropagation(); handleDeleteVariant(atmosphereVariants[atmosIndex], 'atmosphere'); }}><Trash2 className="w-3 h-3" /></Button>
                     </div>
                     {atmosphereVariants[atmosIndex]?.is_active && <div className="absolute top-1 right-1"><Badge className="text-[7px] px-1 py-0 bg-primary">Active</Badge></div>}
-                    {/* Status badge */}
+                    {atmosphereVariants[atmosIndex]?.created_at && <div className="absolute top-1 left-1 text-[7px] bg-black/60 text-white px-1 rounded">{new Date(atmosphereVariants[atmosIndex].created_at).toLocaleDateString('ru-RU', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}</div>}
                     <div className={cn("absolute bottom-1 left-1 right-1 text-center text-[8px] font-medium py-0.5 rounded", atmosStatus.colorClass)}>{atmosStatus.label}</div>
                   </div>
                   {atmosphereVariants.length > 1 && (
