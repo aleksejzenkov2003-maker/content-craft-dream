@@ -426,6 +426,7 @@ export function VideoSidePanel({
                   <div className="relative aspect-[9/16] rounded-md overflow-hidden bg-black">
                     <video key={videoUrl} src={videoUrl} controls className="w-full h-full object-contain" poster={video.front_cover_url || undefined} onLoadedMetadata={handleVideoLoadedMetadata} />
                     {currentVideoLabel && <span className="absolute top-1 right-1 bg-black/60 text-white text-[7px] px-1 py-0.5 rounded">{currentVideoLabel}</span>}
+                    {video.updated_at && <div className="absolute top-1 left-1 text-[7px] bg-black/60 text-white px-1 rounded">{new Date(video.updated_at).toLocaleDateString('ru-RU', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}</div>}
                     <div className={cn("absolute bottom-1 left-1 right-1 text-center text-[8px] font-medium py-0.5 rounded", videoStatus.colorClass)}>{videoStatus.label}</div>
                   </div>
                   {videoVariants.length > 1 && (
