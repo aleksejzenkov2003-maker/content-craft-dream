@@ -26,6 +26,17 @@ const COLUMNS: ColumnConfig[] = [
     ),
   },
   {
+    buttonKeys: ['side_step1'],
+    label: 'Шаг 1. ФОН',
+    section: 'Панель ролика',
+    precheck: '—',
+    preview: (
+      <Button size="xs" variant="outline" className="pointer-events-none border-amber-500/50 text-amber-700">
+        <RefreshCw className="w-3 h-3 mr-1" />Шаг 1
+      </Button>
+    ),
+  },
+  {
     buttonKeys: ['side_cover'],
     label: 'Обложка (панель)',
     section: 'Панель ролика',

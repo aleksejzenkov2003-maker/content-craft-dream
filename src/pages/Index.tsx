@@ -512,6 +512,21 @@ export default function Index() {
       if (!response.ok) throw new Error('Failed to generate atmosphere');
       toast.success('Фон сгенерирован!');
       refetchVideos();
+
+      // Auto cover overlay after atmosphere if enabled
+      if (isEnabled('side_step1', 'cover_overlay')) {
+        toast.info('Автосклейка обложки...');
+        await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/generate-cover`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
+          },
+          body: JSON.stringify({ videoId: video.id, step: 'cover' }),
+        });
+        toast.success('Обложка склеена!');
+        refetchVideos();
+      }
     } catch (error) {
       console.error('Error generating atmosphere:', error);
       toast.error('Ошибка генерации фона');
