@@ -432,8 +432,9 @@ export default function Index() {
       return;
     }
     try {
-      // Step 1: Generate voiceover if missing
-      if (!video.voiceover_url) {
+      // Step 1: Generate voiceover if missing (controlled by automation)
+      const buttonKey = video.voiceover_url ? '' : 'generate_video';
+      if (!video.voiceover_url && isEnabled('generate_video', 'voiceover')) {
         toast.info('Шаг 1/2: Генерация озвучки...');
         await updateVideo(video.id, { voiceover_status: 'generating' } as any, { silent: true });
         refetchVideos();
@@ -450,6 +451,9 @@ export default function Index() {
         if (!voiceRes.ok) throw new Error('Voiceover generation failed');
         toast.success('Озвучка готова!');
         refetchVideos();
+      } else if (!video.voiceover_url && !isEnabled('generate_video', 'voiceover')) {
+        toast.error('Озвучка отсутствует, а автогенерация отключена в настройках');
+        return;
       }
 
       // Step 2: Launch HeyGen video generation
@@ -508,6 +512,21 @@ export default function Index() {
       if (!response.ok) throw new Error('Failed to generate atmosphere');
       toast.success('Фон сгенерирован!');
       refetchVideos();
+
+      // Auto cover overlay after atmosphere if enabled
+      if (isEnabled('side_step1', 'cover_overlay')) {
+        toast.info('Автосклейка обложки...');
+        await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/generate-cover`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
+          },
+          body: JSON.stringify({ videoId: video.id, step: 'cover' }),
+        });
+        toast.success('Обложка склеена!');
+        refetchVideos();
+      }
     } catch (error) {
       console.error('Error generating atmosphere:', error);
       toast.error('Ошибка генерации фона');
