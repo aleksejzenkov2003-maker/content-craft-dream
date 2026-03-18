@@ -228,7 +228,7 @@ serve(async (req) => {
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
     const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
     const kieApiKey = Deno.env.get('KIE_API_KEY');
-    const lovableApiKey = Deno.env.get('LOVABLE_API_KEY');
+    const ApiKey = Deno.env.get('_API_KEY');
 
     if (!kieApiKey) throw new Error('KIE_API_KEY is not configured');
 
@@ -318,7 +318,7 @@ serve(async (req) => {
         const advisorName = video.advisor?.display_name || video.advisor?.name || '';
         const playlistName = video.playlist?.name || '';
 
-        if (dbPrompt && lovableApiKey) {
+        if (dbPrompt && ApiKey) {
           const systemPrompt = dbPrompt.system_prompt;
           const userPrompt = dbPrompt.user_template
             .replace(/\{\{question\}\}/g, video.question || '')
@@ -328,10 +328,10 @@ serve(async (req) => {
             .replace(/\{\{playlist\}\}/g, playlistName);
 
           console.log('Generating atmosphere prompt via AI from DB prompt...');
-          const aiResponse = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
+          const aiResponse = await fetch('https://ai.gateway..dev/v1/chat/completions', {
             method: 'POST',
             headers: {
-              'Authorization': `Bearer ${lovableApiKey}`,
+              'Authorization': `Bearer ${ApiKey}`,
               'Content-Type': 'application/json',
             },
             body: JSON.stringify({
@@ -348,13 +348,13 @@ serve(async (req) => {
             generatedAtmospherePrompt = aiData.choices?.[0]?.message?.content?.trim() || '';
             console.log('AI generated atmosphere prompt:', generatedAtmospherePrompt);
           }
-        } else if (lovableApiKey) {
+        } else if (ApiKey) {
           // Fallback hardcoded if no DB prompt
           console.log('No DB prompt found, using hardcoded fallback...');
-          const aiResponse = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
+          const aiResponse = await fetch('https://ai.gateway..dev/v1/chat/completions', {
             method: 'POST',
             headers: {
-              'Authorization': `Bearer ${lovableApiKey}`,
+              'Authorization': `Bearer ${ApiKey}`,
               'Content-Type': 'application/json',
             },
             body: JSON.stringify({

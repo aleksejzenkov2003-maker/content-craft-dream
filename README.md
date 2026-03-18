@@ -1,73 +1,91 @@
-# Welcome to your Lovable project
+# VideoFlow Test
 
-## Project info
+Веб-платформа для управления производством и публикацией видеоконтента.
 
-**URL**: https://lovable.dev/projects/REPLACE_WITH_PROJECT_ID
+## О проекте
 
-## How can I edit this code?
+**VideoFlow Test** — это внутренняя админ-панель для работы с контентом, роликами, публикациями, плейлистами и связанными сущностями в едином интерфейсе.  
+Сервис помогает организовать контентный процесс: от подготовки материалов и сцен до управления публикациями и каналами.
 
-There are several ways of editing your application.
+Проект ориентирован на команды, которым важно:
 
-**Use Lovable**
+- централизованно управлять видеоконтентом;
+- структурировать вопросы, сцены и материалы;
+- работать с плейлистами и каналами;
+- отслеживать статус готовности контента;
+- использовать единый дашборд со сводной статистикой.
 
-Simply visit the [Lovable Project](https://lovable.dev/projects/REPLACE_WITH_PROJECT_ID) and start prompting.
+Стенд проекта: https://videoflow-test.ru
 
-Changes made via Lovable will be committed automatically to this repo.
+## Основные возможности
 
-**Use your preferred IDE**
+### Дашборд
+Главная страница со сводной статистикой по ключевым сущностям системы:
 
-If you want to work locally using your own IDE, you can clone this repo and push changes. Pushed changes will also be reflected in Lovable.
+- количество активных участников;
+- общее число роликов;
+- количество плейлистов и категорий;
+- число готовых видео;
+- количество вопросов;
+- число публикаций.
 
-The only requirement is having Node.js & npm installed - [install with nvm](https://github.com/nvm-sh/nvm#installing-and-updating)
+### Управление контентом
+В системе предусмотрены отдельные разделы для работы с основными объектами:
 
-Follow these steps:
+- **Вопросы** — хранение и управление вопросами для контента;
+- **Ролики** — каталог и контроль видеоматериалов;
+- **Публикации** — управление публикациями и их статусами;
+- **Сцены монологов** — структурирование сценарных сцен;
+- **Духовники** — управление карточками участников;
+- **Плейлисты** — группировка видео по категориям;
+- **Каналы** — настройка и ведение каналов публикации;
+- **Прокси-сервера** — инфраструктурные настройки;
+- **Промты** — управление текстовыми шаблонами и заготовками.
 
-```sh
-# Step 1: Clone the repository using the project's Git URL.
-git clone <YOUR_GIT_URL>
+### Настройки
+Раздел для конфигурации параметров системы и административного управления.
 
-# Step 2: Navigate to the project directory.
-cd <YOUR_PROJECT_NAME>
+## Для кого этот проект
 
-# Step 3: Install the necessary dependencies.
-npm i
+Платформа подходит для:
 
-# Step 4: Start the development server with auto-reloading and an instant preview.
-npm run dev
-```
+- контент-команд;
+- редакторов и администраторов;
+- операторов публикаций;
+- команд, работающих с большим количеством видео и связанных сущностей.
 
-**Edit a file directly in GitHub**
+## Интерфейс
 
-- Navigate to the desired file(s).
-- Click the "Edit" button (pencil icon) at the top right of the file view.
-- Make your changes and commit the changes.
+Интерфейс построен как административная панель с левым боковым меню и дашбордом со статистическими карточками.  
+Такой формат позволяет быстро переключаться между разделами и контролировать текущее состояние контента.
 
-**Use GitHub Codespaces**
+## Структура продукта
 
-- Navigate to the main page of your repository.
-- Click on the "Code" button (green button) near the top right.
-- Select the "Codespaces" tab.
-- Click on "New codespace" to launch a new Codespace environment.
-- Edit files directly within the Codespace and commit and push your changes once you're done.
+Ключевые сущности проекта:
 
-## What technologies are used for this project?
+- видео;
+- публикации;
+- плейлисты;
+- каналы;
+- сцены;
+- вопросы;
+- промты;
+- административные настройки.
 
-This project is built with:
+## Цель системы
 
+Главная задача проекта — упростить управление контентным пайплайном и собрать все рабочие процессы, связанные с видео, в одном месте.
+
+## Доступ
+
+Проект доступен по адресу:  
+https://videoflow-test.ru
+
+Стек проекта: 
 - Vite
 - TypeScript
 - React
 - shadcn-ui
 - Tailwind CSS
 
-## How can I deploy this project?
 
-Simply open [Lovable](https://lovable.dev/projects/REPLACE_WITH_PROJECT_ID) and click on Share -> Publish.
-
-## Can I connect a custom domain to my Lovable project?
-
-Yes, you can!
-
-To connect a domain, navigate to Project > Settings > Domains and click Connect Domain.
-
-Read more here: [Setting up a custom domain](https://docs.lovable.dev/features/custom-domain#custom-domain)

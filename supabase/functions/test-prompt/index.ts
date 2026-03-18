@@ -54,13 +54,13 @@ async function handleTextPrompt(
   return { result: result.content[0].text, usage: result.usage };
 }
 
-async function handleImagePromptLovable(
+async function handleImagePrompt(
   userMessage: string,
   model: string,
   advisorPhotoUrl?: string
 ) {
-  const lovableApiKey = Deno.env.get('LOVABLE_API_KEY');
-  if (!lovableApiKey) throw new Error('LOVABLE_API_KEY is not configured');
+  const ApiKey = Deno.env.get('_API_KEY');
+  if (!ApiKey) throw new Error('_API_KEY is not configured');
 
   // Build content: if advisor photo provided, use multimodal (text + image)
   let content: any;
@@ -73,10 +73,10 @@ async function handleImagePromptLovable(
     content = userMessage;
   }
 
-  const response = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
+  const response = await fetch('https://ai.gateway..dev/v1/chat/completions', {
     method: 'POST',
     headers: {
-      Authorization: `Bearer ${lovableApiKey}`,
+      Authorization: `Bearer ${ApiKey}`,
       'Content-Type': 'application/json',
     },
     body: JSON.stringify({
@@ -210,7 +210,7 @@ serve(async (req) => {
       if (model === 'nano-banana-pro') {
         data = await handleImagePromptKie(fullPrompt);
       } else {
-        data = await handleImagePromptLovable(fullPrompt, model, advisorPhotoUrl);
+        data = await handleImagePrompt(fullPrompt, model, advisorPhotoUrl);
       }
     } else {
       data = await handleTextPrompt(systemPrompt, userMessage, model, temperature, maxTokens);
