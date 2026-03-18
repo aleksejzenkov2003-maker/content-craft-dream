@@ -674,8 +674,8 @@ Deno.serve(async (req) => {
             } else {
               await heygenResp.text();
             }
-          } catch (e) {
-            console.log(`HeyGen API error: ${e.message}`);
+          } catch (e: unknown) {
+            console.log(`HeyGen API error: ${(e as Error).message}`);
           }
         }
       }
