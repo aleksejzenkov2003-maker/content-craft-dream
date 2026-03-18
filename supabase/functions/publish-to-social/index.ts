@@ -151,7 +151,7 @@ Deno.serve(async (req) => {
           .from("publications")
           .update({
             publication_status: "error",
-            error_message: error.message,
+            error_message: (error as Error).message,
             updated_at: new Date().toISOString(),
           })
           .eq("id", publicationId);
@@ -159,7 +159,7 @@ Deno.serve(async (req) => {
     } catch (_) { /* ignore */ }
 
     return new Response(
-      JSON.stringify({ error: error.message }),
+      JSON.stringify({ error: (error as Error).message }),
       { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   }

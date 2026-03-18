@@ -222,7 +222,7 @@ serve(async (req) => {
 
   try {
     requestBody = await req.json();
-    const { videoId, atmospherePrompt, step } = requestBody;
+    const { videoId, atmospherePrompt, step } = requestBody!;
     if (!videoId) throw new Error('Video ID is required');
 
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!;

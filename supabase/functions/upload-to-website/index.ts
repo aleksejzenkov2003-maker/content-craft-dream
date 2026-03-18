@@ -182,14 +182,14 @@ serve(async (req) => {
           .from('publications')
           .update({
             publication_status: 'error',
-            error_message: error.message?.substring(0, 500),
+            error_message: (error as Error).message?.substring(0, 500),
           })
           .eq('id', publicationId);
       }
     } catch (_) { /* ignore */ }
 
     return new Response(JSON.stringify({
-      error: error.message || 'Unknown error',
+      error: (error as Error).message || 'Unknown error',
     }), {
       status: 500,
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },

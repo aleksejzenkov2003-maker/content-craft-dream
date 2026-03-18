@@ -146,10 +146,10 @@ Deno.serve(async (req) => {
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
     );
 
-  } catch (err) {
+  } catch (err: unknown) {
     console.error('[burn-subtitles] Error:', err);
     return new Response(
-      JSON.stringify({ error: err.message || 'Internal error' }),
+      JSON.stringify({ error: (err as Error).message || 'Internal error' }),
       { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
     );
   }
