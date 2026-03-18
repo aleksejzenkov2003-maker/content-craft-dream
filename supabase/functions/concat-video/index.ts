@@ -731,19 +731,19 @@ Deno.serve(async (req) => {
       JSON.stringify({ success: true, final_video_url: finalUrl }),
       { headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
-  } catch (error) {
+  } catch (error: unknown) {
     console.error("concat-video error:", error);
     try {
       const body = await req.clone().json().catch(() => ({}));
       if (body.publication_id) {
         const supabase = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
         await supabase.from("publications")
-          .update({ publication_status: "needs_concat", error_message: error.message })
+          .update({ publication_status: "needs_concat", error_message: (error as Error).message })
           .eq("id", body.publication_id);
       }
     } catch {}
     return new Response(
-      JSON.stringify({ error: error.message }),
+      JSON.stringify({ error: (error as Error).message }),
       { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   }
