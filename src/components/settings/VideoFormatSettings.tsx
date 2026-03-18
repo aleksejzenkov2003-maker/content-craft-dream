@@ -88,34 +88,37 @@ export function VideoFormatSettings() {
         {MODES.map((m) => (
           <div key={m.value} className="flex items-start gap-3 rounded-md border p-4 hover:bg-muted/50 transition-colors">
             <RadioGroupItem value={m.value} id={`mode-${m.value}`} className="mt-0.5" />
-            <div className="space-y-1">
+            <div className="space-y-1 flex-1">
               <Label htmlFor={`mode-${m.value}`} className="font-medium cursor-pointer">
                 {m.label}
               </Label>
               <p className="text-sm text-muted-foreground">{m.description}</p>
+              {m.value === 'v3' && (
+                <div className="mt-3 pt-3 border-t">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-sm font-medium">Motion (движения)</p>
+                      <p className="text-xs text-muted-foreground">
+                        Предобработка аватара с естественными жестами ($1 за обработку)
+                      </p>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Label htmlFor="motion-toggle" className="text-xs cursor-pointer text-muted-foreground">
+                        {motionEnabled ? 'Вкл' : 'Выкл'}
+                      </Label>
+                      <Switch
+                        id="motion-toggle"
+                        checked={motionEnabled}
+                        onCheckedChange={handleMotionToggle}
+                      />
+                    </div>
+                  </div>
+                </div>
+              )}
             </div>
           </div>
         ))}
       </RadioGroup>
-
-      <Separator />
-
-      <div>
-        <h3 className="text-lg font-semibold">Motion (движения)</h3>
-        <p className="text-sm text-muted-foreground mb-3">
-          Включает предобработку аватара с естественными жестами ($1 за обработку). При отключении motion_avatar_id из сцен игнорируется.
-        </p>
-        <div className="flex items-center gap-3">
-          <Switch
-            id="motion-toggle"
-            checked={motionEnabled}
-            onCheckedChange={handleMotionToggle}
-          />
-          <Label htmlFor="motion-toggle" className="cursor-pointer">
-            {motionEnabled ? 'Motion включён' : 'Motion отключён'}
-          </Label>
-        </div>
-      </div>
 
       {saving && (
         <p className="text-xs text-muted-foreground flex items-center gap-1">
