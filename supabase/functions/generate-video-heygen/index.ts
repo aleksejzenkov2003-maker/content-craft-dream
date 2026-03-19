@@ -234,7 +234,11 @@ serve(async (req) => {
       : null;
 
     // Auto-generate motion if enabled but not yet created for this scene
-    if (motionEnabled && !effectiveMotionAvatarId && heygenMode === 'v3' && imageUrl && sceneMotionPrompt) {
+    // Use scene prompt, or video-level prompt, or default fallback
+    const effectiveMotionPrompt = sceneMotionPrompt || video.motion_prompt || 'The person gestures naturally with their hands while explaining something';
+    const effectiveMotionType = sceneMotionType || video.motion_type || 'consistent';
+
+    if (motionEnabled && !effectiveMotionAvatarId && heygenMode === 'v3' && imageUrl) {
       console.log('Motion enabled with prompt but no motion_avatar_id — auto-generating motion...');
       const motionStartTime = Date.now();
       try {
