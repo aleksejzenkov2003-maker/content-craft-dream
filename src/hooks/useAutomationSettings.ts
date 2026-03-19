@@ -53,8 +53,9 @@ export function useAutomationSettings() {
   });
 
   const isEnabled = (buttonKey: string, processKey: string): boolean => {
+    if (isLoading) return false;
     const setting = settings.find(s => s.button_key === buttonKey && s.process_key === processKey);
-    return setting?.is_enabled ?? true; // default to enabled if not found
+    return setting?.is_enabled ?? false;
   };
 
   const toggle = (buttonKey: string, processKey: string, enabled: boolean) => {
