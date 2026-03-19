@@ -283,18 +283,18 @@ serve(async (req) => {
       }
     }
 
+    // Determine which steps to run
+    // Auto-run atmosphere if overlay is requested but no atmosphere exists
+    const needsAtmosphere = !video.atmosphere_url;
+    const runAtmosphere = !step || step === 'atmosphere' || (step === 'overlay' && needsAtmosphere);
+    const runOverlay = !step || step === 'overlay';
+
     // Update status based on what we're actually running
     if (runOverlay) {
       await supabase.from('videos').update({ cover_status: 'generating' }).eq('id', videoId);
     } else if (runAtmosphere) {
       await supabase.from('videos').update({ cover_status: 'atmosphere_generating' }).eq('id', videoId);
     }
-
-    // Determine which steps to run
-    // Auto-run atmosphere if overlay is requested but no atmosphere exists
-    const needsAtmosphere = !video.atmosphere_url;
-    const runAtmosphere = !step || step === 'atmosphere' || (step === 'overlay' && needsAtmosphere);
-    const runOverlay = !step || step === 'overlay';
 
     let atmosphereStorageUrl = video.atmosphere_url;
     let finalAtmospherePrompt = video.atmosphere_prompt || '';
