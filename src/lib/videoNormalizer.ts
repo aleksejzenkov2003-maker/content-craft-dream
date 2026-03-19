@@ -1,6 +1,54 @@
 import { fetchFile } from '@ffmpeg/util';
 import { getSharedFFmpeg } from './ffmpegLoader';
 
+export interface CompressionPreset {
+  id: string;
+  label: string;
+  description: string;
+  width: number;
+  height: number;
+  crf: number;
+  preset: string;
+  fps: number;
+  audioBitrate: string;
+  faststart: boolean;
+}
+
+export const COMPRESSION_PRESETS: CompressionPreset[] = [
+  {
+    id: 'light',
+    label: 'Light Compress (~2x)',
+    description: '1080×1920 · CRF 24 · slow · 30fps · 128k audio',
+    width: 1080, height: 1920, crf: 24, preset: 'slow', fps: 30, audioBitrate: '128k', faststart: true,
+  },
+  {
+    id: 'balanced',
+    label: 'Balanced Social (~3x)',
+    description: '900×1600 · CRF 26 · medium · 24fps · 96k audio',
+    width: 900, height: 1600, crf: 26, preset: 'medium', fps: 24, audioBitrate: '96k', faststart: true,
+  },
+  {
+    id: 'compact',
+    label: 'Compact Social (~4x)',
+    description: '720×1280 · CRF 28 · medium · 24fps · 96k audio',
+    width: 720, height: 1280, crf: 28, preset: 'medium', fps: 24, audioBitrate: '96k', faststart: true,
+  },
+  {
+    id: 'very_compact',
+    label: 'Very Compact (~5x)',
+    description: '720×1280 · CRF 30 · medium · 20fps · 64k audio',
+    width: 720, height: 1280, crf: 30, preset: 'medium', fps: 20, audioBitrate: '64k', faststart: true,
+  },
+  {
+    id: 'max_social',
+    label: 'Max Social (~6x)',
+    description: '540×960 · CRF 31 · slow · 20fps · 64k audio',
+    width: 540, height: 960, crf: 31, preset: 'slow', fps: 20, audioBitrate: '64k', faststart: true,
+  },
+];
+
+export const DEFAULT_COMPRESSION_PRESET = COMPRESSION_PRESETS[1]; // balanced
+
 /**
  * Normalizes a video file's audio to AAC-LC 48kHz mono 128kbps.
  * Video stream is copied without re-encoding.
@@ -51,14 +99,17 @@ export async function normalizeVideoAudio(
 }
 
 /**
- * Re-encodes a video from a URL with reduced bitrate (CRF 28, libx264, fast preset).
- * Returns the processed File.
+ * Re-encodes a video from a URL using the given compression preset.
+ * Falls back to DEFAULT_COMPRESSION_PRESET if none provided.
  */
 export async function reduceVideoBitrate(
   videoUrl: string,
   onProgress?: (progress: number) => void,
   signal?: AbortSignal,
+  preset?: CompressionPreset,
 ): Promise<File> {
+  const p = preset ?? DEFAULT_COMPRESSION_PRESET;
+
   signal?.throwIfAborted();
 
   const ff = await getSharedFFmpeg(
@@ -92,17 +143,22 @@ export async function reduceVideoBitrate(
   try {
     signal?.throwIfAborted();
 
-    await ff.exec([
+    const args = [
       '-i', inputName,
+      '-vf', `scale=${p.width}:${p.height}`,
       '-c:v', 'libx264',
-      '-preset', 'fast',
-      '-crf', '28',
+      '-preset', p.preset,
+      '-crf', String(p.crf),
+      '-r', String(p.fps),
       '-c:a', 'aac',
       '-ar', '48000',
       '-ac', '1',
-      '-b:a', '128k',
+      '-b:a', p.audioBitrate,
+      ...(p.faststart ? ['-movflags', '+faststart'] : []),
       '-y', outputName,
-    ]);
+    ];
+
+    await ff.exec(args);
 
     signal?.throwIfAborted();
 

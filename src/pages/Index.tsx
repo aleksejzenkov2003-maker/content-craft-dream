@@ -212,10 +212,17 @@ export default function Index() {
       if (isEnabled('generate_video', 'resize')) {
         updateProgress('reducing_bitrate', 5);
         toast.info('Шаг 1/2: Уменьшение битрейта видео...');
-        const { reduceVideoBitrate } = await import('@/lib/videoNormalizer');
+        const { reduceVideoBitrate, COMPRESSION_PRESETS, DEFAULT_COMPRESSION_PRESET } = await import('@/lib/videoNormalizer');
+        // Load selected compression preset from settings
+        let selectedPreset = DEFAULT_COMPRESSION_PRESET;
+        const { data: presetSetting } = await supabase.from('app_settings' as any).select('value').eq('key', 'compression_preset').single();
+        if (presetSetting) {
+          const found = COMPRESSION_PRESETS.find(p => p.id === (presetSetting as any).value);
+          if (found) selectedPreset = found;
+        }
         const reducedFile = await reduceVideoBitrate(sourceUrl, (pct) => {
           updateProgress('reducing_bitrate', Math.round(5 + pct * 40));
-        });
+        }, undefined, selectedPreset);
 
         updateProgress('reducing_bitrate', 45);
         const reducedFileName = `videos/${videoId}_reduced_${Date.now()}.mp4`;
