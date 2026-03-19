@@ -56,6 +56,7 @@ export function SceneSidePanel({
 }: SceneSidePanelProps) {
   const [isGenerating, setIsGenerating] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
+  const [motionEnabled, setMotionEnabled] = useState(false);
   const [activeTab, setActiveTab] = useState('image');
   const [currentVariant, setCurrentVariant] = useState(0);
   const [variants, setVariants] = useState<SceneVariant[]>([]);
