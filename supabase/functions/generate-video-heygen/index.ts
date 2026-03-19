@@ -319,6 +319,7 @@ serve(async (req) => {
         }
       } catch (motionErr) {
         const motionDurationMs = Date.now() - motionStartTime;
+        motionWarning = `Motion не применён: ${motionErr instanceof Error ? motionErr.message : 'неизвестная ошибка'}`;
         console.error('Auto motion error (non-fatal):', motionErr);
         await supabase.from('activity_log').insert({
           action: 'auto_motion_failed',
