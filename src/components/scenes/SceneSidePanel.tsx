@@ -397,6 +397,10 @@ export function SceneSidePanel({
               </p>
             )}
 
+            <Badge className={`text-xs ${motionEnabled ? 'bg-emerald-500/20 text-emerald-700 border-emerald-500/30' : 'bg-muted text-muted-foreground'}`}>
+              Motion в настройках: {motionEnabled ? 'Включён' : 'Выключен'}
+            </Badge>
+
             {scene.motion_avatar_id && (
               <Badge className="bg-green-500/20 text-green-700 border-green-500/30 text-xs">
                 Motion готов: {scene.motion_type || 'consistent'}
@@ -416,7 +420,6 @@ export function SceneSidePanel({
               <p className="text-[10px] text-muted-foreground mt-1 text-right">{motionPromptText.length}/512</p>
             </div>
 
-            {/* Footer buttons */}
             <div className="flex gap-2">
               <Select value={motionType} onValueChange={setMotionType}>
                 <SelectTrigger className="h-8 text-xs flex-1">
@@ -428,19 +431,6 @@ export function SceneSidePanel({
                   ))}
                 </SelectContent>
               </Select>
-            </div>
-
-            <div className="flex gap-2">
-              <Button
-                variant="outline"
-                size="sm"
-                className="flex-1"
-                disabled={isAddingMotion || heygenMode !== 'v3'}
-                onClick={handleAddMotion}
-              >
-                {isAddingMotion ? <Loader2 className="w-4 h-4 animate-spin mr-1" /> : <Sparkles className="w-4 h-4 mr-1" />}
-                Добавить движение ($1)
-              </Button>
             </div>
 
             <div className="flex gap-2">
@@ -499,7 +489,7 @@ export function SceneSidePanel({
             )}
 
             <p className="text-xs text-muted-foreground">
-              «Добавить движение» — отправляет фото в HeyGen для предобработки ($1). Результат используется для всех видео этого плейлиста + адвайзора.
+              Motion добавляется автоматически при генерации видео, если включён в настройках. Здесь можно настроить промпт и движок для этой сцены.
             </p>
           </TabsContent>
         </div>
