@@ -372,6 +372,8 @@ serve(async (req) => {
       const errorText = await heygenResponse.text();
       if (errorText.includes('missing image dimensions') && effectiveMotionAvatarId) {
         console.warn('Motion avatar rejected by HeyGen — clearing and retrying with fresh upload...');
+        motionWarning = 'Motion не применён: провайдер не успел обработать аватар';
+        effectiveMotionAvatarId = null;
         // Clear bad motion_avatar_id from DB
         await supabase.from('videos').update({ motion_avatar_id: null, motion_type: null, motion_prompt: null }).eq('id', videoId);
         if (video.playlist_id && video.advisor_id) {
