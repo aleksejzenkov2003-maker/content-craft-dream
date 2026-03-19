@@ -283,8 +283,12 @@ serve(async (req) => {
       }
     }
 
-    // Update status
-    await supabase.from('videos').update({ cover_status: 'generating' }).eq('id', videoId);
+    // Update status based on what we're actually running
+    if (runOverlay) {
+      await supabase.from('videos').update({ cover_status: 'generating' }).eq('id', videoId);
+    } else if (runAtmosphere) {
+      await supabase.from('videos').update({ cover_status: 'atmosphere_generating' }).eq('id', videoId);
+    }
 
     // Determine which steps to run
     // Auto-run atmosphere if overlay is requested but no atmosphere exists
