@@ -291,6 +291,8 @@ serve(async (req) => {
               duration_ms: motionDurationMs,
             });
           } else {
+            const noIdMsg = 'Motion: no ID returned by provider';
+            motionWarning = noIdMsg;
             console.error('Auto motion: no ID in response:', JSON.stringify(motionResult));
             await supabase.from('activity_log').insert({
               action: 'auto_motion_failed',
