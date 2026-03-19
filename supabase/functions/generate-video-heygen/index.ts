@@ -212,6 +212,8 @@ serve(async (req) => {
     }
 
     // --- Determine HeyGen mode and motion setting ---
+    let motionWarning: string | null = null;
+    
     const { data: settingsRows } = await supabase
       .from('app_settings')
       .select('key, value')
@@ -289,6 +291,8 @@ serve(async (req) => {
               duration_ms: motionDurationMs,
             });
           } else {
+            const noIdMsg = 'Motion: no ID returned by provider';
+            motionWarning = noIdMsg;
             console.error('Auto motion: no ID in response:', JSON.stringify(motionResult));
             await supabase.from('activity_log').insert({
               action: 'auto_motion_failed',
@@ -300,6 +304,10 @@ serve(async (req) => {
           }
         } else {
           const errText = await motionRes.text();
+          const isCredits = errText.includes('insufficient_credit') || errText.includes('insufficient credit');
+          motionWarning = isCredits 
+            ? 'Motion не применён: недостаточно кредитов у провайдера' 
+            : `Motion не применён: ошибка API (${motionRes.status})`;
           console.error('Auto motion generation failed:', motionRes.status, errText);
           await supabase.from('activity_log').insert({
             action: 'auto_motion_failed',
@@ -311,6 +319,7 @@ serve(async (req) => {
         }
       } catch (motionErr) {
         const motionDurationMs = Date.now() - motionStartTime;
+        motionWarning = `Motion не применён: ${motionErr instanceof Error ? motionErr.message : 'неизвестная ошибка'}`;
         console.error('Auto motion error (non-fatal):', motionErr);
         await supabase.from('activity_log').insert({
           action: 'auto_motion_failed',
@@ -400,12 +409,12 @@ serve(async (req) => {
       action: 'heygen_video_started',
       entity_type: 'video',
       entity_id: videoId,
-      details: { heygen_video_id: heygenVideoId, used_scene: !!sceneUrl, motion_used: !!effectiveMotionAvatarId, motion_avatar_id: effectiveMotionAvatarId || null },
+      details: { heygen_video_id: heygenVideoId, used_scene: !!sceneUrl, motion_used: !!effectiveMotionAvatarId, motion_avatar_id: effectiveMotionAvatarId || null, motion_warning: motionWarning || null },
       duration_ms: durationMs,
     });
 
     return new Response(
-      JSON.stringify({ success: true, heygenVideoId, usedScene: !!sceneUrl }),
+      JSON.stringify({ success: true, heygenVideoId, usedScene: !!sceneUrl, motionWarning }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
 

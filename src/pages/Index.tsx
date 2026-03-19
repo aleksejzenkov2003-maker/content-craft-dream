@@ -422,6 +422,9 @@ export default function Index() {
       if (error) throw error;
       if (!data?.success) throw new Error(data?.error || 'Failed to start video generation');
 
+      if (data?.motionWarning) {
+        toast.warning(data.motionWarning);
+      }
       toast.success('Генерация видео запущена');
       startVideoPolling(video.id);
     } catch (error: any) {
@@ -483,6 +486,9 @@ export default function Index() {
       if (error) throw error;
       if (!data?.success) throw new Error(data?.error || 'Failed to start video generation');
 
+      if (data?.motionWarning) {
+        toast.warning(data.motionWarning);
+      }
       toast.success('Генерация видео запущена — постобработка начнётся автоматически');
       startVideoPolling(video.id);
     } catch (error: any) {
