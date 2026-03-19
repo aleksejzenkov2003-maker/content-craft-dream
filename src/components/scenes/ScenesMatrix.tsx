@@ -593,12 +593,12 @@ export function ScenesMatrix({ initialAdvisorId, initialPlaylistId, onConsumeNav
                               size="sm"
                               disabled={isGenerating}
                               onClick={() => handleGenerateScene(playlist, advisor)}
-                              className="bg-emerald-500 hover:bg-emerald-600 text-white text-xs rounded-full px-4 h-7"
+                              className={`text-xs rounded-full px-4 h-7 ${isGenerating ? 'bg-yellow-500/70 text-white cursor-not-allowed' : 'bg-emerald-500 hover:bg-emerald-600 text-white'}`}
                             >
                               {isGenerating ? (
                                 <Loader2 className="w-3 h-3 animate-spin mr-1" />
                               ) : null}
-                              Сгенерировать
+                              {isGenerating ? 'Генерация...' : 'Сгенерировать'}
                             </Button>
                           </div>
                         </div>
