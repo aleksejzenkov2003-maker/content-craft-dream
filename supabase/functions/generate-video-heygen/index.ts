@@ -236,6 +236,7 @@ serve(async (req) => {
     // Auto-generate motion if enabled but not yet created for this scene
     if (motionEnabled && !effectiveMotionAvatarId && heygenMode === 'v3' && imageUrl && sceneMotionPrompt) {
       console.log('Motion enabled with prompt but no motion_avatar_id — auto-generating motion...');
+      const motionStartTime = Date.now();
       try {
         const freshTalkingPhotoId = await uploadTalkingPhoto(imageUrl, heygenKey);
         const motionPrompt = sceneMotionPrompt || 'The person gestures naturally with their hands while explaining something';
@@ -251,18 +252,23 @@ serve(async (req) => {
           headers: { 'X-Api-Key': heygenKey, 'Content-Type': 'application/json' },
           body: JSON.stringify(motionBody),
         });
+        const motionDurationMs = Date.now() - motionStartTime;
         if (motionRes.ok) {
           const motionResult = await motionRes.json();
+          console.log('Auto add_motion response:', JSON.stringify(motionResult));
           const newMotionId = motionResult.data?.talking_photo_id || motionResult.data?.avatar_id || motionResult.data?.id;
           if (newMotionId) {
             effectiveMotionAvatarId = newMotionId;
             console.log('Auto-generated motion_avatar_id:', newMotionId);
-            // Save to scene for reuse
+            // Save to scene for reuse (only approved scene with URL)
             if (video.playlist_id && video.advisor_id) {
               await supabase.from('playlist_scenes').update({
                 motion_avatar_id: newMotionId,
                 motion_type: resolvedMotionType,
-              }).eq('playlist_id', video.playlist_id).eq('advisor_id', video.advisor_id);
+              }).eq('playlist_id', video.playlist_id)
+                .eq('advisor_id', video.advisor_id)
+                .eq('status', 'approved')
+                .not('scene_url', 'is', null);
             }
             // Also save to video
             await supabase.from('videos').update({
@@ -270,12 +276,45 @@ serve(async (req) => {
               motion_type: resolvedMotionType,
               motion_prompt: motionPrompt,
             }).eq('id', videoId);
+            // Log success
+            await supabase.from('activity_log').insert({
+              action: 'auto_motion_created',
+              entity_type: 'video',
+              entity_id: videoId,
+              details: { motion_avatar_id: newMotionId, motion_type: resolvedMotionType, talking_photo_id: freshTalkingPhotoId },
+              duration_ms: motionDurationMs,
+            });
+          } else {
+            console.error('Auto motion: no ID in response:', JSON.stringify(motionResult));
+            await supabase.from('activity_log').insert({
+              action: 'auto_motion_failed',
+              entity_type: 'video',
+              entity_id: videoId,
+              details: { error: 'No motion ID in response', response: JSON.stringify(motionResult).slice(0, 500) },
+              duration_ms: motionDurationMs,
+            });
           }
         } else {
-          console.error('Auto motion generation failed:', await motionRes.text());
+          const errText = await motionRes.text();
+          console.error('Auto motion generation failed:', motionRes.status, errText);
+          await supabase.from('activity_log').insert({
+            action: 'auto_motion_failed',
+            entity_type: 'video',
+            entity_id: videoId,
+            details: { error: `API ${motionRes.status}`, message: errText.slice(0, 500), motion_type: resolvedMotionType },
+            duration_ms: motionDurationMs,
+          });
         }
       } catch (motionErr) {
+        const motionDurationMs = Date.now() - motionStartTime;
         console.error('Auto motion error (non-fatal):', motionErr);
+        await supabase.from('activity_log').insert({
+          action: 'auto_motion_failed',
+          entity_type: 'video',
+          entity_id: videoId,
+          details: { error: motionErr instanceof Error ? motionErr.message : 'Unknown error' },
+          duration_ms: motionDurationMs,
+        }).catch(() => {});
       }
     }
 
@@ -357,7 +396,7 @@ serve(async (req) => {
       action: 'heygen_video_started',
       entity_type: 'video',
       entity_id: videoId,
-      details: { heygen_video_id: heygenVideoId, used_scene: !!sceneUrl },
+      details: { heygen_video_id: heygenVideoId, used_scene: !!sceneUrl, motion_used: !!effectiveMotionAvatarId, motion_avatar_id: effectiveMotionAvatarId || null },
       duration_ms: durationMs,
     });
 
