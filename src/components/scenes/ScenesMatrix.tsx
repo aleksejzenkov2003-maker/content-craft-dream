@@ -115,6 +115,9 @@ export function ScenesMatrix({ initialAdvisorId, initialPlaylistId, onConsumeNav
         setSelectedPlaylistId(playlist.id);
         setSelectedAdvisorId(advisor.id);
         setShowSidePanel(true);
+      } else if (playlist && advisor) {
+        // Scene doesn't exist yet — create it and open the panel
+        handleCreateAndOpenScene(playlist, advisor);
       }
       onConsumeNavTarget?.();
     } else if (initialAdvisorId && !advisorsLoading) {
