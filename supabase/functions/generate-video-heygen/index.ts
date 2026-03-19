@@ -304,6 +304,10 @@ serve(async (req) => {
           }
         } else {
           const errText = await motionRes.text();
+          const isCredits = errText.includes('insufficient_credit') || errText.includes('insufficient credit');
+          motionWarning = isCredits 
+            ? 'Motion не применён: недостаточно кредитов у провайдера' 
+            : `Motion не применён: ошибка API (${motionRes.status})`;
           console.error('Auto motion generation failed:', motionRes.status, errText);
           await supabase.from('activity_log').insert({
             action: 'auto_motion_failed',
