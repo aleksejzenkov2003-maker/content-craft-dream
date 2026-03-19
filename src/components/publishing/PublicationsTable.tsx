@@ -688,13 +688,31 @@ const minuteOptions = [0, 5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55];
                 <TableHeader>
                   <TableRow className="h-8">
                     <TableHead className="w-[40px] py-1">
-                      <Checkbox
-                        checked={allSelected}
-                        ref={(el) => {
-                          if (el) (el as any).indeterminate = someSelected;
-                        }}
-                        onCheckedChange={handleSelectAll}
-                      />
+                      {(() => {
+                        const groupIds = pubs.map(p => p.id);
+                        const groupSelectedCount = groupIds.filter(id => selectedIds.has(id)).length;
+                        const groupAllSelected = groupIds.length > 0 && groupSelectedCount === groupIds.length;
+                        const groupSomeSelected = groupSelectedCount > 0 && groupSelectedCount < groupIds.length;
+                        return (
+                          <Checkbox
+                            checked={groupAllSelected}
+                            ref={(el) => {
+                              if (el) (el as any).indeterminate = groupSomeSelected;
+                            }}
+                            onCheckedChange={(checked) => {
+                              setSelectedIds(prev => {
+                                const next = new Set(prev);
+                                if (checked) {
+                                  groupIds.forEach(id => next.add(id));
+                                } else {
+                                  groupIds.forEach(id => next.delete(id));
+                                }
+                                return next;
+                              });
+                            }}
+                          />
+                        );
+                      })()}
                     </TableHead>
                     <TableHead className="w-[250px] py-1">Заголовок</TableHead>
                     <TableHead 
