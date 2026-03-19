@@ -212,6 +212,8 @@ serve(async (req) => {
     }
 
     // --- Determine HeyGen mode and motion setting ---
+    let motionWarning: string | null = null;
+    
     const { data: settingsRows } = await supabase
       .from('app_settings')
       .select('key, value')
