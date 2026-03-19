@@ -94,6 +94,8 @@ export function SceneSidePanel({
   useEffect(() => {
     supabase.from('app_settings' as any).select('value').eq('key', 'heygen_mode').single()
       .then(({ data }) => { if (data) setHeygenMode((data as any).value); });
+    supabase.from('app_settings' as any).select('value').eq('key', 'motion_enabled').single()
+      .then(({ data }) => { if (data) setMotionEnabled((data as any).value === 'true'); });
   }, []);
 
   const loadSystemPrompt = useCallback(async () => {
