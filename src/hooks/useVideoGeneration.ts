@@ -77,6 +77,9 @@ export function useVideoGeneration(options?: UseVideoGenerationOptions) {
         throw new Error(data.error || 'Failed to start video generation');
       }
 
+      if (data.motionWarning) {
+        toast.warning(data.motionWarning);
+      }
       toast.success('Генерация видео запущена');
 
       // Start polling for status
