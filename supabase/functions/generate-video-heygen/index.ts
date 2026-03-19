@@ -243,8 +243,8 @@ serve(async (req) => {
       const motionStartTime = Date.now();
       try {
         const freshTalkingPhotoId = await uploadTalkingPhoto(imageUrl, heygenKey);
-        const motionPrompt = sceneMotionPrompt || 'The person gestures naturally with their hands while explaining something';
-        const resolvedMotionType = sceneMotionType || 'consistent';
+        const motionPrompt = effectiveMotionPrompt;
+        const resolvedMotionType = effectiveMotionType;
         const motionBody = {
           id: freshTalkingPhotoId,
           prompt: motionPrompt.slice(0, 512),
