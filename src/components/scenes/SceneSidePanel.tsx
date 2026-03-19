@@ -236,30 +236,6 @@ export function SceneSidePanel({
     }
   };
 
-  const handleAddMotion = async () => {
-    setIsAddingMotion(true);
-    try {
-      // Save motion settings first
-      await onUpdateScene(scene.id, {
-        motion_type: motionType,
-        motion_prompt: motionPromptText,
-      } as any);
-
-      const { data, error } = await supabase.functions.invoke('add-avatar-motion', {
-        body: { sceneId: scene.id, motionType, motionPrompt: motionPromptText },
-      });
-      if (error) throw error;
-      if (data?.error) throw new Error(data.error);
-
-      await onUpdateScene(scene.id, { motion_avatar_id: data.motionAvatarId } as any);
-      toast.success('Motion добавлен ($1)');
-    } catch (err: any) {
-      console.error('Add motion error:', err);
-      toast.error(err.message || 'Ошибка добавления motion');
-    } finally {
-      setIsAddingMotion(false);
-    }
-  };
 
   const handleResetMotion = async () => {
     await onUpdateScene(scene.id, {
