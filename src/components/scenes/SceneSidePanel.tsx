@@ -68,7 +68,7 @@ export function SceneSidePanel({
   // Motion state
   const [motionType, setMotionType] = useState('veo2');
   const [motionPromptText, setMotionPromptText] = useState('The person gestures naturally with their hands while explaining something');
-  const [isAddingMotion, setIsAddingMotion] = useState(false);
+  
   const [isSavingMotion, setIsSavingMotion] = useState(false);
   const [heygenMode, setHeygenMode] = useState('v3');
 
