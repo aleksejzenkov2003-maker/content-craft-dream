@@ -264,6 +264,9 @@ serve(async (req) => {
           console.log('Auto add_motion response:', JSON.stringify(motionResult));
           const newMotionId = motionResult.data?.talking_photo_id || motionResult.data?.avatar_id || motionResult.data?.id;
           if (newMotionId) {
+            // Wait for HeyGen to finish processing the motion avatar
+            console.log('Waiting 6s for HeyGen to process motion avatar...');
+            await new Promise(resolve => setTimeout(resolve, 6000));
             effectiveMotionAvatarId = newMotionId;
             console.log('Auto-generated motion_avatar_id:', newMotionId);
             // Save to scene for reuse (only approved scene with URL)
