@@ -14,6 +14,7 @@ import {
   HoverCardTrigger,
 } from '@/components/ui/hover-card';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { Input } from '@/components/ui/input';
 import { VideoFilters, VideoFilterState } from './VideoFilters';
 import { Video } from '@/hooks/useVideos';
 import { Advisor } from '@/hooks/useAdvisors';
