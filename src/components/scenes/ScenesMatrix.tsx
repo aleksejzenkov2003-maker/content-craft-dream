@@ -172,8 +172,7 @@ export function ScenesMatrix({ initialAdvisorId, initialPlaylistId, onConsumeNav
     playlists.some(p => selectedPairs.has(getPairKey(p.id, advisorId)));
 
   const handleGenerateScene = async (playlist: Playlist, advisor: Advisor) => {
-    console.log('[ScenesMatrix] handleGenerateScene called', { playlist: playlist.name, advisor: advisor.name });
-    const key = `${playlist.id}-${advisor.id}`;
+    const key = getPairKey(playlist.id, advisor.id);
     setGeneratingScenes(prev => new Set(prev).add(key));
 
     try {
@@ -186,7 +185,7 @@ export function ScenesMatrix({ initialAdvisorId, initialPlaylistId, onConsumeNav
       });
 
       if (response.error) throw response.error;
-      
+
       const result = response.data;
       if (result?.error) {
         throw new Error(result.error);
@@ -195,13 +194,11 @@ export function ScenesMatrix({ initialAdvisorId, initialPlaylistId, onConsumeNav
       if (result?.sceneUrl) {
         toast.success('Сцена сгенерирована!');
       } else {
-        toast.warning('Функция завершилась, но изображение не получено');
+        toast.warning('Генерация запущена');
       }
-      await refetch();
     } catch (error) {
       console.error('Error generating scene:', error);
       toast.error('Ошибка генерации сцены');
-    } finally {
       setGeneratingScenes(prev => {
         const next = new Set(prev);
         next.delete(key);
