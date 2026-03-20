@@ -335,7 +335,7 @@ export function SceneSidePanel({
               </div>
 
               <div className="flex flex-col gap-2 pt-8 shrink-0">
-                <Button variant="secondary" size="sm" onClick={handleGenerate} disabled={isGenerating} className="whitespace-nowrap">
+                <Button variant="secondary" size="sm" onClick={handleGenerate} disabled={isGenerating} className={cn("whitespace-nowrap", isGenerating && "bg-muted text-muted-foreground")}>
                   {isGenerating ? <Loader2 className="w-4 h-4 animate-spin mr-1" /> : <Wand2 className="w-4 h-4 mr-1" />}
                   Сгенерировать
                 </Button>
