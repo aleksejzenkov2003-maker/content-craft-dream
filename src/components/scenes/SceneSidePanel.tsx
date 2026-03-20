@@ -55,6 +55,7 @@ export function SceneSidePanel({
   onUpdateScene,
   fetchVariants,
   selectVariant,
+  deleteVariant,
 }: SceneSidePanelProps) {
   const [isGenerating, setIsGenerating] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
