@@ -24,6 +24,7 @@ export interface Advisor {
   updated_at: string;
   scene_photo_id: string | null;
   thumbnail_photo_id: string | null;
+  avatar_photo_id: string | null;
   photos?: AdvisorPhoto[];
 }
 

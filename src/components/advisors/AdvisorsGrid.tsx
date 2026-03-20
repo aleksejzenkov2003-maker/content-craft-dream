@@ -125,6 +125,7 @@ export function AdvisorsGrid({
       speech_speed: advisor.speech_speed,
       scene_photo_id: advisor.scene_photo_id,
       thumbnail_photo_id: advisor.thumbnail_photo_id,
+      avatar_photo_id: advisor.avatar_photo_id,
     });
   };
 
@@ -149,6 +150,9 @@ export function AdvisorsGrid({
 
   const getThumbnailPhoto = (advisor: Advisor) =>
     advisor.photos?.find(p => p.id === advisor.thumbnail_photo_id) || getPrimaryPhoto(advisor);
+
+  const getAvatarPhoto = (advisor: Advisor) =>
+    advisor.photos?.find(p => p.id === advisor.avatar_photo_id) || null;
 
   return (
     <div className="space-y-6">
@@ -269,13 +273,29 @@ export function AdvisorsGrid({
                   </div>
                 </div>
 
+                {/* Avatar photo (transparent) */}
+                <div className="space-y-1">
+                  <div className="text-sm font-medium text-center">Аватар</div>
+                  <div className="relative w-48 aspect-[9/16] bg-muted rounded-xl overflow-hidden border-2 border-border">
+                    {getAvatarPhoto(selectedAdvisor) ? (
+                      <img src={getAvatarPhoto(selectedAdvisor)!.photo_url} alt="" className="w-full h-full object-cover" />
+                    ) : (
+                      <div className="w-full h-full flex items-center justify-center flex-col gap-1">
+                        <Image className="w-6 h-6 text-muted-foreground" />
+                        <span className="text-[10px] text-muted-foreground">Без фона</span>
+                      </div>
+                    )}
+                  </div>
+                </div>
+
                 {/* Gallery + role selectors */}
                 <div className="flex-1 space-y-3">
                   <div className="text-sm font-medium">Все фотографии</div>
                   <div className="flex gap-2 flex-wrap">
                     {selectedAdvisor.photos?.map((photo) => {
-                      const isScene = photo.id === selectedAdvisor.scene_photo_id;
+                       const isScene = photo.id === selectedAdvisor.scene_photo_id;
                       const isThumbnail = photo.id === selectedAdvisor.thumbnail_photo_id;
+                      const isAvatar = photo.id === selectedAdvisor.avatar_photo_id;
                       return (
                         <div key={photo.id} className="relative group">
                           <button
@@ -288,8 +308,9 @@ export function AdvisorsGrid({
                             <img src={photo.photo_url} alt="" className="w-full h-full object-cover" />
                           </button>
                           <div className="flex gap-0.5 justify-center mt-1">
-                            {isScene && <span className="text-[9px] bg-blue-500/20 text-blue-600 rounded px-1">С</span>}
-                            {isThumbnail && <span className="text-[9px] bg-purple-500/20 text-purple-600 rounded px-1">М</span>}
+                            {isScene && <span className="text-[9px] bg-primary/20 text-primary rounded px-1">С</span>}
+                            {isThumbnail && <span className="text-[9px] bg-accent/20 text-accent-foreground rounded px-1">М</span>}
+                            {isAvatar && <span className="text-[9px] bg-secondary/20 text-secondary-foreground rounded px-1">А</span>}
                           </div>
                           <div className="absolute -top-1 -right-1 hidden group-hover:flex gap-0.5">
                             <button
@@ -311,7 +332,7 @@ export function AdvisorsGrid({
                     </button>
                   </div>
                   {selectedAdvisor.photos && selectedAdvisor.photos.length > 0 && (
-                    <div className="grid grid-cols-2 gap-2">
+                    <div className="grid grid-cols-3 gap-2">
                       <div className="space-y-1">
                         <Label className="text-xs">Основное фото</Label>
                         <select
@@ -333,6 +354,19 @@ export function AdvisorsGrid({
                           onChange={(e) => setEditFormData({ ...editFormData, thumbnail_photo_id: e.target.value || null })}
                         >
                           <option value="">По умолчанию</option>
+                          {selectedAdvisor.photos.map((p, i) => (
+                            <option key={p.id} value={p.id}>Фото {i + 1}{p.is_primary ? ' (осн.)' : ''}</option>
+                          ))}
+                        </select>
+                      </div>
+                      <div className="space-y-1">
+                        <Label className="text-xs">Аватар (без фона)</Label>
+                        <select
+                          className="w-full text-xs border rounded px-2 py-1 bg-background"
+                          value={selectedAdvisor.avatar_photo_id || ''}
+                          onChange={(e) => setEditFormData({ ...editFormData, avatar_photo_id: e.target.value || null })}
+                        >
+                          <option value="">Не выбрано</option>
                           {selectedAdvisor.photos.map((p, i) => (
                             <option key={p.id} value={p.id}>Фото {i + 1}{p.is_primary ? ' (осн.)' : ''}</option>
                           ))}
@@ -360,6 +394,7 @@ export function AdvisorsGrid({
                     is_active: selectedAdvisor.is_active,
                     scene_photo_id: selectedAdvisor.scene_photo_id,
                     thumbnail_photo_id: selectedAdvisor.thumbnail_photo_id,
+                    avatar_photo_id: selectedAdvisor.avatar_photo_id,
                   } as any);
                   closeAdvisorDialog();
                 }

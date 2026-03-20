@@ -16,6 +16,7 @@ import { PromptsPage } from '@/components/prompts/PromptsPage';
 import { PublicationsTable } from '@/components/publishing/PublicationsTable';
 import { PublishingKanban } from '@/components/publishing/PublishingKanban';
 import { ScenesMatrix } from '@/components/scenes/ScenesMatrix';
+import { BackgroundVideosGrid } from '@/components/backgrounds/BackgroundVideosGrid';
 import { QuestionsTable } from '@/components/questions/QuestionsTable';
 
 
@@ -41,6 +42,7 @@ const headerTitles: Record<string, { title: string; subtitle: string }> = {
   videos: { title: 'Ролики', subtitle: 'Все видео с духовниками' },
   'publications-list': { title: 'Публикации', subtitle: 'Список публикаций по каналам' },
   scenes: { title: 'Сцены', subtitle: 'Генерация сцен для плейлистов' },
+  backgrounds: { title: 'Фоновые подложки', subtitle: 'Видео-подложки для наложения аватара' },
   
   advisors: { title: 'Духовники', subtitle: 'Управление аватарами и настройками' },
   playlists: { title: 'Плейлисты', subtitle: 'Группировка видео по категориям' },
@@ -1353,6 +1355,8 @@ export default function Index() {
               onConsumeNavTarget={() => setSceneNavTarget(null)}
             />
           )}
+
+          {activeTab === 'backgrounds' && <BackgroundVideosGrid />}
 
           {activeTab === 'publications-list' && (
             <div className="space-y-6">
