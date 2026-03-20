@@ -574,7 +574,7 @@ export default function Index() {
         refetchVideos();
       }
       
-      toast.info('Генерация обложки...');
+      toast.info('Формирование обложки...');
       await updateVideo(video.id, { cover_status: 'generating' } as any, { silent: true });
       refetchVideos();
       

@@ -14,6 +14,7 @@ import {
   HoverCardTrigger,
 } from '@/components/ui/hover-card';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { Input } from '@/components/ui/input';
 import { VideoFilters, VideoFilterState } from './VideoFilters';
 import { Video } from '@/hooks/useVideos';
 import { Advisor } from '@/hooks/useAdvisors';
@@ -142,6 +143,7 @@ export function VideosTable({
   const [sortDirection, setSortDirection] = useState<SortDirection>('asc');
   const [selectedVideoIds, setSelectedVideoIds] = useState<Set<string>>(new Set());
   const [activeTab, setActiveTab] = useState<'in_progress' | 'published' | 'all'>('in_progress');
+  const [videoNumberSearch, setVideoNumberSearch] = useState('');
   const [advancedFilters, setAdvancedFilters] = useState<VideoFilterState>({
     coverStatusFilter: [],
     videoStatusFilter: [],
@@ -227,6 +229,13 @@ export function VideosTable({
       result = result.filter(v => v.question_id === filters.questionId);
     }
 
+    if (videoNumberSearch.trim()) {
+      const num = parseInt(videoNumberSearch.trim(), 10);
+      if (!isNaN(num)) {
+        result = result.filter(v => v.video_number === num);
+      }
+    }
+
     if (advancedFilters.coverStatusFilter.length > 0) {
       result = result.filter(v => advancedFilters.coverStatusFilter.includes(v.cover_status || 'pending'));
     }
@@ -255,7 +264,7 @@ export function VideosTable({
     }
 
     return result;
-  }, [videos, activeTab, filters.questionId, advancedFilters]);
+  }, [videos, activeTab, filters.questionId, advancedFilters, videoNumberSearch]);
 
   // Sort videos
   const sortedVideos = useMemo(() => {
@@ -408,6 +417,14 @@ export function VideosTable({
           <div className="w-px h-5 bg-border mx-1" />
 
           <VideoFilters filters={advancedFilters} onFiltersChange={setAdvancedFilters} />
+
+          <Input
+            type="text"
+            placeholder="№ ролика"
+            value={videoNumberSearch}
+            onChange={(e) => setVideoNumberSearch(e.target.value)}
+            className="h-7 w-20 text-xs px-2"
+          />
 
           {filters.questionId !== undefined && (
             <Button 
