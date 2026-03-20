@@ -294,7 +294,7 @@ export function AdvisorsGrid({
                   <div className="flex gap-2 flex-wrap">
                     {selectedAdvisor.photos?.map((photo) => {
                       const isScene = photo.id === selectedAdvisor.scene_photo_id;
-                      const isThumbnail = photo.id === selectedAdvisor.thumbnail_photo_id;
+                      const isAvatar = photo.id === selectedAdvisor.avatar_photo_id;
                       return (
                         <div key={photo.id} className="relative group">
                           <button
