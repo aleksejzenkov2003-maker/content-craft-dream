@@ -273,6 +273,21 @@ export function AdvisorsGrid({
                   </div>
                 </div>
 
+                {/* Avatar photo (transparent) */}
+                <div className="space-y-1">
+                  <div className="text-sm font-medium text-center">Аватар</div>
+                  <div className="relative w-48 aspect-[9/16] bg-muted rounded-xl overflow-hidden border-2 border-border">
+                    {getAvatarPhoto(selectedAdvisor) ? (
+                      <img src={getAvatarPhoto(selectedAdvisor)!.photo_url} alt="" className="w-full h-full object-cover" />
+                    ) : (
+                      <div className="w-full h-full flex items-center justify-center flex-col gap-1">
+                        <Image className="w-6 h-6 text-muted-foreground" />
+                        <span className="text-[10px] text-muted-foreground">Без фона</span>
+                      </div>
+                    )}
+                  </div>
+                </div>
+
                 {/* Gallery + role selectors */}
                 <div className="flex-1 space-y-3">
                   <div className="text-sm font-medium">Все фотографии</div>
