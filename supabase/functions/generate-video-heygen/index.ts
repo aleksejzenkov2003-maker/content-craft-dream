@@ -329,7 +329,8 @@ serve(async (req) => {
           entity_id: videoId,
           details: { error: motionErr instanceof Error ? motionErr.message : 'Unknown error' },
           duration_ms: motionDurationMs,
-        }).catch(() => {});
+        });
+        // ignore logging errors
       }
     }
 
