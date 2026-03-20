@@ -228,6 +228,13 @@ export function VideosTable({
       result = result.filter(v => v.question_id === filters.questionId);
     }
 
+    if (videoNumberSearch.trim()) {
+      const num = parseInt(videoNumberSearch.trim(), 10);
+      if (!isNaN(num)) {
+        result = result.filter(v => v.video_number === num);
+      }
+    }
+
     if (advancedFilters.coverStatusFilter.length > 0) {
       result = result.filter(v => advancedFilters.coverStatusFilter.includes(v.cover_status || 'pending'));
     }
