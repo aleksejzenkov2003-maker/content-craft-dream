@@ -54,7 +54,7 @@ interface ScenesMatrixProps {
 }
 
 export function ScenesMatrix({ initialAdvisorId, initialPlaylistId, onConsumeNavTarget }: ScenesMatrixProps) {
-  const { scenes, loading: scenesLoading, addScene, updateScene, refetch, bulkImport, fetchVariants, selectVariant } = usePlaylistScenes();
+  const { scenes, loading: scenesLoading, addScene, updateScene, refetch, bulkImport, fetchVariants, selectVariant, deleteVariant } = usePlaylistScenes();
   const { advisors, loading: advisorsLoading } = useAdvisors();
   const { playlists, loading: playlistsLoading } = usePlaylists();
   
