@@ -388,12 +388,14 @@ serve(async (req) => {
         const errorText = await heygenResponse.text();
         if (errorText.includes('missing image dimensions')) {
           console.warn(`Motion not ready yet (attempt ${attempt}), waiting ${MOTION_RETRY_DELAY_MS / 1000}s...`);
-          await supabase.from('activity_log').insert({
-            action: 'motion_not_ready',
-            entity_type: 'video',
-            entity_id: videoId,
-            details: { attempt, motion_avatar_id: talkingPhotoIdFinal, error_snippet: errorText.slice(0, 200) },
-          }).catch(() => {});
+          try {
+            await supabase.from('activity_log').insert({
+              action: 'motion_not_ready',
+              entity_type: 'video',
+              entity_id: videoId,
+              details: { attempt, motion_avatar_id: talkingPhotoIdFinal, error_snippet: errorText.slice(0, 200) },
+            });
+          } catch (_) { /* ignore logging error */ }
 
           if (attempt < MOTION_MAX_ATTEMPTS) {
             await new Promise(resolve => setTimeout(resolve, MOTION_RETRY_DELAY_MS));
