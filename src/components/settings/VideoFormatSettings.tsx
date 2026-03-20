@@ -24,6 +24,7 @@ export function VideoFormatSettings() {
   const [mode, setMode] = useState<string>('v3');
   const [motionEnabled, setMotionEnabled] = useState(true);
   const [compressionPreset, setCompressionPreset] = useState(DEFAULT_COMPRESSION_PRESET.id);
+  const [videoFormatMode, setVideoFormatMode] = useState<string>('full_photo');
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
 
@@ -32,10 +33,12 @@ export function VideoFormatSettings() {
       supabase.from('app_settings' as any).select('value').eq('key', 'heygen_mode').single(),
       supabase.from('app_settings' as any).select('value').eq('key', 'motion_enabled').single(),
       supabase.from('app_settings' as any).select('value').eq('key', 'compression_preset').single(),
-    ]).then(([modeRes, motionRes, presetRes]) => {
+      supabase.from('app_settings' as any).select('value').eq('key', 'video_format_mode').single(),
+    ]).then(([modeRes, motionRes, presetRes, formatRes]) => {
       if (modeRes.data) setMode((modeRes.data as any).value);
       if (motionRes.data) setMotionEnabled((motionRes.data as any).value === 'true');
       if (presetRes.data) setCompressionPreset((presetRes.data as any).value);
+      if (formatRes.data) setVideoFormatMode((formatRes.data as any).value);
       setLoading(false);
     });
   }, []);
