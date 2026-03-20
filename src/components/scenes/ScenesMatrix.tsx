@@ -552,9 +552,9 @@ export function ScenesMatrix({ initialAdvisorId, initialPlaylistId, onConsumeNav
                       const sceneStatus = normalizeStatus(scene?.status);
 
                       const effectiveStatus = isGenerating ? 'generating' : sceneStatus;
-                      const statusText = effectiveStatus === 'approved' ? 'ГОТОВО' : effectiveStatus === 'generating' ? 'генерация' : 'ожидает';
+                      const statusText = effectiveStatus === 'approved' ? 'готово' : effectiveStatus === 'generating' ? 'генерация' : 'ожидает';
                       const statusColor = effectiveStatus === 'approved' 
-                        ? 'text-orange-600 font-bold uppercase' 
+                        ? 'text-green-600' 
                         : effectiveStatus === 'generating' 
                           ? 'text-yellow-600' 
                           : 'text-muted-foreground';
