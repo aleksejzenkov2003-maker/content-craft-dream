@@ -96,7 +96,7 @@ serve(async (req) => {
       .from('videos')
       .select(`
         *,
-        advisor:advisors (id, name, display_name, elevenlabs_voice_id, scene_photo_id)
+        advisor:advisors (id, name, display_name, elevenlabs_voice_id, scene_photo_id, avatar_photo_id)
       `)
       .eq('id', videoId)
       .single();
