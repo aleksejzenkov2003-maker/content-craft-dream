@@ -224,10 +224,12 @@ serve(async (req) => {
     
     const heygenMode = settingsMap['heygen_mode'] || 'v3';
     const motionEnabled = settingsMap['motion_enabled'] !== 'false'; // default true
+    const videoFormatMode = settingsMap['video_format_mode'] || 'full_photo';
+    const isOverlayMode = videoFormatMode === 'background_overlay';
     const heygenEndpoint = heygenMode === 'v4'
       ? 'https://api.heygen.com/v2/video/av4/generate'
       : 'https://api.heygen.com/v2/video/generate';
-    console.log(`Using HeyGen mode: ${heygenMode}, motion_enabled: ${motionEnabled}, endpoint: ${heygenEndpoint}`);
+    console.log(`Using HeyGen mode: ${heygenMode}, motion_enabled: ${motionEnabled}, video_format: ${videoFormatMode}, endpoint: ${heygenEndpoint}`);
 
     // Use scene's motion_avatar_id first, then video's (backward compat), otherwise upload fresh
     let talkingPhotoIdFinal: string;
