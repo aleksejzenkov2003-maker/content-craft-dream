@@ -1356,6 +1356,8 @@ export default function Index() {
             />
           )}
 
+          {activeTab === 'backgrounds' && <BackgroundVideosGrid />}
+
           {activeTab === 'publications-list' && (
             <div className="space-y-6">
               <Tabs value={publicationsTab} onValueChange={setPublicationsTab}>
