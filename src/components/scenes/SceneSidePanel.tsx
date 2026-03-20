@@ -280,20 +280,36 @@ export function SceneSidePanel({
           <TabsContent value="image" className="mt-4 space-y-4">
             <div className="flex gap-4">
               <div className="flex-1 min-w-0">
-                {imageUrls.length > 1 && (
+                {variants.length > 1 && (
                   <div className="flex items-center gap-1 mb-2 flex-wrap">
-                    {imageUrls.map((_, i) => (
-                      <button
-                        key={i}
-                        onClick={() => handleSelectVariant(i)}
-                        className={`w-7 h-7 rounded-full border-2 text-xs font-medium flex items-center justify-center transition-colors ${
-                          i === currentVariant
-                            ? 'border-primary bg-primary/10 text-primary'
-                            : 'border-border text-muted-foreground hover:border-primary/50'
-                        }`}
-                      >
-                        {i + 1}
-                      </button>
+                    {variants.map((v, i) => (
+                      <div key={v.id} className="flex items-center gap-0.5">
+                        <button
+                          onClick={() => handleSelectVariant(i)}
+                          title={v.is_selected ? 'Основной вариант' : 'Назначить основным'}
+                          className={`w-7 h-7 rounded-full border-2 text-xs font-medium flex items-center justify-center transition-colors ${
+                            v.is_selected
+                              ? 'border-emerald-500 bg-emerald-500/20 text-emerald-700'
+                              : i === currentVariant
+                                ? 'border-primary bg-primary/10 text-primary'
+                                : 'border-border text-muted-foreground hover:border-primary/50'
+                          }`}
+                        >
+                          {v.is_selected ? <Check className="w-3.5 h-3.5" /> : i + 1}
+                        </button>
+                        <button
+                          onClick={async (e) => {
+                            e.stopPropagation();
+                            if (!confirm('Удалить этот вариант?')) return;
+                            await deleteVariant(v.id, scene.id);
+                            await loadVariants();
+                          }}
+                          title="Удалить вариант"
+                          className="w-5 h-5 rounded-full flex items-center justify-center text-muted-foreground/50 hover:text-destructive hover:bg-destructive/10 transition-colors"
+                        >
+                          <Trash2 className="w-3 h-3" />
+                        </button>
+                      </div>
                     ))}
                   </div>
                 )}
