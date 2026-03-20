@@ -319,8 +319,8 @@ export function SceneSidePanel({
                     <>
                       <img src={imageUrls[currentVariant] || imageUrls[0]} alt="Scene" className="w-full h-full object-cover" />
                       {variants[currentVariant]?.is_selected && (
-                        <div className="absolute top-2 right-2">
-                          <Star className="w-6 h-6 fill-yellow-400 text-yellow-400" />
+                        <div className="absolute top-2 right-2 w-6 h-6 rounded-full bg-emerald-500 flex items-center justify-center">
+                          <Check className="w-4 h-4 text-white" />
                         </div>
                       )}
                       {imageUrls.length > 1 && (
