@@ -244,10 +244,13 @@ export function VideoSidePanel({
   const atmosphereUrl = (video as any).atmosphere_url;
   const normalizedCoverStatus = video.cover_status === 'generating' && !!video.front_cover_url ? 'ready' : video.cover_status || 'pending';
   const isGeneratingCover = normalizedCoverStatus === 'generating';
+  const hasGeneratedVideo = !!(video.video_path || video.heygen_video_url);
+  const effectiveGenerationStatus = video.generation_status === 'generating' && hasGeneratedVideo ? 'ready' : video.generation_status;
+  const effectiveReelStatus = video.reel_status === 'generating' && !!video.video_path ? 'ready' : video.reel_status;
 
   const atmosStatus = resolveAssetStatus(atmosphereUrl, video.cover_status);
   const coverStatus = resolveAssetStatus(video.front_cover_url, video.cover_status);
-  const videoStatus = resolveAssetStatus(video.video_path || video.heygen_video_url, video.generation_status);
+  const videoStatus = resolveAssetStatus(video.video_path || video.heygen_video_url, effectiveGenerationStatus);
 
   const effectiveDuration = video.video_duration || detectedDuration;
   const durationFormatted = effectiveDuration ? `${Math.floor(effectiveDuration / 60)}:${String(Math.round(effectiveDuration % 60)).padStart(2, '0')}` : '—';
