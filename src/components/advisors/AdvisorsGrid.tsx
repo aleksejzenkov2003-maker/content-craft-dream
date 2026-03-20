@@ -332,7 +332,7 @@ export function AdvisorsGrid({
                     </button>
                   </div>
                   {selectedAdvisor.photos && selectedAdvisor.photos.length > 0 && (
-                    <div className="grid grid-cols-2 gap-2">
+                    <div className="grid grid-cols-3 gap-2">
                       <div className="space-y-1">
                         <Label className="text-xs">Основное фото</Label>
                         <select
@@ -354,6 +354,19 @@ export function AdvisorsGrid({
                           onChange={(e) => setEditFormData({ ...editFormData, thumbnail_photo_id: e.target.value || null })}
                         >
                           <option value="">По умолчанию</option>
+                          {selectedAdvisor.photos.map((p, i) => (
+                            <option key={p.id} value={p.id}>Фото {i + 1}{p.is_primary ? ' (осн.)' : ''}</option>
+                          ))}
+                        </select>
+                      </div>
+                      <div className="space-y-1">
+                        <Label className="text-xs">Аватар (без фона)</Label>
+                        <select
+                          className="w-full text-xs border rounded px-2 py-1 bg-background"
+                          value={selectedAdvisor.avatar_photo_id || ''}
+                          onChange={(e) => setEditFormData({ ...editFormData, avatar_photo_id: e.target.value || null })}
+                        >
+                          <option value="">Не выбрано</option>
                           {selectedAdvisor.photos.map((p, i) => (
                             <option key={p.id} value={p.id}>Фото {i + 1}{p.is_primary ? ' (осн.)' : ''}</option>
                           ))}
