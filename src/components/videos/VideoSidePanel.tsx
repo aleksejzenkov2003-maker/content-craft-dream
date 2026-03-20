@@ -595,7 +595,7 @@ export function VideoSidePanel({
                     const file = await burnSubtitlesBrowser(
                       cleanSrc,
                       video.word_timestamps as any,
-                      { fontSize: 48 },
+                      { fontSize: 72 },
                       (info) => setSubtitleProgress({ phase: info.phase, progress: info.progress }),
                       ac.signal,
                       highlightMode,
