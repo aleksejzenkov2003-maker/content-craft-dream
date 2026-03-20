@@ -212,50 +212,78 @@ export type Database = {
         }
         Relationships: []
       }
-      background_videos: {
+      background_assignments: {
         Row: {
           advisor_id: string | null
+          background_id: string
           created_at: string
           id: string
           playlist_id: string | null
-          title: string | null
-          updated_at: string
-          video_url: string
         }
         Insert: {
           advisor_id?: string | null
+          background_id: string
           created_at?: string
           id?: string
           playlist_id?: string | null
-          title?: string | null
-          updated_at?: string
-          video_url: string
         }
         Update: {
           advisor_id?: string | null
+          background_id?: string
           created_at?: string
           id?: string
           playlist_id?: string | null
-          title?: string | null
-          updated_at?: string
-          video_url?: string
         }
         Relationships: [
           {
-            foreignKeyName: "background_videos_advisor_id_fkey"
+            foreignKeyName: "background_assignments_advisor_id_fkey"
             columns: ["advisor_id"]
             isOneToOne: false
             referencedRelation: "advisors"
             referencedColumns: ["id"]
           },
           {
-            foreignKeyName: "background_videos_playlist_id_fkey"
+            foreignKeyName: "background_assignments_background_id_fkey"
+            columns: ["background_id"]
+            isOneToOne: false
+            referencedRelation: "background_videos"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "background_assignments_playlist_id_fkey"
             columns: ["playlist_id"]
             isOneToOne: false
             referencedRelation: "playlists"
             referencedColumns: ["id"]
           },
         ]
+      }
+      background_videos: {
+        Row: {
+          created_at: string
+          id: string
+          media_type: string
+          media_url: string
+          title: string | null
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          media_type?: string
+          media_url: string
+          title?: string | null
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          media_type?: string
+          media_url?: string
+          title?: string | null
+          updated_at?: string
+        }
+        Relationships: []
       }
       channels: {
         Row: {
