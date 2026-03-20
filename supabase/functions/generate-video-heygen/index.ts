@@ -217,7 +217,7 @@ serve(async (req) => {
     const { data: settingsRows } = await supabase
       .from('app_settings')
       .select('key, value')
-      .in('key', ['heygen_mode', 'motion_enabled']);
+      .in('key', ['heygen_mode', 'motion_enabled', 'video_format_mode']);
     
     const settingsMap: Record<string, string> = {};
     (settingsRows || []).forEach((r: any) => { settingsMap[r.key] = r.value; });
