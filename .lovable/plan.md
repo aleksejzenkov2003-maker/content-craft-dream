@@ -1,55 +1,65 @@
+Проверил новый ролик: проблема подтверждается на видео `9705`.
 
+Что нашёл:
 
-## Analysis
+- Моушн действительно создаётся и сохраняется: у сцены и у видео уже есть `motion_avatar_id = 7aa1cc0a...`.
+- Но при запуске генерации функция всё равно вернулась с предупреждением `Motion не применён: провайдер не успел обработать аватар, используется статичное фото`.
+- Значит текущая логика всё ещё слишком рано пытается использовать motion-avatar: даже после `add_motion` + паузы + одного ретрая провайдер не успевает подготовить ассет.
+  &nbsp;
 
-### Problem 1: Motion not applied
-The activity log shows a clear pattern:
-1. `auto_motion_created` at 13:45:30 — motion avatar ID `72187d843f994433a6fc01f46f2877f1` created successfully (6s)
-2. `heygen_video_started` at 13:45:39 (9s later) — motion NOT used, warning: "провайдер не успел обработать аватар"
+Обновлённый план исправления
 
-**Root cause**: The motion avatar is created successfully, but when HeyGen's video generation API tries to use it, it fails with "missing image dimensions" because HeyGen hasn't finished processing the avatar internally. The current 10-second wait is insufficient. Additionally, the retry logic clears the motion_avatar_id from the database, destroying it for future reuse.
+1. Сделать моушн действительно надёжным
 
-The scene (`playlist_scenes`) has no `scene_url` (null, status=waiting), so no pre-existing motion is reused. Every generation creates a fresh motion avatar and loses it.
+- В `generate-video-heygen` убрать ставку на “создали motion и сразу используем”.
+- Если motion-avatar был только что создан, пробовать использовать его серией ретраев с более длинным окном ожидания, а не один раз:
+  - первая попытка,
+  - затем повторные попытки с тем же `motion_avatar_id`,
+  - общий лимит ожидания порядка 60–90 секунд.
+- Не создавать новый talking photo на fallback раньше времени: сначала несколько раз пробовать один и тот же motion ID.
+- Если motion всё же не готов, сохранить его в базе и использовать статичное фото только для текущего ролика, но без потери motion для следующего запуска.
+- Логи сделать точнее: отдельно писать “motion created”, “motion not ready yet”, “motion finally reused”, чтобы было видно, на каком шаге сорвалось.
 
-### Problem 2: Subtitles not burned
-- `subtitles` is enabled in automation settings
-- `word_timestamps` exist
-- `reduced_video_url` exists and equals `video_path` — meaning resize ran but subtitles didn't burn
-- `reel_status: ready` but `generation_status: generating` — stuck state
-- The `fontSize` in `postProcessVideo` (Index.tsx line 249) is still `48`, not `72` as previously requested
+2. Изменить стратегию использования motion на уровне сцены
 
-The subtitle burn likely failed silently in the browser (possibly CORS or FFmpeg loading issue), and the catch block set `reel_status: error` but then line 272 overwrote it with `ready`. Need to check logic flow more carefully — actually looking at lines 261-266, the catch sets `reel_status: error` but does NOT `return`, so execution continues to line 272 which sets `reel_status: ready`. This is a bug.
+- Если у approved-сцены уже есть `motion_avatar_id`, считать его приоритетным и не пересоздавать motion заново в этом же пайплайне.
+- Для “свежесозданного” motion добавить безопасное правило:
+  - либо ждём его дольше до готовности,
+  - либо честно используем только со следующей генерации, если провайдер не подтвердил готовность в разумный срок.
+- Это особенно важно, потому что motion у вас сценовый и дорогой — нельзя продолжать сценарий, где он создаётся, но почти всегда срывается на первом же ролике.
+  &nbsp;
 
-### Problem 3: generation_status stuck at 'generating'
-The second generation (heygen_video_id `c0d55a56f47f4542821f8885faecff8e`) was started but its polling/status check may have been lost (page was navigated away, or the first generation's polling interfered). The `check-video-status` function updates `generation_status` to `ready` only when HeyGen returns `completed`. Post-processing then sets `generation_status: ready` at line 272. But if post-processing ran with the OLD heygen_video_url (from first generation), it would succeed but not update `generation_status` from the new generation.
+4. Уточнить статусную модель, чтобы ролики не “зависали”
 
-## Plan
+- Сохранить разделение:
+  - `generation_status` — готовность видео от провайдера,
+  - `reel_status` — локальная постобработка.
+- Добавить более жёсткий переход состояний:
+  - как только есть `heygen_video_url`, ролик должен обязательно попасть в post-processing,
+  - если post-processing упал, статус должен быть `error`, а не бесконечный `generating`.
+- Для UI это уберёт кейс, когда ролик уже сгенерирован, но пользователь видит вечную обработку и остаётся без субтитров.
 
-### 1. Fix motion reliability in `generate-video-heygen` edge function
-- **Increase wait time** from 10s to 20s after motion creation
-- **Add polling** instead of blind wait: check if the avatar is ready by attempting a lightweight HeyGen API call (or simply retry the video generation up to 2 times with delays)
-- **Do NOT clear motion_avatar_id on "missing image dimensions"** — keep it in the DB for future reuse since it will eventually become available. Only clear if the motion creation itself failed.
-- When the video generation fails due to unprocessed motion, fall back to static photo for THIS generation but preserve the motion_avatar_id
+Файлы, которые нужно править
 
-### 2. Fix subtitle burn error handling in `Index.tsx`
-- In `postProcessVideo`, after the subtitle catch block sets `reel_status: error`, add a `return` so execution doesn't continue to line 272 which overwrites the error with `ready`
-- Update subtitle `fontSize` from `48` to `72` to match the user's request
+- `supabase/functions/generate-video-heygen/index.ts`
+  - серия ретраев для motion-avatar,
+  - более длинное окно ожидания,
+  - отсутствие преждевременного fallback,
+  - улучшенные activity logs.
+- При необходимости: `supabase/functions/check-video-status/index.ts`
+  - можно усилить возврат состояния, чтобы клиент надёжнее понимал, что HeyGen уже готов и пора запускать постобработку.
 
-### 3. Fix generation_status stuck state
-- In `postProcessVideo`, ensure `generation_status` is always set to `ready` upon successful completion (already done at line 272, but the subtitle error path bypasses it incorrectly)
-- The auto-resume logic (line 297-298) checks `generation_status !== 'generating'` — so if generation_status is stuck, post-processing never auto-resumes. Fix by also checking if `heygen_video_url` exists as an override condition.
+Что это даст
 
-### Files to change
+- Моушн перестанет “формально создаваться, но фактически не применяться”.
+- Уже созданные motion-ассеты не будут теряться.
+  &nbsp;
 
-1. **`supabase/functions/generate-video-heygen/index.ts`**
-   - Increase motion wait from 10s to 20s
-   - On "missing image dimensions" retry: do NOT clear motion_avatar_id from DB, just skip motion for current generation
-   - Add a second retry with 10s delay before falling back to static
+Проверка после внедрения
 
-2. **`src/pages/Index.tsx`**
-   - Line 249: Change `fontSize: 48` → `fontSize: 72`
-   - Lines 261-266: After subtitle burn fails and sets `reel_status: error`, still continue to save `video_path` with reduced (non-subtitled) video but keep error status. Currently the code falls through to line 272 which overwrites the error.
-   - Line 297-298: Fix auto-resume condition to also handle `generation_status === 'generating'` when `heygen_video_url` exists
-
-3. **Deploy** the updated edge function
-
+- Сгенерировать новый ролик по сцене, где уже есть `motion_avatar_id`, и убедиться, что предупреждение про fallback больше не появляется.
+- Проверить, что после готовности видео автоматически появляются:
+  - `reduced_video_url`,
+  - `video_path`,
+  - `reel_status = ready`.
+- Отдельно протестировать сценарий с перезагрузкой страницы в момент post-processing, чтобы субтитры всё равно доходили до финального файла.
