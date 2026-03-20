@@ -1,65 +1,46 @@
-Проверил новый ролик: проблема подтверждается на видео `9705`.
 
-Что нашёл:
 
-- Моушн действительно создаётся и сохраняется: у сцены и у видео уже есть `motion_avatar_id = 7aa1cc0a...`.
-- Но при запуске генерации функция всё равно вернулась с предупреждением `Motion не применён: провайдер не успел обработать аватар, используется статичное фото`.
-- Значит текущая логика всё ещё слишком рано пытается использовать motion-avatar: даже после `add_motion` + паузы + одного ретрая провайдер не успевает подготовить ассет.
-  &nbsp;
+## Problem
 
-Обновлённый план исправления
+HeyGen's `add_motion` API creates motion avatars **asynchronously**. Even after 75 seconds of retries inside `generate-video-heygen`, HeyGen hasn't finished processing the avatar. The edge function was designed to create motion and use it in the same call — this is fundamentally flawed because HeyGen needs **minutes**, not seconds.
 
-1. Сделать моушн действительно надёжным
+The manual flow worked because there was a natural time gap between creating motion (clicking a button) and generating a video (clicking another button later). We need to replicate this gap in the automated flow.
 
-- В `generate-video-heygen` убрать ставку на “создали motion и сразу используем”.
-- Если motion-avatar был только что создан, пробовать использовать его серией ретраев с более длинным окном ожидания, а не один раз:
-  - первая попытка,
-  - затем повторные попытки с тем же `motion_avatar_id`,
-  - общий лимит ожидания порядка 60–90 секунд.
-- Не создавать новый talking photo на fallback раньше времени: сначала несколько раз пробовать один и тот же motion ID.
-- Если motion всё же не готов, сохранить его в базе и использовать статичное фото только для текущего ролика, но без потери motion для следующего запуска.
-- Логи сделать точнее: отдельно писать “motion created”, “motion not ready yet”, “motion finally reused”, чтобы было видно, на каком шаге сорвалось.
+## Solution: Pre-create motion BEFORE video generation
 
-2. Изменить стратегию использования motion на уровне сцены
+Separate motion creation from video generation by making it an early pipeline step that runs in parallel with voiceover/atmosphere generation. By the time video generation starts, the motion avatar will already be processed.
 
-- Если у approved-сцены уже есть `motion_avatar_id`, считать его приоритетным и не пересоздавать motion заново в этом же пайплайне.
-- Для “свежесозданного” motion добавить безопасное правило:
-  - либо ждём его дольше до готовности,
-  - либо честно используем только со следующей генерации, если провайдер не подтвердил готовность в разумный срок.
-- Это особенно важно, потому что motion у вас сценовый и дорогой — нельзя продолжать сценарий, где он создаётся, но почти всегда срывается на первом же ролике.
-  &nbsp;
+```text
+Current (broken):
+  generate-video-heygen: create_motion → wait 75s → still fails → static fallback
 
-4. Уточнить статусную модель, чтобы ролики не “зависали”
+Fixed:
+  triggerAutoGeneration:   create_motion (async, early)
+  handleFullVideoPipeline: create_motion if missing (before voiceover)
+  generate-video-heygen:   use existing motion_avatar_id → try once → fallback if not ready
+```
 
-- Сохранить разделение:
-  - `generation_status` — готовность видео от провайдера,
-  - `reel_status` — локальная постобработка.
-- Добавить более жёсткий переход состояний:
-  - как только есть `heygen_video_url`, ролик должен обязательно попасть в post-processing,
-  - если post-processing упал, статус должен быть `error`, а не бесконечный `generating`.
-- Для UI это уберёт кейс, когда ролик уже сгенерирован, но пользователь видит вечную обработку и остаётся без субтитров.
+## Changes
 
-Файлы, которые нужно править
+### 1. `src/pages/Index.tsx` — Add motion pre-warm step
 
-- `supabase/functions/generate-video-heygen/index.ts`
-  - серия ретраев для motion-avatar,
-  - более длинное окно ожидания,
-  - отсутствие преждевременного fallback,
-  - улучшенные activity logs.
-- При необходимости: `supabase/functions/check-video-status/index.ts`
-  - можно усилить возврат состояния, чтобы клиент надёжнее понимал, что HeyGen уже готов и пора запускать постобработку.
+**In `triggerAutoGeneration`** (line ~802, after voiceover step):
+- Add a new step: if `motion_enabled` setting is true and the video has a `playlist_id`/`advisor_id`, check if the corresponding scene has a `motion_avatar_id`. If not, call `add-avatar-motion` edge function to pre-create it. This runs in parallel with voiceover and atmosphere generation.
 
-Что это даст
+**In `handleFullVideoPipeline`** (line ~476, before HeyGen call):
+- Add a motion pre-creation check: if motion is enabled and scene lacks `motion_avatar_id`, call `add-avatar-motion` and wait for it. Then proceed with video generation. The voiceover generation (Step 1) already provides a natural delay of 10-30 seconds.
 
-- Моушн перестанет “формально создаваться, но фактически не применяться”.
-- Уже созданные motion-ассеты не будут теряться.
-  &nbsp;
+### 2. `supabase/functions/generate-video-heygen/index.ts` — Simplify motion usage
 
-Проверка после внедрения
+- **Remove the auto-creation block** (lines 243-335). Motion is now pre-created by the client pipeline.
+- **Remove the 5x retry loop** (lines 368-430). Replace with a single attempt: try using `motion_avatar_id` once. If "missing image dimensions", fall back to static immediately.
+- Keep the motion_avatar_id in the DB for future reuse.
+- This dramatically reduces function execution time (from ~90s to ~5s for the motion part).
 
-- Сгенерировать новый ролик по сцене, где уже есть `motion_avatar_id`, и убедиться, что предупреждение про fallback больше не появляется.
-- Проверить, что после готовности видео автоматически появляются:
-  - `reduced_video_url`,
-  - `video_path`,
-  - `reel_status = ready`.
-- Отдельно протестировать сценарий с перезагрузкой страницы в момент post-processing, чтобы субтитры всё равно доходили до финального файла.
+### 3. Result
+
+- Motion is created **minutes before** video generation (alongside voiceover/atmosphere)
+- No more timeouts or "provider didn't process in time" warnings
+- If motion is still not ready (rare), graceful single fallback to static, preserving the ID for next run
+- Edge function runs faster and never hits timeout limits
+
