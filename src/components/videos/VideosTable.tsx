@@ -263,7 +263,7 @@ export function VideosTable({
     }
 
     return result;
-  }, [videos, activeTab, filters.questionId, advancedFilters]);
+  }, [videos, activeTab, filters.questionId, advancedFilters, videoNumberSearch]);
 
   // Sort videos
   const sortedVideos = useMemo(() => {
