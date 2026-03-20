@@ -1,4 +1,5 @@
 import { useEffect, useState, useRef, useCallback } from 'react';
+import { cn } from '@/lib/utils';
 import { UnifiedPanel } from '@/components/ui/unified-panel';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
