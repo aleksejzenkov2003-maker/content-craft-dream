@@ -24,6 +24,7 @@ interface SceneSidePanelProps {
   onUpdateScene: (id: string, updates: Partial<PlaylistScene>) => Promise<void>;
   fetchVariants: (sceneId: string) => Promise<SceneVariant[]>;
   selectVariant: (variantId: string, sceneId: string) => Promise<void>;
+  deleteVariant: (variantId: string, sceneId: string) => Promise<void>;
 }
 
 const statusLabels: Record<string, string> = {
