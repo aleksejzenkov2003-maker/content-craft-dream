@@ -16,6 +16,7 @@ import { PromptsPage } from '@/components/prompts/PromptsPage';
 import { PublicationsTable } from '@/components/publishing/PublicationsTable';
 import { PublishingKanban } from '@/components/publishing/PublishingKanban';
 import { ScenesMatrix } from '@/components/scenes/ScenesMatrix';
+import { BackgroundVideosGrid } from '@/components/backgrounds/BackgroundVideosGrid';
 import { QuestionsTable } from '@/components/questions/QuestionsTable';
 
 
