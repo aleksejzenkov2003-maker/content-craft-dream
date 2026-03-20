@@ -1,80 +1,49 @@
 
 
-# Фоновые подложки — альтернативный режим генерации видео
+# Переделка "Фоновые подложки" — shared backgrounds с назначением как в промтах
 
-## Суть
+## Проблема
 
-Новый режим: HeyGen генерирует видео аватара **без фона** (из фото без фона), затем FFmpeg **накладывает** это видео поверх фонового видео-подложки. Подложки привязываются к связкам плейлист+адвайзор (как сцены монологов). Переключение режима — в настройках.
+Сейчас каждая комбинация плейлист+духовник = отдельная запись в `background_videos`. Но подложек всего ~6, и одна подложка назначается на много комбинаций. Нужна модель "создал подложку → назначил на комбинации", как в промтах. Также подложки могут быть фото (не только видео), и их нужно уметь открывать для просмотра.
 
-## Изменения
+## Изменения в БД
 
-### 1. База данных (миграция)
+Разделить на 2 таблицы:
+- **`background_videos`** — каталог подложек (id, title, media_url, media_type ['video'|'image'], created_at). Всего ~6 штук.
+- **`background_assignments`** — привязки (id, background_id → background_videos.id, playlist_id, advisor_id). Много записей.
 
-- **Таблица `background_videos`** — хранилище фоновых подложек:
-  - `id`, `playlist_id`, `advisor_id`, `video_url` (ссылка на загруженное видео), `title`, `created_at`
-  - Связка playlist+advisor определяет какая подложка используется для какого ролика
+Миграция:
+1. Создать `background_assignments`
+2. Перенести данные из текущей `background_videos` (playlist_id, advisor_id → assignments)
+3. Убрать playlist_id/advisor_id из `background_videos`, переименовать `video_url` → `media_url`, добавить `media_type text default 'video'`
 
-- **Таблица `advisors`** — новое поле:
-  - `avatar_photo_id uuid` — ссылка на фото без фона в `advisor_photos` (третий слот "Аватар" на скрине)
+## UI — `BackgroundVideosGrid.tsx` полная переделка
 
-- **Таблица `app_settings`** — новый ключ:
-  - `video_format_mode` со значениями `background_overlay` или `full_photo` (по умолчанию `full_photo` — текущий режим)
+**Основной вид** (как на скрине 1 — сетка карточек подложек):
+- Карточки подложек в grid (9:16 aspect ratio)
+- Каждая карточка: название сверху, превью фото/видео, кнопка удалить
+- Клик по карточке → открывает диалог редактирования/назначения
+- Кнопка "Новая подложка" → диалог создания
 
-### 2. Настройки — `VideoFormatSettings.tsx`
+**Диалог создания/редактирования** (как в промтах — 2 колонки):
+- **Левая колонка**: Название + загрузка файла (accept="video/*,image/*")
+- **Правая колонка**: Назначение на плейлисты/духовников — структура как в промтах для motion:
+  - Чекбокс-список плейлистов
+  - Внутри раскрытого плейлиста — чекбокс-список духовников
+  - Кнопка "Назначить"
 
-Добавить секцию **"Формат ролика"** (как на скрине 3):
-- Два чекбокса-радио: "Аватар на Фоновой подложке" и "Видео на базе всей фото"
-- Сохраняется в `app_settings` ключ `video_format_mode`
+**Просмотр**: клик по превью в карточке открывает MediaPreview (уже есть компонент)
 
-### 3. Сайдбар — новый пункт меню
+## Hook — `useBackgroundVideos.ts` переделка
 
-Добавить **"Фоновые подложки"** (id: `backgrounds`) между "Сцены монологов" и "Духовники" с иконкой `Film` или `Layers`.
-
-### 4. Страница "Фоновые подложки" — `BackgroundVideosGrid.tsx`
-
-По аналогии со страницей "Сцены монологов" (скрин 1):
-- Сетка карточек, сгруппированных по плейлистам (строки) × адвайзоры (столбцы)
-- Каждая карточка: превью видео + название
-- Кнопка "+ Новая подложка" — диалог (скрин 2):
-  - Слева: загрузка видео (FileUploader)
-  - Справа: выбор плейлиста (чекбокс) и адвайзоров (чекбоксы)
-  - Кнопки "Отмена" / "Сохранить"
-- Удаление подложки
-
-### 5. Духовники — третий слот "Аватар"
-
-В `AdvisorsGrid.tsx` диалоге редактирования (скрин 4):
-- Добавить третье превью "Аватар" рядом с "Основное фото" и "Миниатюра"
-- Добавить выпадающий список "Аватар" в секции выбора ролей фото
-- Сохранять `avatar_photo_id` в таблице `advisors`
-
-### 6. Edge Function `generate-video-heygen` — поддержка режима overlay
-
-Когда `video_format_mode === 'background_overlay'`:
-- Использовать `avatar_photo_id` адвайзора (фото без фона) вместо scene/primary фото
-- Передать HeyGen параметр для прозрачного фона (если поддерживается API) или генерировать на зелёном фоне
-- Сохранить URL результата как обычно
-
-### 7. FFmpeg overlay — новый этап постобработки
-
-После получения видео от HeyGen (когда режим `background_overlay`):
-- Найти фоновое видео для данного плейлист+адвайзор из `background_videos`
-- Наложить видео аватара поверх фонового видео через FFmpeg filter `overlay`
-- Сохранить результат как финальное видео
-
-## Порядок реализации
-
-1. Миграция БД (таблица `background_videos`, поле `avatar_photo_id`, настройка)
-2. Настройки — секция "Формат ролика"
-3. Сайдбар + роутинг нового таба
-4. Страница "Фоновые подложки"
-5. Духовники — слот "Аватар"
-6. Edge function — ветвление по режиму
-7. FFmpeg overlay в постобработке
+- Хранить `backgrounds` (каталог) и `assignments` (привязки) отдельно
+- CRUD для каталога: `addBackground`, `updateBackground`, `deleteBackground`
+- CRUD для привязок: `assignBackground(backgroundId, playlistId, advisorId)`, `unassignBackground(assignmentId)`
+- Метод `getBackgroundForPair(playlistId, advisorId)` — для использования в pipeline
 
 ## Файлы
 
-- **Новые**: `src/components/backgrounds/BackgroundVideosGrid.tsx`
-- **Правки**: `src/components/layout/Sidebar.tsx`, `src/pages/Index.tsx`, `src/components/settings/VideoFormatSettings.tsx`, `src/components/advisors/AdvisorsGrid.tsx`, `supabase/functions/generate-video-heygen/index.ts`, `src/hooks/useAdvisors.ts`
-- **Миграция**: новая таблица `background_videos`, ALTER `advisors` ADD `avatar_photo_id`
+- **Миграция**: новая таблица `background_assignments`, ALTER `background_videos`
+- **Переделка**: `src/components/backgrounds/BackgroundVideosGrid.tsx`, `src/hooks/useBackgroundVideos.ts`
+- **Мелкие правки**: `supabase/functions/generate-video-heygen/index.ts` — читать из `background_assignments` JOIN `background_videos`
 
