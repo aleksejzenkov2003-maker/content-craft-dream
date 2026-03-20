@@ -394,6 +394,7 @@ export function AdvisorsGrid({
                     is_active: selectedAdvisor.is_active,
                     scene_photo_id: selectedAdvisor.scene_photo_id,
                     thumbnail_photo_id: selectedAdvisor.thumbnail_photo_id,
+                    avatar_photo_id: selectedAdvisor.avatar_photo_id,
                   } as any);
                   closeAdvisorDialog();
                 }
