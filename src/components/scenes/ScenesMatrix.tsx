@@ -89,7 +89,7 @@ export function ScenesMatrix({ initialAdvisorId, initialPlaylistId, onConsumeNav
     };
     scenes.forEach(scene => {
       if (scene.playlist_id && scene.advisor_id) {
-        const key = `${scene.playlist_id}-${scene.advisor_id}`;
+        const key = getPairKey(scene.playlist_id, scene.advisor_id);
         const existing = map.get(key);
         if (!existing || priority(scene) > priority(existing)) {
           map.set(key, scene);
@@ -100,7 +100,7 @@ export function ScenesMatrix({ initialAdvisorId, initialPlaylistId, onConsumeNav
   }, [scenes]);
 
   const getScene = (playlistId: string, advisorId: string): PlaylistScene | undefined => {
-    return sceneMap.get(`${playlistId}-${advisorId}`);
+    return sceneMap.get(getPairKey(playlistId, advisorId));
   };
 
   // Auto-expand advisor and open scene when navigating from VideoSidePanel
