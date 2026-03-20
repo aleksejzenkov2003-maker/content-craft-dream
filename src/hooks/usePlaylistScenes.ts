@@ -15,7 +15,6 @@ export interface PlaylistScene {
   motion_avatar_id: string | null;
   created_at: string;
   updated_at: string;
-  // Joined data
   playlist?: {
     id: string;
     name: string;
@@ -36,29 +35,33 @@ export interface SceneVariant {
   created_at: string;
 }
 
+const SCENE_SELECT = `
+  *,
+  playlist:playlists (id, name),
+  advisor:advisors (id, name, display_name)
+`;
+
 export function usePlaylistScenes() {
   const [scenes, setScenes] = useState<PlaylistScene[]>([]);
   const [loading, setLoading] = useState(true);
 
-  const fetchScenes = useCallback(async () => {
+  const fetchScenes = useCallback(async (silent = false) => {
     try {
-      setLoading(true);
+      if (!silent) setLoading(true);
       const { data, error } = await supabase
         .from('playlist_scenes')
-        .select(`
-          *,
-          playlist:playlists (id, name),
-          advisor:advisors (id, name, display_name)
-        `)
+        .select(SCENE_SELECT)
         .order('created_at', { ascending: false });
 
       if (error) throw error;
-      setScenes(data || []);
+      setScenes((data || []) as PlaylistScene[]);
     } catch (error: any) {
       console.error('Error fetching playlist scenes:', error);
-      toast.error('Ошибка загрузки сцен');
+      if (!silent) {
+        toast.error('Ошибка загрузки сцен');
+      }
     } finally {
-      setLoading(false);
+      if (!silent) setLoading(false);
     }
   }, []);
 
@@ -66,21 +69,38 @@ export function usePlaylistScenes() {
     fetchScenes();
   }, [fetchScenes]);
 
+  useEffect(() => {
+    const channel = supabase
+      .channel('playlist-senes-live')
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'playlist_scenes',
+        },
+        () => {
+          void fetchScenes(true);
+        }
+      )
+      .subscribe();
+
+    return () => {
+      void supabase.removeChannel(channel);
+    };
+  }, [fetchScenes]);
+
   const addScene = async (data: Partial<PlaylistScene>) => {
     try {
       const { data: newScene, error } = await supabase
         .from('playlist_scenes')
         .insert(data)
-        .select(`
-          *,
-          playlist:playlists (id, name),
-          advisor:advisors (id, name, display_name)
-        `)
+        .select(SCENE_SELECT)
         .single();
 
       if (error) throw error;
 
-      await fetchScenes();
+      await fetchScenes(true);
       toast.success('Сцена создана');
       return newScene;
     } catch (error: any) {
@@ -99,7 +119,7 @@ export function usePlaylistScenes() {
 
       if (error) throw error;
 
-      await fetchScenes();
+      await fetchScenes(true);
     } catch (error: any) {
       console.error('Error updating scene:', error);
       toast.error('Ошибка обновления сцены');
@@ -116,7 +136,7 @@ export function usePlaylistScenes() {
 
       if (error) throw error;
 
-      await fetchScenes();
+      await fetchScenes(true);
       toast.success('Сцена удалена');
     } catch (error: any) {
       console.error('Error deleting scene:', error);
@@ -140,7 +160,7 @@ export function usePlaylistScenes() {
 
       if (error) throw error;
 
-      await fetchScenes();
+      await fetchScenes(true);
       toast.success(`Импортировано ${items.length} сцен`);
     } catch (error: any) {
       console.error('Error bulk importing scenes:', error);
@@ -167,13 +187,11 @@ export function usePlaylistScenes() {
 
   const selectVariant = async (variantId: string, sceneId: string) => {
     try {
-      // Deselect all variants for this scene
       await supabase
         .from('scene_variants')
         .update({ is_selected: false })
         .eq('scene_id', sceneId);
 
-      // Select the chosen variant
       const { data: variant, error: selectError } = await supabase
         .from('scene_variants')
         .update({ is_selected: true })
@@ -183,10 +201,9 @@ export function usePlaylistScenes() {
 
       if (selectError) throw selectError;
 
-      // Update scene_url AND clear stale motion on the main scene record
       await supabase
         .from('playlist_scenes')
-        .update({ 
+        .update({
           scene_url: (variant as SceneVariant).image_url,
           motion_avatar_id: null,
           motion_type: null,
@@ -194,7 +211,7 @@ export function usePlaylistScenes() {
         })
         .eq('id', sceneId);
 
-      await fetchScenes();
+      await fetchScenes(true);
       toast.success('Вариант выбран');
     } catch (error: any) {
       console.error('Error selecting variant:', error);
