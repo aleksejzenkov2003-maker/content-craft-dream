@@ -264,9 +264,8 @@ serve(async (req) => {
           console.log('Auto add_motion response:', JSON.stringify(motionResult));
           const newMotionId = motionResult.data?.talking_photo_id || motionResult.data?.avatar_id || motionResult.data?.id;
           if (newMotionId) {
-            // Wait for HeyGen to finish processing the motion avatar
-            console.log('Waiting 20s for HeyGen to process motion avatar...');
-            await new Promise(resolve => setTimeout(resolve, 20000));
+            // Motion avatar created — retry loop in HeyGen call will handle readiness
+            console.log('Motion avatar created, will use retry loop for readiness check');
             effectiveMotionAvatarId = newMotionId;
             console.log('Auto-generated motion_avatar_id:', newMotionId);
             // Save to scene for reuse (only approved scene with URL)
@@ -361,43 +360,76 @@ serve(async (req) => {
       dimension,
     });
 
-    let heygenResponse = await fetch(heygenEndpoint, {
-      method: 'POST',
-      headers: { 'X-Api-Key': heygenKey, 'Content-Type': 'application/json' },
-      body: buildHeygenBody(talkingPhotoIdFinal, !!effectiveMotionAvatarId && heygenMode === 'v3'),
-    });
+    // --- Call HeyGen API with multi-retry loop for motion avatar ---
+    const useMotion = !!effectiveMotionAvatarId && heygenMode === 'v3';
+    let heygenResponse: Response;
 
-    // If motion_avatar_id failed (missing dimensions), retry with delay then fall back to static
-    if (!heygenResponse.ok) {
-      const errorText = await heygenResponse.text();
-      if (errorText.includes('missing image dimensions') && effectiveMotionAvatarId) {
-        console.warn('Motion avatar not ready — retrying after 15s delay...');
-        
-        // Retry 1: wait 15s and try motion again
-        await new Promise(resolve => setTimeout(resolve, 15000));
+    if (useMotion) {
+      // Try motion avatar with multiple retries (total ~75s window)
+      const MOTION_MAX_ATTEMPTS = 5;
+      const MOTION_RETRY_DELAY_MS = 15000;
+      let motionSucceeded = false;
+
+      for (let attempt = 1; attempt <= MOTION_MAX_ATTEMPTS; attempt++) {
+        console.log(`Motion attempt ${attempt}/${MOTION_MAX_ATTEMPTS} with avatar ${talkingPhotoIdFinal}`);
         heygenResponse = await fetch(heygenEndpoint, {
           method: 'POST',
           headers: { 'X-Api-Key': heygenKey, 'Content-Type': 'application/json' },
           body: buildHeygenBody(talkingPhotoIdFinal, true),
         });
 
-        if (!heygenResponse.ok) {
-          const retryErrorText = await heygenResponse.text();
-          console.warn('Motion retry failed — falling back to static photo. DO NOT clear motion_avatar_id for future reuse.');
-          motionWarning = 'Motion не применён: провайдер не успел обработать аватар, используется статичное фото';
-          // DO NOT clear motion_avatar_id from DB — it will be available for next generation
-          // Fresh upload and retry with static photo
-          talkingPhotoIdFinal = await uploadTalkingPhoto(imageUrl!, heygenKey);
-          console.log('Fallback with fresh static talking_photo_id:', talkingPhotoIdFinal);
-          heygenResponse = await fetch(heygenEndpoint, {
-            method: 'POST',
-            headers: { 'X-Api-Key': heygenKey, 'Content-Type': 'application/json' },
-            body: buildHeygenBody(talkingPhotoIdFinal, false),
-          });
+        if (heygenResponse.ok) {
+          console.log(`Motion succeeded on attempt ${attempt}`);
+          motionSucceeded = true;
+          break;
+        }
+
+        const errorText = await heygenResponse.text();
+        if (errorText.includes('missing image dimensions')) {
+          console.warn(`Motion not ready yet (attempt ${attempt}), waiting ${MOTION_RETRY_DELAY_MS / 1000}s...`);
+          await supabase.from('activity_log').insert({
+            action: 'motion_not_ready',
+            entity_type: 'video',
+            entity_id: videoId,
+            details: { attempt, motion_avatar_id: talkingPhotoIdFinal, error_snippet: errorText.slice(0, 200) },
+          }).catch(() => {});
+
+          if (attempt < MOTION_MAX_ATTEMPTS) {
+            await new Promise(resolve => setTimeout(resolve, MOTION_RETRY_DELAY_MS));
+          }
         } else {
-          console.log('Motion retry succeeded on second attempt');
+          // Non-motion error — don't retry, break immediately
+          console.error(`HeyGen API error (non-motion): ${errorText.slice(0, 300)}`);
+          break;
         }
       }
+
+      if (!motionSucceeded) {
+        // Fall back to static photo, preserve motion_avatar_id in DB for future use
+        motionWarning = 'Motion не применён: провайдер не успел обработать аватар, используется статичное фото';
+        console.warn('All motion retries exhausted — falling back to static photo. motion_avatar_id preserved in DB.');
+        await supabase.from('activity_log').insert({
+          action: 'motion_fallback_to_static',
+          entity_type: 'video',
+          entity_id: videoId,
+          details: { motion_avatar_id: talkingPhotoIdFinal, total_attempts: MOTION_MAX_ATTEMPTS },
+        }).catch(() => {});
+
+        talkingPhotoIdFinal = await uploadTalkingPhoto(imageUrl!, heygenKey);
+        console.log('Fallback static talking_photo_id:', talkingPhotoIdFinal);
+        heygenResponse = await fetch(heygenEndpoint, {
+          method: 'POST',
+          headers: { 'X-Api-Key': heygenKey, 'Content-Type': 'application/json' },
+          body: buildHeygenBody(talkingPhotoIdFinal, false),
+        });
+      }
+    } else {
+      // No motion — single call
+      heygenResponse = await fetch(heygenEndpoint, {
+        method: 'POST',
+        headers: { 'X-Api-Key': heygenKey, 'Content-Type': 'application/json' },
+        body: buildHeygenBody(talkingPhotoIdFinal, false),
+      });
     }
 
     if (!heygenResponse.ok) {
