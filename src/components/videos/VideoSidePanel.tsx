@@ -244,10 +244,13 @@ export function VideoSidePanel({
   const atmosphereUrl = (video as any).atmosphere_url;
   const normalizedCoverStatus = video.cover_status === 'generating' && !!video.front_cover_url ? 'ready' : video.cover_status || 'pending';
   const isGeneratingCover = normalizedCoverStatus === 'generating';
+  const hasGeneratedVideo = !!(video.video_path || video.heygen_video_url);
+  const effectiveGenerationStatus = video.generation_status === 'generating' && hasGeneratedVideo ? 'ready' : video.generation_status;
+  const effectiveReelStatus = video.reel_status === 'generating' && !!video.video_path ? 'ready' : video.reel_status;
 
   const atmosStatus = resolveAssetStatus(atmosphereUrl, video.cover_status);
   const coverStatus = resolveAssetStatus(video.front_cover_url, video.cover_status);
-  const videoStatus = resolveAssetStatus(video.video_path || video.heygen_video_url, video.generation_status);
+  const videoStatus = resolveAssetStatus(video.video_path || video.heygen_video_url, effectiveGenerationStatus);
 
   const effectiveDuration = video.video_duration || detectedDuration;
   const durationFormatted = effectiveDuration ? `${Math.floor(effectiveDuration / 60)}:${String(Math.round(effectiveDuration % 60)).padStart(2, '0')}` : '—';
@@ -301,9 +304,9 @@ export function VideoSidePanel({
         <TabsContent value="generation" className="space-y-2 mt-2">
           {/* Pipeline status banner */}
           {(() => {
-            const reelBusy = video.reel_status === 'generating';
-            const genBusy = video.generation_status === 'generating';
-            const hasError = video.generation_status === 'error' || video.reel_status === 'error';
+            const reelBusy = effectiveReelStatus === 'generating';
+            const genBusy = effectiveGenerationStatus === 'generating';
+            const hasError = (effectiveGenerationStatus === 'error' || effectiveReelStatus === 'error') && !hasGeneratedVideo;
             const genCount = (video as any).generation_count || 0;
             if (genBusy || reelBusy || hasError) {
               return (
@@ -335,7 +338,7 @@ export function VideoSidePanel({
           {(() => {
             const atmosBusy = isGeneratingCover || localBusy === 'atmosphere';
             const coverBusy = isGeneratingCover || localBusy === 'cover';
-            const videoBusy = video.generation_status === 'generating' || video.reel_status === 'generating' || isGenerating || localBusy === 'video';
+            const videoBusy = effectiveGenerationStatus === 'generating' || effectiveReelStatus === 'generating' || isGenerating || localBusy === 'video';
             const atmosDisabled = atmosBusy;
             const coverDisabled = coverBusy || !atmosphereUrl;
             const videoDisabled = videoBusy;
@@ -449,11 +452,11 @@ export function VideoSidePanel({
                 </div>
               ) : (
                 <div className="relative aspect-[9/16] rounded-md border-2 border-dashed border-muted-foreground/20 bg-muted/30 flex flex-col items-center justify-center gap-1">
-                  {video.generation_status === 'generating' || video.reel_status === 'generating' ? (
+                  {effectiveGenerationStatus === 'generating' || effectiveReelStatus === 'generating' ? (
                     <>
                       <Loader2 className="w-6 h-6 animate-spin text-primary" />
                       <span className="text-[8px] text-muted-foreground">
-                        {video.generation_status === 'generating' ? 'Генерация...' : 'Постобработка...'}
+                        {effectiveGenerationStatus === 'generating' ? 'Генерация...' : 'Постобработка...'}
                       </span>
                     </>
                   ) : (
