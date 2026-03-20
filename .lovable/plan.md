@@ -1,46 +1,80 @@
 
 
-## Problem
+# Фоновые подложки — альтернативный режим генерации видео
 
-HeyGen's `add_motion` API creates motion avatars **asynchronously**. Even after 75 seconds of retries inside `generate-video-heygen`, HeyGen hasn't finished processing the avatar. The edge function was designed to create motion and use it in the same call — this is fundamentally flawed because HeyGen needs **minutes**, not seconds.
+## Суть
 
-The manual flow worked because there was a natural time gap between creating motion (clicking a button) and generating a video (clicking another button later). We need to replicate this gap in the automated flow.
+Новый режим: HeyGen генерирует видео аватара **без фона** (из фото без фона), затем FFmpeg **накладывает** это видео поверх фонового видео-подложки. Подложки привязываются к связкам плейлист+адвайзор (как сцены монологов). Переключение режима — в настройках.
 
-## Solution: Pre-create motion BEFORE video generation
+## Изменения
 
-Separate motion creation from video generation by making it an early pipeline step that runs in parallel with voiceover/atmosphere generation. By the time video generation starts, the motion avatar will already be processed.
+### 1. База данных (миграция)
 
-```text
-Current (broken):
-  generate-video-heygen: create_motion → wait 75s → still fails → static fallback
+- **Таблица `background_videos`** — хранилище фоновых подложек:
+  - `id`, `playlist_id`, `advisor_id`, `video_url` (ссылка на загруженное видео), `title`, `created_at`
+  - Связка playlist+advisor определяет какая подложка используется для какого ролика
 
-Fixed:
-  triggerAutoGeneration:   create_motion (async, early)
-  handleFullVideoPipeline: create_motion if missing (before voiceover)
-  generate-video-heygen:   use existing motion_avatar_id → try once → fallback if not ready
-```
+- **Таблица `advisors`** — новое поле:
+  - `avatar_photo_id uuid` — ссылка на фото без фона в `advisor_photos` (третий слот "Аватар" на скрине)
 
-## Changes
+- **Таблица `app_settings`** — новый ключ:
+  - `video_format_mode` со значениями `background_overlay` или `full_photo` (по умолчанию `full_photo` — текущий режим)
 
-### 1. `src/pages/Index.tsx` — Add motion pre-warm step
+### 2. Настройки — `VideoFormatSettings.tsx`
 
-**In `triggerAutoGeneration`** (line ~802, after voiceover step):
-- Add a new step: if `motion_enabled` setting is true and the video has a `playlist_id`/`advisor_id`, check if the corresponding scene has a `motion_avatar_id`. If not, call `add-avatar-motion` edge function to pre-create it. This runs in parallel with voiceover and atmosphere generation.
+Добавить секцию **"Формат ролика"** (как на скрине 3):
+- Два чекбокса-радио: "Аватар на Фоновой подложке" и "Видео на базе всей фото"
+- Сохраняется в `app_settings` ключ `video_format_mode`
 
-**In `handleFullVideoPipeline`** (line ~476, before HeyGen call):
-- Add a motion pre-creation check: if motion is enabled and scene lacks `motion_avatar_id`, call `add-avatar-motion` and wait for it. Then proceed with video generation. The voiceover generation (Step 1) already provides a natural delay of 10-30 seconds.
+### 3. Сайдбар — новый пункт меню
 
-### 2. `supabase/functions/generate-video-heygen/index.ts` — Simplify motion usage
+Добавить **"Фоновые подложки"** (id: `backgrounds`) между "Сцены монологов" и "Духовники" с иконкой `Film` или `Layers`.
 
-- **Remove the auto-creation block** (lines 243-335). Motion is now pre-created by the client pipeline.
-- **Remove the 5x retry loop** (lines 368-430). Replace with a single attempt: try using `motion_avatar_id` once. If "missing image dimensions", fall back to static immediately.
-- Keep the motion_avatar_id in the DB for future reuse.
-- This dramatically reduces function execution time (from ~90s to ~5s for the motion part).
+### 4. Страница "Фоновые подложки" — `BackgroundVideosGrid.tsx`
 
-### 3. Result
+По аналогии со страницей "Сцены монологов" (скрин 1):
+- Сетка карточек, сгруппированных по плейлистам (строки) × адвайзоры (столбцы)
+- Каждая карточка: превью видео + название
+- Кнопка "+ Новая подложка" — диалог (скрин 2):
+  - Слева: загрузка видео (FileUploader)
+  - Справа: выбор плейлиста (чекбокс) и адвайзоров (чекбоксы)
+  - Кнопки "Отмена" / "Сохранить"
+- Удаление подложки
 
-- Motion is created **minutes before** video generation (alongside voiceover/atmosphere)
-- No more timeouts or "provider didn't process in time" warnings
-- If motion is still not ready (rare), graceful single fallback to static, preserving the ID for next run
-- Edge function runs faster and never hits timeout limits
+### 5. Духовники — третий слот "Аватар"
+
+В `AdvisorsGrid.tsx` диалоге редактирования (скрин 4):
+- Добавить третье превью "Аватар" рядом с "Основное фото" и "Миниатюра"
+- Добавить выпадающий список "Аватар" в секции выбора ролей фото
+- Сохранять `avatar_photo_id` в таблице `advisors`
+
+### 6. Edge Function `generate-video-heygen` — поддержка режима overlay
+
+Когда `video_format_mode === 'background_overlay'`:
+- Использовать `avatar_photo_id` адвайзора (фото без фона) вместо scene/primary фото
+- Передать HeyGen параметр для прозрачного фона (если поддерживается API) или генерировать на зелёном фоне
+- Сохранить URL результата как обычно
+
+### 7. FFmpeg overlay — новый этап постобработки
+
+После получения видео от HeyGen (когда режим `background_overlay`):
+- Найти фоновое видео для данного плейлист+адвайзор из `background_videos`
+- Наложить видео аватара поверх фонового видео через FFmpeg filter `overlay`
+- Сохранить результат как финальное видео
+
+## Порядок реализации
+
+1. Миграция БД (таблица `background_videos`, поле `avatar_photo_id`, настройка)
+2. Настройки — секция "Формат ролика"
+3. Сайдбар + роутинг нового таба
+4. Страница "Фоновые подложки"
+5. Духовники — слот "Аватар"
+6. Edge function — ветвление по режиму
+7. FFmpeg overlay в постобработке
+
+## Файлы
+
+- **Новые**: `src/components/backgrounds/BackgroundVideosGrid.tsx`
+- **Правки**: `src/components/layout/Sidebar.tsx`, `src/pages/Index.tsx`, `src/components/settings/VideoFormatSettings.tsx`, `src/components/advisors/AdvisorsGrid.tsx`, `supabase/functions/generate-video-heygen/index.ts`, `src/hooks/useAdvisors.ts`
+- **Миграция**: новая таблица `background_videos`, ALTER `advisors` ADD `avatar_photo_id`
 
