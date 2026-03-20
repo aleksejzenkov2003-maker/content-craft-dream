@@ -304,9 +304,9 @@ export function VideoSidePanel({
         <TabsContent value="generation" className="space-y-2 mt-2">
           {/* Pipeline status banner */}
           {(() => {
-            const reelBusy = video.reel_status === 'generating';
-            const genBusy = video.generation_status === 'generating';
-            const hasError = video.generation_status === 'error' || video.reel_status === 'error';
+            const reelBusy = effectiveReelStatus === 'generating';
+            const genBusy = effectiveGenerationStatus === 'generating';
+            const hasError = (effectiveGenerationStatus === 'error' || effectiveReelStatus === 'error') && !hasGeneratedVideo;
             const genCount = (video as any).generation_count || 0;
             if (genBusy || reelBusy || hasError) {
               return (
@@ -338,7 +338,7 @@ export function VideoSidePanel({
           {(() => {
             const atmosBusy = isGeneratingCover || localBusy === 'atmosphere';
             const coverBusy = isGeneratingCover || localBusy === 'cover';
-            const videoBusy = video.generation_status === 'generating' || video.reel_status === 'generating' || isGenerating || localBusy === 'video';
+            const videoBusy = effectiveGenerationStatus === 'generating' || effectiveReelStatus === 'generating' || isGenerating || localBusy === 'video';
             const atmosDisabled = atmosBusy;
             const coverDisabled = coverBusy || !atmosphereUrl;
             const videoDisabled = videoBusy;
