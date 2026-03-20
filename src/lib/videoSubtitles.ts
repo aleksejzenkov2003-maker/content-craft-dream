@@ -123,20 +123,10 @@ function buildHighlightDrawtextFilter(
   const filters: string[] = [];
 
   for (const b of blocks) {
-    if (!b.words || b.words.length === 0) {
-      const escaped = escapeDrawtext(b.text);
-      filters.push(
-        `drawtext=fontfile=${FONT_PATH}:text='${escaped}':fontsize=${fontSize}:fontcolor=white:borderw=3:bordercolor=black:x=(w-text_w)/2:y=(h*0.55):enable='between(t,${b.startSec.toFixed(3)},${b.endSec.toFixed(3)})'`
-      );
-      continue;
-    }
-
-    for (const w of b.words) {
-      const escaped = escapeDrawtext(w.word);
-      filters.push(
-        `drawtext=fontfile=${FONT_PATH}:text='${escaped}':fontsize=${fontSize}:fontcolor=white:borderw=3:bordercolor=black:x=(w-text_w)/2:y=(h*0.55):enable='between(t,${w.start.toFixed(3)},${w.end.toFixed(3)})'`
-      );
-    }
+    const escaped = escapeDrawtext(b.text);
+    filters.push(
+      `drawtext=fontfile=${FONT_PATH}:text='${escaped}':fontsize=${fontSize}:fontcolor=white:borderw=3:bordercolor=black:x=(w-text_w)/2:y=(h*0.55):enable='between(t,${b.startSec.toFixed(3)},${b.endSec.toFixed(3)})'`
+    );
   }
 
   return filters.join(',');
