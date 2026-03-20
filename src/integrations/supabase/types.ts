@@ -99,6 +99,7 @@ export type Database = {
       }
       advisors: {
         Row: {
+          avatar_photo_id: string | null
           back_cover_template_url: string | null
           created_at: string
           default_channels: string[] | null
@@ -113,6 +114,7 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          avatar_photo_id?: string | null
           back_cover_template_url?: string | null
           created_at?: string
           default_channels?: string[] | null
@@ -127,6 +129,7 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          avatar_photo_id?: string | null
           back_cover_template_url?: string | null
           created_at?: string
           default_channels?: string[] | null
@@ -141,6 +144,13 @@ export type Database = {
           updated_at?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "advisors_avatar_photo_id_fkey"
+            columns: ["avatar_photo_id"]
+            isOneToOne: false
+            referencedRelation: "advisor_photos"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "advisors_scene_photo_id_fkey"
             columns: ["scene_photo_id"]
@@ -201,6 +211,51 @@ export type Database = {
           process_label?: string
         }
         Relationships: []
+      }
+      background_videos: {
+        Row: {
+          advisor_id: string | null
+          created_at: string
+          id: string
+          playlist_id: string | null
+          title: string | null
+          updated_at: string
+          video_url: string
+        }
+        Insert: {
+          advisor_id?: string | null
+          created_at?: string
+          id?: string
+          playlist_id?: string | null
+          title?: string | null
+          updated_at?: string
+          video_url: string
+        }
+        Update: {
+          advisor_id?: string | null
+          created_at?: string
+          id?: string
+          playlist_id?: string | null
+          title?: string | null
+          updated_at?: string
+          video_url?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "background_videos_advisor_id_fkey"
+            columns: ["advisor_id"]
+            isOneToOne: false
+            referencedRelation: "advisors"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "background_videos_playlist_id_fkey"
+            columns: ["playlist_id"]
+            isOneToOne: false
+            referencedRelation: "playlists"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       channels: {
         Row: {
