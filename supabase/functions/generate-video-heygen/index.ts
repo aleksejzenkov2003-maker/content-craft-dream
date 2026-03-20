@@ -373,12 +373,12 @@ serve(async (req) => {
       action: 'heygen_video_started',
       entity_type: 'video',
       entity_id: videoId,
-      details: { heygen_video_id: heygenVideoId, used_scene: !!sceneUrl, motion_used: !!effectiveMotionAvatarId, motion_avatar_id: effectiveMotionAvatarId || null, motion_warning: motionWarning || null },
+      details: { heygen_video_id: heygenVideoId, used_scene: !!sceneUrl, motion_used: !!effectiveMotionAvatarId, motion_avatar_id: effectiveMotionAvatarId || null, motion_warning: motionWarning || null, overlay_mode: isOverlayModePre, background_video_url: backgroundVideoUrl },
       duration_ms: durationMs,
     });
 
     return new Response(
-      JSON.stringify({ success: true, heygenVideoId, usedScene: !!sceneUrl, motionWarning }),
+      JSON.stringify({ success: true, heygenVideoId, usedScene: !!sceneUrl, motionWarning, overlayMode: isOverlayModePre, backgroundVideoUrl }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
 
