@@ -235,116 +235,18 @@ serve(async (req) => {
       ? (sceneMotionAvatarId || (sceneUrl ? null : video.motion_avatar_id)) 
       : null;
 
-    // Auto-generate motion if enabled but not yet created for this scene
-    // Use scene prompt, or video-level prompt, or default fallback
-    const effectiveMotionPrompt = sceneMotionPrompt || video.motion_prompt || 'The person gestures naturally with their hands while explaining something';
-    const effectiveMotionType = sceneMotionType || video.motion_type || 'consistent';
-
-    if (motionEnabled && !effectiveMotionAvatarId && heygenMode === 'v3' && imageUrl) {
-      console.log('Motion enabled with prompt but no motion_avatar_id — auto-generating motion...');
-      const motionStartTime = Date.now();
-      try {
-        const freshTalkingPhotoId = await uploadTalkingPhoto(imageUrl, heygenKey);
-        const motionPrompt = effectiveMotionPrompt;
-        const resolvedMotionType = effectiveMotionType;
-        const motionBody = {
-          id: freshTalkingPhotoId,
-          prompt: motionPrompt.slice(0, 512),
-          motion_type: resolvedMotionType,
-        };
-        console.log('Auto add_motion:', JSON.stringify(motionBody));
-        const motionRes = await fetch('https://api.heygen.com/v2/photo_avatar/add_motion', {
-          method: 'POST',
-          headers: { 'X-Api-Key': heygenKey, 'Content-Type': 'application/json' },
-          body: JSON.stringify(motionBody),
-        });
-        const motionDurationMs = Date.now() - motionStartTime;
-        if (motionRes.ok) {
-          const motionResult = await motionRes.json();
-          console.log('Auto add_motion response:', JSON.stringify(motionResult));
-          const newMotionId = motionResult.data?.talking_photo_id || motionResult.data?.avatar_id || motionResult.data?.id;
-          if (newMotionId) {
-            // Motion avatar created — retry loop in HeyGen call will handle readiness
-            console.log('Motion avatar created, will use retry loop for readiness check');
-            effectiveMotionAvatarId = newMotionId;
-            console.log('Auto-generated motion_avatar_id:', newMotionId);
-            // Save to scene for reuse (only approved scene with URL)
-            if (video.playlist_id && video.advisor_id) {
-              await supabase.from('playlist_scenes').update({
-                motion_avatar_id: newMotionId,
-                motion_type: resolvedMotionType,
-              }).eq('playlist_id', video.playlist_id)
-                .eq('advisor_id', video.advisor_id)
-                .eq('status', 'approved')
-                .not('scene_url', 'is', null);
-            }
-            // Also save to video
-            await supabase.from('videos').update({
-              motion_avatar_id: newMotionId,
-              motion_type: resolvedMotionType,
-              motion_prompt: motionPrompt,
-            }).eq('id', videoId);
-            // Log success
-            await supabase.from('activity_log').insert({
-              action: 'auto_motion_created',
-              entity_type: 'video',
-              entity_id: videoId,
-              details: { motion_avatar_id: newMotionId, motion_type: resolvedMotionType, talking_photo_id: freshTalkingPhotoId },
-              duration_ms: motionDurationMs,
-            });
-          } else {
-            const noIdMsg = 'Motion: no ID returned by provider';
-            motionWarning = noIdMsg;
-            console.error('Auto motion: no ID in response:', JSON.stringify(motionResult));
-            await supabase.from('activity_log').insert({
-              action: 'auto_motion_failed',
-              entity_type: 'video',
-              entity_id: videoId,
-              details: { error: 'No motion ID in response', response: JSON.stringify(motionResult).slice(0, 500) },
-              duration_ms: motionDurationMs,
-            });
-          }
-        } else {
-          const errText = await motionRes.text();
-          const isCredits = errText.includes('insufficient_credit') || errText.includes('insufficient credit');
-          motionWarning = isCredits 
-            ? 'Motion не применён: недостаточно кредитов у провайдера' 
-            : `Motion не применён: ошибка API (${motionRes.status})`;
-          console.error('Auto motion generation failed:', motionRes.status, errText);
-          await supabase.from('activity_log').insert({
-            action: 'auto_motion_failed',
-            entity_type: 'video',
-            entity_id: videoId,
-            details: { error: `API ${motionRes.status}`, message: errText.slice(0, 500), motion_type: resolvedMotionType },
-            duration_ms: motionDurationMs,
-          });
-        }
-      } catch (motionErr) {
-        const motionDurationMs = Date.now() - motionStartTime;
-        motionWarning = `Motion не применён: ${motionErr instanceof Error ? motionErr.message : 'неизвестная ошибка'}`;
-        console.error('Auto motion error (non-fatal):', motionErr);
-        await supabase.from('activity_log').insert({
-          action: 'auto_motion_failed',
-          entity_type: 'video',
-          entity_id: videoId,
-          details: { error: motionErr instanceof Error ? motionErr.message : 'Unknown error' },
-          duration_ms: motionDurationMs,
-        });
-        // ignore logging errors
-      }
-    }
-
+    // Motion is now pre-created by the client pipeline (triggerAutoGeneration / handleFullVideoPipeline).
+    // Here we only attempt to USE an existing motion_avatar_id — no creation, no long retry loops.
 
     if (effectiveMotionAvatarId && heygenMode === 'v3') {
       talkingPhotoIdFinal = effectiveMotionAvatarId;
-      console.log('Using motion_avatar_id:', talkingPhotoIdFinal, 'source:', sceneMotionAvatarId ? 'scene' : (video.motion_avatar_id ? 'video' : 'auto-generated'));
+      console.log('Using pre-created motion_avatar_id:', talkingPhotoIdFinal, 'source:', sceneMotionAvatarId ? 'scene' : 'video');
     } else {
       talkingPhotoIdFinal = await uploadTalkingPhoto(imageUrl, heygenKey);
-      console.log('talking_photo_id (fresh upload):', talkingPhotoIdFinal);
+      console.log('talking_photo_id (fresh upload, no motion):', talkingPhotoIdFinal);
     }
 
-
-    // --- Call HeyGen API (with retry on bad motion_avatar_id) ---
+    // --- Call HeyGen API ---
     const buildHeygenBody = (photoId: string, useExpressive: boolean) => JSON.stringify({
       title: video.video_title || video.question || `Video ${videoId}`,
       video_inputs: [{
@@ -361,72 +263,44 @@ serve(async (req) => {
       dimension,
     });
 
-    // --- Call HeyGen API with multi-retry loop for motion avatar ---
     const useMotion = !!effectiveMotionAvatarId && heygenMode === 'v3';
     let heygenResponse: Response;
 
     if (useMotion) {
-      // Try motion avatar with multiple retries (total ~75s window)
-      const MOTION_MAX_ATTEMPTS = 5;
-      const MOTION_RETRY_DELAY_MS = 15000;
-      let motionSucceeded = false;
+      // Single attempt with motion avatar — if not ready, fall back immediately
+      console.log('Attempting motion avatar:', talkingPhotoIdFinal);
+      heygenResponse = await fetch(heygenEndpoint, {
+        method: 'POST',
+        headers: { 'X-Api-Key': heygenKey, 'Content-Type': 'application/json' },
+        body: buildHeygenBody(talkingPhotoIdFinal, true),
+      });
 
-      for (let attempt = 1; attempt <= MOTION_MAX_ATTEMPTS; attempt++) {
-        console.log(`Motion attempt ${attempt}/${MOTION_MAX_ATTEMPTS} with avatar ${talkingPhotoIdFinal}`);
-        heygenResponse = await fetch(heygenEndpoint, {
-          method: 'POST',
-          headers: { 'X-Api-Key': heygenKey, 'Content-Type': 'application/json' },
-          body: buildHeygenBody(talkingPhotoIdFinal, true),
-        });
-
-        if (heygenResponse.ok) {
-          console.log(`Motion succeeded on attempt ${attempt}`);
-          motionSucceeded = true;
-          break;
-        }
-
+      if (!heygenResponse.ok) {
         const errorText = await heygenResponse.text();
         if (errorText.includes('missing image dimensions')) {
-          console.warn(`Motion not ready yet (attempt ${attempt}), waiting ${MOTION_RETRY_DELAY_MS / 1000}s...`);
+          // Motion not ready yet — fall back to static, preserve motion_avatar_id for next run
+          motionWarning = 'Motion не применён: аватар ещё обрабатывается, используется статичное фото (motion сохранён для следующего ролика)';
+          console.warn('Motion not ready — graceful fallback to static photo. ID preserved in DB.');
           try {
             await supabase.from('activity_log').insert({
-              action: 'motion_not_ready',
+              action: 'motion_fallback_to_static',
               entity_type: 'video',
               entity_id: videoId,
-              details: { attempt, motion_avatar_id: talkingPhotoIdFinal, error_snippet: errorText.slice(0, 200) },
+              details: { motion_avatar_id: talkingPhotoIdFinal, reason: 'not_ready_single_attempt' },
             });
-          } catch (_) { /* ignore logging error */ }
+          } catch (_) { /* ignore */ }
 
-          if (attempt < MOTION_MAX_ATTEMPTS) {
-            await new Promise(resolve => setTimeout(resolve, MOTION_RETRY_DELAY_MS));
-          }
-        } else {
-          // Non-motion error — don't retry, break immediately
-          console.error(`HeyGen API error (non-motion): ${errorText.slice(0, 300)}`);
-          break;
-        }
-      }
-
-      if (!motionSucceeded) {
-        // Fall back to static photo, preserve motion_avatar_id in DB for future use
-        motionWarning = 'Motion не применён: провайдер не успел обработать аватар, используется статичное фото';
-        console.warn('All motion retries exhausted — falling back to static photo. motion_avatar_id preserved in DB.');
-        try {
-          await supabase.from('activity_log').insert({
-            action: 'motion_fallback_to_static',
-            entity_type: 'video',
-            entity_id: videoId,
-            details: { motion_avatar_id: talkingPhotoIdFinal, total_attempts: MOTION_MAX_ATTEMPTS },
+          talkingPhotoIdFinal = await uploadTalkingPhoto(imageUrl!, heygenKey);
+          console.log('Fallback static talking_photo_id:', talkingPhotoIdFinal);
+          heygenResponse = await fetch(heygenEndpoint, {
+            method: 'POST',
+            headers: { 'X-Api-Key': heygenKey, 'Content-Type': 'application/json' },
+            body: buildHeygenBody(talkingPhotoIdFinal, false),
           });
-        } catch (_) { /* ignore logging error */ }
-
-        talkingPhotoIdFinal = await uploadTalkingPhoto(imageUrl!, heygenKey);
-        console.log('Fallback static talking_photo_id:', talkingPhotoIdFinal);
-        heygenResponse = await fetch(heygenEndpoint, {
-          method: 'POST',
-          headers: { 'X-Api-Key': heygenKey, 'Content-Type': 'application/json' },
-          body: buildHeygenBody(talkingPhotoIdFinal, false),
-        });
+        }
+        // else: non-motion error, will be caught below
+      } else {
+        console.log('Motion avatar applied successfully!');
       }
     } else {
       // No motion — single call
