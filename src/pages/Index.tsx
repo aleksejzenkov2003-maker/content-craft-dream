@@ -872,7 +872,38 @@ export default function Index() {
         }
       }
     }
-    
+
+    // Step c2) Pre-create motion avatars in parallel with atmosphere/voiceover
+    if (isEnabled('take_in_work', 'motion')) {
+      for (const video of questionVideos) {
+        if (video.playlist_id && video.advisor_id) {
+          try {
+            const { data: scene } = await supabase
+              .from('playlist_scenes')
+              .select('id, motion_avatar_id')
+              .eq('playlist_id', video.playlist_id)
+              .eq('advisor_id', video.advisor_id)
+              .eq('status', 'approved')
+              .not('scene_url', 'is', null)
+              .limit(1)
+              .maybeSingle();
+
+            if (scene && !scene.motion_avatar_id) {
+              console.log(`Pre-creating motion for scene ${scene.id}`);
+              supabase.functions.invoke('add-avatar-motion', {
+                body: { sceneId: scene.id },
+              }).then(res => {
+                if (res.data?.success) console.log('Motion pre-created:', res.data.motionAvatarId);
+                else console.warn('Motion pre-creation failed:', res.data?.error);
+              }).catch(e => console.warn('Motion pre-warm error:', e));
+            }
+          } catch (e) {
+            console.warn('Motion pre-warm lookup error:', e);
+          }
+        }
+      }
+    }
+
     // Note: HeyGen video generation requires voiceover to be ready first
     // It will be triggered later via polling or manual action
   };
