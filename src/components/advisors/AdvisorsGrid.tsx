@@ -125,6 +125,7 @@ export function AdvisorsGrid({
       speech_speed: advisor.speech_speed,
       scene_photo_id: advisor.scene_photo_id,
       thumbnail_photo_id: advisor.thumbnail_photo_id,
+      avatar_photo_id: advisor.avatar_photo_id,
     });
   };
 
