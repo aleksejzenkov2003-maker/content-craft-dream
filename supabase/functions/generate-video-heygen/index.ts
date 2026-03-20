@@ -411,12 +411,14 @@ serve(async (req) => {
         // Fall back to static photo, preserve motion_avatar_id in DB for future use
         motionWarning = 'Motion не применён: провайдер не успел обработать аватар, используется статичное фото';
         console.warn('All motion retries exhausted — falling back to static photo. motion_avatar_id preserved in DB.');
-        await supabase.from('activity_log').insert({
-          action: 'motion_fallback_to_static',
-          entity_type: 'video',
-          entity_id: videoId,
-          details: { motion_avatar_id: talkingPhotoIdFinal, total_attempts: MOTION_MAX_ATTEMPTS },
-        }).catch(() => {});
+        try {
+          await supabase.from('activity_log').insert({
+            action: 'motion_fallback_to_static',
+            entity_type: 'video',
+            entity_id: videoId,
+            details: { motion_avatar_id: talkingPhotoIdFinal, total_attempts: MOTION_MAX_ATTEMPTS },
+          });
+        } catch (_) { /* ignore logging error */ }
 
         talkingPhotoIdFinal = await uploadTalkingPhoto(imageUrl!, heygenKey);
         console.log('Fallback static talking_photo_id:', talkingPhotoIdFinal);
