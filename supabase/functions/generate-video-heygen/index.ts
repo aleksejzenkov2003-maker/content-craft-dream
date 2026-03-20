@@ -171,7 +171,44 @@ serve(async (req) => {
       : { width: 1080, height: 1920 };
 
     // --- Resolve image for talking_photo ---
-    let imageUrl: string | null = sceneUrl;
+    // In overlay mode, prefer avatar_photo_id (transparent/no-background photo)
+    let imageUrl: string | null = null;
+    let backgroundVideoUrl: string | null = null;
+
+    // Read video_format_mode early to decide image selection
+    const { data: fmtRows } = await supabase
+      .from('app_settings')
+      .select('key, value')
+      .eq('key', 'video_format_mode');
+    const isOverlayModePre = (fmtRows?.[0] as any)?.value === 'background_overlay';
+
+    if (isOverlayModePre && video.advisor_id && video.advisor?.avatar_photo_id) {
+      // Use transparent avatar photo for overlay mode
+      const { data: avatarPhoto } = await supabase
+        .from('advisor_photos')
+        .select('photo_url')
+        .eq('id', video.advisor.avatar_photo_id)
+        .single();
+      imageUrl = avatarPhoto?.photo_url || null;
+      if (imageUrl) console.log('OVERLAY MODE: Using avatar_photo_id (transparent)');
+
+      // Find background video for this playlist+advisor combo
+      if (video.playlist_id) {
+        const { data: bgVideos } = await supabase
+          .from('background_videos')
+          .select('video_url')
+          .eq('playlist_id', video.playlist_id)
+          .eq('advisor_id', video.advisor_id)
+          .limit(1);
+        backgroundVideoUrl = (bgVideos as any)?.[0]?.video_url || null;
+        console.log('Background video:', backgroundVideoUrl ? 'found' : 'not found');
+      }
+    }
+
+    // Standard image resolution (if not already set by overlay mode)
+    if (!imageUrl) {
+      imageUrl = sceneUrl;
+    }
 
     if (!imageUrl) {
       // Fallback: advisor photo → cover
