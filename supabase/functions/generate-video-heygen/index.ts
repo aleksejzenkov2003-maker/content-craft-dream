@@ -329,7 +329,8 @@ serve(async (req) => {
           entity_id: videoId,
           details: { error: motionErr instanceof Error ? motionErr.message : 'Unknown error' },
           duration_ms: motionDurationMs,
-        }).catch(() => {});
+        });
+        // ignore logging errors
       }
     }
 
@@ -387,12 +388,14 @@ serve(async (req) => {
         const errorText = await heygenResponse.text();
         if (errorText.includes('missing image dimensions')) {
           console.warn(`Motion not ready yet (attempt ${attempt}), waiting ${MOTION_RETRY_DELAY_MS / 1000}s...`);
-          await supabase.from('activity_log').insert({
-            action: 'motion_not_ready',
-            entity_type: 'video',
-            entity_id: videoId,
-            details: { attempt, motion_avatar_id: talkingPhotoIdFinal, error_snippet: errorText.slice(0, 200) },
-          }).catch(() => {});
+          try {
+            await supabase.from('activity_log').insert({
+              action: 'motion_not_ready',
+              entity_type: 'video',
+              entity_id: videoId,
+              details: { attempt, motion_avatar_id: talkingPhotoIdFinal, error_snippet: errorText.slice(0, 200) },
+            });
+          } catch (_) { /* ignore logging error */ }
 
           if (attempt < MOTION_MAX_ATTEMPTS) {
             await new Promise(resolve => setTimeout(resolve, MOTION_RETRY_DELAY_MS));
@@ -408,12 +411,14 @@ serve(async (req) => {
         // Fall back to static photo, preserve motion_avatar_id in DB for future use
         motionWarning = 'Motion не применён: провайдер не успел обработать аватар, используется статичное фото';
         console.warn('All motion retries exhausted — falling back to static photo. motion_avatar_id preserved in DB.');
-        await supabase.from('activity_log').insert({
-          action: 'motion_fallback_to_static',
-          entity_type: 'video',
-          entity_id: videoId,
-          details: { motion_avatar_id: talkingPhotoIdFinal, total_attempts: MOTION_MAX_ATTEMPTS },
-        }).catch(() => {});
+        try {
+          await supabase.from('activity_log').insert({
+            action: 'motion_fallback_to_static',
+            entity_type: 'video',
+            entity_id: videoId,
+            details: { motion_avatar_id: talkingPhotoIdFinal, total_attempts: MOTION_MAX_ATTEMPTS },
+          });
+        } catch (_) { /* ignore logging error */ }
 
         talkingPhotoIdFinal = await uploadTalkingPhoto(imageUrl!, heygenKey);
         console.log('Fallback static talking_photo_id:', talkingPhotoIdFinal);
