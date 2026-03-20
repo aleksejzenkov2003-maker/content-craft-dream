@@ -452,11 +452,11 @@ export function VideoSidePanel({
                 </div>
               ) : (
                 <div className="relative aspect-[9/16] rounded-md border-2 border-dashed border-muted-foreground/20 bg-muted/30 flex flex-col items-center justify-center gap-1">
-                  {video.generation_status === 'generating' || video.reel_status === 'generating' ? (
+                  {effectiveGenerationStatus === 'generating' || effectiveReelStatus === 'generating' ? (
                     <>
                       <Loader2 className="w-6 h-6 animate-spin text-primary" />
                       <span className="text-[8px] text-muted-foreground">
-                        {video.generation_status === 'generating' ? 'Генерация...' : 'Постобработка...'}
+                        {effectiveGenerationStatus === 'generating' ? 'Генерация...' : 'Постобработка...'}
                       </span>
                     </>
                   ) : (
