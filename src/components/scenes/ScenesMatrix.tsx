@@ -126,6 +126,16 @@ export function ScenesMatrix({ initialAdvisorId, initialPlaylistId, onConsumeNav
     }
   }, [initialAdvisorId, initialPlaylistId, advisorsLoading, scenesLoading, playlistsLoading]);
 
+  useEffect(() => {
+    if (generatingScenes.size === 0) return;
+
+    const interval = window.setInterval(() => {
+      void refetch();
+    }, 2500);
+
+    return () => window.clearInterval(interval);
+  }, [generatingScenes, refetch]);
+
   const toggleAdvisor = (advisorId: string) => {
     setExpandedAdvisors(prev => {
       const next = new Set(prev);
