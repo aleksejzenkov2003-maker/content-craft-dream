@@ -13,7 +13,7 @@ import { Playlist } from '@/hooks/usePlaylists';
 import { Advisor } from '@/hooks/useAdvisors';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
-import { ChevronLeft, ChevronRight, Star, Loader2, Upload, Wand2, Check, RotateCcw, Save, Sparkles } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Loader2, Upload, Wand2, Check, RotateCcw, Save, Sparkles, Trash2 } from 'lucide-react';
 
 interface SceneSidePanelProps {
   scene: PlaylistScene | null;

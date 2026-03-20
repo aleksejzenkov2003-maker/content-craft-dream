@@ -219,6 +219,35 @@ export function usePlaylistScenes() {
     }
   };
 
+  const deleteVariant = async (variantId: string, sceneId: string) => {
+    try {
+      const { data: variant } = await supabase
+        .from('scene_variants')
+        .select('is_selected, image_url')
+        .eq('id', variantId)
+        .single();
+
+      await supabase.from('scene_variants').delete().eq('id', variantId);
+
+      // If deleted variant was selected, select the latest remaining or clear
+      if ((variant as any)?.is_selected) {
+        const remaining = await fetchVariants(sceneId);
+        if (remaining.length > 0) {
+          const last = remaining[remaining.length - 1];
+          await selectVariant(last.id, sceneId);
+        } else {
+          await supabase.from('playlist_scenes').update({ scene_url: null, status: 'waiting' }).eq('id', sceneId);
+          await fetchScenes(true);
+        }
+      }
+
+      toast.success('Вариант удалён');
+    } catch (error: any) {
+      console.error('Error deleting variant:', error);
+      toast.error('Ошибка удаления варианта');
+    }
+  };
+
   return {
     scenes,
     loading,
@@ -229,5 +258,6 @@ export function usePlaylistScenes() {
     bulkImport,
     fetchVariants,
     selectVariant,
+    deleteVariant,
   };
 }
