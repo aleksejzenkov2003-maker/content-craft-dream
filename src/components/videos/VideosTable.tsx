@@ -142,6 +142,7 @@ export function VideosTable({
   const [sortDirection, setSortDirection] = useState<SortDirection>('asc');
   const [selectedVideoIds, setSelectedVideoIds] = useState<Set<string>>(new Set());
   const [activeTab, setActiveTab] = useState<'in_progress' | 'published' | 'all'>('in_progress');
+  const [videoNumberSearch, setVideoNumberSearch] = useState('');
   const [advancedFilters, setAdvancedFilters] = useState<VideoFilterState>({
     coverStatusFilter: [],
     videoStatusFilter: [],
