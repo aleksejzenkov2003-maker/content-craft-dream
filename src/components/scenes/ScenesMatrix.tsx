@@ -89,7 +89,7 @@ export function ScenesMatrix({ initialAdvisorId, initialPlaylistId, onConsumeNav
     };
     scenes.forEach(scene => {
       if (scene.playlist_id && scene.advisor_id) {
-        const key = `${scene.playlist_id}-${scene.advisor_id}`;
+        const key = getPairKey(scene.playlist_id, scene.advisor_id);
         const existing = map.get(key);
         if (!existing || priority(scene) > priority(existing)) {
           map.set(key, scene);
@@ -100,7 +100,7 @@ export function ScenesMatrix({ initialAdvisorId, initialPlaylistId, onConsumeNav
   }, [scenes]);
 
   const getScene = (playlistId: string, advisorId: string): PlaylistScene | undefined => {
-    return sceneMap.get(`${playlistId}-${advisorId}`);
+    return sceneMap.get(getPairKey(playlistId, advisorId));
   };
 
   // Auto-expand advisor and open scene when navigating from VideoSidePanel
@@ -125,6 +125,16 @@ export function ScenesMatrix({ initialAdvisorId, initialPlaylistId, onConsumeNav
       onConsumeNavTarget?.();
     }
   }, [initialAdvisorId, initialPlaylistId, advisorsLoading, scenesLoading, playlistsLoading]);
+
+  useEffect(() => {
+    if (generatingScenes.size === 0) return;
+
+    const interval = window.setInterval(() => {
+      void refetch();
+    }, 2500);
+
+    return () => window.clearInterval(interval);
+  }, [generatingScenes, refetch]);
 
   const toggleAdvisor = (advisorId: string) => {
     setExpandedAdvisors(prev => {
@@ -172,8 +182,7 @@ export function ScenesMatrix({ initialAdvisorId, initialPlaylistId, onConsumeNav
     playlists.some(p => selectedPairs.has(getPairKey(p.id, advisorId)));
 
   const handleGenerateScene = async (playlist: Playlist, advisor: Advisor) => {
-    console.log('[ScenesMatrix] handleGenerateScene called', { playlist: playlist.name, advisor: advisor.name });
-    const key = `${playlist.id}-${advisor.id}`;
+    const key = getPairKey(playlist.id, advisor.id);
     setGeneratingScenes(prev => new Set(prev).add(key));
 
     try {
@@ -186,7 +195,7 @@ export function ScenesMatrix({ initialAdvisorId, initialPlaylistId, onConsumeNav
       });
 
       if (response.error) throw response.error;
-      
+
       const result = response.data;
       if (result?.error) {
         throw new Error(result.error);
@@ -195,13 +204,11 @@ export function ScenesMatrix({ initialAdvisorId, initialPlaylistId, onConsumeNav
       if (result?.sceneUrl) {
         toast.success('Сцена сгенерирована!');
       } else {
-        toast.warning('Функция завершилась, но изображение не получено');
+        toast.warning('Генерация запущена');
       }
-      await refetch();
     } catch (error) {
       console.error('Error generating scene:', error);
       toast.error('Ошибка генерации сцены');
-    } finally {
       setGeneratingScenes(prev => {
         const next = new Set(prev);
         next.delete(key);
@@ -228,7 +235,7 @@ export function ScenesMatrix({ initialAdvisorId, initialPlaylistId, onConsumeNav
 
     for (const { playlist, advisor } of pairs) {
       if (bulkCancelRef.current) break;
-      const key = `${playlist.id}-${advisor.id}`;
+      const key = getPairKey(playlist.id, advisor.id);
       setGeneratingScenes(prev => new Set(prev).add(key));
       try {
         const response = await supabase.functions.invoke('generate-scene', {
@@ -240,12 +247,16 @@ export function ScenesMatrix({ initialAdvisorId, initialPlaylistId, onConsumeNav
         });
         if (response.error || response.data?.error) {
           failed++;
+          setGeneratingScenes(prev => {
+            const next = new Set(prev);
+            next.delete(key);
+            return next;
+          });
         } else {
           success++;
         }
       } catch {
         failed++;
-      } finally {
         setGeneratingScenes(prev => {
           const next = new Set(prev);
           next.delete(key);
@@ -254,10 +265,9 @@ export function ScenesMatrix({ initialAdvisorId, initialPlaylistId, onConsumeNav
       }
     }
 
-    await refetch();
     setSelectedPairs(new Set());
     setBulkGenerating(false);
-    toast.success(`Генерация завершена: ${success} успешно${failed ? `, ${failed} с ошибкой` : ''}`);
+    toast.success(`Запущена генерация: ${success} сцен${failed ? `, ${failed} с ошибкой` : ''}`);
   };
 
   
