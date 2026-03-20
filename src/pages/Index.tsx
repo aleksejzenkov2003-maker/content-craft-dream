@@ -473,6 +473,35 @@ export default function Index() {
         return;
       }
 
+      // Step 1.5: Pre-create motion avatar if enabled and missing (runs while voiceover was generating)
+      if (isEnabled('generate_video', 'motion') && video.playlist_id && video.advisor_id) {
+        try {
+          const { data: scene } = await supabase
+            .from('playlist_scenes')
+            .select('id, motion_avatar_id')
+            .eq('playlist_id', video.playlist_id)
+            .eq('advisor_id', video.advisor_id)
+            .eq('status', 'approved')
+            .not('scene_url', 'is', null)
+            .limit(1)
+            .maybeSingle();
+
+          if (scene && !scene.motion_avatar_id) {
+            toast.info('Подготовка motion-аватара...');
+            const motionRes = await supabase.functions.invoke('add-avatar-motion', {
+              body: { sceneId: scene.id },
+            });
+            if (motionRes.data?.success) {
+              console.log('Motion pre-created:', motionRes.data.motionAvatarId);
+            } else {
+              console.warn('Motion pre-creation failed (non-blocking):', motionRes.data?.error);
+            }
+          }
+        } catch (e) {
+          console.warn('Motion pre-warm error (non-blocking):', e);
+        }
+      }
+
       // Step 2: Launch HeyGen video generation
       toast.info(video.voiceover_url ? 'Запуск генерации видео...' : 'Шаг 2/2: Запуск генерации видео...');
       await updateVideo(video.id, { 
