@@ -261,8 +261,15 @@ export default function Index() {
         } catch (subErr) {
           console.error('Subtitle burn failed, using reduced video:', subErr);
           toast.warning('Не удалось вшить субтитры, используется видео без субтитров');
-          // Still continue with reduced video, but mark reel_status accordingly
-          await supabase.from('videos').update({ reel_status: 'error' }).eq('id', videoId);
+          // Save reduced (non-subtitled) video as video_path, mark subtitle error but generation done
+          await supabase.from('videos').update({ 
+            video_path: finalUrl, 
+            reel_status: 'error', 
+            generation_status: 'ready' 
+          }).eq('id', videoId);
+          updateProgress('done', 100);
+          refetchVideos();
+          return; // Don't fall through to line that overwrites reel_status with 'ready'
         }
       } else if (!vid?.word_timestamps) {
         toast.success('✅ Постобработка завершена (субтитры не требуются)');
