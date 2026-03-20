@@ -246,7 +246,7 @@ export default function Index() {
           const subtitledFile = await burnSubtitlesBrowser(
             finalUrl,
             vid.word_timestamps as any,
-            { fontSize: 48 },
+            { fontSize: 72 },
             (info) => updateProgress(info.phase, Math.round(50 + info.progress * 0.45)),
           );
           updateProgress('uploading_result', 95);
@@ -261,8 +261,15 @@ export default function Index() {
         } catch (subErr) {
           console.error('Subtitle burn failed, using reduced video:', subErr);
           toast.warning('Не удалось вшить субтитры, используется видео без субтитров');
-          // Still continue with reduced video, but mark reel_status accordingly
-          await supabase.from('videos').update({ reel_status: 'error' }).eq('id', videoId);
+          // Save reduced (non-subtitled) video as video_path, mark subtitle error but generation done
+          await supabase.from('videos').update({ 
+            video_path: finalUrl, 
+            reel_status: 'error', 
+            generation_status: 'ready' 
+          }).eq('id', videoId);
+          updateProgress('done', 100);
+          refetchVideos();
+          return; // Don't fall through to line that overwrites reel_status with 'ready'
         }
       } else if (!vid?.word_timestamps) {
         toast.success('✅ Постобработка завершена (субтитры не требуются)');
@@ -295,7 +302,7 @@ export default function Index() {
   useEffect(() => {
     if (!videos.length) return;
     const stuckVideos = videos.filter(
-      v => v.reel_status === 'generating' && v.generation_status !== 'generating' && v.heygen_video_url && !resumedRef.current.has(v.id)
+      v => v.reel_status === 'generating' && v.heygen_video_url && !resumedRef.current.has(v.id)
     );
     for (const v of stuckVideos) {
       resumedRef.current.add(v.id);
