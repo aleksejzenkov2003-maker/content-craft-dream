@@ -172,6 +172,7 @@ export function ScenesMatrix({ initialAdvisorId, initialPlaylistId, onConsumeNav
     playlists.some(p => selectedPairs.has(getPairKey(p.id, advisorId)));
 
   const handleGenerateScene = async (playlist: Playlist, advisor: Advisor) => {
+    console.log('[ScenesMatrix] handleGenerateScene called', { playlist: playlist.name, advisor: advisor.name });
     const key = `${playlist.id}-${advisor.id}`;
     setGeneratingScenes(prev => new Set(prev).add(key));
 
