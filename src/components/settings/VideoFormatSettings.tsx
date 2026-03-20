@@ -177,6 +177,43 @@ export function VideoFormatSettings() {
         </RadioGroup>
       </div>
 
+      {/* Video format mode */}
+      <div className="rounded-lg border p-6 space-y-6">
+        <div>
+          <h3 className="text-lg font-semibold">Формат ролика</h3>
+          <p className="text-sm text-muted-foreground">
+            Выберите как генерируется финальное видео: на базе полной фотографии или аватар на фоновой подложке.
+          </p>
+        </div>
+
+        <RadioGroup value={videoFormatMode} onValueChange={async (val) => {
+          setVideoFormatMode(val);
+          setSaving(true);
+          const { error } = await (supabase.from('app_settings' as any) as any).upsert(
+            { key: 'video_format_mode', value: val, updated_at: new Date().toISOString() },
+            { onConflict: 'key' }
+          );
+          setSaving(false);
+          if (error) toast.error('Ошибка сохранения');
+          else toast.success(val === 'background_overlay' ? 'Режим: Фоновая подложка' : 'Режим: Полная фотография');
+        }} className="space-y-3">
+          <div className={`flex items-start gap-3 rounded-md border p-4 hover:bg-muted/50 transition-colors ${videoFormatMode === 'full_photo' ? 'border-primary bg-muted/30' : ''}`}>
+            <RadioGroupItem value="full_photo" id="fmt-full" className="mt-0.5" />
+            <div className="space-y-1 flex-1">
+              <Label htmlFor="fmt-full" className="font-medium cursor-pointer">Видео на базе всей фото</Label>
+              <p className="text-sm text-muted-foreground">Стандартный режим — HeyGen генерирует видео на основе полной фотографии сцены</p>
+            </div>
+          </div>
+          <div className={`flex items-start gap-3 rounded-md border p-4 hover:bg-muted/50 transition-colors ${videoFormatMode === 'background_overlay' ? 'border-primary bg-muted/30' : ''}`}>
+            <RadioGroupItem value="background_overlay" id="fmt-overlay" className="mt-0.5" />
+            <div className="space-y-1 flex-1">
+              <Label htmlFor="fmt-overlay" className="font-medium cursor-pointer">Аватар на фоновой подложке</Label>
+              <p className="text-sm text-muted-foreground">HeyGen генерирует аватар без фона, затем FFmpeg накладывает его на видео-подложку</p>
+            </div>
+          </div>
+        </RadioGroup>
+      </div>
+
       {saving && (
         <p className="text-xs text-muted-foreground flex items-center gap-1">
           <Loader2 className="w-3 h-3 animate-spin" /> Сохранение…
