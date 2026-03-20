@@ -293,7 +293,8 @@ export function AdvisorsGrid({
                   <div className="text-sm font-medium">Все фотографии</div>
                   <div className="flex gap-2 flex-wrap">
                     {selectedAdvisor.photos?.map((photo) => {
-                      const isScene = photo.id === selectedAdvisor.scene_photo_id;
+                       const isScene = photo.id === selectedAdvisor.scene_photo_id;
+                      const isThumbnail = photo.id === selectedAdvisor.thumbnail_photo_id;
                       const isAvatar = photo.id === selectedAdvisor.avatar_photo_id;
                       return (
                         <div key={photo.id} className="relative group">
@@ -307,8 +308,9 @@ export function AdvisorsGrid({
                             <img src={photo.photo_url} alt="" className="w-full h-full object-cover" />
                           </button>
                           <div className="flex gap-0.5 justify-center mt-1">
-                            {isScene && <span className="text-[9px] bg-blue-500/20 text-blue-600 rounded px-1">С</span>}
-                            {isThumbnail && <span className="text-[9px] bg-purple-500/20 text-purple-600 rounded px-1">М</span>}
+                            {isScene && <span className="text-[9px] bg-primary/20 text-primary rounded px-1">С</span>}
+                            {isThumbnail && <span className="text-[9px] bg-accent/20 text-accent-foreground rounded px-1">М</span>}
+                            {isAvatar && <span className="text-[9px] bg-secondary/20 text-secondary-foreground rounded px-1">А</span>}
                           </div>
                           <div className="absolute -top-1 -right-1 hidden group-hover:flex gap-0.5">
                             <button
