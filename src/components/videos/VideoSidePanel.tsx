@@ -332,17 +332,27 @@ export function VideoSidePanel({
           })()}
 
           {/* Action buttons row */}
-          <div className="grid grid-cols-3 gap-2">
-             <Button size="xs" variant="outline" className="border-amber-500/50 text-amber-700 hover:bg-amber-50 dark:hover:bg-amber-950/20" onClick={() => { setLocalBusy('atmosphere'); onGenerateAtmosphere(video, atmospherePromptText || undefined); }} disabled={isGeneratingCover || video.generation_status === 'generating' || video.reel_status === 'generating' || isGenerating || localBusy !== null}>
-                {isGeneratingCover || localBusy === 'atmosphere' ? <Loader2 className="w-3 h-3 mr-1 animate-spin" /> : <RefreshCw className="w-3 h-3 mr-1" />}Шаг 1. ФОН
-              </Button>
-              <Button size="xs" variant="outline" className="border-orange-500/50 text-orange-700 hover:bg-orange-50 dark:hover:bg-orange-950/20" onClick={() => { setLocalBusy('cover'); onGenerateCover(video); }} disabled={isGeneratingCover || !atmosphereUrl || video.generation_status === 'generating' || video.reel_status === 'generating' || isGenerating || localBusy !== null}>
-                {isGeneratingCover || localBusy === 'cover' ? <Loader2 className="w-3 h-3 mr-1 animate-spin" /> : <RefreshCw className="w-3 h-3 mr-1" />}Шаг 2. Обложка
-              </Button>
-              <Button size="xs" variant="outline" className="border-green-500/50 text-green-700 hover:bg-green-50 dark:hover:bg-green-950/20" onClick={() => { setLocalBusy('video'); onGenerateVideo(video); }} disabled={video.generation_status === 'generating' || video.reel_status === 'generating' || isGenerating || isGeneratingCover || localBusy !== null}>
-                {video.generation_status === 'generating' || isGenerating || localBusy === 'video' ? <Loader2 className="w-3 h-3 mr-1 animate-spin" /> : <RefreshCw className="w-3 h-3 mr-1" />}Шаг 3. Видео
-              </Button>
-          </div>
+          {(() => {
+            const atmosBusy = isGeneratingCover || localBusy === 'atmosphere';
+            const coverBusy = isGeneratingCover || localBusy === 'cover';
+            const videoBusy = video.generation_status === 'generating' || video.reel_status === 'generating' || isGenerating || localBusy === 'video';
+            const atmosDisabled = atmosBusy;
+            const coverDisabled = coverBusy || !atmosphereUrl;
+            const videoDisabled = videoBusy;
+            return (
+              <div className="grid grid-cols-3 gap-2">
+                <Button size="xs" variant="outline" className={cn(atmosDisabled ? "border-muted text-muted-foreground" : "border-amber-500/50 text-amber-700 hover:bg-amber-50 dark:hover:bg-amber-950/20")} onClick={() => { setLocalBusy('atmosphere'); onGenerateAtmosphere(video, atmospherePromptText || undefined); }} disabled={atmosDisabled}>
+                  {atmosBusy ? <Loader2 className="w-3 h-3 mr-1 animate-spin" /> : <RefreshCw className="w-3 h-3 mr-1" />}Шаг 1. ФОН
+                </Button>
+                <Button size="xs" variant="outline" className={cn(coverDisabled ? "border-muted text-muted-foreground" : "border-orange-500/50 text-orange-700 hover:bg-orange-50 dark:hover:bg-orange-950/20")} onClick={() => { setLocalBusy('cover'); onGenerateCover(video); }} disabled={coverDisabled}>
+                  {coverBusy ? <Loader2 className="w-3 h-3 mr-1 animate-spin" /> : <RefreshCw className="w-3 h-3 mr-1" />}Шаг 2. Обложка
+                </Button>
+                <Button size="xs" variant="outline" className={cn(videoDisabled ? "border-muted text-muted-foreground" : "border-green-500/50 text-green-700 hover:bg-green-50 dark:hover:bg-green-950/20")} onClick={() => { setLocalBusy('video'); onGenerateVideo(video); }} disabled={videoDisabled}>
+                  {videoBusy ? <Loader2 className="w-3 h-3 mr-1 animate-spin" /> : <RefreshCw className="w-3 h-3 mr-1" />}Шаг 3. Видео
+                </Button>
+              </div>
+            );
+          })()}
 
           {/* 3-column pipeline with status badges */}
           <div className="grid grid-cols-3 gap-2">
