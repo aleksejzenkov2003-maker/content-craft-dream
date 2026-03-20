@@ -637,6 +637,7 @@ export function ScenesMatrix({ initialAdvisorId, initialPlaylistId, onConsumeNav
         onUpdateScene={handleUpdateScene}
         fetchVariants={fetchVariants}
         selectVariant={selectVariant}
+        deleteVariant={deleteVariant}
       />
 
       {/* CSV Importer */}
