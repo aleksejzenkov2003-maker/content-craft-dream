@@ -120,7 +120,7 @@ export function ScenesMatrix({ initialAdvisorId, initialPlaylistId, onConsumeNav
         handleCreateAndOpenScene(playlist, advisor);
       }
       onConsumeNavTarget?.();
-    } else if (initialAdvisorId && !advisorsLoading) {
+    } else if (initialAdvisorId && !initialPlaylistId && !advisorsLoading) {
       setExpandedAdvisors(prev => new Set(prev).add(initialAdvisorId));
       onConsumeNavTarget?.();
     }
