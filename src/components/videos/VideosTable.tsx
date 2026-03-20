@@ -418,6 +418,14 @@ export function VideosTable({
 
           <VideoFilters filters={advancedFilters} onFiltersChange={setAdvancedFilters} />
 
+          <Input
+            type="text"
+            placeholder="№ ролика"
+            value={videoNumberSearch}
+            onChange={(e) => setVideoNumberSearch(e.target.value)}
+            className="h-7 w-20 text-xs px-2"
+          />
+
           {filters.questionId !== undefined && (
             <Button 
               variant="ghost" 
