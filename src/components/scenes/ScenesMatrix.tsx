@@ -225,7 +225,7 @@ export function ScenesMatrix({ initialAdvisorId, initialPlaylistId, onConsumeNav
 
     for (const { playlist, advisor } of pairs) {
       if (bulkCancelRef.current) break;
-      const key = `${playlist.id}-${advisor.id}`;
+      const key = getPairKey(playlist.id, advisor.id);
       setGeneratingScenes(prev => new Set(prev).add(key));
       try {
         const response = await supabase.functions.invoke('generate-scene', {
@@ -237,12 +237,16 @@ export function ScenesMatrix({ initialAdvisorId, initialPlaylistId, onConsumeNav
         });
         if (response.error || response.data?.error) {
           failed++;
+          setGeneratingScenes(prev => {
+            const next = new Set(prev);
+            next.delete(key);
+            return next;
+          });
         } else {
           success++;
         }
       } catch {
         failed++;
-      } finally {
         setGeneratingScenes(prev => {
           const next = new Set(prev);
           next.delete(key);
@@ -251,10 +255,9 @@ export function ScenesMatrix({ initialAdvisorId, initialPlaylistId, onConsumeNav
       }
     }
 
-    await refetch();
     setSelectedPairs(new Set());
     setBulkGenerating(false);
-    toast.success(`Генерация завершена: ${success} успешно${failed ? `, ${failed} с ошибкой` : ''}`);
+    toast.success(`Запущена генерация: ${success} сцен${failed ? `, ${failed} с ошибкой` : ''}`);
   };
 
   
