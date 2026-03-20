@@ -302,7 +302,7 @@ export default function Index() {
   useEffect(() => {
     if (!videos.length) return;
     const stuckVideos = videos.filter(
-      v => v.reel_status === 'generating' && v.generation_status !== 'generating' && v.heygen_video_url && !resumedRef.current.has(v.id)
+      v => v.reel_status === 'generating' && v.heygen_video_url && !resumedRef.current.has(v.id)
     );
     for (const v of stuckVideos) {
       resumedRef.current.add(v.id);
