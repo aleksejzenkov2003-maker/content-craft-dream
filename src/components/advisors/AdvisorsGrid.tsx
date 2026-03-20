@@ -151,6 +151,9 @@ export function AdvisorsGrid({
   const getThumbnailPhoto = (advisor: Advisor) =>
     advisor.photos?.find(p => p.id === advisor.thumbnail_photo_id) || getPrimaryPhoto(advisor);
 
+  const getAvatarPhoto = (advisor: Advisor) =>
+    advisor.photos?.find(p => p.id === advisor.avatar_photo_id) || null;
+
   return (
     <div className="space-y-6">
       <input type="file" ref={fileInputRef} className="hidden" accept="image/*" onChange={handleFileChange} />
