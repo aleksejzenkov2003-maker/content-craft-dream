@@ -1041,6 +1041,11 @@ export default function Index() {
                     <StatsCard title="Вопросов" value={questions.length} change="уникальных" changeType="neutral" icon={HelpCircle} />
                     <StatsCard title="Публикаций" value={publications.length} change="всего" changeType="positive" icon={Send} iconColor="text-info" />
                   </div>
+                  <ActiveProcesses onNavigateToVideo={(videoId) => {
+                    setActiveTab('videos');
+                    setViewingVideoId(videoId);
+                    setShowSidePanel(true);
+                  }} />
                 </>
               )}
             </div>
