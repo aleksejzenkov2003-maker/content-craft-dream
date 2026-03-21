@@ -349,13 +349,15 @@ export async function burnSubtitlesBrowser(
     await ff.writeFile(inputName, new Uint8Array(videoBuffer));
 
     // Build drawtext filter
+    const fontSize = options.fontSize ?? 36;
     const vf = highlight
-      ? buildHighlightDrawtextFilter(blocks, options.fontSize ?? 36)
-      : buildDrawtextFilter(blocks, options.fontSize ?? 36, options.marginV ?? 160);
+      ? buildHighlightDrawtextFilter(blocks, fontSize)
+      : buildDrawtextFilter(blocks, fontSize, options.marginV ?? 160);
 
+    console.log(`[subtitles] Filter built: fontSize=${fontSize}, filterLength=${vf.length}, filters=${vf.split(',drawtext=').length}`);
     onProgress?.({ phase: 'burning_subtitles', progress: 40 });
 
-    await execWithLogs(ff, [
+    const ffArgs = [
       '-i', inputName,
       '-vf', vf,
       '-c:a', 'copy',
@@ -363,7 +365,10 @@ export async function burnSubtitlesBrowser(
       '-preset', 'fast',
       '-crf', '23',
       '-y', outputName,
-    ]);
+    ];
+    console.log('[subtitles] Running FFmpeg...');
+    await execWithLogs(ff, ffArgs);
+    console.log('[subtitles] FFmpeg completed OK');
 
     signal?.throwIfAborted();
     onProgress?.({ phase: 'uploading_result', progress: 92 });
