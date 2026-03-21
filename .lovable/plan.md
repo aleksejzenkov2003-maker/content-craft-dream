@@ -1,56 +1,58 @@
 
 
-# Панель активных процессов на дашборде
+# Починить motion: правильная валидация + ожидание готовности
 
-## Что строим
+## Корневые причины (из логов)
 
-Новый компонент `ActiveProcesses` на дашборде, показывающий все видео в активных состояниях (генерация, постобработка, озвучка, обложка) с пошаговой историей из `activity_log`. Каждый процесс раскрывается, показывая таймлайн шагов (motion, voiceover, heygen, resize, subtitles) с результатами и ошибками. Клик по видео переводит на вкладку "Ролики" с открытием боковой панели.
+1. **Валидация по неправильному API**: Motion аватары создаются через `/v2/photo_avatar/add_motion`, но проверяются через `/v1/talking_photo.list`. Это **разные списки** — motion ID не находится → очищается из БД → создаётся новый (тратятся кредиты) → или падает с "insufficient credit".
 
-## Структура
+2. **Недостаточно кредитов HeyGen**: `Insufficient credit. This operation requires 'api' credits.` — motion creation стоит денег, а баланс исчерпан. Система тратила кредиты на повторное создание motion из-за ложной невалидации.
 
-### 1. Новый компонент `src/components/dashboard/ActiveProcesses.tsx`
+3. **Нет ожидания после создания**: Motion создаётся, но HeyGen нужно время на обработку. Без паузы → "missing image dimensions" → fallback на static.
 
-Карточка с заголовком "Активные процессы" и авто-обновлением каждые 10 секунд.
+## Что делаем
 
-**Данные**: запрос к `videos` где `generation_status IN ('generating', 'processing')` или `reel_status = 'generating'` или `voiceover_status = 'generating'` или `cover_status = 'generating'`. Плюс join с `activity_log` по `entity_id`.
+### 1. Исправить валидацию — использовать `/v2/photo_avatar/{id}` или `/v2/avatars`
 
-**UI каждого процесса**:
-```text
-┌─────────────────────────────────────────────────┐
-│ 🟡 Can I divorce... — Orthodox        [Перейти] │
-│ Статус: HeyGen генерация · Попытка #1           │
-│                                                  │
-│ ▼ История шагов                                  │
-│   ✅ 10:07 voiceover_generated  (6.9s)          │
-│   ✅ 10:07 add_avatar_motion    (скип)          │
-│   ⚠️ 10:07 motion_not_ready                     │
-│   🔄 10:07 heygen_video_started                  │
-│      └─ motion_used: false                       │
-│      └─ warning: Motion не применён              │
-└─────────────────────────────────────────────────┘
-```
+Вместо `/v1/talking_photo.list` (где motion не появляется) использовать правильный HeyGen endpoint:
+- `GET /v2/photo_avatar/generation/{id}` — проверяет статус конкретного photo avatar
+- Возвращает `status: "completed"` или `"in_progress"`
 
-- Цветные иконки по статусу шага: ✅ success, ⚠️ warning/fallback, ❌ error, 🔄 in progress
-- Раскрытие деталей каждого шага (input/output JSON) — переиспользуем паттерн из `StepDebugger`
-- Кнопка "Перейти" → `setActiveTab('videos')` + `setViewingVideoId(id)` + `setShowSidePanel(true)`
+Это исправит ложное удаление валидных motion ID из БД.
 
-### 2. Также показывать недавно завершённые (последние 5)
+**Файлы**: `add-avatar-motion`, `generate-video-heygen` — заменить `validateMotionId` на вызов `/v2/photo_avatar/generation/{id}`.
 
-Под активными — секция "Недавно завершённые" с последними 5 видео, у которых `generation_status = 'ready'` и есть записи в `activity_log` за последние 24 часа. Позволяет проверить, всё ли прошло штатно.
+### 2. Добавить ожидание готовности motion (bounded polling)
 
-### 3. Интеграция в дашборд (`Index.tsx`)
+После создания motion или при обнаружении `status: "in_progress"`:
+- Делать до 6 проверок с интервалом 5 секунд (30 секунд макс)
+- Если `completed` → использовать
+- Если после 30 сек всё ещё `in_progress` → показать AlertDialog пользователю
 
-Добавить `<ActiveProcesses />` после блока `StatsCard` на дашборде. Передать callback `onNavigateToVideo` для навигации.
+**В `prepareMotionStep` (Index.tsx)**: после вызова `add-avatar-motion` — поллить статус через новый endpoint `check-motion-status` (или inline в `add-avatar-motion`).
 
-### 4. Хук `useActiveProcesses.ts`
+**В `generate-video-heygen`**: перед использованием motion_avatar_id — быстрая проверка статуса. Если `in_progress` → 3 попытки по 5 секунд. Если не готов → fallback.
 
-- Запрос активных видео + их `activity_log` записей
-- Группировка логов по `entity_id` и сортировка по `created_at`
-- Авто-рефреш каждые 10 секунд (для активных)
-- Realtime подписка на `videos` для мгновенного обновления статусов
+### 3. Показывать ошибку кредитов явно
+
+Если `add-avatar-motion` или last-resort возвращает "insufficient_credit":
+- Toast: "Недостаточно кредитов HeyGen для motion. Пополните баланс."
+- В AlertDialog: "Кредиты HeyGen исчерпаны. Продолжить без motion?"
+
+### 4. Прекратить ложное удаление motion ID
+
+Убрать логику `motion_avatar_id not found in HeyGen — clearing from DB` из `generate-video-heygen`. Вместо этого — проверять статус через v2 API. Только если API явно вернёт 404 → тогда очищать.
 
 ## Файлы
 
-- **Создать**: `src/components/dashboard/ActiveProcesses.tsx`, `src/hooks/useActiveProcesses.ts`
-- **Изменить**: `src/pages/Index.tsx` — добавить компонент на дашборд, передать навигацию
+- `supabase/functions/add-avatar-motion/index.ts` — новая функция `validateMotionId` через v2 API + polling после создания
+- `supabase/functions/generate-video-heygen/index.ts` — заменить валидацию на v2 API + bounded wait
+- `src/pages/Index.tsx` — добавить toast для insufficient_credit, polling статуса после создания
+
+## Результат
+
+- Motion ID перестанут ложно удаляться из БД (экономия кредитов)
+- После создания motion система дождётся готовности (до 30 сек)
+- При нехватке кредитов — явное уведомление пользователю
+- Ролики будут получать motion, если он физически готов в HeyGen
 
