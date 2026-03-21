@@ -39,7 +39,7 @@ export function getPhaseLabel(phase: SubtitlePhase): string {
 // ── Font management ──
 
 let fontData: Uint8Array | null = null;
-const FONT_URL = 'https://cdn.jsdelivr.net/fontsource/fonts/montserrat@latest/latin-900-normal.ttf';
+const FONT_URL = 'https://cdn.jsdelivr.net/fontsource/fonts/montserrat@5.1.0/latin-900-normal.ttf';
 const FONT_PATH = 'Montserrat-Black.ttf';
 
 async function ensureFont(ff: FFmpeg): Promise<void> {
@@ -318,10 +318,13 @@ export async function burnSubtitlesBrowser(
 
   try {
     // Download font
+    console.log('[subtitles] Loading font...');
     await ensureFont(ff);
+    console.log('[subtitles] Font loaded OK');
 
     onProgress?.({ phase: 'downloading_video', progress: 22 });
 
+    console.log(`[subtitles] Generating blocks from ${wordTimestamps.length} word timestamps, highlight=${highlight}`);
     const srtBlocks = generateSmartBlocks(wordTimestamps);
     const blocks: TimedBlock[] = srtBlocks.map(b => ({
       startSec: b.startSec,
@@ -330,6 +333,7 @@ export async function burnSubtitlesBrowser(
       words: b.words,
     }));
 
+    console.log(`[subtitles] Generated ${blocks.length} blocks`);
     if (blocks.length === 0) throw new Error('No subtitle blocks generated');
 
     signal?.throwIfAborted();
@@ -345,13 +349,15 @@ export async function burnSubtitlesBrowser(
     await ff.writeFile(inputName, new Uint8Array(videoBuffer));
 
     // Build drawtext filter
+    const fontSize = options.fontSize ?? 36;
     const vf = highlight
-      ? buildHighlightDrawtextFilter(blocks, options.fontSize ?? 36)
-      : buildDrawtextFilter(blocks, options.fontSize ?? 36, options.marginV ?? 160);
+      ? buildHighlightDrawtextFilter(blocks, fontSize)
+      : buildDrawtextFilter(blocks, fontSize, options.marginV ?? 160);
 
+    console.log(`[subtitles] Filter built: fontSize=${fontSize}, filterLength=${vf.length}, filters=${vf.split(',drawtext=').length}`);
     onProgress?.({ phase: 'burning_subtitles', progress: 40 });
 
-    await execWithLogs(ff, [
+    const ffArgs = [
       '-i', inputName,
       '-vf', vf,
       '-c:a', 'copy',
@@ -359,7 +365,10 @@ export async function burnSubtitlesBrowser(
       '-preset', 'fast',
       '-crf', '23',
       '-y', outputName,
-    ]);
+    ];
+    console.log('[subtitles] Running FFmpeg...');
+    await execWithLogs(ff, ffArgs);
+    console.log('[subtitles] FFmpeg completed OK');
 
     signal?.throwIfAborted();
     onProgress?.({ phase: 'uploading_result', progress: 92 });

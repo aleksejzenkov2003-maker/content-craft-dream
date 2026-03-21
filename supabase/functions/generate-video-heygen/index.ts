@@ -192,15 +192,15 @@ serve(async (req) => {
       imageUrl = avatarPhoto?.photo_url || null;
       if (imageUrl) console.log('OVERLAY MODE: Using avatar_photo_id (transparent)');
 
-      // Find background video for this playlist+advisor combo
+      // Find background video for this playlist+advisor combo via assignments table
       if (video.playlist_id) {
-        const { data: bgVideos } = await supabase
-          .from('background_videos')
-          .select('video_url')
+        const { data: bgAssignments } = await supabase
+          .from('background_assignments')
+          .select('background:background_videos(media_url, media_type)')
           .eq('playlist_id', video.playlist_id)
           .eq('advisor_id', video.advisor_id)
           .limit(1);
-        backgroundVideoUrl = (bgVideos as any)?.[0]?.video_url || null;
+        backgroundVideoUrl = (bgAssignments as any)?.[0]?.background?.media_url || null;
         console.log('Background video:', backgroundVideoUrl ? 'found' : 'not found');
       }
     }
