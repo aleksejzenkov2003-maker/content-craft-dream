@@ -464,22 +464,24 @@ export default function Index() {
           body: { sceneId },
         });
 
-        if (motionRes.data?.success) {
-          // Sync to video
+      if (motionRes.data?.success) {
           if (motionRes.data.motionAvatarId) {
             await supabase.from('videos').update({ motion_avatar_id: motionRes.data.motionAvatarId }).eq('id', video.id);
           }
           const reusedLabel = motionRes.data?.reused ? ' (переиспользован)' : '';
-          toast.success(`Motion аватар добавлен ✓${reusedLabel}`);
+          const waitLabel = motionRes.data?.waitedForReady ? ' (ожидание готовности)' : '';
+          toast.success(`Motion аватар добавлен ✓${reusedLabel}${waitLabel}`);
           return true;
         }
 
         const errorMsg = motionRes.data?.error || 'Unknown error';
         console.warn('Motion creation via scene failed:', errorMsg);
-        // Fall through to show dialog
+        const isCreditsError = errorMsg.includes('insufficient_credit') || errorMsg.toLowerCase().includes('кредит');
         return new Promise<boolean>((resolve) => {
           setMotionError({
-            message: errorMsg,
+            message: isCreditsError 
+              ? 'Недостаточно кредитов HeyGen для motion. Пополните баланс. Продолжить без motion?' 
+              : errorMsg,
             videoId: video.id,
             resolve: (continueWithout) => { setMotionError(null); resolve(continueWithout); },
           });
