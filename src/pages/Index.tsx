@@ -484,17 +484,35 @@ export default function Index() {
           body: { sceneId },
         });
 
-      if (motionRes.data?.success) {
-          if (motionRes.data.motionAvatarId) {
-            await supabase.from('videos').update({ motion_avatar_id: motionRes.data.motionAvatarId }).eq('id', video.id);
+        const motionData = motionRes.data;
+        const motionFnError = motionRes.error;
+
+        if (motionFnError) {
+          const errText = typeof motionFnError === 'object' && motionFnError.message ? motionFnError.message : String(motionFnError);
+          console.warn('Motion function error (scene):', errText);
+          const isCreditsError = errText.includes('insufficient_credit') || errText.toLowerCase().includes('кредит');
+          return new Promise<boolean>((resolve) => {
+            setMotionError({
+              message: isCreditsError 
+                ? 'Недостаточно кредитов HeyGen для motion. Пополните баланс. Продолжить без motion?' 
+                : `Ошибка motion: ${errText}`,
+              videoId: video.id,
+              resolve: (continueWithout) => { setMotionError(null); resolve(continueWithout); },
+            });
+          });
+        }
+
+        if (motionData?.success) {
+          if (motionData.motionAvatarId) {
+            await supabase.from('videos').update({ motion_avatar_id: motionData.motionAvatarId }).eq('id', video.id);
           }
-          const reusedLabel = motionRes.data?.reused ? ' (переиспользован)' : '';
-          const waitLabel = motionRes.data?.waitedForReady ? ' (ожидание готовности)' : '';
+          const reusedLabel = motionData?.reused ? ' (переиспользован)' : '';
+          const waitLabel = motionData?.waitedForReady ? ' (ожидание готовности)' : '';
           toast.success(`Motion аватар добавлен ✓${reusedLabel}${waitLabel}`);
           return true;
         }
 
-        const errorMsg = motionRes.data?.error || 'Unknown error';
+        const errorMsg = motionData?.error || 'Unknown error';
         console.warn('Motion creation via scene failed:', errorMsg);
         const isCreditsError = errorMsg.includes('insufficient_credit') || errorMsg.toLowerCase().includes('кредит');
         return new Promise<boolean>((resolve) => {
@@ -514,17 +532,35 @@ export default function Index() {
         body: { advisorId: video.advisor_id, videoId: video.id },
       });
 
-      if (motionRes.data?.success) {
-        if (motionRes.data.motionAvatarId) {
-          await supabase.from('videos').update({ motion_avatar_id: motionRes.data.motionAvatarId }).eq('id', video.id);
+      const motionData2 = motionRes.data;
+      const motionFnError2 = motionRes.error;
+
+      if (motionFnError2) {
+        const errText = typeof motionFnError2 === 'object' && motionFnError2.message ? motionFnError2.message : String(motionFnError2);
+        console.warn('Motion function error (advisor):', errText);
+        const isCreditsError = errText.includes('insufficient_credit') || errText.toLowerCase().includes('кредит');
+        return new Promise<boolean>((resolve) => {
+          setMotionError({
+            message: isCreditsError
+              ? 'Недостаточно кредитов HeyGen для motion. Пополните баланс. Продолжить без motion?'
+              : `Ошибка motion: ${errText}`,
+            videoId: video.id,
+            resolve: (continueWithout) => { setMotionError(null); resolve(continueWithout); },
+          });
+        });
+      }
+
+      if (motionData2?.success) {
+        if (motionData2.motionAvatarId) {
+          await supabase.from('videos').update({ motion_avatar_id: motionData2.motionAvatarId }).eq('id', video.id);
         }
-        const reusedLabel = motionRes.data?.reused ? ' (переиспользован)' : '';
-        const waitLabel = motionRes.data?.waitedForReady ? ' (ожидание готовности)' : '';
+        const reusedLabel = motionData2?.reused ? ' (переиспользован)' : '';
+        const waitLabel = motionData2?.waitedForReady ? ' (ожидание готовности)' : '';
         toast.success(`Motion создан из фото духовника ✓${reusedLabel}${waitLabel}`);
         return true;
       }
 
-      const errorMsg = motionRes.data?.error || 'Unknown error';
+      const errorMsg = motionData2?.error || 'Unknown error';
       console.warn('Motion creation via advisor failed:', errorMsg);
       const isCreditsError = errorMsg.includes('insufficient_credit') || errorMsg.toLowerCase().includes('кредит');
 
