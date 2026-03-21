@@ -15,11 +15,14 @@ interface MotionRequest {
 }
 
 // ===== V2 API validation: check if photo avatar exists and is ready =====
+// Only these statuses mean the motion avatar is truly ready to use
+const READY_STATUSES = new Set(['completed', 'active']);
+const PROCESSING_STATUSES = new Set(['pending', 'in_progress', 'processing']);
+
 async function validateMotionIdV2(motionAvatarId: string, heygenKey: string): Promise<{ valid: boolean; status?: string }> {
   try {
     console.log('Validating motion_avatar_id via v2 API:', motionAvatarId);
     
-    // Try v2 photo_avatar endpoint first
     const res = await fetch(`https://api.heygen.com/v2/photo_avatar/${motionAvatarId}`, {
       headers: { 'X-Api-Key': heygenKey },
     });
@@ -33,14 +36,15 @@ async function validateMotionIdV2(motionAvatarId: string, heygenKey: string): Pr
       const data = await res.json();
       const status = data?.data?.status || 'unknown';
       console.log('Photo avatar status:', status);
-      if (status === 'completed' || status === 'active') {
+      if (READY_STATUSES.has(status)) {
         return { valid: true, status };
       }
-      if (status === 'in_progress' || status === 'processing') {
+      if (PROCESSING_STATUSES.has(status)) {
         return { valid: false, status: 'processing' };
       }
-      // Unknown status — try using it anyway
-      return { valid: true, status };
+      // Unknown status — treat as not ready (was the bug: previously assumed valid)
+      console.log('Unknown status "' + status + '" — treating as not ready');
+      return { valid: false, status: 'processing' };
     }
 
     // If v2 endpoint failed with non-404 — fall back to v1 list check
@@ -62,8 +66,8 @@ async function validateMotionIdV2(motionAvatarId: string, heygenKey: string): Pr
     return { valid: false, status: 'not_found' };
   } catch (e) {
     console.warn('Validation error:', e);
-    // On error, assume valid to avoid unnecessary deletion
-    return { valid: true, status: 'validation_error_assumed_valid' };
+    // On error, treat as not ready to be safe
+    return { valid: false, status: 'validation_error' };
   }
 }
 
