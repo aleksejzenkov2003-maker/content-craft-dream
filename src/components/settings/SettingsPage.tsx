@@ -1,12 +1,10 @@
 import { useState } from 'react';
 import { cn } from '@/lib/utils';
-import { Zap, Plug, Film } from 'lucide-react';
-import { ButtonActionsSettings } from './ButtonActionsSettings';
+import { Plug, Film } from 'lucide-react';
 import { ApiBalancesSettings } from './ApiBalancesSettings';
 import { VideoFormatSettings } from './VideoFormatSettings';
 
 const SECTIONS = [
-  { key: 'buttons', label: 'Управление действиями кнопок', icon: Zap },
   { key: 'api', label: 'Подключения API / Баланс', icon: Plug },
   { key: 'video_format', label: 'Настройки видеоформата', icon: Film },
 ] as const;
@@ -14,13 +12,12 @@ const SECTIONS = [
 type SectionKey = (typeof SECTIONS)[number]['key'];
 
 export function SettingsPage() {
-  const [activeSection, setActiveSection] = useState<SectionKey>('buttons');
+  const [activeSection, setActiveSection] = useState<SectionKey>('api');
 
   return (
     <div className="space-y-6">
       <h2 className="text-2xl font-bold">Настройки</h2>
 
-      {/* Tab menu */}
       <nav className="flex gap-1 border-b">
         {SECTIONS.map(s => {
           const Icon = s.icon;
@@ -42,8 +39,6 @@ export function SettingsPage() {
         })}
       </nav>
 
-      {/* Content */}
-      {activeSection === 'buttons' && <ButtonActionsSettings />}
       {activeSection === 'api' && <ApiBalancesSettings />}
       {activeSection === 'video_format' && <VideoFormatSettings />}
     </div>

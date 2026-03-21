@@ -3,9 +3,11 @@ import { supabase } from '@/integrations/supabase/client';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
+import { Button } from '@/components/ui/button';
 import { toast } from 'sonner';
-import { Loader2 } from 'lucide-react';
+import { Loader2, ChevronDown, ChevronUp } from 'lucide-react';
 import { COMPRESSION_PRESETS, DEFAULT_COMPRESSION_PRESET } from '@/lib/videoNormalizer';
+import { useAutomationSettings, SINGLE_STEPS, BULK_STEPS, type ActionMode } from '@/hooks/useAutomationSettings';
 
 const MODES = [
   {
@@ -27,18 +29,21 @@ export function VideoFormatSettings() {
   const [videoFormatMode, setVideoFormatMode] = useState<string>('full_photo');
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [showScenario, setShowScenario] = useState(false);
+
+  const { mode: actionMode, setMode: setActionMode } = useAutomationSettings();
 
   useEffect(() => {
     Promise.all([
-      supabase.from('app_settings' as any).select('value').eq('key', 'heygen_mode').single(),
-      supabase.from('app_settings' as any).select('value').eq('key', 'motion_enabled').single(),
-      supabase.from('app_settings' as any).select('value').eq('key', 'compression_preset').single(),
-      supabase.from('app_settings' as any).select('value').eq('key', 'video_format_mode').single(),
+      supabase.from('app_settings').select('value').eq('key', 'heygen_mode').single(),
+      supabase.from('app_settings').select('value').eq('key', 'motion_enabled').single(),
+      supabase.from('app_settings').select('value').eq('key', 'compression_preset').single(),
+      supabase.from('app_settings').select('value').eq('key', 'video_format_mode').single(),
     ]).then(([modeRes, motionRes, presetRes, formatRes]) => {
-      if (modeRes.data) setMode((modeRes.data as any).value);
-      if (motionRes.data) setMotionEnabled((motionRes.data as any).value === 'true');
-      if (presetRes.data) setCompressionPreset((presetRes.data as any).value);
-      if (formatRes.data) setVideoFormatMode((formatRes.data as any).value);
+      if (modeRes.data) setMode(modeRes.data.value);
+      if (motionRes.data) setMotionEnabled(motionRes.data.value === 'true');
+      if (presetRes.data) setCompressionPreset(presetRes.data.value);
+      if (formatRes.data) setVideoFormatMode(formatRes.data.value);
       setLoading(false);
     });
   }, []);
@@ -46,47 +51,43 @@ export function VideoFormatSettings() {
   const handleModeChange = async (newMode: string) => {
     setMode(newMode);
     setSaving(true);
-    const { error } = await (supabase.from('app_settings' as any) as any).upsert(
+    const { error } = await supabase.from('app_settings').upsert(
       { key: 'heygen_mode', value: newMode, updated_at: new Date().toISOString() },
       { onConflict: 'key' }
     );
     setSaving(false);
-    if (error) {
-      toast.error('Ошибка сохранения');
-    } else {
-      toast.success(`Режим HeyGen: ${newMode === 'v4' ? 'Avatar IV' : 'Avatar III'}`);
-    }
+    if (error) toast.error('Ошибка сохранения');
+    else toast.success(`Режим HeyGen: ${newMode === 'v4' ? 'Avatar IV' : 'Avatar III'}`);
   };
 
   const handleMotionToggle = async (enabled: boolean) => {
     setMotionEnabled(enabled);
     setSaving(true);
-    const { error } = await (supabase.from('app_settings' as any) as any).upsert(
+    const { error } = await supabase.from('app_settings').upsert(
       { key: 'motion_enabled', value: String(enabled), updated_at: new Date().toISOString() },
       { onConflict: 'key' }
     );
     setSaving(false);
-    if (error) {
-      toast.error('Ошибка сохранения');
-    } else {
-      toast.success(enabled ? 'Motion включён' : 'Motion отключён');
-    }
+    if (error) toast.error('Ошибка сохранения');
+    else toast.success(enabled ? 'Motion включён' : 'Motion отключён');
   };
 
   const handlePresetChange = async (presetId: string) => {
     setCompressionPreset(presetId);
     setSaving(true);
-    const { error } = await (supabase.from('app_settings' as any) as any).upsert(
+    const { error } = await supabase.from('app_settings').upsert(
       { key: 'compression_preset', value: presetId, updated_at: new Date().toISOString() },
       { onConflict: 'key' }
     );
     setSaving(false);
     const preset = COMPRESSION_PRESETS.find(p => p.id === presetId);
-    if (error) {
-      toast.error('Ошибка сохранения');
-    } else {
-      toast.success(`Пресет сжатия: ${preset?.label ?? presetId}`);
-    }
+    if (error) toast.error('Ошибка сохранения');
+    else toast.success(`Пресет сжатия: ${preset?.label ?? presetId}`);
+  };
+
+  const handleActionModeChange = (val: ActionMode) => {
+    setActionMode(val);
+    toast.success(val === 'bulk' ? 'Режим: Массовый' : 'Режим: Единичный');
   };
 
   if (loading) {
@@ -97,8 +98,69 @@ export function VideoFormatSettings() {
     );
   }
 
+  const currentSteps = actionMode === 'bulk' ? BULK_STEPS : SINGLE_STEPS;
+
   return (
     <div className="space-y-6">
+      {/* Action mode */}
+      <div className="rounded-lg border p-6 space-y-6">
+        <div>
+          <h3 className="text-lg font-semibold">Сценарий автоматизации</h3>
+          <p className="text-sm text-muted-foreground">
+            Определяет какие процессы запускаются автоматически при нажатии кнопок.
+          </p>
+        </div>
+
+        <RadioGroup value={actionMode} onValueChange={(v) => handleActionModeChange(v as ActionMode)} className="space-y-3">
+          <div className={`flex items-start gap-3 rounded-md border p-4 hover:bg-muted/50 transition-colors ${actionMode === 'single' ? 'border-primary bg-muted/30' : ''}`}>
+            <RadioGroupItem value="single" id="am-single" className="mt-0.5" />
+            <div className="space-y-1 flex-1">
+              <Label htmlFor="am-single" className="font-medium cursor-pointer">Единичный режим</Label>
+              <p className="text-sm text-muted-foreground">Каждый ролик запускается отдельно — пошаговый контроль</p>
+            </div>
+          </div>
+          <div className={`flex items-start gap-3 rounded-md border p-4 hover:bg-muted/50 transition-colors ${actionMode === 'bulk' ? 'border-primary bg-muted/30' : ''}`}>
+            <RadioGroupItem value="bulk" id="am-bulk" className="mt-0.5" />
+            <div className="space-y-1 flex-1">
+              <Label htmlFor="am-bulk" className="font-medium cursor-pointer">Массовый режим</Label>
+              <p className="text-sm text-muted-foreground">Параллельные действия над роликами — меньше кнопок, больше автоматизации</p>
+            </div>
+          </div>
+        </RadioGroup>
+
+        <Button variant="outline" size="sm" onClick={() => setShowScenario(!showScenario)}>
+          {showScenario ? <ChevronUp className="w-4 h-4 mr-1" /> : <ChevronDown className="w-4 h-4 mr-1" />}
+          {showScenario ? 'Скрыть сценарий' : 'Показать сценарий'}
+        </Button>
+
+        {showScenario && (
+          <div className="rounded-md border overflow-hidden">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b bg-muted/30">
+                  <th className="text-left px-3 py-2 font-medium text-muted-foreground">Кнопка</th>
+                  <th className="text-left px-3 py-2 font-medium text-muted-foreground">Автоматические действия</th>
+                </tr>
+              </thead>
+              <tbody>
+                {currentSteps.map(step => (
+                  <tr key={step.buttonKey} className="border-b last:border-b-0">
+                    <td className="px-3 py-2 font-medium whitespace-nowrap">{step.buttonLabel}</td>
+                    <td className="px-3 py-2">
+                      <ul className="space-y-0.5">
+                        {step.processes.map(p => (
+                          <li key={p.key} className="text-muted-foreground">— {p.label}</li>
+                        ))}
+                      </ul>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+
       {/* HeyGen mode */}
       <div className="rounded-lg border p-6 space-y-6">
         <div>
@@ -113,28 +175,18 @@ export function VideoFormatSettings() {
             <div key={m.value} className="flex items-start gap-3 rounded-md border p-4 hover:bg-muted/50 transition-colors">
               <RadioGroupItem value={m.value} id={`mode-${m.value}`} className="mt-0.5" />
               <div className="space-y-1 flex-1">
-                <Label htmlFor={`mode-${m.value}`} className="font-medium cursor-pointer">
-                  {m.label}
-                </Label>
+                <Label htmlFor={`mode-${m.value}`} className="font-medium cursor-pointer">{m.label}</Label>
                 <p className="text-sm text-muted-foreground">{m.description}</p>
                 {m.value === 'v3' && (
                   <div className="mt-3 pt-3 border-t">
                     <div className="flex items-center justify-between">
                       <div>
                         <p className="text-sm font-medium">Motion (движения)</p>
-                        <p className="text-xs text-muted-foreground">
-                          Предобработка аватара с естественными жестами ($1 за обработку)
-                        </p>
+                        <p className="text-xs text-muted-foreground">Предобработка аватара с естественными жестами ($1 за обработку)</p>
                       </div>
                       <div className="flex items-center gap-2">
-                        <Label htmlFor="motion-toggle" className="text-xs cursor-pointer text-muted-foreground">
-                          {motionEnabled ? 'Вкл' : 'Выкл'}
-                        </Label>
-                        <Switch
-                          id="motion-toggle"
-                          checked={motionEnabled}
-                          onCheckedChange={handleMotionToggle}
-                        />
+                        <Label htmlFor="motion-toggle" className="text-xs cursor-pointer text-muted-foreground">{motionEnabled ? 'Вкл' : 'Выкл'}</Label>
+                        <Switch id="motion-toggle" checked={motionEnabled} onCheckedChange={handleMotionToggle} />
                       </div>
                     </div>
                   </div>
@@ -189,7 +241,7 @@ export function VideoFormatSettings() {
         <RadioGroup value={videoFormatMode} onValueChange={async (val) => {
           setVideoFormatMode(val);
           setSaving(true);
-          const { error } = await (supabase.from('app_settings' as any) as any).upsert(
+          const { error } = await supabase.from('app_settings').upsert(
             { key: 'video_format_mode', value: val, updated_at: new Date().toISOString() },
             { onConflict: 'key' }
           );
