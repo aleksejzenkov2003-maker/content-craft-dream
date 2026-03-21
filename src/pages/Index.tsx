@@ -241,7 +241,7 @@ export default function Index() {
       }
 
       // Phase 2: Burn subtitles if word_timestamps exist
-      if (isEnabled('generate_video', 'subtitles') && vid?.word_timestamps) {
+      if ((isEnabled('side_video', 'subtitles') || isEnabled('burn_subtitles', 'subtitles')) && vid?.word_timestamps) {
         toast.info('Шаг 2/2: Начинаем вшивку субтитров...');
         try {
           const { burnSubtitlesBrowser } = await import('@/lib/videoSubtitles');
