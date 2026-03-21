@@ -2,6 +2,7 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import { Sidebar } from '@/components/layout/Sidebar';
 import { Header } from '@/components/layout/Header';
 import { StatsCard } from '@/components/dashboard/StatsCard';
+import { ActiveProcesses } from '@/components/dashboard/ActiveProcesses';
 import { AdvisorsGrid } from '@/components/advisors/AdvisorsGrid';
 import { PlaylistsGrid } from '@/components/playlists/PlaylistsGrid';
 import { VideosTable } from '@/components/videos/VideosTable';
@@ -1040,6 +1041,11 @@ export default function Index() {
                     <StatsCard title="Вопросов" value={questions.length} change="уникальных" changeType="neutral" icon={HelpCircle} />
                     <StatsCard title="Публикаций" value={publications.length} change="всего" changeType="positive" icon={Send} iconColor="text-info" />
                   </div>
+                  <ActiveProcesses onNavigateToVideo={(videoId) => {
+                    setActiveTab('videos');
+                    setViewingVideoId(videoId);
+                    setShowSidePanel(true);
+                  }} />
                 </>
               )}
             </div>
