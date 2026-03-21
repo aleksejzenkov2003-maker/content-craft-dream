@@ -286,7 +286,7 @@ export default function Index() {
           const subtitledFile = await burnSubtitlesBrowser(
             finalUrl,
             vid.word_timestamps as any,
-            { fontSize: 72 },
+            { fontSize: 56 },
             (info) => updateProgress(info.phase, Math.round(50 + info.progress * 0.45)),
           );
           updateProgress('uploading_result', 95);
