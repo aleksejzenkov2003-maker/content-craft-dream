@@ -560,7 +560,7 @@ export default function Index() {
         return true;
       }
 
-      const errorMsg = motionRes.data?.error || 'Unknown error';
+      const errorMsg = motionData2?.error || 'Unknown error';
       console.warn('Motion creation via advisor failed:', errorMsg);
       const isCreditsError = errorMsg.includes('insufficient_credit') || errorMsg.toLowerCase().includes('кредит');
 
