@@ -318,10 +318,13 @@ export async function burnSubtitlesBrowser(
 
   try {
     // Download font
+    console.log('[subtitles] Loading font...');
     await ensureFont(ff);
+    console.log('[subtitles] Font loaded OK');
 
     onProgress?.({ phase: 'downloading_video', progress: 22 });
 
+    console.log(`[subtitles] Generating blocks from ${wordTimestamps.length} word timestamps, highlight=${highlight}`);
     const srtBlocks = generateSmartBlocks(wordTimestamps);
     const blocks: TimedBlock[] = srtBlocks.map(b => ({
       startSec: b.startSec,
@@ -330,6 +333,7 @@ export async function burnSubtitlesBrowser(
       words: b.words,
     }));
 
+    console.log(`[subtitles] Generated ${blocks.length} blocks`);
     if (blocks.length === 0) throw new Error('No subtitle blocks generated');
 
     signal?.throwIfAborted();
