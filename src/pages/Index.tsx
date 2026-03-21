@@ -202,6 +202,18 @@ export default function Index() {
     const updateProgress = (phase: string, progress: number) => {
       setAutoSubtitleProgress(prev => ({ ...prev, [videoId]: { phase, progress } }));
     };
+    const logStep = async (action: string, extra?: { details?: Record<string, unknown>; duration_ms?: number }) => {
+      try {
+        await supabase.from('activity_log').insert({
+          action,
+          entity_type: 'video',
+          entity_id: videoId,
+          details: extra?.details || null,
+          duration_ms: extra?.duration_ms || null,
+        });
+      } catch (_) { /* non-critical */ }
+    };
+
     try {
       // Mark reel_status as processing
       await supabase.from('videos').update({ reel_status: 'generating' }).eq('id', videoId);
@@ -216,6 +228,7 @@ export default function Index() {
       const sourceUrl = vid?.heygen_video_url;
       if (!sourceUrl) {
         console.warn('No HeyGen URL for post-processing');
+        await logStep('postprocessing_error', { details: { reason: 'no_heygen_url' } });
         await supabase.from('videos').update({ reel_status: 'error' }).eq('id', videoId);
         return;
       }
@@ -225,6 +238,8 @@ export default function Index() {
       // Phase 1: Bitrate reduction
       if (isEnabled('side_video', 'resize') || isEnabled('resize', 'resize')) {
         updateProgress('reducing_bitrate', 5);
+        const bitrateStart = Date.now();
+        await logStep('bitrate_reduction_started');
         toast.info('Шаг 1/2: Уменьшение битрейта видео...');
         const { reduceVideoBitrate, COMPRESSION_PRESETS, DEFAULT_COMPRESSION_PRESET } = await import('@/lib/videoNormalizer');
         // Load selected compression preset from settings
@@ -245,10 +260,11 @@ export default function Index() {
           .upload(reducedFileName, reducedFile, { contentType: 'video/mp4', upsert: true });
         if (uploadErr) throw uploadErr;
 
-      const { data: urlData } = supabase.storage.from('media-files').getPublicUrl(reducedFileName);
+        const { data: urlData } = supabase.storage.from('media-files').getPublicUrl(reducedFileName);
         finalUrl = urlData.publicUrl;
         // Save reduced URL as clean source (no subtitles) for future re-burns
         await supabase.from('videos').update({ reduced_video_url: finalUrl }).eq('id', videoId);
+        await logStep('bitrate_reduction_complete', { duration_ms: Date.now() - bitrateStart, details: { preset: selectedPreset.id } });
         toast.success('✅ Шаг 1/2: Битрейт уменьшен!');
       }
 
