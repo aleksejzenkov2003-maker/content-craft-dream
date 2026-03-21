@@ -13,7 +13,7 @@ const SINGLE_SCENARIO: Record<string, string[]> = {
   side_step1: ['atmosphere'],
   side_cover: ['cover_overlay', 'hook_overlay'],
   voiceover: ['voiceover', 'subtitles'],
-  side_video: ['heygen'],
+  side_video: ['motion', 'heygen'],
   resize: ['resize'],
   burn_subtitles: ['subtitles'],
   prepare_publish: ['create_publication', 'concat', 'generate_text'],
@@ -21,7 +21,7 @@ const SINGLE_SCENARIO: Record<string, string[]> = {
 };
 
 const BULK_SCENARIO: Record<string, string[]> = {
-  take_in_work: ['voiceover', 'subtitles', 'atmosphere', 'cover_overlay', 'hook_overlay'],
+  take_in_work: ['voiceover', 'subtitles', 'atmosphere', 'cover_overlay', 'hook_overlay', 'motion'],
   side_video: ['heygen', 'resize', 'subtitles'],
   prepare_publish: ['create_publication', 'concat', 'generate_text'],
   publish: ['publish_social'],
@@ -33,6 +33,7 @@ const PROCESS_LABELS: Record<string, string> = {
   hook_overlay: 'Добавление заголовка',
   voiceover: 'Генерация аудио',
   subtitles: 'Генерация/наложение субтитров',
+  motion: 'Подготовка motion-аватара',
   heygen: 'Генерация видео в HeyGen',
   resize: 'Сжатие видео',
   create_publication: 'Добавление задачи на публикацию',
