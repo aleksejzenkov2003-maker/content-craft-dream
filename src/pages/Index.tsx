@@ -74,6 +74,7 @@ export default function Index() {
   const [showImportDialog, setShowImportDialog] = useState(false);
   const [sceneNavTarget, setSceneNavTarget] = useState<{ playlistId: string; advisorId: string } | null>(null);
   const [publicationsTab, setPublicationsTab] = useState('by-channel');
+  const [autoSubtitleProgress, setAutoSubtitleProgress] = useState<Record<string, { phase: string; progress: number }>>({});
   const [motionError, setMotionError] = useState<{ message: string; videoId: string; resolve: (continueWithout: boolean) => void } | null>(null);
   const { advisors, loading: advisorsLoading, addAdvisor, updateAdvisor, deleteAdvisor, addPhoto, deletePhoto, setPrimaryPhoto, updatePhotoAssetId, bulkImport: bulkImportAdvisors } = useAdvisors();
   const { playlists, loading: playlistsLoading, addPlaylist, updatePlaylist, deletePlaylist } = usePlaylists();
