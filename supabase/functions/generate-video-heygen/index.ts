@@ -277,26 +277,72 @@ serve(async (req) => {
       ? (sceneMotionAvatarId || video.motion_avatar_id) 
       : null;
 
-    // Validate existing motion_avatar_id via HeyGen API before using it
+    // Validate existing motion_avatar_id via v2 API (not v1 talking_photo.list which misses motion avatars)
     if (effectiveMotionAvatarId && heygenMode === 'v3') {
-      console.log('Validating motion_avatar_id:', effectiveMotionAvatarId);
+      console.log('Validating motion_avatar_id via v2 API:', effectiveMotionAvatarId);
       try {
-        const listRes = await fetch('https://api.heygen.com/v1/talking_photo.list', {
+        // Try v2 photo_avatar endpoint
+        const v2Res = await fetch(`https://api.heygen.com/v2/photo_avatar/${effectiveMotionAvatarId}`, {
           headers: { 'X-Api-Key': heygenKey },
         });
-        if (listRes.ok) {
-          const listData = await listRes.json();
-          const photos = listData?.data?.talking_photos || [];
-          const found = photos.find((p: any) => p.talking_photo_id === effectiveMotionAvatarId);
-          if (!found) {
-            console.warn('motion_avatar_id not found in HeyGen — clearing from DB');
-            effectiveMotionAvatarId = null;
-            if (sceneId) {
-              await supabase.from('playlist_scenes').update({ motion_avatar_id: null }).eq('id', sceneId);
+        
+        if (v2Res.status === 404) {
+          // Explicitly gone — clear from DB
+          console.warn('motion_avatar_id returned 404 — clearing from DB');
+          effectiveMotionAvatarId = null;
+          if (sceneId) {
+            await supabase.from('playlist_scenes').update({ motion_avatar_id: null }).eq('id', sceneId);
+          }
+          await supabase.from('videos').update({ motion_avatar_id: null }).eq('id', videoId);
+        } else if (v2Res.ok) {
+          const v2Data = await v2Res.json();
+          const avatarStatus = v2Data?.data?.status;
+          console.log('Motion avatar status:', avatarStatus);
+          
+          if (avatarStatus === 'in_progress' || avatarStatus === 'processing') {
+            // Wait up to 15s for it to become ready
+            console.log('Motion still processing — bounded wait (3x5s)...');
+            let ready = false;
+            for (let i = 0; i < 3; i++) {
+              await new Promise(r => setTimeout(r, 5000));
+              const checkRes = await fetch(`https://api.heygen.com/v2/photo_avatar/${effectiveMotionAvatarId}`, {
+                headers: { 'X-Api-Key': heygenKey },
+              });
+              if (checkRes.ok) {
+                const checkData = await checkRes.json();
+                if (checkData?.data?.status !== 'in_progress' && checkData?.data?.status !== 'processing') {
+                  ready = true;
+                  break;
+                }
+              }
             }
-            await supabase.from('videos').update({ motion_avatar_id: null }).eq('id', videoId);
+            if (!ready) {
+              console.warn('Motion still not ready after 15s — fallback to static');
+              motionWarning = 'Motion не применён: провайдер не успел обработать аватар';
+              effectiveMotionAvatarId = null;
+              // Do NOT clear from DB — it may become ready later
+            } else {
+              console.log('Motion became ready after wait ✓');
+            }
           } else {
-            console.log('motion_avatar_id validated ✓');
+            console.log('motion_avatar_id validated ✓ (status:', avatarStatus, ')');
+          }
+        } else {
+          // Non-404 error — also try v1 as fallback
+          console.log('v2 returned', v2Res.status, '— trying v1 fallback');
+          const listRes = await fetch('https://api.heygen.com/v1/talking_photo.list', {
+            headers: { 'X-Api-Key': heygenKey },
+          });
+          if (listRes.ok) {
+            const listData = await listRes.json();
+            const photos = listData?.data?.talking_photos || [];
+            const found = photos.find((p: any) => p.talking_photo_id === effectiveMotionAvatarId);
+            if (found) {
+              console.log('motion_avatar_id found in v1 list ✓');
+            } else {
+              console.warn('motion_avatar_id not in v1 list either — but NOT clearing (may be v2-only)');
+              // Don't clear — it might be a v2-only avatar
+            }
           }
         }
       } catch (valErr) {
