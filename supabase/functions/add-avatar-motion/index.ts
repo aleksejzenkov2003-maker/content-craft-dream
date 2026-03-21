@@ -14,29 +14,79 @@ interface MotionRequest {
   motionPrompt?: string;
 }
 
-async function validateMotionId(motionAvatarId: string, heygenKey: string): Promise<boolean> {
+// ===== V2 API validation: check if photo avatar exists and is ready =====
+async function validateMotionIdV2(motionAvatarId: string, heygenKey: string): Promise<{ valid: boolean; status?: string }> {
   try {
-    console.log('Validating existing motion_avatar_id:', motionAvatarId);
-    const res = await fetch('https://api.heygen.com/v1/talking_photo.list', {
+    console.log('Validating motion_avatar_id via v2 API:', motionAvatarId);
+    
+    // Try v2 photo_avatar endpoint first
+    const res = await fetch(`https://api.heygen.com/v2/photo_avatar/${motionAvatarId}`, {
       headers: { 'X-Api-Key': heygenKey },
     });
-    if (!res.ok) {
-      console.warn('talking_photo.list failed:', res.status);
-      return false;
+    
+    if (res.status === 404) {
+      console.log('Motion avatar not found (404) — invalid');
+      return { valid: false, status: 'not_found' };
     }
-    const data = await res.json();
-    const photos = data?.data?.talking_photos || [];
-    const found = photos.find((p: any) => p.talking_photo_id === motionAvatarId);
-    if (found) {
-      console.log('Motion avatar found in HeyGen, valid ✓');
-      return true;
+    
+    if (res.ok) {
+      const data = await res.json();
+      const status = data?.data?.status || 'unknown';
+      console.log('Photo avatar status:', status);
+      if (status === 'completed' || status === 'active') {
+        return { valid: true, status };
+      }
+      if (status === 'in_progress' || status === 'processing') {
+        return { valid: false, status: 'processing' };
+      }
+      // Unknown status — try using it anyway
+      return { valid: true, status };
     }
-    console.log('Motion avatar NOT found in HeyGen list — invalid');
-    return false;
+
+    // If v2 endpoint failed with non-404 — fall back to v1 list check
+    console.log('v2 endpoint returned', res.status, '— falling back to v1 list');
+    const listRes = await fetch('https://api.heygen.com/v1/talking_photo.list', {
+      headers: { 'X-Api-Key': heygenKey },
+    });
+    if (listRes.ok) {
+      const listData = await listRes.json();
+      const photos = listData?.data?.talking_photos || [];
+      const found = photos.find((p: any) => p.talking_photo_id === motionAvatarId);
+      if (found) {
+        console.log('Motion avatar found in v1 list ✓');
+        return { valid: true, status: 'found_in_v1' };
+      }
+    }
+
+    console.log('Motion avatar not found in any API — invalid');
+    return { valid: false, status: 'not_found' };
   } catch (e) {
     console.warn('Validation error:', e);
-    return false;
+    // On error, assume valid to avoid unnecessary deletion
+    return { valid: true, status: 'validation_error_assumed_valid' };
   }
+}
+
+// ===== Wait for motion to become ready (bounded polling) =====
+async function waitForMotionReady(motionAvatarId: string, heygenKey: string, maxChecks = 6, intervalMs = 5000): Promise<boolean> {
+  for (let i = 0; i < maxChecks; i++) {
+    console.log(`Polling motion readiness (${i + 1}/${maxChecks})...`);
+    const { valid, status } = await validateMotionIdV2(motionAvatarId, heygenKey);
+    if (valid) {
+      console.log('Motion is ready ✓');
+      return true;
+    }
+    if (status === 'not_found') {
+      console.log('Motion not found — stop polling');
+      return false;
+    }
+    // status === 'processing' — wait and retry
+    if (i < maxChecks - 1) {
+      await new Promise(r => setTimeout(r, intervalMs));
+    }
+  }
+  console.log('Motion still not ready after polling — timeout');
+  return false;
 }
 
 async function uploadTalkingPhoto(imageUrl: string, heygenKey: string): Promise<string> {
@@ -66,7 +116,6 @@ async function uploadTalkingPhoto(imageUrl: string, heygenKey: string): Promise<
 }
 
 async function resolveImageUrl(supabase: any, sceneId?: string, advisorId?: string): Promise<{ imageUrl: string; source: string }> {
-  // 1. From scene
   if (sceneId) {
     const { data: scene } = await supabase
       .from('playlist_scenes')
@@ -78,7 +127,6 @@ async function resolveImageUrl(supabase: any, sceneId?: string, advisorId?: stri
       return { imageUrl: scene.scene_url, source: 'scene' };
     }
     
-    // Use scene's advisor for photo fallback
     const effectiveAdvisorId = scene?.advisor_id || advisorId;
     if (effectiveAdvisorId) {
       const result = await resolveAdvisorPhoto(supabase, effectiveAdvisorId, scene?.advisor?.scene_photo_id);
@@ -86,7 +134,6 @@ async function resolveImageUrl(supabase: any, sceneId?: string, advisorId?: stri
     }
   }
 
-  // 2. From advisor directly (no scene)
   if (advisorId) {
     const { data: advisor } = await supabase
       .from('advisors')
@@ -104,7 +151,6 @@ async function resolveImageUrl(supabase: any, sceneId?: string, advisorId?: stri
 }
 
 async function resolveAdvisorPhoto(supabase: any, advisorId: string, scenePhotoId?: string | null): Promise<{ imageUrl: string; source: string } | null> {
-  // scene_photo_id first
   if (scenePhotoId) {
     const { data: scenePhoto } = await supabase
       .from('advisor_photos')
@@ -116,7 +162,6 @@ async function resolveAdvisorPhoto(supabase: any, advisorId: string, scenePhotoI
     }
   }
   
-  // primary photo fallback
   const { data: photos } = await supabase
     .from('advisor_photos')
     .select('photo_url, is_primary')
@@ -173,19 +218,19 @@ serve(async (req) => {
     }
 
     if (existingMotionId) {
-      console.log('Found existing motion_avatar_id:', existingMotionId, '— validating...');
-      const isValid = await validateMotionId(existingMotionId, heygenKey);
-      if (isValid) {
+      console.log('Found existing motion_avatar_id:', existingMotionId, '— validating via v2 API...');
+      const { valid, status } = await validateMotionIdV2(existingMotionId, heygenKey);
+      
+      if (valid) {
         console.log('Existing motion avatar is valid — reusing');
         const durationMs = Date.now() - startTime;
         await supabase.from('activity_log').insert({
           action: 'motion_reused',
           entity_type: sceneId ? 'scene' : 'video',
           entity_id: sceneId || videoId,
-          details: { motion_avatar_id: existingMotionId, status: 'reused' },
+          details: { motion_avatar_id: existingMotionId, status: 'reused', validation_status: status },
           duration_ms: durationMs,
         });
-        // Sync to both scene and video if possible
         if (sceneId) {
           await supabase.from('playlist_scenes').update({ motion_avatar_id: existingMotionId }).eq('id', sceneId);
         }
@@ -197,13 +242,45 @@ serve(async (req) => {
           { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
         );
       }
-      // Invalid — clear and create fresh
-      console.log('Existing motion_avatar_id is invalid — clearing and creating new');
-      if (sceneId) {
-        await supabase.from('playlist_scenes').update({ motion_avatar_id: null }).eq('id', sceneId);
+      
+      if (status === 'processing') {
+        // Motion exists but still processing — wait for it
+        console.log('Motion is still processing — waiting...');
+        const isReady = await waitForMotionReady(existingMotionId, heygenKey);
+        if (isReady) {
+          console.log('Motion became ready after waiting ✓');
+          const durationMs = Date.now() - startTime;
+          await supabase.from('activity_log').insert({
+            action: 'motion_reused_after_wait',
+            entity_type: sceneId ? 'scene' : 'video',
+            entity_id: sceneId || videoId,
+            details: { motion_avatar_id: existingMotionId, status: 'ready_after_wait' },
+            duration_ms: durationMs,
+          });
+          if (sceneId) {
+            await supabase.from('playlist_scenes').update({ motion_avatar_id: existingMotionId }).eq('id', sceneId);
+          }
+          if (videoId) {
+            await supabase.from('videos').update({ motion_avatar_id: existingMotionId }).eq('id', videoId);
+          }
+          return new Response(
+            JSON.stringify({ success: true, motionAvatarId: existingMotionId, reused: true, waitedForReady: true }),
+            { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          );
+        }
+        // Still not ready after 30s — fall through to create new
+        console.log('Motion still not ready after 30s — will create new');
       }
-      if (videoId) {
-        await supabase.from('videos').update({ motion_avatar_id: null }).eq('id', videoId);
+      
+      // Only clear if explicitly not found (404), NOT on processing timeout
+      if (status === 'not_found') {
+        console.log('Existing motion_avatar_id is gone from HeyGen — clearing');
+        if (sceneId) {
+          await supabase.from('playlist_scenes').update({ motion_avatar_id: null }).eq('id', sceneId);
+        }
+        if (videoId) {
+          await supabase.from('videos').update({ motion_avatar_id: null }).eq('id', videoId);
+        }
       }
     }
 
@@ -215,7 +292,7 @@ serve(async (req) => {
     const talkingPhotoId = await uploadTalkingPhoto(imageUrl, heygenKey);
     console.log('talking_photo_id for motion:', talkingPhotoId);
 
-    // Call add_motion API (unified endpoint)
+    // Call add_motion API
     const MAX_PROMPT_LENGTH = 512;
     const rawPrompt = motionPrompt || 'The person gestures naturally with their hands while explaining something';
     const truncatedPrompt = rawPrompt.length > MAX_PROMPT_LENGTH ? rawPrompt.slice(0, MAX_PROMPT_LENGTH) : rawPrompt;
@@ -239,6 +316,10 @@ serve(async (req) => {
 
     if (!motionRes.ok) {
       const errText = await motionRes.text();
+      // Check for insufficient credit
+      if (errText.toLowerCase().includes('insufficient credit') || errText.toLowerCase().includes('credit')) {
+        throw new Error('insufficient_credit: Недостаточно кредитов HeyGen для создания motion-аватара. Пополните баланс.');
+      }
       throw new Error(`HeyGen add_motion failed: ${motionRes.status} - ${errText}`);
     }
 
@@ -250,6 +331,13 @@ serve(async (req) => {
       || motionResult.data?.id;
 
     if (!motionAvatarId) throw new Error('No motion avatar ID returned: ' + JSON.stringify(motionResult));
+
+    // ===== Wait for motion to become ready (bounded polling, 30s max) =====
+    console.log('Waiting for motion to become ready...');
+    const isReady = await waitForMotionReady(motionAvatarId, heygenKey);
+    if (!isReady) {
+      console.warn('Motion created but not ready within 30s — saving ID for future use');
+    }
 
     // Save to scene AND video
     if (sceneId) {
@@ -272,12 +360,12 @@ serve(async (req) => {
       action: 'add_avatar_motion',
       entity_type: sceneId ? 'scene' : 'video',
       entity_id: sceneId || videoId,
-      details: { motion_type: motionType, motion_avatar_id: motionAvatarId, image_source: imageSource },
+      details: { motion_type: motionType, motion_avatar_id: motionAvatarId, image_source: imageSource, ready: isReady },
       duration_ms: durationMs,
     });
 
     return new Response(
-      JSON.stringify({ success: true, motionAvatarId }),
+      JSON.stringify({ success: true, motionAvatarId, ready: isReady }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
 
