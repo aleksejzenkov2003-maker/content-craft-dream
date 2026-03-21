@@ -1,56 +1,107 @@
 
+# План: починить motion для роликов без approved scene и перестать плодить новые motion
 
-# Motion: явный шаг с уведомлениями + переиспользование
+## Что нашёл
 
-## Корневая причина
+Для ролика `#11711 ... Orthodox` motion не добавился не потому, что UI не вызвал шаг, а потому что backend не нашёл подходящую сцену:
 
-По логам видно: `add-avatar-motion` создаёт motion ID (`6a01fd09503b47d2bcc200d109548ac9`), но HeyGen возвращает "**missing image dimensions**" при попытке использовать — motion ещё обрабатывается. Система делает 5 попыток и падает на статику. Каждый раз создаётся **новый** motion вместо переиспользования существующего.
+- в логах есть `No approved scene found for motion`
+- в базе для `playlist_id = 994a...` и `advisor_id = f9d... (Orthodox)` есть только `waiting` scene без `scene_url`
+- `prepareMotionStep` в `src/pages/Index.tsx` при отсутствии approved scene просто молча возвращает `true`
+- `generate-video-heygen` умеет делать last-resort motion только если есть `sceneId`, то есть без approved scene он всегда уходит в статичное фото
 
-## Что делаем
+Есть ещё 2 архитектурные проблемы:
+1. В двух функциях используются разные endpoints для add_motion:
+   - `add-avatar-motion` → `/v2/photo_avatar/add_motion`
+   - `generate-video-heygen` → `/v1/talking_photo.add_motion`
+2. Проверка текущего `motion_avatar_id` смотрит только “ID существует”, но не гарантирует, что motion уже готов к использованию, из-за чего возможен кейс с `missing image dimensions`.
 
-### 1. Явный шаг motion с подтверждением ошибки (Index.tsx)
+## Что нужно сделать
 
-В `handleGenerateVideo` (single pipeline):
-- Показывать toast "Шаг 0: Проверка motion-аватара..."
-- Если `scene.motion_avatar_id` уже есть → валидировать его через HeyGen API (`/v1/talking_photo.list`). Если валиден → toast.success "Motion аватар готов ✓", пропустить создание
-- Если нет → создать через `add-avatar-motion`, toast.success "Motion добавлен ✓"
-- **При ошибке**: показать **AlertDialog** "Motion не удался: [причина]. Продолжить генерацию без motion?" с кнопками Да/Нет
-  - Да → продолжить pipeline без motion
-  - Нет → прервать pipeline
+### 1. Убрать зависимость motion от approved scene
+Переделать подготовку motion так, чтобы она работала по цепочке источников:
 
-### 2. Переиспользование существующих motion (add-avatar-motion + generate-video-heygen)
-
-**`add-avatar-motion`**: Перед загрузкой нового talking_photo — проверять, есть ли уже `motion_avatar_id` на сцене. Если есть — вызвать HeyGen `/v1/talking_photo.list` и проверить, что ID всё ещё существует. Если да → вернуть его без повторного создания.
-
-**`generate-video-heygen`**: Перед использованием `motion_avatar_id` — сделать быструю проверку через HeyGen API. Если ID невалиден (missing dimensions) → очистить его из сцены и создать заново, а не просто fallback на static.
-
-### 3. Новый edge function: validate-motion (или inline в generate-video-heygen)
-
-Добавить helper-функцию для валидации motion_avatar_id:
+```text
+approved scene with scene_url
+→ advisor.scene_photo_id
+→ primary advisor photo
+→ video/main fallback
 ```
-GET https://api.heygen.com/v1/talking_photo.list
-→ найти в списке нужный ID → проверить что он ready
-```
-Если не найден или не ready → вернуть `{ valid: false }`.
 
-### 4. UI для AlertDialog при ошибке motion
+То есть motion должен создаваться даже если сцена ещё не утверждена или вообще отсутствует.
 
-В `Index.tsx` добавить state + AlertDialog:
-```
-const [motionError, setMotionError] = useState<{ message: string; videoId: string } | null>(null);
-```
-При ошибке motion → `setMotionError(...)` → показать AlertDialog → пользователь решает продолжить или нет.
+### 2. Сделать единый motion-resolver
+Вынести общую логику в один helper, который будут использовать и `add-avatar-motion`, и `generate-video-heygen`:
+
+- найти лучший источник изображения
+- проверить существующий `scene.motion_avatar_id`
+- если его нет — проверить `video.motion_avatar_id`
+- если валиден — переиспользовать
+- если невалиден — очистить и создать новый
+- если motion создаётся без scene — сохранять хотя бы в `videos.motion_avatar_id`
+
+Так мы перестанем тратить кредиты повторно на один и тот же ролик.
+
+### 3. Починить явный шаг в UI
+В `Index.tsx` изменить `prepareMotionStep`:
+
+- не завершать шаг фразой “No approved scene found for motion”
+- вместо этого запускать motion по advisor photo fallback
+- показывать понятные статусы:
+  - `Шаг 0: Подготовка motion-аватара...`
+  - `Motion аватар найден ✓`
+  - `Motion аватар добавлен ✓`
+  - `Motion создан из фото духовника ✓`
+
+Если motion не удалось подготовить — оставлять текущий AlertDialog с выбором:
+- продолжить без motion
+- остановить генерацию
+
+### 4. Привести add_motion к одному рабочему API
+Использовать один и тот же endpoint и одинаковый формат запроса в обеих edge functions. Сейчас логика расходится, поэтому поведение “ручного” и “аварийного” создания motion отличается.
+
+### 5. Проверять готовность motion, а не только существование
+Усилить валидацию `motion_avatar_id`:
+
+- смотреть не только наличие ID в HeyGen list
+- проверять, что asset уже готов к использованию
+- если motion ещё не готов — делать короткий bounded retry / wait-check
+- если после короткой проверки не готов — не использовать его в генерации и показать осмысленную причину
+
+Это устранит ситуацию, когда motion “есть в HeyGen”, но видео всё равно собирается без него.
+
+### 6. Синхронизировать сохранение motion ID
+После успешного создания:
+- если есть scene → писать в `playlist_scenes.motion_avatar_id`
+- всегда писать в `videos.motion_avatar_id`
+
+Так повторная генерация сможет переиспользовать ранее созданный motion даже без сцены.
 
 ## Файлы
 
-- **`src/pages/Index.tsx`**: явный шаг motion + AlertDialog + ожидание решения пользователя
-- **`supabase/functions/add-avatar-motion/index.ts`**: проверка существующего motion_avatar_id перед созданием нового
-- **`supabase/functions/generate-video-heygen/index.ts`**: валидация motion_avatar_id через HeyGen API перед использованием, очистка невалидных ID
+- `src/pages/Index.tsx`
+- `supabase/functions/add-avatar-motion/index.ts`
+- `supabase/functions/generate-video-heygen/index.ts`
 
 ## Результат
 
-- Motion — явный шаг с уведомлениями (не молчаливый)
-- Ошибка motion → пользователь решает продолжить или нет
-- Существующие motion переиспользуются, а не пересоздаются каждый раз ($1 за каждый)
-- Невалидные motion_avatar_id автоматически очищаются из БД
+После правки motion будет работать в двух случаях:
+- когда есть approved scene
+- когда сцены нет, но есть фото духовника
 
+Именно это сейчас ломает кейс `Orthodox`: система не находит approved scene и слишком рано сдается, вместо того чтобы создать/reuse motion по фото.
+
+## Технически коротко
+
+```text
+Сейчас:
+UI motion step -> ищет только approved scene
+нет approved scene -> skip
+backend last-resort motion -> требует sceneId
+нет sceneId -> static photo
+
+После исправления:
+UI motion step -> approved scene OR advisor photo fallback
+backend -> reuse valid motion from scene/video
+если нет -> create once and save
+```
