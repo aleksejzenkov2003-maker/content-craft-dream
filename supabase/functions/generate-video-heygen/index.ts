@@ -277,15 +277,59 @@ serve(async (req) => {
       ? (sceneMotionAvatarId || (sceneUrl ? null : video.motion_avatar_id)) 
       : null;
 
-    // Motion is now pre-created by the client pipeline (triggerAutoGeneration / handleFullVideoPipeline).
-    // Here we only attempt to USE an existing motion_avatar_id — no creation, no long retry loops.
+    // Last-resort: if motion is enabled but no motion_avatar_id exists, try to create one now
+    if (motionEnabled && !effectiveMotionAvatarId && sceneId && heygenMode === 'v3') {
+      console.log('Motion enabled but no motion_avatar_id — attempting last-resort creation...');
+      try {
+        // Upload talking photo first
+        const tempTalkingPhotoId = await uploadTalkingPhoto(imageUrl, heygenKey);
+        
+        // Call HeyGen add_motion API
+        const motionPrompt = sceneMotionPrompt || video.motion_prompt || 'The person gestures naturally with their hands while explaining something';
+        const addMotionRes = await fetch('https://api.heygen.com/v1/talking_photo.add_motion', {
+          method: 'POST',
+          headers: { 'X-Api-Key': heygenKey, 'Content-Type': 'application/json' },
+          body: JSON.stringify({ id: tempTalkingPhotoId, prompt: motionPrompt }),
+        });
+        
+        if (addMotionRes.ok) {
+          const motionData = await addMotionRes.json();
+          const newMotionId = motionData?.data?.talking_photo_id;
+          if (newMotionId) {
+            effectiveMotionAvatarId = newMotionId;
+            // Save for future reuse
+            await supabase.from('playlist_scenes').update({ motion_avatar_id: newMotionId }).eq('id', sceneId);
+            await supabase.from('videos').update({ motion_avatar_id: newMotionId }).eq('id', videoId);
+            console.log('Last-resort motion created:', newMotionId);
+            try {
+              await supabase.from('activity_log').insert({
+                action: 'last_resort_motion_created',
+                entity_type: 'video',
+                entity_id: videoId,
+                details: { motion_avatar_id: newMotionId, scene_id: sceneId },
+              });
+            } catch (_) { /* ignore */ }
+          }
+        } else {
+          const errText = await addMotionRes.text();
+          console.warn('Last-resort motion creation failed:', errText);
+          motionWarning = `Motion не применён: ошибка создания (${addMotionRes.status})`;
+        }
+      } catch (motionErr) {
+        console.warn('Last-resort motion error:', motionErr);
+        motionWarning = 'Motion не применён: ошибка при создании';
+      }
+    }
 
     if (effectiveMotionAvatarId && heygenMode === 'v3') {
       talkingPhotoIdFinal = effectiveMotionAvatarId;
-      console.log('Using pre-created motion_avatar_id:', talkingPhotoIdFinal, 'source:', sceneMotionAvatarId ? 'scene' : 'video');
+      console.log('Using motion_avatar_id:', talkingPhotoIdFinal, 'source:', sceneMotionAvatarId ? 'scene' : 'last-resort/video');
     } else {
       talkingPhotoIdFinal = await uploadTalkingPhoto(imageUrl, heygenKey);
       console.log('talking_photo_id (fresh upload, no motion):', talkingPhotoIdFinal);
+      if (motionEnabled && heygenMode === 'v3' && !motionWarning) {
+        motionWarning = 'Motion не применён: motion_avatar_id отсутствует';
+      }
     }
 
     // --- Call HeyGen API ---
