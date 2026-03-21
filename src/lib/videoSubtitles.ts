@@ -48,7 +48,7 @@ async function ensureFont(ff: FFmpeg): Promise<void> {
     if (!resp.ok) throw new Error(`Failed to fetch font: HTTP ${resp.status}`);
     fontData = new Uint8Array(await resp.arrayBuffer());
   }
-  await ff.writeFile(FONT_PATH, fontData);
+  await ff.writeFile(FONT_PATH, new Uint8Array(fontData));
 }
 
 // ── drawtext filter builder ──
