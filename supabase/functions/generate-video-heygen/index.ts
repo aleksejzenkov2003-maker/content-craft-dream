@@ -115,21 +115,24 @@ serve(async (req) => {
     let sceneMotionAvatarId: string | null = null;
     let sceneMotionType: string | null = null;
     let sceneMotionPrompt: string | null = null;
+    let sceneId: string | null = null;
     if (video.playlist_id && video.advisor_id) {
       const { data: scenes } = await supabase
         .from('playlist_scenes')
-        .select('scene_url, motion_avatar_id, motion_type, motion_prompt')
+        .select('id, scene_url, motion_avatar_id, motion_type, motion_prompt')
         .eq('playlist_id', video.playlist_id)
         .eq('advisor_id', video.advisor_id)
         .eq('status', 'approved')
         .not('scene_url', 'is', null)
+        .order('updated_at', { ascending: false })
         .limit(1);
       
+      sceneId = scenes?.[0]?.id || null;
       sceneUrl = scenes?.[0]?.scene_url || null;
       sceneMotionAvatarId = scenes?.[0]?.motion_avatar_id || null;
       sceneMotionType = scenes?.[0]?.motion_type || null;
       sceneMotionPrompt = scenes?.[0]?.motion_prompt || null;
-      console.log('Scene found:', sceneUrl ? 'YES' : 'NO', 'Motion:', sceneMotionAvatarId ? 'YES' : 'NO');
+      console.log('Scene lookup:', { found: !!sceneUrl, sceneId, motionAvatarId: sceneMotionAvatarId || 'none' });
       
       // Sync stale video motion_avatar_id with scene's
       if (sceneMotionAvatarId && video.motion_avatar_id !== sceneMotionAvatarId) {
