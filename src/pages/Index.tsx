@@ -1455,6 +1455,23 @@ export default function Index() {
           
         </div>
       </main>
+      {/* Motion Error AlertDialog */}
+      <AlertDialog open={!!motionError} onOpenChange={(open) => { if (!open && motionError) motionError.resolve(false); }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Motion аватар не удался</AlertDialogTitle>
+            <AlertDialogDescription>
+              {motionError?.message || 'Неизвестная ошибка'}
+              <br /><br />
+              Продолжить генерацию видео без motion (статичное фото)?
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={() => motionError?.resolve(false)}>Нет, отменить</AlertDialogCancel>
+            <AlertDialogAction onClick={() => motionError?.resolve(true)}>Да, продолжить</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
