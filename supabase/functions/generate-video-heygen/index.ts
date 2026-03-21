@@ -299,33 +299,35 @@ serve(async (req) => {
           const avatarStatus = v2Data?.data?.status;
           console.log('Motion avatar status:', avatarStatus);
           
-          if (avatarStatus === 'in_progress' || avatarStatus === 'processing') {
-            // Wait up to 15s for it to become ready
-            console.log('Motion still processing — bounded wait (3x5s)...');
+          const READY = new Set(['completed', 'active']);
+          
+          if (READY.has(avatarStatus)) {
+            console.log('motion_avatar_id validated ✓ (status:', avatarStatus, ')');
+          } else {
+            // Any non-ready status (pending, in_progress, processing, unknown) — wait up to 60s
+            console.log('Motion not ready (status:', avatarStatus, ') — bounded wait (12x5s)...');
             let ready = false;
-            for (let i = 0; i < 3; i++) {
+            for (let i = 0; i < 12; i++) {
               await new Promise(r => setTimeout(r, 5000));
               const checkRes = await fetch(`https://api.heygen.com/v2/photo_avatar/${effectiveMotionAvatarId}`, {
                 headers: { 'X-Api-Key': heygenKey },
               });
               if (checkRes.ok) {
                 const checkData = await checkRes.json();
-                if (checkData?.data?.status !== 'in_progress' && checkData?.data?.status !== 'processing') {
+                const st = checkData?.data?.status;
+                if (READY.has(st)) {
                   ready = true;
+                  console.log('Motion became ready after wait ✓ (status:', st, ')');
                   break;
                 }
+                console.log(`Poll ${i+1}/12: status=${st}`);
               }
             }
             if (!ready) {
-              console.warn('Motion still not ready after 15s — fallback to static');
+              console.warn('Motion still not ready after 60s — fallback to static');
               motionWarning = 'Motion не применён: провайдер не успел обработать аватар';
               effectiveMotionAvatarId = null;
-              // Do NOT clear from DB — it may become ready later
-            } else {
-              console.log('Motion became ready after wait ✓');
             }
-          } else {
-            console.log('motion_avatar_id validated ✓ (status:', avatarStatus, ')');
           }
         } else {
           // Non-404 error — also try v1 as fallback
