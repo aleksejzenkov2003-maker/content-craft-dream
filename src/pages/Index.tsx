@@ -204,13 +204,13 @@ export default function Index() {
     };
     const logStep = async (action: string, extra?: { details?: Record<string, unknown>; duration_ms?: number }) => {
       try {
-        await supabase.from('activity_log').insert({
+        await supabase.from('activity_log').insert([{
           action,
           entity_type: 'video',
           entity_id: videoId,
-          details: extra?.details || null,
+          details: extra?.details as any || null,
           duration_ms: extra?.duration_ms || null,
-        });
+        }]);
       } catch (_) { /* non-critical */ }
     };
 
