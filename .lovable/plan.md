@@ -1,58 +1,47 @@
 
 
-# Починить motion: правильная валидация + ожидание готовности
+# Исправление панели активных процессов + видимость FFmpeg шагов
 
-## Корневые причины (из логов)
+## Проблемы
 
-1. **Валидация по неправильному API**: Motion аватары создаются через `/v2/photo_avatar/add_motion`, но проверяются через `/v1/talking_photo.list`. Это **разные списки** — motion ID не находится → очищается из БД → создаётся новый (тратятся кредиты) → или падает с "insufficient credit".
+### 1. Не листается список
+`ScrollArea` с `max-h-[500px]` не работает, потому что у `ScrollArea` нет фиксированной высоты — `max-h` на Root не создаёт ограничение для Viewport. Нужно поставить `h-[500px]` или использовать `className` с `overflow-auto` напрямую.
 
-2. **Недостаточно кредитов HeyGen**: `Insufficient credit. This operation requires 'api' credits.` — motion creation стоит денег, а баланс исчерпан. Система тратила кредиты на повторное создание motion из-за ложной невалидации.
+### 2. Шаги битрейта/субтитров не видны в панели
+Постобработка (FFmpeg bitrate + subtitles) **не пишет ничего в `activity_log`** — она только показывает toasts и обновляет `autoSubtitleProgress` state. Панель `ActiveProcesses` читает только из `activity_log`, поэтому эти шаги невидимы. Нужно:
+- Логировать шаги постобработки в `activity_log` (начало, завершение, ошибки)
+- Показывать текущий прогресс FFmpeg в панели (из `autoSubtitleProgress` state)
 
-3. **Нет ожидания после создания**: Motion создаётся, но HeyGen нужно время на обработку. Без паузы → "missing image dimensions" → fallback на static.
+### 3. FFmpeg-процессы не отображаются как активные
+`useActiveProcesses` фильтрует по `reel_status = 'generating'`, но FFmpeg-процесс идёт в браузере и `reel_status` обновляется. Проблема в том что панель не отображает прогресс FFmpeg в реальном времени. Нужно передавать `autoSubtitleProgress` в `ActiveProcesses` и показывать progress bar для видео с активным FFmpeg.
+
+### 4. "С субтитрами" без субтитров
+Лейбл "С субтитрами" ставится всегда когда `video_path !== heygen_video_url`. Но если субтитры не вшились (ошибка или disabled), `video_path` всё равно заполняется reduced-видео. Нужно проверять наличие `word_timestamps` и `reel_status` для правильного лейбла.
 
 ## Что делаем
 
-### 1. Исправить валидацию — использовать `/v2/photo_avatar/{id}` или `/v2/avatars`
+### 1. Починить скролл ActiveProcesses
+Заменить `<ScrollArea className="max-h-[500px]">` на `<div className="max-h-[500px] overflow-y-auto">` — простое решение без проблем Radix.
 
-Вместо `/v1/talking_photo.list` (где motion не появляется) использовать правильный HeyGen endpoint:
-- `GET /v2/photo_avatar/generation/{id}` — проверяет статус конкретного photo avatar
-- Возвращает `status: "completed"` или `"in_progress"`
+### 2. Логировать FFmpeg шаги в activity_log
+В `postProcessVideo` добавить записи:
+- `bitrate_reduction_started` — начало сжатия
+- `bitrate_reduction_complete` — завершение (с duration)
+- `subtitle_burn_started` — начало вшивки
+- `subtitle_burn_complete` — завершение
+- `subtitle_burn_failed` — ошибка
+- `postprocessing_complete` — финал
 
-Это исправит ложное удаление валидных motion ID из БД.
+### 3. Передать FFmpeg-прогресс в ActiveProcesses
+Передать `autoSubtitleProgress` как prop в `ActiveProcesses`. Если для видео есть активный FFmpeg-процесс — показывать progress bar с фазой (reducing_bitrate / burning_subtitles / uploading).
 
-**Файлы**: `add-avatar-motion`, `generate-video-heygen` — заменить `validateMotionId` на вызов `/v2/photo_avatar/generation/{id}`.
-
-### 2. Добавить ожидание готовности motion (bounded polling)
-
-После создания motion или при обнаружении `status: "in_progress"`:
-- Делать до 6 проверок с интервалом 5 секунд (30 секунд макс)
-- Если `completed` → использовать
-- Если после 30 сек всё ещё `in_progress` → показать AlertDialog пользователю
-
-**В `prepareMotionStep` (Index.tsx)**: после вызова `add-avatar-motion` — поллить статус через новый endpoint `check-motion-status` (или inline в `add-avatar-motion`).
-
-**В `generate-video-heygen`**: перед использованием motion_avatar_id — быстрая проверка статуса. Если `in_progress` → 3 попытки по 5 секунд. Если не готов → fallback.
-
-### 3. Показывать ошибку кредитов явно
-
-Если `add-avatar-motion` или last-resort возвращает "insufficient_credit":
-- Toast: "Недостаточно кредитов HeyGen для motion. Пополните баланс."
-- В AlertDialog: "Кредиты HeyGen исчерпаны. Продолжить без motion?"
-
-### 4. Прекратить ложное удаление motion ID
-
-Убрать логику `motion_avatar_id not found in HeyGen — clearing from DB` из `generate-video-heygen`. Вместо этого — проверять статус через v2 API. Только если API явно вернёт 404 → тогда очищать.
+### 4. Исправить лейбл "С субтитрами"
+В `VideoSidePanel` проверять: если `video_path` есть и `reduced_video_url` тоже и они совпадают — значит субтитры не вшились → лейбл "Сжатое видео". Если `video_path !== reduced_video_url` и `word_timestamps` есть → "С субтитрами".
 
 ## Файлы
 
-- `supabase/functions/add-avatar-motion/index.ts` — новая функция `validateMotionId` через v2 API + polling после создания
-- `supabase/functions/generate-video-heygen/index.ts` — заменить валидацию на v2 API + bounded wait
-- `src/pages/Index.tsx` — добавить toast для insufficient_credit, polling статуса после создания
-
-## Результат
-
-- Motion ID перестанут ложно удаляться из БД (экономия кредитов)
-- После создания motion система дождётся готовности (до 30 сек)
-- При нехватке кредитов — явное уведомление пользователю
-- Ролики будут получать motion, если он физически готов в HeyGen
+- `src/components/dashboard/ActiveProcesses.tsx` — скролл + progress bar + FFmpeg-фаза
+- `src/hooks/useActiveProcesses.ts` — без изменений
+- `src/pages/Index.tsx` — логирование шагов в activity_log + передача autoSubtitleProgress
+- `src/components/videos/VideoSidePanel.tsx` — правильный лейбл видео-варианта
 
