@@ -884,6 +884,7 @@ export default function Index() {
               .eq('advisor_id', video.advisor_id)
               .eq('status', 'approved')
               .not('scene_url', 'is', null)
+              .order('updated_at', { ascending: false })
               .limit(1)
               .maybeSingle();
 
