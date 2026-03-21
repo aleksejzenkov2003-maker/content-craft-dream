@@ -368,25 +368,56 @@ serve(async (req) => {
           const motionData = await addMotionRes.json();
           const newMotionId = motionData?.data?.talking_photo_id || motionData?.data?.avatar_id || motionData?.data?.id;
           if (newMotionId) {
-            effectiveMotionAvatarId = newMotionId;
+            // Wait for the new motion to become ready (up to 30s)
+            console.log('Last-resort motion created, waiting for readiness:', newMotionId);
+            let motionReady = false;
+            for (let i = 0; i < 6; i++) {
+              await new Promise(r => setTimeout(r, 5000));
+              try {
+                const checkRes = await fetch(`https://api.heygen.com/v2/photo_avatar/${newMotionId}`, {
+                  headers: { 'X-Api-Key': heygenKey },
+                });
+                if (checkRes.ok) {
+                  const checkData = await checkRes.json();
+                  const st = checkData?.data?.status;
+                  if (st !== 'in_progress' && st !== 'processing') {
+                    motionReady = true;
+                    break;
+                  }
+                }
+              } catch (_) { /* continue polling */ }
+            }
+            
+            if (motionReady) {
+              effectiveMotionAvatarId = newMotionId;
+              console.log('Last-resort motion ready ✓');
+            } else {
+              console.warn('Last-resort motion created but not ready in 30s — saving for next run');
+              motionWarning = 'Motion создан, но ещё обрабатывается — используется статичное фото';
+            }
+            
+            // Always save the ID for future reuse
             if (sceneId) {
               await supabase.from('playlist_scenes').update({ motion_avatar_id: newMotionId }).eq('id', sceneId);
             }
             await supabase.from('videos').update({ motion_avatar_id: newMotionId }).eq('id', videoId);
-            console.log('Last-resort motion created:', newMotionId);
             try {
               await supabase.from('activity_log').insert({
                 action: 'last_resort_motion_created',
                 entity_type: 'video',
                 entity_id: videoId,
-                details: { motion_avatar_id: newMotionId, scene_id: sceneId, had_scene: !!sceneId },
+                details: { motion_avatar_id: newMotionId, scene_id: sceneId, had_scene: !!sceneId, ready: motionReady },
               });
             } catch (_) { /* ignore */ }
           }
         } else {
           const errText = await addMotionRes.text();
           console.warn('Last-resort motion creation failed:', errText);
-          motionWarning = `Motion не применён: ошибка создания (${addMotionRes.status})`;
+          if (errText.toLowerCase().includes('insufficient credit') || errText.toLowerCase().includes('credit')) {
+            motionWarning = 'Motion не применён: недостаточно кредитов HeyGen';
+          } else {
+            motionWarning = `Motion не применён: ошибка создания (${addMotionRes.status})`;
+          }
         }
       } catch (motionErr) {
         console.warn('Last-resort motion error:', motionErr);
