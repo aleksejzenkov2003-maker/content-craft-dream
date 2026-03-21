@@ -198,7 +198,15 @@ export default function Index() {
    * 2. Burn subtitles (if word_timestamps exist)
    * 3. Upload final result as video_path
    */
+  const postProcessingRef = useRef<Set<string>>(new Set());
   const postProcessVideo = useCallback(async (videoId: string) => {
+    // Guard against duplicate calls for the same video
+    if (postProcessingRef.current.has(videoId)) {
+      console.log(`[postProcess] Already running for ${videoId}, skipping duplicate`);
+      return;
+    }
+    postProcessingRef.current.add(videoId);
+
     const updateProgress = (phase: string, progress: number) => {
       setAutoSubtitleProgress(prev => ({ ...prev, [videoId]: { phase, progress } }));
     };
