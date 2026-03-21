@@ -446,6 +446,53 @@ export default function Index() {
     };
   }, [stopVideoPolling]);
 
+  // Poll motion status on frontend — visible in Active Processes via activity_log
+  const pollMotionStatus = async (motionAvatarId: string, videoId: string, maxAttempts = 12, intervalMs = 15000): Promise<boolean> => {
+    for (let i = 0; i < maxAttempts; i++) {
+      await new Promise(r => setTimeout(r, intervalMs));
+      
+      try {
+        const { data, error } = await supabase.functions.invoke('check-motion-status', {
+          body: { motionAvatarId, videoId },
+        });
+        
+        if (error) {
+          console.warn(`Motion poll ${i + 1}/${maxAttempts} error:`, error);
+          continue;
+        }
+
+        // Log each poll attempt for visibility in Active Processes
+        await supabase.from('activity_log').insert({
+          action: 'motion_poll_check',
+          entity_type: 'video',
+          entity_id: videoId,
+          details: { attempt: i + 1, max: maxAttempts, status: data?.status, ready: data?.ready },
+        });
+
+        if (data?.ready) {
+          await supabase.from('videos').update({ generation_status: 'pending' } as any).eq('id', videoId);
+          refetchVideos();
+          return true;
+        }
+        
+        toast.info(`Motion обработка... (${i + 1}/${maxAttempts})`);
+      } catch (e) {
+        console.warn(`Motion poll ${i + 1} error:`, e);
+      }
+    }
+
+    // Timeout — reset status
+    await supabase.from('activity_log').insert({
+      action: 'motion_poll_timeout',
+      entity_type: 'video',
+      entity_id: videoId,
+      details: { motion_avatar_id: motionAvatarId, attempts: maxAttempts },
+    });
+    await supabase.from('videos').update({ generation_status: 'pending' } as any).eq('id', videoId);
+    refetchVideos();
+    return false;
+  };
+
   // Helper: prepare motion with explicit UI feedback + AlertDialog on error
   // Works even without approved scene — falls back to advisor photo
   const prepareMotionStep = async (video: Video): Promise<boolean> => {
