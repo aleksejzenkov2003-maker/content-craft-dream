@@ -1,49 +1,64 @@
 
 
-# Переделка "Фоновые подложки" — shared backgrounds с назначением как в промтах
+# Замена матрицы автоматизации на два предустановленных сценария
 
-## Проблема
+## Суть
 
-Сейчас каждая комбинация плейлист+духовник = отдельная запись в `background_videos`. Но подложек всего ~6, и одна подложка назначается на много комбинаций. Нужна модель "создал подложку → назначил на комбинации", как в промтах. Также подложки могут быть фото (не только видео), и их нужно уметь открывать для просмотра.
+Убрать текущую панель чекбоксов (ButtonActionsSettings) и заменить на два фиксированных сценария — "Единичный" и "Массовый" — с переключением в настройках и возможностью просмотра содержимого каждого сценария.
 
-## Изменения в БД
+## Изменения
 
-Разделить на 2 таблицы:
-- **`background_videos`** — каталог подложек (id, title, media_url, media_type ['video'|'image'], created_at). Всего ~6 штук.
-- **`background_assignments`** — привязки (id, background_id → background_videos.id, playlist_id, advisor_id). Много записей.
+### 1. `app_settings` — новый ключ `action_mode`
 
-Миграция:
-1. Создать `background_assignments`
-2. Перенести данные из текущей `background_videos` (playlist_id, advisor_id → assignments)
-3. Убрать playlist_id/advisor_id из `background_videos`, переименовать `video_url` → `media_url`, добавить `media_type text default 'video'`
+Миграция: `INSERT INTO app_settings (key, value) VALUES ('action_mode', 'single')` — значения `single` или `bulk`.
 
-## UI — `BackgroundVideosGrid.tsx` полная переделка
+### 2. `useAutomationSettings.ts` — полная переделка
 
-**Основной вид** (как на скрине 1 — сетка карточек подложек):
-- Карточки подложек в grid (9:16 aspect ratio)
-- Каждая карточка: название сверху, превью фото/видео, кнопка удалить
-- Клик по карточке → открывает диалог редактирования/назначения
-- Кнопка "Новая подложка" → диалог создания
+Вместо чтения матрицы из БД — читать один ключ `action_mode` из `app_settings` и определять `isEnabled(buttonKey, processKey)` по хардкоду двух сценариев:
 
-**Диалог создания/редактирования** (как в промтах — 2 колонки):
-- **Левая колонка**: Название + загрузка файла (accept="video/*,image/*")
-- **Правая колонка**: Назначение на плейлисты/духовников — структура как в промтах для motion:
-  - Чекбокс-список плейлистов
-  - Внутри раскрытого плейлиста — чекбокс-список духовников
-  - Кнопка "Назначить"
+**Единичный (`single`)**:
+| Кнопка | Процессы |
+|---|---|
+| `side_step1` | `atmosphere` |
+| `side_cover` | `cover_overlay`, `hook_overlay` |
+| `voiceover` (новый) | `voiceover`, `subtitles` |
+| `side_video` | `heygen` |
+| `resize` (новый) | `resize` |
+| `burn_subtitles` (новый) | `subtitles` |
+| `prepare_publish` | `create_publication`, `concat`, `generate_text` |
+| `publish` | `publish_social` |
 
-**Просмотр**: клик по превью в карточке открывает MediaPreview (уже есть компонент)
+**Массовый (`bulk`)**:
+| Кнопка | Процессы |
+|---|---|
+| `take_in_work` | `voiceover`, `subtitles`, `atmosphere`, `cover_overlay`, `hook_overlay` |
+| `side_video` | `heygen`, `resize`, `subtitles` |
+| `prepare_publish` | `create_publication`, `concat`, `generate_text` |
+| `publish` | `publish_social` |
 
-## Hook — `useBackgroundVideos.ts` переделка
+Функция `isEnabled(button, process)` проверяет хардкод активного сценария. Все остальные комбинации → `false`.
 
-- Хранить `backgrounds` (каталог) и `assignments` (привязки) отдельно
-- CRUD для каталога: `addBackground`, `updateBackground`, `deleteBackground`
-- CRUD для привязок: `assignBackground(backgroundId, playlistId, advisorId)`, `unassignBackground(assignmentId)`
-- Метод `getBackgroundForPair(playlistId, advisorId)` — для использования в pipeline
+### 3. `VideoFormatSettings.tsx` — секция "Формат действий"
 
-## Файлы
+Добавить новую секцию (как на скрине) с RadioGroup:
+- "Единичный режим" — каждый ролик запускается отдельно
+- "Массовый режим" — параллельные действия над роликами
 
-- **Миграция**: новая таблица `background_assignments`, ALTER `background_videos`
-- **Переделка**: `src/components/backgrounds/BackgroundVideosGrid.tsx`, `src/hooks/useBackgroundVideos.ts`
-- **Мелкие правки**: `supabase/functions/generate-video-heygen/index.ts` — читать из `background_assignments` JOIN `background_videos`
+При выборе → `upsert` в `app_settings` ключ `action_mode`.
+
+Кнопка "Показать сценарий" → раскрывает read-only таблицу с описанием шагов (Кнопка → Действия).
+
+### 4. `SettingsPage.tsx` — убрать таб "Управление действиями кнопок"
+
+Удалить секцию `buttons` и `ButtonActionsSettings`. Оставить только `api` и `video_format`.
+
+### 5. `AutomationPage.tsx` — показывать превью текущего сценария
+
+Вместо матрицы чекбоксов — показать read-only описание текущего активного сценария (таблица: Кнопка → Действия) + ссылку на настройки для переключения.
+
+### 6. Файлы
+
+- **Переделка**: `src/hooks/useAutomationSettings.ts`, `src/components/settings/VideoFormatSettings.tsx`, `src/components/settings/SettingsPage.tsx`, `src/pages/AutomationPage.tsx`
+- **Удаление**: `src/components/settings/ButtonActionsSettings.tsx` (больше не нужен)
+- **Миграция**: INSERT `action_mode` в `app_settings`
 
