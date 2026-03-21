@@ -205,9 +205,6 @@ export function usePlaylistScenes() {
         .from('playlist_scenes')
         .update({
           scene_url: (variant as SceneVariant).image_url,
-          motion_avatar_id: null,
-          motion_type: null,
-          motion_prompt: null,
         })
         .eq('id', sceneId);
 
