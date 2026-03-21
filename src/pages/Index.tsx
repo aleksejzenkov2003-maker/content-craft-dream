@@ -512,7 +512,7 @@ export default function Index() {
           return true;
         }
 
-        const errorMsg = motionRes.data?.error || 'Unknown error';
+        const errorMsg = motionData?.error || 'Unknown error';
         console.warn('Motion creation via scene failed:', errorMsg);
         const isCreditsError = errorMsg.includes('insufficient_credit') || errorMsg.toLowerCase().includes('кредит');
         return new Promise<boolean>((resolve) => {
