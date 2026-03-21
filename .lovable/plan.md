@@ -1,64 +1,144 @@
 
+# План: починить auto-motion после замены сценариев
 
-# Замена матрицы автоматизации на два предустановленных сценария
+## Что сломалось
 
-## Суть
+По коду видно 2 главные причины:
 
-Убрать текущую панель чекбоксов (ButtonActionsSettings) и заменить на два фиксированных сценария — "Единичный" и "Массовый" — с переключением в настройках и возможностью просмотра содержимого каждого сценария.
+1. После замены матрицы сценариев пайплайн в `src/pages/Index.tsx` всё ещё проверяет старые ключи:
+- `isEnabled('generate_video', 'voiceover')`
+- `isEnabled('generate_video', 'motion')`
+- `isEnabled('take_in_work', 'motion')`
 
-## Изменения
+Но в новом `useAutomationSettings.ts` таких связок уже нет:
+- для единичного режима используется `side_video`, `voiceover`, `burn_subtitles`
+- процесса `motion` вообще больше нет ни в `single`, ни в `bulk`
 
-### 1. `app_settings` — новый ключ `action_mode`
+Итог: pre-warm motion сейчас фактически никогда не запускается.
 
-Миграция: `INSERT INTO app_settings (key, value) VALUES ('action_mode', 'single')` — значения `single` или `bulk`.
+2. `generate-video-heygen` сам motion больше не создаёт, а только пытается использовать уже готовый `motion_avatar_id`.  
+То есть если pre-warm не сработал заранее, ролик уходит в HeyGen как обычное статичное talking photo.
 
-### 2. `useAutomationSettings.ts` — полная переделка
+Дополнительно вижу по данным БД, что у многих approved-сцен `motion_avatar_id` пустой, а в логах `generate-video-heygen` есть:
+- `Scene found: NO Motion: NO`
+- `talking_photo_id (fresh upload, no motion)`
 
-Вместо чтения матрицы из БД — читать один ключ `action_mode` из `app_settings` и определять `isEnabled(buttonKey, processKey)` по хардкоду двух сценариев:
+Это подтверждает, что сейчас используется fallback без motion.
 
-**Единичный (`single`)**:
-| Кнопка | Процессы |
-|---|---|
-| `side_step1` | `atmosphere` |
-| `side_cover` | `cover_overlay`, `hook_overlay` |
-| `voiceover` (новый) | `voiceover`, `subtitles` |
-| `side_video` | `heygen` |
-| `resize` (новый) | `resize` |
-| `burn_subtitles` (новый) | `subtitles` |
-| `prepare_publish` | `create_publication`, `concat`, `generate_text` |
-| `publish` | `publish_social` |
+## Что нужно сделать
 
-**Массовый (`bulk`)**:
-| Кнопка | Процессы |
-|---|---|
-| `take_in_work` | `voiceover`, `subtitles`, `atmosphere`, `cover_overlay`, `hook_overlay` |
-| `side_video` | `heygen`, `resize`, `subtitles` |
-| `prepare_publish` | `create_publication`, `concat`, `generate_text` |
-| `publish` | `publish_social` |
+### 1. Привести pipeline к новым сценариям
+Обновить `src/pages/Index.tsx`, чтобы проверки автоматизации использовали новые ключи сценариев:
 
-Функция `isEnabled(button, process)` проверяет хардкод активного сценария. Все остальные комбинации → `false`.
+- единичный запуск:
+  - озвучка: `voiceover`
+  - генерация видео: `side_video`
+  - resize: `resize`
+  - burn subtitles: `burn_subtitles`
 
-### 3. `VideoFormatSettings.tsx` — секция "Формат действий"
+- массовый запуск:
+  - стартовый пакет: `take_in_work`
+  - генерация видео: `side_video`
 
-Добавить новую секцию (как на скрине) с RadioGroup:
-- "Единичный режим" — каждый ролик запускается отдельно
-- "Массовый режим" — параллельные действия над роликами
+И отдельно вернуть motion как явный автоматический процесс внутри сценариев.
 
-При выборе → `upsert` в `app_settings` ключ `action_mode`.
+### 2. Вернуть process key `motion` в `useAutomationSettings.ts`
+Добавить `motion` обратно в сценарии:
 
-Кнопка "Показать сценарий" → раскрывает read-only таблицу с описанием шагов (Кнопка → Действия).
+- `single`:
+  - `side_video` → `heygen`, `motion`
+  или
+  - `voiceover`/ранний этап → `motion`
+- `bulk`:
+  - `take_in_work` → `voiceover`, `subtitles`, `atmosphere`, `cover_overlay`, `hook_overlay`, `motion`
 
-### 4. `SettingsPage.tsx` — убрать таб "Управление действиями кнопок"
+Лучше оставить motion ранним шагом в bulk и до старта видео в single — так он успевает прогреться.
 
-Удалить секцию `buttons` и `ButtonActionsSettings`. Оставить только `api` и `video_format`.
+Также обновить подписи в preview сценариев:
+- `motion: "Подготовка motion-аватара"`
 
-### 5. `AutomationPage.tsx` — показывать превью текущего сценария
+### 3. Сделать единый helper для подготовки motion
+Сейчас логика pre-warm дублируется в `Index.tsx`. Нужен один helper:
+- найти approved scene по `playlist_id + advisor_id`
+- если `motion_avatar_id` уже есть → ничего не делать
+- если сцена есть и motion пустой → вызвать `add-avatar-motion`
+- логировать результат
+- возвращать статус: `created | skipped | no_scene | failed`
 
-Вместо матрицы чекбоксов — показать read-only описание текущего активного сценария (таблица: Кнопка → Действия) + ссылку на настройки для переключения.
+Это устранит расхождения между единичным и массовым запуском.
 
-### 6. Файлы
+### 4. Усилить fallback в `generate-video-heygen`
+Даже если pre-warm не успел:
+- если `motion_enabled=true`
+- если есть approved scene
+- если `motion_avatar_id` пустой
 
-- **Переделка**: `src/hooks/useAutomationSettings.ts`, `src/components/settings/VideoFormatSettings.tsx`, `src/components/settings/SettingsPage.tsx`, `src/pages/AutomationPage.tsx`
-- **Удаление**: `src/components/settings/ButtonActionsSettings.tsx` (больше не нужен)
-- **Миграция**: INSERT `action_mode` в `app_settings`
+то `generate-video-heygen` должен уметь сделать последнюю попытку создать motion перед статичным fallback.
 
+Важно:
+- без долгих циклов ожидания
+- одна попытка создать / использовать
+- если motion не готов, показать понятный `motionWarning`
+- сохранить `motion_avatar_id` для следующего запуска
+
+Это сделает систему устойчивой даже если ранний шаг пропущен.
+
+### 5. Проверить выбор сцены для конкретного ролика
+Нужно поправить lookup approved scene в `generate-video-heygen` и в pre-warm helper:
+- явно сортировать запись
+- брать именно утверждённую сцену с `scene_url`
+- при нескольких сценах для одной пары использовать предсказуемый порядок
+
+Сейчас по БД approved-сцены есть, но в логах иногда `Scene found: NO`, значит lookup нестабилен или ищет не ту запись.
+
+### 6. Добавить диагностические логи
+Чтобы подобное больше не искать вслепую, добавить понятные логи:
+- какой сценарий активен
+- с каким `buttonKey/processKey` проходит проверка
+- найден ли scene для пары playlist/advisor
+- был ли вызван `add-avatar-motion`
+- вернулся ли `motion_avatar_id`
+- почему произошёл fallback на static
+
+## Файлы
+
+Основные:
+- `src/pages/Index.tsx`
+- `src/hooks/useAutomationSettings.ts`
+- `supabase/functions/generate-video-heygen/index.ts`
+
+Возможное улучшение:
+- вынести motion helper в отдельный util/hook, чтобы не дублировать код в `Index.tsx`
+
+## Результат после исправления
+
+- В новом сценарном режиме motion снова будет реально запускаться
+- В массовом режиме motion будет прогреваться заранее
+- В единичном режиме motion будет подготавливаться перед стартом видео
+- Если ранний шаг не сработал, backend всё равно попробует использовать/создать motion перед fallback
+- Для роликов вроде `Native Elder` система перестанет молча уходить в статичное видео без понятной причины
+
+## Технические детали
+
+```text
+Проблемное место сейчас:
+Index.tsx -> isEnabled('generate_video', 'motion')
+useAutomationSettings.ts -> сценарии знают только side_video / take_in_work
+=> всегда false
+=> add-avatar-motion не вызывается
+=> generate-video-heygen получает motion_avatar_id = null
+=> fresh talking_photo without motion
+```
+
+```text
+Предлагаемая схема:
+Bulk:
+take_in_work -> voiceover + subtitles + atmosphere + cover + motion
+side_video -> heygen + resize + subtitles
+
+Single:
+voiceover -> voiceover + subtitles
+side_video -> motion prewarm + heygen
+resize -> resize
+burn_subtitles -> burn subtitles
+```
