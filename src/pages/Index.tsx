@@ -211,7 +211,7 @@ export default function Index() {
       let finalUrl = sourceUrl;
 
       // Phase 1: Bitrate reduction
-      if (isEnabled('generate_video', 'resize')) {
+      if (isEnabled('side_video', 'resize') || isEnabled('resize', 'resize')) {
         updateProgress('reducing_bitrate', 5);
         toast.info('Шаг 1/2: Уменьшение битрейта видео...');
         const { reduceVideoBitrate, COMPRESSION_PRESETS, DEFAULT_COMPRESSION_PRESET } = await import('@/lib/videoNormalizer');
