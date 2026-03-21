@@ -506,9 +506,22 @@ export default function Index() {
           if (motionData.motionAvatarId) {
             await supabase.from('videos').update({ motion_avatar_id: motionData.motionAvatarId }).eq('id', video.id);
           }
+          
+          // Check if motion is actually ready or just created
+          if (motionData.ready === false) {
+            toast.warning('Motion создан, но ещё обрабатывается');
+            return new Promise<boolean>((resolve) => {
+              setMotionError({
+                message: 'Motion-аватар создан, но ещё обрабатывается HeyGen. Подождать 1-2 минуты и попробовать снова, или продолжить без motion?',
+                videoId: video.id,
+                resolve: (continueWithout) => { setMotionError(null); resolve(continueWithout); },
+              });
+            });
+          }
+          
           const reusedLabel = motionData?.reused ? ' (переиспользован)' : '';
           const waitLabel = motionData?.waitedForReady ? ' (ожидание готовности)' : '';
-          toast.success(`Motion аватар добавлен ✓${reusedLabel}${waitLabel}`);
+          toast.success(`Motion аватар готов ✓${reusedLabel}${waitLabel}`);
           return true;
         }
 
