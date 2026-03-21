@@ -471,8 +471,8 @@ export default function Index() {
         refetchVideos();
       }
 
-      // Step 1.5: Pre-create motion avatar if enabled and missing (runs while voiceover was generating)
-      if (isEnabled('generate_video', 'motion') && video.playlist_id && video.advisor_id) {
+      // Step 1.5: Pre-create motion avatar if enabled and missing
+      if (isEnabled('side_video', 'motion') && video.playlist_id && video.advisor_id) {
         try {
           const { data: scene } = await supabase
             .from('playlist_scenes')
@@ -481,6 +481,7 @@ export default function Index() {
             .eq('advisor_id', video.advisor_id)
             .eq('status', 'approved')
             .not('scene_url', 'is', null)
+            .order('updated_at', { ascending: false })
             .limit(1)
             .maybeSingle();
 
