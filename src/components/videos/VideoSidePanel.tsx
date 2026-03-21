@@ -15,6 +15,7 @@ import {
   Loader2, ChevronLeft, ChevronRight, Link as LinkIcon,
   Image as ImageIcon, Play, Check, Trash2, Copy,
   Sun, Layers, Volume2, MessageSquare, Subtitles, X, ExternalLink, RefreshCw,
+  Minimize2,
 } from 'lucide-react';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Progress } from '@/components/ui/progress';
@@ -81,6 +82,7 @@ export function VideoSidePanel({
   const [videoSizeBytes, setVideoSizeBytes] = useState<number | null>(null);
   const [heygenMode, setHeygenMode] = useState<string>('v3');
   const [localBusy, setLocalBusy] = useState<'atmosphere' | 'cover' | 'video' | null>(null);
+  const [bitrateProgress, setBitrateProgress] = useState<{ phase: string; progress: number } | null>(null);
 
   const advisor = advisors.find((a) => a.id === video?.advisor_id);
   const advisorName = advisor?.display_name || advisor?.name || 'Духовник';
@@ -474,6 +476,105 @@ export function VideoSidePanel({
               )}
             </div>
           </div>
+
+          {/* Bitrate + Subtitle buttons under media grid */}
+          {video.heygen_video_url && (
+            <div className="flex gap-2 mt-1">
+              <Button
+                size="xs"
+                variant="outline"
+                className="flex-1 text-[10px]"
+                disabled={!!bitrateProgress || !!subtitleProgress}
+                onClick={async () => {
+                  const src = video.heygen_video_url;
+                  if (!src) return;
+                  try {
+                    setBitrateProgress({ phase: 'loading', progress: 5 });
+                    const { reduceVideoBitrate } = await import('@/lib/videoNormalizer');
+                    const file = await reduceVideoBitrate(src, (pct) => {
+                      setBitrateProgress({ phase: 'compressing', progress: Math.round(5 + pct * 85) });
+                    });
+                    setBitrateProgress({ phase: 'uploading', progress: 92 });
+                    const fileName = `videos/${video.id}_reduced_${Date.now()}.mp4`;
+                    const { error: uploadErr } = await supabase.storage
+                      .from('media-files')
+                      .upload(fileName, file, { contentType: 'video/mp4', upsert: true });
+                    if (uploadErr) throw uploadErr;
+                    const { data: urlData } = supabase.storage.from('media-files').getPublicUrl(fileName);
+                    onUpdateVideo(video.id, { reduced_video_url: urlData.publicUrl, video_path: urlData.publicUrl } as any);
+                    toast.success('Битрейт уменьшен');
+                  } catch (err) {
+                    console.error('Bitrate reduction error:', err);
+                    toast.error('Ошибка сжатия видео');
+                  } finally {
+                    setBitrateProgress(null);
+                  }
+                }}
+              >
+                {bitrateProgress ? (
+                  <><Loader2 className="w-3 h-3 mr-1 animate-spin" />{bitrateProgress.progress}%</>
+                ) : (
+                  <><Minimize2 className="w-3 h-3 mr-1" />Сжать битрейт</>
+                )}
+              </Button>
+              <Button
+                size="xs"
+                variant="outline"
+                className="flex-1 text-[10px]"
+                disabled={!!subtitleProgress || !!bitrateProgress || !video.word_timestamps}
+                onClick={async () => {
+                  const cleanSrc = (video as any).reduced_video_url || video.heygen_video_url;
+                  if (!cleanSrc) { toast.error('Нет исходного видео'); return; }
+                  const ac = new AbortController();
+                  setSubtitleAbort(ac);
+                  try {
+                    const { burnSubtitlesBrowser } = await import('@/lib/videoSubtitles');
+                    const { isBrowserFFmpegSupported: checkSupport } = await import('@/lib/ffmpegLoader');
+                    if (!checkSupport()) throw new Error('FFmpeg unavailable');
+                    setSubtitleProgress({ phase: 'loading_ffmpeg', progress: 3 });
+                    const watchdog = setTimeout(() => ac.abort(), 8 * 60 * 1000);
+                    const file = await burnSubtitlesBrowser(
+                      cleanSrc,
+                      video.word_timestamps as any,
+                      { fontSize: 56 },
+                      (info) => setSubtitleProgress({ phase: info.phase, progress: info.progress }),
+                      ac.signal,
+                      highlightMode,
+                    );
+                    clearTimeout(watchdog);
+                    setSubtitleProgress({ phase: 'uploading_result', progress: 95 });
+                    const fileName = `videos/${video.id}_subtitled_${Date.now()}.mp4`;
+                    const { error: uploadError } = await supabase.storage
+                      .from('media-files')
+                      .upload(fileName, file, { contentType: 'video/mp4', upsert: true });
+                    if (uploadError) throw uploadError;
+                    const { data: urlData } = supabase.storage.from('media-files').getPublicUrl(fileName);
+                    onUpdateVideo(video.id, { video_path: urlData.publicUrl } as any);
+                    toast.success('Субтитры вшиты');
+                  } catch (err) {
+                    if ((err as Error)?.name === 'AbortError') {
+                      toast.info('Операция отменена');
+                    } else {
+                      console.error('Subtitle error:', err);
+                      toast.error('Ошибка вшивки субтитров');
+                    }
+                  } finally {
+                    setSubtitleProgress(null);
+                    setSubtitleAbort(null);
+                  }
+                }}
+              >
+                {subtitleProgress ? (
+                  <><Loader2 className="w-3 h-3 mr-1 animate-spin" />{subtitleProgress.progress}%</>
+                ) : (
+                  <><Subtitles className="w-3 h-3 mr-1" />Субтитры</>
+                )}
+              </Button>
+            </div>
+          )}
+          {(bitrateProgress || subtitleProgress) && (
+            <Progress value={(bitrateProgress || subtitleProgress)!.progress} className="h-1 mt-1" />
+          )}
         </TabsContent>
 
         <TabsContent value="prompt" className="space-y-2 mt-2">
