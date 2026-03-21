@@ -211,7 +211,7 @@ export default function Index() {
       let finalUrl = sourceUrl;
 
       // Phase 1: Bitrate reduction
-      if (isEnabled('generate_video', 'resize')) {
+      if (isEnabled('side_video', 'resize') || isEnabled('resize', 'resize')) {
         updateProgress('reducing_bitrate', 5);
         toast.info('Шаг 1/2: Уменьшение битрейта видео...');
         const { reduceVideoBitrate, COMPRESSION_PRESETS, DEFAULT_COMPRESSION_PRESET } = await import('@/lib/videoNormalizer');
@@ -241,7 +241,7 @@ export default function Index() {
       }
 
       // Phase 2: Burn subtitles if word_timestamps exist
-      if (isEnabled('generate_video', 'subtitles') && vid?.word_timestamps) {
+      if ((isEnabled('side_video', 'subtitles') || isEnabled('burn_subtitles', 'subtitles')) && vid?.word_timestamps) {
         toast.info('Шаг 2/2: Начинаем вшивку субтитров...');
         try {
           const { burnSubtitlesBrowser } = await import('@/lib/videoSubtitles');
@@ -451,9 +451,8 @@ export default function Index() {
       return;
     }
     try {
-      // Step 1: Generate voiceover if missing (controlled by automation)
-      const buttonKey = video.voiceover_url ? '' : 'generate_video';
-      if (!video.voiceover_url && isEnabled('generate_video', 'voiceover')) {
+      // Step 1: Generate voiceover if missing
+      if (!video.voiceover_url) {
         toast.info('Шаг 1/2: Генерация озвучки...');
         await updateVideo(video.id, { voiceover_status: 'generating' } as any, { silent: true });
         refetchVideos();
@@ -470,13 +469,10 @@ export default function Index() {
         if (!voiceRes.ok) throw new Error('Voiceover generation failed');
         toast.success('Озвучка готова!');
         refetchVideos();
-      } else if (!video.voiceover_url && !isEnabled('generate_video', 'voiceover')) {
-        toast.error('Озвучка отсутствует, а автогенерация отключена в настройках');
-        return;
       }
 
-      // Step 1.5: Pre-create motion avatar if enabled and missing (runs while voiceover was generating)
-      if (isEnabled('generate_video', 'motion') && video.playlist_id && video.advisor_id) {
+      // Step 1.5: Pre-create motion avatar if enabled and missing
+      if (isEnabled('side_video', 'motion') && video.playlist_id && video.advisor_id) {
         try {
           const { data: scene } = await supabase
             .from('playlist_scenes')
@@ -485,6 +481,7 @@ export default function Index() {
             .eq('advisor_id', video.advisor_id)
             .eq('status', 'approved')
             .not('scene_url', 'is', null)
+            .order('updated_at', { ascending: false })
             .limit(1)
             .maybeSingle();
 
@@ -887,6 +884,7 @@ export default function Index() {
               .eq('advisor_id', video.advisor_id)
               .eq('status', 'approved')
               .not('scene_url', 'is', null)
+              .order('updated_at', { ascending: false })
               .limit(1)
               .maybeSingle();
 
