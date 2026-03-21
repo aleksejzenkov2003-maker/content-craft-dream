@@ -12,6 +12,31 @@ interface MotionRequest {
   motionPrompt?: string;
 }
 
+async function validateMotionId(motionAvatarId: string, heygenKey: string): Promise<boolean> {
+  try {
+    console.log('Validating existing motion_avatar_id:', motionAvatarId);
+    const res = await fetch('https://api.heygen.com/v1/talking_photo.list', {
+      headers: { 'X-Api-Key': heygenKey },
+    });
+    if (!res.ok) {
+      console.warn('talking_photo.list failed:', res.status);
+      return false;
+    }
+    const data = await res.json();
+    const photos = data?.data?.talking_photos || [];
+    const found = photos.find((p: any) => p.talking_photo_id === motionAvatarId);
+    if (found) {
+      console.log('Motion avatar found in HeyGen, valid ✓');
+      return true;
+    }
+    console.log('Motion avatar NOT found in HeyGen list — invalid');
+    return false;
+  } catch (e) {
+    console.warn('Validation error:', e);
+    return false;
+  }
+}
+
 async function uploadTalkingPhoto(imageUrl: string, heygenKey: string): Promise<string> {
   console.log('Downloading image for talking_photo upload...');
   const imgRes = await fetch(imageUrl);
@@ -62,6 +87,30 @@ serve(async (req) => {
       .single();
 
     if (sceneError || !scene) throw new Error('Scene not found');
+
+    // ===== REUSE CHECK: If scene already has motion_avatar_id, validate it =====
+    if (scene.motion_avatar_id) {
+      console.log('Scene already has motion_avatar_id:', scene.motion_avatar_id, '— validating...');
+      const isValid = await validateMotionId(scene.motion_avatar_id, heygenKey);
+      if (isValid) {
+        console.log('Existing motion avatar is valid — reusing, no new creation needed');
+        const durationMs = Date.now() - startTime;
+        await supabase.from('activity_log').insert({
+          action: 'motion_reused',
+          entity_type: 'scene',
+          entity_id: sceneId,
+          details: { motion_avatar_id: scene.motion_avatar_id, status: 'reused' },
+          duration_ms: durationMs,
+        });
+        return new Response(
+          JSON.stringify({ success: true, motionAvatarId: scene.motion_avatar_id, reused: true }),
+          { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+      // Invalid — clear it and create fresh
+      console.log('Existing motion_avatar_id is invalid — clearing and creating new');
+      await supabase.from('playlist_scenes').update({ motion_avatar_id: null }).eq('id', sceneId);
+    }
 
     // Resolve image URL: scene_url first, then advisor photo
     let imageUrl: string | null = scene.scene_url || null;

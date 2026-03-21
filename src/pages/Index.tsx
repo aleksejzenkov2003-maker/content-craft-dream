@@ -19,6 +19,16 @@ import { ScenesMatrix } from '@/components/scenes/ScenesMatrix';
 import { BackgroundVideosGrid } from '@/components/backgrounds/BackgroundVideosGrid';
 import { QuestionsTable } from '@/components/questions/QuestionsTable';
 
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 
 import { useAdvisors } from '@/hooks/useAdvisors';
 import { usePlaylists } from '@/hooks/usePlaylists';
@@ -65,6 +75,7 @@ export default function Index() {
   const [sceneNavTarget, setSceneNavTarget] = useState<{ playlistId: string; advisorId: string } | null>(null);
   const [publicationsTab, setPublicationsTab] = useState('by-channel');
   const [autoSubtitleProgress, setAutoSubtitleProgress] = useState<Record<string, { phase: string; progress: number }>>({});
+  const [motionError, setMotionError] = useState<{ message: string; videoId: string; resolve: (continueWithout: boolean) => void } | null>(null);
   const { advisors, loading: advisorsLoading, addAdvisor, updateAdvisor, deleteAdvisor, addPhoto, deletePhoto, setPrimaryPhoto, updatePhotoAssetId, bulkImport: bulkImportAdvisors } = useAdvisors();
   const { playlists, loading: playlistsLoading, addPlaylist, updatePlaylist, deletePlaylist } = usePlaylists();
   const { videos: allVideos, loading: allVideosLoading, refetch: refetchAllVideos, bulkUpdate: bulkUpdateAll } = useVideos();
@@ -405,12 +416,92 @@ export default function Index() {
     };
   }, [stopVideoPolling]);
 
+  // Helper: prepare motion with explicit UI feedback + AlertDialog on error
+  const prepareMotionStep = async (video: Video): Promise<boolean> => {
+    if (!isEnabled('side_video', 'motion') || !video.playlist_id || !video.advisor_id) {
+      return true; // no motion needed, continue
+    }
+
+    try {
+      toast.info('Шаг 0: Проверка motion-аватара...');
+      const { data: scene } = await supabase
+        .from('playlist_scenes')
+        .select('id, motion_avatar_id')
+        .eq('playlist_id', video.playlist_id)
+        .eq('advisor_id', video.advisor_id)
+        .eq('status', 'approved')
+        .not('scene_url', 'is', null)
+        .order('updated_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      if (!scene) {
+        console.log('No approved scene found for motion');
+        return true;
+      }
+
+      if (scene.motion_avatar_id) {
+        // Scene already has motion — edge function will validate via HeyGen API
+        toast.success('Motion аватар найден ✓');
+        return true;
+      }
+
+      // Create motion
+      toast.info('Создание motion-аватара...');
+      const motionRes = await supabase.functions.invoke('add-avatar-motion', {
+        body: { sceneId: scene.id },
+      });
+
+      if (motionRes.data?.success) {
+        const reusedLabel = motionRes.data?.reused ? ' (переиспользован)' : '';
+        toast.success(`Motion аватар добавлен ✓${reusedLabel}`);
+        console.log('Motion created:', motionRes.data.motionAvatarId);
+        return true;
+      }
+
+      // Motion failed — ask user
+      const errorMsg = motionRes.data?.error || 'Unknown error';
+      console.warn('Motion creation failed:', errorMsg);
+
+      return new Promise<boolean>((resolve) => {
+        setMotionError({
+          message: errorMsg,
+          videoId: video.id,
+          resolve: (continueWithout) => {
+            setMotionError(null);
+            resolve(continueWithout);
+          },
+        });
+      });
+    } catch (e: any) {
+      console.warn('Motion step error:', e);
+
+      return new Promise<boolean>((resolve) => {
+        setMotionError({
+          message: e.message || 'Неизвестная ошибка',
+          videoId: video.id,
+          resolve: (continueWithout) => {
+            setMotionError(null);
+            resolve(continueWithout);
+          },
+        });
+      });
+    }
+  };
+
   const handleGenerateVideo = async (video: Video) => {
     if (!video.voiceover_url) {
       toast.error('Сначала создайте озвучку');
       return;
     }
     try {
+      // Explicit motion step before video generation
+      const shouldContinue = await prepareMotionStep(video);
+      if (!shouldContinue) {
+        toast.info('Генерация отменена пользователем');
+        return;
+      }
+
       toast.info('Запуск генерации видео...');
       // Clear old video artifacts so player shows fresh result
       await updateVideo(video.id, { 
@@ -471,34 +562,11 @@ export default function Index() {
         refetchVideos();
       }
 
-      // Step 1.5: Pre-create motion avatar if enabled and missing
-      if (isEnabled('side_video', 'motion') && video.playlist_id && video.advisor_id) {
-        try {
-          const { data: scene } = await supabase
-            .from('playlist_scenes')
-            .select('id, motion_avatar_id')
-            .eq('playlist_id', video.playlist_id)
-            .eq('advisor_id', video.advisor_id)
-            .eq('status', 'approved')
-            .not('scene_url', 'is', null)
-            .order('updated_at', { ascending: false })
-            .limit(1)
-            .maybeSingle();
-
-          if (scene && !scene.motion_avatar_id) {
-            toast.info('Подготовка motion-аватара...');
-            const motionRes = await supabase.functions.invoke('add-avatar-motion', {
-              body: { sceneId: scene.id },
-            });
-            if (motionRes.data?.success) {
-              console.log('Motion pre-created:', motionRes.data.motionAvatarId);
-            } else {
-              console.warn('Motion pre-creation failed (non-blocking):', motionRes.data?.error);
-            }
-          }
-        } catch (e) {
-          console.warn('Motion pre-warm error (non-blocking):', e);
-        }
+      // Step 1.5: Explicit motion step with user confirmation on error
+      const shouldContinue = await prepareMotionStep(video);
+      if (!shouldContinue) {
+        toast.info('Генерация отменена пользователем');
+        return;
       }
 
       // Step 2: Launch HeyGen video generation
@@ -1387,6 +1455,23 @@ export default function Index() {
           
         </div>
       </main>
+      {/* Motion Error AlertDialog */}
+      <AlertDialog open={!!motionError} onOpenChange={(open) => { if (!open && motionError) motionError.resolve(false); }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Motion аватар не удался</AlertDialogTitle>
+            <AlertDialogDescription>
+              {motionError?.message || 'Неизвестная ошибка'}
+              <br /><br />
+              Продолжить генерацию видео без motion (статичное фото)?
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={() => motionError?.resolve(false)}>Нет, отменить</AlertDialogCancel>
+            <AlertDialogAction onClick={() => motionError?.resolve(true)}>Да, продолжить</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
