@@ -417,60 +417,97 @@ export default function Index() {
   }, [stopVideoPolling]);
 
   // Helper: prepare motion with explicit UI feedback + AlertDialog on error
+  // Works even without approved scene — falls back to advisor photo
   const prepareMotionStep = async (video: Video): Promise<boolean> => {
-    if (!isEnabled('side_video', 'motion') || !video.playlist_id || !video.advisor_id) {
+    if (!isEnabled('side_video', 'motion') || !video.advisor_id) {
       return true; // no motion needed, continue
     }
 
     try {
       toast.info('Шаг 0: Проверка motion-аватара...');
-      const { data: scene } = await supabase
-        .from('playlist_scenes')
-        .select('id, motion_avatar_id')
-        .eq('playlist_id', video.playlist_id)
-        .eq('advisor_id', video.advisor_id)
-        .eq('status', 'approved')
-        .not('scene_url', 'is', null)
-        .order('updated_at', { ascending: false })
-        .limit(1)
-        .maybeSingle();
 
-      if (!scene) {
-        console.log('No approved scene found for motion');
-        return true;
-      }
-
-      if (scene.motion_avatar_id) {
-        // Scene already has motion — edge function will validate via HeyGen API
+      // 1. Check existing motion on video itself
+      if (video.motion_avatar_id) {
+        console.log('Video already has motion_avatar_id:', video.motion_avatar_id);
         toast.success('Motion аватар найден ✓');
         return true;
       }
 
-      // Create motion
-      toast.info('Создание motion-аватара...');
+      // 2. Check approved scene
+      let sceneId: string | null = null;
+      if (video.playlist_id) {
+        const { data: scene } = await supabase
+          .from('playlist_scenes')
+          .select('id, motion_avatar_id')
+          .eq('playlist_id', video.playlist_id)
+          .eq('advisor_id', video.advisor_id)
+          .eq('status', 'approved')
+          .not('scene_url', 'is', null)
+          .order('updated_at', { ascending: false })
+          .limit(1)
+          .maybeSingle();
+
+        if (scene?.motion_avatar_id) {
+          // Sync to video for future reuse
+          await supabase.from('videos').update({ motion_avatar_id: scene.motion_avatar_id }).eq('id', video.id);
+          toast.success('Motion аватар найден ✓');
+          return true;
+        }
+        sceneId = scene?.id || null;
+      }
+
+      // 3. If we have a scene — use add-avatar-motion (it resolves image internally)
+      if (sceneId) {
+        toast.info('Создание motion-аватара...');
+        const motionRes = await supabase.functions.invoke('add-avatar-motion', {
+          body: { sceneId },
+        });
+
+        if (motionRes.data?.success) {
+          // Sync to video
+          if (motionRes.data.motionAvatarId) {
+            await supabase.from('videos').update({ motion_avatar_id: motionRes.data.motionAvatarId }).eq('id', video.id);
+          }
+          const reusedLabel = motionRes.data?.reused ? ' (переиспользован)' : '';
+          toast.success(`Motion аватар добавлен ✓${reusedLabel}`);
+          return true;
+        }
+
+        const errorMsg = motionRes.data?.error || 'Unknown error';
+        console.warn('Motion creation via scene failed:', errorMsg);
+        // Fall through to show dialog
+        return new Promise<boolean>((resolve) => {
+          setMotionError({
+            message: errorMsg,
+            videoId: video.id,
+            resolve: (continueWithout) => { setMotionError(null); resolve(continueWithout); },
+          });
+        });
+      }
+
+      // 4. No scene — use add-avatar-motion with advisorId + videoId (no scene dependency)
+      toast.info('Создание motion из фото духовника...');
       const motionRes = await supabase.functions.invoke('add-avatar-motion', {
-        body: { sceneId: scene.id },
+        body: { advisorId: video.advisor_id, videoId: video.id },
       });
 
       if (motionRes.data?.success) {
+        if (motionRes.data.motionAvatarId) {
+          await supabase.from('videos').update({ motion_avatar_id: motionRes.data.motionAvatarId }).eq('id', video.id);
+        }
         const reusedLabel = motionRes.data?.reused ? ' (переиспользован)' : '';
-        toast.success(`Motion аватар добавлен ✓${reusedLabel}`);
-        console.log('Motion created:', motionRes.data.motionAvatarId);
+        toast.success(`Motion создан из фото духовника ✓${reusedLabel}`);
         return true;
       }
 
-      // Motion failed — ask user
       const errorMsg = motionRes.data?.error || 'Unknown error';
-      console.warn('Motion creation failed:', errorMsg);
+      console.warn('Motion creation via advisor failed:', errorMsg);
 
       return new Promise<boolean>((resolve) => {
         setMotionError({
           message: errorMsg,
           videoId: video.id,
-          resolve: (continueWithout) => {
-            setMotionError(null);
-            resolve(continueWithout);
-          },
+          resolve: (continueWithout) => { setMotionError(null); resolve(continueWithout); },
         });
       });
     } catch (e: any) {
@@ -480,10 +517,7 @@ export default function Index() {
         setMotionError({
           message: e.message || 'Неизвестная ошибка',
           videoId: video.id,
-          resolve: (continueWithout) => {
-            setMotionError(null);
-            resolve(continueWithout);
-          },
+          resolve: (continueWithout) => { setMotionError(null); resolve(continueWithout); },
         });
       });
     }

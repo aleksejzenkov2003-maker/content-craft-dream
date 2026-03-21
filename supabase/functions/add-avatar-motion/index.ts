@@ -7,7 +7,9 @@ const corsHeaders = {
 };
 
 interface MotionRequest {
-  sceneId: string;
+  sceneId?: string;
+  advisorId?: string;
+  videoId?: string;
   motionType?: string;
   motionPrompt?: string;
 }
@@ -63,6 +65,72 @@ async function uploadTalkingPhoto(imageUrl: string, heygenKey: string): Promise<
   return talkingPhotoId;
 }
 
+async function resolveImageUrl(supabase: any, sceneId?: string, advisorId?: string): Promise<{ imageUrl: string; source: string }> {
+  // 1. From scene
+  if (sceneId) {
+    const { data: scene } = await supabase
+      .from('playlist_scenes')
+      .select(`*, advisor:advisors (id, name, scene_photo_id)`)
+      .eq('id', sceneId)
+      .single();
+    
+    if (scene?.scene_url) {
+      return { imageUrl: scene.scene_url, source: 'scene' };
+    }
+    
+    // Use scene's advisor for photo fallback
+    const effectiveAdvisorId = scene?.advisor_id || advisorId;
+    if (effectiveAdvisorId) {
+      const result = await resolveAdvisorPhoto(supabase, effectiveAdvisorId, scene?.advisor?.scene_photo_id);
+      if (result) return result;
+    }
+  }
+
+  // 2. From advisor directly (no scene)
+  if (advisorId) {
+    const { data: advisor } = await supabase
+      .from('advisors')
+      .select('id, name, scene_photo_id')
+      .eq('id', advisorId)
+      .single();
+    
+    if (advisor) {
+      const result = await resolveAdvisorPhoto(supabase, advisorId, advisor.scene_photo_id);
+      if (result) return result;
+    }
+  }
+
+  throw new Error('No image found for motion avatar — no scene_url and no advisor photos');
+}
+
+async function resolveAdvisorPhoto(supabase: any, advisorId: string, scenePhotoId?: string | null): Promise<{ imageUrl: string; source: string } | null> {
+  // scene_photo_id first
+  if (scenePhotoId) {
+    const { data: scenePhoto } = await supabase
+      .from('advisor_photos')
+      .select('photo_url')
+      .eq('id', scenePhotoId)
+      .single();
+    if (scenePhoto?.photo_url) {
+      return { imageUrl: scenePhoto.photo_url, source: 'advisor_scene_photo' };
+    }
+  }
+  
+  // primary photo fallback
+  const { data: photos } = await supabase
+    .from('advisor_photos')
+    .select('photo_url, is_primary')
+    .eq('advisor_id', advisorId)
+    .not('photo_url', 'is', null)
+    .order('is_primary', { ascending: false })
+    .limit(1);
+  
+  if (photos?.[0]?.photo_url) {
+    return { imageUrl: photos[0].photo_url, source: 'advisor_primary_photo' };
+  }
+  return null;
+}
+
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
@@ -71,7 +139,11 @@ serve(async (req) => {
   const startTime = Date.now();
 
   try {
-    const { sceneId, motionType, motionPrompt } = await req.json() as MotionRequest;
+    const { sceneId, advisorId, videoId, motionType, motionPrompt } = await req.json() as MotionRequest;
+
+    if (!sceneId && !advisorId) {
+      throw new Error('Either sceneId or advisorId is required');
+    }
 
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
     const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
@@ -79,71 +151,71 @@ serve(async (req) => {
 
     const supabase = createClient(supabaseUrl, supabaseKey);
 
-    // Get scene with advisor info
-    const { data: scene, error: sceneError } = await supabase
-      .from('playlist_scenes')
-      .select(`*, advisor:advisors (id, name, scene_photo_id)`)
-      .eq('id', sceneId)
-      .single();
+    // ===== REUSE CHECK: Check scene, then video for existing motion_avatar_id =====
+    let existingMotionId: string | null = null;
+    
+    if (sceneId) {
+      const { data: scene } = await supabase
+        .from('playlist_scenes')
+        .select('motion_avatar_id')
+        .eq('id', sceneId)
+        .single();
+      existingMotionId = scene?.motion_avatar_id || null;
+    }
+    
+    if (!existingMotionId && videoId) {
+      const { data: video } = await supabase
+        .from('videos')
+        .select('motion_avatar_id')
+        .eq('id', videoId)
+        .single();
+      existingMotionId = video?.motion_avatar_id || null;
+    }
 
-    if (sceneError || !scene) throw new Error('Scene not found');
-
-    // ===== REUSE CHECK: If scene already has motion_avatar_id, validate it =====
-    if (scene.motion_avatar_id) {
-      console.log('Scene already has motion_avatar_id:', scene.motion_avatar_id, '— validating...');
-      const isValid = await validateMotionId(scene.motion_avatar_id, heygenKey);
+    if (existingMotionId) {
+      console.log('Found existing motion_avatar_id:', existingMotionId, '— validating...');
+      const isValid = await validateMotionId(existingMotionId, heygenKey);
       if (isValid) {
-        console.log('Existing motion avatar is valid — reusing, no new creation needed');
+        console.log('Existing motion avatar is valid — reusing');
         const durationMs = Date.now() - startTime;
         await supabase.from('activity_log').insert({
           action: 'motion_reused',
-          entity_type: 'scene',
-          entity_id: sceneId,
-          details: { motion_avatar_id: scene.motion_avatar_id, status: 'reused' },
+          entity_type: sceneId ? 'scene' : 'video',
+          entity_id: sceneId || videoId,
+          details: { motion_avatar_id: existingMotionId, status: 'reused' },
           duration_ms: durationMs,
         });
+        // Sync to both scene and video if possible
+        if (sceneId) {
+          await supabase.from('playlist_scenes').update({ motion_avatar_id: existingMotionId }).eq('id', sceneId);
+        }
+        if (videoId) {
+          await supabase.from('videos').update({ motion_avatar_id: existingMotionId }).eq('id', videoId);
+        }
         return new Response(
-          JSON.stringify({ success: true, motionAvatarId: scene.motion_avatar_id, reused: true }),
+          JSON.stringify({ success: true, motionAvatarId: existingMotionId, reused: true }),
           { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
         );
       }
-      // Invalid — clear it and create fresh
+      // Invalid — clear and create fresh
       console.log('Existing motion_avatar_id is invalid — clearing and creating new');
-      await supabase.from('playlist_scenes').update({ motion_avatar_id: null }).eq('id', sceneId);
-    }
-
-    // Resolve image URL: scene_url first, then advisor photo
-    let imageUrl: string | null = scene.scene_url || null;
-
-    if (!imageUrl && scene.advisor_id) {
-      const advisor = scene.advisor;
-      if (advisor?.scene_photo_id) {
-        const { data: scenePhoto } = await supabase
-          .from('advisor_photos')
-          .select('photo_url')
-          .eq('id', advisor.scene_photo_id)
-          .single();
-        imageUrl = scenePhoto?.photo_url || null;
+      if (sceneId) {
+        await supabase.from('playlist_scenes').update({ motion_avatar_id: null }).eq('id', sceneId);
       }
-      if (!imageUrl) {
-        const { data: photos } = await supabase
-          .from('advisor_photos')
-          .select('photo_url, is_primary')
-          .eq('advisor_id', scene.advisor_id)
-          .not('photo_url', 'is', null)
-          .order('is_primary', { ascending: false })
-          .limit(1);
-        imageUrl = photos?.[0]?.photo_url || null;
+      if (videoId) {
+        await supabase.from('videos').update({ motion_avatar_id: null }).eq('id', videoId);
       }
     }
 
-    if (!imageUrl) throw new Error('No image found for motion avatar');
+    // ===== Resolve image URL via fallback chain =====
+    const { imageUrl, source: imageSource } = await resolveImageUrl(supabase, sceneId, advisorId);
+    console.log('Image resolved from:', imageSource, '→', imageUrl.substring(0, 80));
 
     // Upload as talking_photo
     const talkingPhotoId = await uploadTalkingPhoto(imageUrl, heygenKey);
     console.log('talking_photo_id for motion:', talkingPhotoId);
 
-    // Call add_motion API
+    // Call add_motion API (unified endpoint)
     const MAX_PROMPT_LENGTH = 512;
     const rawPrompt = motionPrompt || 'The person gestures naturally with their hands while explaining something';
     const truncatedPrompt = rawPrompt.length > MAX_PROMPT_LENGTH ? rawPrompt.slice(0, MAX_PROMPT_LENGTH) : rawPrompt;
@@ -179,19 +251,28 @@ serve(async (req) => {
 
     if (!motionAvatarId) throw new Error('No motion avatar ID returned: ' + JSON.stringify(motionResult));
 
-    // Save to scene
-    await supabase.from('playlist_scenes').update({
-      motion_avatar_id: motionAvatarId,
-      motion_type: motionType || 'consistent',
-      motion_prompt: motionPrompt || motionBody.prompt,
-    }).eq('id', sceneId);
+    // Save to scene AND video
+    if (sceneId) {
+      await supabase.from('playlist_scenes').update({
+        motion_avatar_id: motionAvatarId,
+        motion_type: motionType || 'consistent',
+        motion_prompt: motionPrompt || motionBody.prompt,
+      }).eq('id', sceneId);
+    }
+    if (videoId) {
+      await supabase.from('videos').update({
+        motion_avatar_id: motionAvatarId,
+        motion_type: motionType || 'consistent',
+        motion_prompt: motionPrompt || motionBody.prompt,
+      }).eq('id', videoId);
+    }
 
     const durationMs = Date.now() - startTime;
     await supabase.from('activity_log').insert({
       action: 'add_avatar_motion',
-      entity_type: 'scene',
-      entity_id: sceneId,
-      details: { motion_type: motionType, motion_avatar_id: motionAvatarId },
+      entity_type: sceneId ? 'scene' : 'video',
+      entity_id: sceneId || videoId,
+      details: { motion_type: motionType, motion_avatar_id: motionAvatarId, image_source: imageSource },
       duration_ms: durationMs,
     });
 
