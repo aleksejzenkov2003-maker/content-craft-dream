@@ -271,10 +271,10 @@ serve(async (req) => {
       : 'https://api.heygen.com/v2/video/generate';
     console.log(`Using HeyGen mode: ${heygenMode}, motion_enabled: ${motionEnabled}, video_format: ${videoFormatMode}, endpoint: ${heygenEndpoint}`);
 
-    // Use scene's motion_avatar_id first, then video's (backward compat), otherwise upload fresh
+    // Use scene's motion_avatar_id first, then video's, otherwise upload fresh
     let talkingPhotoIdFinal: string;
     let effectiveMotionAvatarId = motionEnabled 
-      ? (sceneMotionAvatarId || (sceneUrl ? null : video.motion_avatar_id)) 
+      ? (sceneMotionAvatarId || video.motion_avatar_id) 
       : null;
 
     // Validate existing motion_avatar_id via HeyGen API before using it
@@ -305,23 +305,27 @@ serve(async (req) => {
     }
 
     // Last-resort: if motion is enabled but no motion_avatar_id exists, try to create one now
-    if (motionEnabled && !effectiveMotionAvatarId && sceneId && heygenMode === 'v3') {
+    // Works with or without sceneId — uses imageUrl already resolved above
+    if (motionEnabled && !effectiveMotionAvatarId && heygenMode === 'v3') {
       console.log('Motion enabled but no motion_avatar_id — attempting last-resort creation...');
       try {
         const tempTalkingPhotoId = await uploadTalkingPhoto(imageUrl, heygenKey);
         const motionPrompt = sceneMotionPrompt || video.motion_prompt || 'The person gestures naturally with their hands while explaining something';
-        const addMotionRes = await fetch('https://api.heygen.com/v1/talking_photo.add_motion', {
+        // Use v2 endpoint (consistent with add-avatar-motion)
+        const addMotionRes = await fetch('https://api.heygen.com/v2/photo_avatar/add_motion', {
           method: 'POST',
           headers: { 'X-Api-Key': heygenKey, 'Content-Type': 'application/json' },
-          body: JSON.stringify({ id: tempTalkingPhotoId, prompt: motionPrompt }),
+          body: JSON.stringify({ id: tempTalkingPhotoId, prompt: motionPrompt, motion_type: 'consistent' }),
         });
         
         if (addMotionRes.ok) {
           const motionData = await addMotionRes.json();
-          const newMotionId = motionData?.data?.talking_photo_id;
+          const newMotionId = motionData?.data?.talking_photo_id || motionData?.data?.avatar_id || motionData?.data?.id;
           if (newMotionId) {
             effectiveMotionAvatarId = newMotionId;
-            await supabase.from('playlist_scenes').update({ motion_avatar_id: newMotionId }).eq('id', sceneId);
+            if (sceneId) {
+              await supabase.from('playlist_scenes').update({ motion_avatar_id: newMotionId }).eq('id', sceneId);
+            }
             await supabase.from('videos').update({ motion_avatar_id: newMotionId }).eq('id', videoId);
             console.log('Last-resort motion created:', newMotionId);
             try {
@@ -329,7 +333,7 @@ serve(async (req) => {
                 action: 'last_resort_motion_created',
                 entity_type: 'video',
                 entity_id: videoId,
-                details: { motion_avatar_id: newMotionId, scene_id: sceneId },
+                details: { motion_avatar_id: newMotionId, scene_id: sceneId, had_scene: !!sceneId },
               });
             } catch (_) { /* ignore */ }
           }
@@ -346,7 +350,7 @@ serve(async (req) => {
 
     if (effectiveMotionAvatarId && heygenMode === 'v3') {
       talkingPhotoIdFinal = effectiveMotionAvatarId;
-      console.log('Using motion_avatar_id:', talkingPhotoIdFinal, 'source:', sceneMotionAvatarId ? 'scene' : 'last-resort/video');
+      console.log('Using motion_avatar_id:', talkingPhotoIdFinal, 'source:', sceneMotionAvatarId ? 'scene' : 'video/last-resort');
     } else {
       talkingPhotoIdFinal = await uploadTalkingPhoto(imageUrl, heygenKey);
       console.log('talking_photo_id (fresh upload, no motion):', talkingPhotoIdFinal);
