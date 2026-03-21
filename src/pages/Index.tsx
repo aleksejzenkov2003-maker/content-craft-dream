@@ -271,6 +271,8 @@ export default function Index() {
       // Phase 2: Burn subtitles if word_timestamps exist
       if ((isEnabled('side_video', 'subtitles') || isEnabled('burn_subtitles', 'subtitles')) && vid?.word_timestamps) {
         toast.info('Шаг 2/2: Начинаем вшивку субтитров...');
+        const subStart = Date.now();
+        await logStep('subtitle_burn_started');
         try {
           const { burnSubtitlesBrowser } = await import('@/lib/videoSubtitles');
           const subtitledFile = await burnSubtitlesBrowser(
@@ -287,11 +289,12 @@ export default function Index() {
           if (subUpErr) throw subUpErr;
           const { data: subUrlData } = supabase.storage.from('media-files').getPublicUrl(subtitledFileName);
           finalUrl = subUrlData.publicUrl;
+          await logStep('subtitle_burn_complete', { duration_ms: Date.now() - subStart });
           toast.success('✅ Шаг 2/2: Субтитры вшиты! Видео полностью готово.');
         } catch (subErr) {
           console.error('Subtitle burn failed, using reduced video:', subErr);
+          await logStep('subtitle_burn_failed', { details: { error: String(subErr) }, duration_ms: Date.now() - subStart });
           toast.warning('Не удалось вшить субтитры, используется видео без субтитров');
-          // Save reduced (non-subtitled) video as video_path, mark subtitle error but generation done
           await supabase.from('videos').update({ 
             video_path: finalUrl, 
             reel_status: 'error', 
@@ -299,7 +302,7 @@ export default function Index() {
           }).eq('id', videoId);
           updateProgress('done', 100);
           refetchVideos();
-          return; // Don't fall through to line that overwrites reel_status with 'ready'
+          return;
         }
       } else if (!vid?.word_timestamps) {
         toast.success('✅ Постобработка завершена (субтитры не требуются)');
@@ -307,11 +310,12 @@ export default function Index() {
 
       // Update video_path with final URL and mark as ready
       await supabase.from('videos').update({ video_path: finalUrl, reel_status: 'ready', generation_status: 'ready' }).eq('id', videoId);
+      await logStep('postprocessing_complete');
       updateProgress('done', 100);
       refetchVideos();
     } catch (err) {
       console.error('Post-processing error:', err);
-      // Set error status so UI reflects the failure
+      await logStep('postprocessing_error', { details: { error: String(err) } });
       try { await supabase.from('videos').update({ reel_status: 'error' }).eq('id', videoId); } catch (_) { /* ignore */ }
       refetchVideos();
       throw err;
