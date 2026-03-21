@@ -154,7 +154,11 @@ export function VideoSidePanel({
     if (!video) return [];
     const variants: { label: string; url: string }[] = [];
     if (video.heygen_video_url) variants.push({ label: 'HeyGen видео', url: video.heygen_video_url });
-    if (video.video_path && video.video_path !== video.heygen_video_url) variants.push({ label: 'С субтитрами', url: video.video_path });
+    if (video.video_path && video.video_path !== video.heygen_video_url) {
+      // Determine correct label: if video_path equals reduced_video_url or no word_timestamps → just compressed
+      const isJustReduced = video.video_path === video.reduced_video_url || !video.word_timestamps;
+      variants.push({ label: isJustReduced ? 'Сжатое видео' : 'С субтитрами', url: video.video_path });
+    }
     return variants;
   })();
 

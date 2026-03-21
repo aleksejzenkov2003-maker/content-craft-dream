@@ -4,19 +4,36 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
-import { ScrollArea } from '@/components/ui/scroll-area';
+import { Progress } from '@/components/ui/progress';
 import { useActiveProcesses, type ActiveVideo, type ProcessLog } from '@/hooks/useActiveProcesses';
+
+interface FFmpegProgress {
+  phase: string;
+  progress: number;
+}
 
 interface ActiveProcessesProps {
   onNavigateToVideo: (videoId: string) => void;
+  ffmpegProgress?: Record<string, FFmpegProgress>;
 }
 
-function getOverallStatus(v: ActiveVideo): { label: string; color: string } {
+function getOverallStatus(v: ActiveVideo, ffmpeg?: FFmpegProgress): { label: string; color: string } {
+  if (ffmpeg) {
+    const phaseLabels: Record<string, string> = {
+      reducing_bitrate: 'Сжатие битрейта...',
+      burning_subtitles: 'Вшивка субтитров...',
+      downloading: 'Скачивание видео...',
+      uploading_result: 'Загрузка результата...',
+      loading_ffmpeg: 'Загрузка FFmpeg...',
+      done: 'Готово',
+    };
+    return { label: phaseLabels[ffmpeg.phase] || ffmpeg.phase, color: 'text-cyan-500' };
+  }
   if (v.voiceover_status === 'generating') return { label: 'Озвучка...', color: 'text-blue-500' };
   if (v.cover_status === 'generating') return { label: 'Обложка...', color: 'text-purple-500' };
   if (v.generation_status === 'generating') return { label: 'HeyGen генерация...', color: 'text-amber-500' };
   if (v.generation_status === 'processing') return { label: 'Постобработка...', color: 'text-cyan-500' };
-  if (v.reel_status === 'generating') return { label: 'Reel сборка...', color: 'text-teal-500' };
+  if (v.reel_status === 'generating') return { label: 'FFmpeg обработка...', color: 'text-teal-500' };
   if (v.generation_status === 'ready') return { label: 'Готово', color: 'text-emerald-500' };
   return { label: v.generation_status || '—', color: 'text-muted-foreground' };
 }
@@ -29,10 +46,10 @@ function getStepIcon(action: string) {
   return <Activity className="h-3.5 w-3.5 text-muted-foreground shrink-0" />;
 }
 
-function ProcessCard({ video, onNavigate }: { video: ActiveVideo; onNavigate: () => void }) {
+function ProcessCard({ video, onNavigate, ffmpeg }: { video: ActiveVideo; onNavigate: () => void; ffmpeg?: FFmpegProgress }) {
   const [expanded, setExpanded] = useState(false);
   const [expandedLog, setExpandedLog] = useState<string | null>(null);
-  const status = getOverallStatus(video);
+  const status = getOverallStatus(video, ffmpeg);
   const title = video.video_title || video.question || `#${video.video_number || '?'}`;
   const advisorName = video.advisor?.display_name || video.advisor?.name || '';
 
@@ -49,6 +66,9 @@ function ProcessCard({ video, onNavigate }: { video: ActiveVideo; onNavigate: ()
             <span className={status.color}>{status.label}</span>
             {video.generation_count ? <span>· Попытка #{video.generation_count}</span> : null}
           </div>
+          {ffmpeg && ffmpeg.phase !== 'done' && (
+            <Progress value={ffmpeg.progress} className="h-1.5 mt-2" />
+          )}
         </div>
         <Button variant="ghost" size="icon-sm" onClick={onNavigate} title="Перейти к ролику">
           <ExternalLink className="h-4 w-4" />
@@ -125,8 +145,11 @@ function DetailBlock({ label, data, color }: { label: string; data: unknown; col
   );
 }
 
-export function ActiveProcesses({ onNavigateToVideo }: ActiveProcessesProps) {
+export function ActiveProcesses({ onNavigateToVideo, ffmpegProgress }: ActiveProcessesProps) {
   const { activeVideos, recentVideos, loading } = useActiveProcesses();
+
+  // Merge ffmpegProgress videos that might not be in activeVideos
+  const ffmpegVideoIds = ffmpegProgress ? Object.keys(ffmpegProgress) : [];
 
   if (loading && activeVideos.length === 0 && recentVideos.length === 0) {
     return (
@@ -147,7 +170,7 @@ export function ActiveProcesses({ onNavigateToVideo }: ActiveProcessesProps) {
     );
   }
 
-  const hasContent = activeVideos.length > 0 || recentVideos.length > 0;
+  const hasContent = activeVideos.length > 0 || recentVideos.length > 0 || ffmpegVideoIds.length > 0;
 
   return (
     <Card>
@@ -155,8 +178,8 @@ export function ActiveProcesses({ onNavigateToVideo }: ActiveProcessesProps) {
         <CardTitle className="text-lg flex items-center gap-2">
           <Activity className="h-5 w-5" />
           Активные процессы
-          {activeVideos.length > 0 && (
-            <Badge variant="default" className="ml-1">{activeVideos.length}</Badge>
+          {(activeVideos.length > 0 || ffmpegVideoIds.length > 0) && (
+            <Badge variant="default" className="ml-1">{Math.max(activeVideos.length, ffmpegVideoIds.length)}</Badge>
           )}
         </CardTitle>
       </CardHeader>
@@ -164,26 +187,24 @@ export function ActiveProcesses({ onNavigateToVideo }: ActiveProcessesProps) {
         {!hasContent ? (
           <p className="text-sm text-muted-foreground py-4 text-center">Нет активных процессов</p>
         ) : (
-          <ScrollArea className="max-h-[500px]">
-            <div className="space-y-4">
-              {activeVideos.length > 0 && (
-                <div className="space-y-2">
-                  {activeVideos.map(v => (
-                    <ProcessCard key={v.id} video={v} onNavigate={() => onNavigateToVideo(v.id)} />
-                  ))}
-                </div>
-              )}
+          <div className="max-h-[500px] overflow-y-auto space-y-4 pr-1">
+            {activeVideos.length > 0 && (
+              <div className="space-y-2">
+                {activeVideos.map(v => (
+                  <ProcessCard key={v.id} video={v} onNavigate={() => onNavigateToVideo(v.id)} ffmpeg={ffmpegProgress?.[v.id]} />
+                ))}
+              </div>
+            )}
 
-              {recentVideos.length > 0 && (
-                <div className="space-y-2">
-                  <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Недавно завершённые</p>
-                  {recentVideos.map(v => (
-                    <ProcessCard key={v.id} video={v} onNavigate={() => onNavigateToVideo(v.id)} />
-                  ))}
-                </div>
-              )}
-            </div>
-          </ScrollArea>
+            {recentVideos.length > 0 && (
+              <div className="space-y-2">
+                <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Недавно завершённые</p>
+                {recentVideos.map(v => (
+                  <ProcessCard key={v.id} video={v} onNavigate={() => onNavigateToVideo(v.id)} />
+                ))}
+              </div>
+            )}
+          </div>
         )}
       </CardContent>
     </Card>

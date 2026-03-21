@@ -202,6 +202,18 @@ export default function Index() {
     const updateProgress = (phase: string, progress: number) => {
       setAutoSubtitleProgress(prev => ({ ...prev, [videoId]: { phase, progress } }));
     };
+    const logStep = async (action: string, extra?: { details?: Record<string, unknown>; duration_ms?: number }) => {
+      try {
+        await supabase.from('activity_log').insert([{
+          action,
+          entity_type: 'video',
+          entity_id: videoId,
+          details: extra?.details as any || null,
+          duration_ms: extra?.duration_ms || null,
+        }]);
+      } catch (_) { /* non-critical */ }
+    };
+
     try {
       // Mark reel_status as processing
       await supabase.from('videos').update({ reel_status: 'generating' }).eq('id', videoId);
@@ -216,6 +228,7 @@ export default function Index() {
       const sourceUrl = vid?.heygen_video_url;
       if (!sourceUrl) {
         console.warn('No HeyGen URL for post-processing');
+        await logStep('postprocessing_error', { details: { reason: 'no_heygen_url' } });
         await supabase.from('videos').update({ reel_status: 'error' }).eq('id', videoId);
         return;
       }
@@ -225,6 +238,8 @@ export default function Index() {
       // Phase 1: Bitrate reduction
       if (isEnabled('side_video', 'resize') || isEnabled('resize', 'resize')) {
         updateProgress('reducing_bitrate', 5);
+        const bitrateStart = Date.now();
+        await logStep('bitrate_reduction_started');
         toast.info('Шаг 1/2: Уменьшение битрейта видео...');
         const { reduceVideoBitrate, COMPRESSION_PRESETS, DEFAULT_COMPRESSION_PRESET } = await import('@/lib/videoNormalizer');
         // Load selected compression preset from settings
@@ -245,16 +260,19 @@ export default function Index() {
           .upload(reducedFileName, reducedFile, { contentType: 'video/mp4', upsert: true });
         if (uploadErr) throw uploadErr;
 
-      const { data: urlData } = supabase.storage.from('media-files').getPublicUrl(reducedFileName);
+        const { data: urlData } = supabase.storage.from('media-files').getPublicUrl(reducedFileName);
         finalUrl = urlData.publicUrl;
         // Save reduced URL as clean source (no subtitles) for future re-burns
         await supabase.from('videos').update({ reduced_video_url: finalUrl }).eq('id', videoId);
+        await logStep('bitrate_reduction_complete', { duration_ms: Date.now() - bitrateStart, details: { preset: selectedPreset.id } });
         toast.success('✅ Шаг 1/2: Битрейт уменьшен!');
       }
 
       // Phase 2: Burn subtitles if word_timestamps exist
       if ((isEnabled('side_video', 'subtitles') || isEnabled('burn_subtitles', 'subtitles')) && vid?.word_timestamps) {
         toast.info('Шаг 2/2: Начинаем вшивку субтитров...');
+        const subStart = Date.now();
+        await logStep('subtitle_burn_started');
         try {
           const { burnSubtitlesBrowser } = await import('@/lib/videoSubtitles');
           const subtitledFile = await burnSubtitlesBrowser(
@@ -271,11 +289,12 @@ export default function Index() {
           if (subUpErr) throw subUpErr;
           const { data: subUrlData } = supabase.storage.from('media-files').getPublicUrl(subtitledFileName);
           finalUrl = subUrlData.publicUrl;
+          await logStep('subtitle_burn_complete', { duration_ms: Date.now() - subStart });
           toast.success('✅ Шаг 2/2: Субтитры вшиты! Видео полностью готово.');
         } catch (subErr) {
           console.error('Subtitle burn failed, using reduced video:', subErr);
+          await logStep('subtitle_burn_failed', { details: { error: String(subErr) }, duration_ms: Date.now() - subStart });
           toast.warning('Не удалось вшить субтитры, используется видео без субтитров');
-          // Save reduced (non-subtitled) video as video_path, mark subtitle error but generation done
           await supabase.from('videos').update({ 
             video_path: finalUrl, 
             reel_status: 'error', 
@@ -283,7 +302,7 @@ export default function Index() {
           }).eq('id', videoId);
           updateProgress('done', 100);
           refetchVideos();
-          return; // Don't fall through to line that overwrites reel_status with 'ready'
+          return;
         }
       } else if (!vid?.word_timestamps) {
         toast.success('✅ Постобработка завершена (субтитры не требуются)');
@@ -291,11 +310,12 @@ export default function Index() {
 
       // Update video_path with final URL and mark as ready
       await supabase.from('videos').update({ video_path: finalUrl, reel_status: 'ready', generation_status: 'ready' }).eq('id', videoId);
+      await logStep('postprocessing_complete');
       updateProgress('done', 100);
       refetchVideos();
     } catch (err) {
       console.error('Post-processing error:', err);
-      // Set error status so UI reflects the failure
+      await logStep('postprocessing_error', { details: { error: String(err) } });
       try { await supabase.from('videos').update({ reel_status: 'error' }).eq('id', videoId); } catch (_) { /* ignore */ }
       refetchVideos();
       throw err;
@@ -1047,11 +1067,14 @@ export default function Index() {
                     <StatsCard title="Вопросов" value={questions.length} change="уникальных" changeType="neutral" icon={HelpCircle} />
                     <StatsCard title="Публикаций" value={publications.length} change="всего" changeType="positive" icon={Send} iconColor="text-info" />
                   </div>
-                  <ActiveProcesses onNavigateToVideo={(videoId) => {
-                    setActiveTab('videos');
-                    setViewingVideoId(videoId);
-                    setShowSidePanel(true);
-                  }} />
+                  <ActiveProcesses 
+                    onNavigateToVideo={(videoId) => {
+                      setActiveTab('videos');
+                      setViewingVideoId(videoId);
+                      setShowSidePanel(true);
+                    }}
+                    ffmpegProgress={autoSubtitleProgress}
+                  />
                 </>
               )}
             </div>
