@@ -328,6 +328,7 @@ export default function Index() {
       refetchVideos();
       throw err;
     } finally {
+      postProcessingRef.current.delete(videoId);
       // Clear progress after a brief delay so user sees 100%
       setTimeout(() => {
         setAutoSubtitleProgress(prev => {
