@@ -2,6 +2,7 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import { Sidebar } from '@/components/layout/Sidebar';
 import { Header } from '@/components/layout/Header';
 import { StatsCard } from '@/components/dashboard/StatsCard';
+import { ActiveProcesses } from '@/components/dashboard/ActiveProcesses';
 import { AdvisorsGrid } from '@/components/advisors/AdvisorsGrid';
 import { PlaylistsGrid } from '@/components/playlists/PlaylistsGrid';
 import { VideosTable } from '@/components/videos/VideosTable';
