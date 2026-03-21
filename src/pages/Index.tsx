@@ -593,16 +593,31 @@ export default function Index() {
           await supabase.from('videos').update({ motion_avatar_id: motionData2.motionAvatarId }).eq('id', video.id);
         }
         
-        // Check if motion is actually ready or just created
-        if (motionData2.ready === false) {
-          toast.warning('Motion создан, но ещё обрабатывается');
-          return new Promise<boolean>((resolve) => {
-            setMotionError({
-              message: 'Motion-аватар создан, но ещё обрабатывается HeyGen. Подождать 1-2 минуты и попробовать снова, или продолжить без motion?',
-              videoId: video.id,
-              resolve: (continueWithout) => { setMotionError(null); resolve(continueWithout); },
-            });
+        // If motion not ready — start frontend polling loop
+        if (motionData2.ready === false && motionData2.motionAvatarId) {
+          toast.info('Motion создан, ожидание готовности HeyGen...');
+          await supabase.from('videos').update({ generation_status: 'processing' } as any).eq('id', video.id);
+          await supabase.from('activity_log').insert({
+            action: 'motion_polling_started',
+            entity_type: 'video',
+            entity_id: video.id,
+            details: { motion_avatar_id: motionData2.motionAvatarId },
           });
+          refetchVideos();
+          
+          const motionReady = await pollMotionStatus(motionData2.motionAvatarId, video.id);
+          if (motionReady) {
+            toast.success('Motion готов ✓');
+            return true;
+          } else {
+            return new Promise<boolean>((resolve) => {
+              setMotionError({
+                message: 'Motion-аватар не стал готов за 3 минуты. Продолжить без motion?',
+                videoId: video.id,
+                resolve: (continueWithout) => { setMotionError(null); resolve(continueWithout); },
+              });
+            });
+          }
         }
         
         const reusedLabel = motionData2?.reused ? ' (переиспользован)' : '';
