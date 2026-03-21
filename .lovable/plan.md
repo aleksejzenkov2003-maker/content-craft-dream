@@ -1,107 +1,56 @@
 
-# План: починить motion для роликов без approved scene и перестать плодить новые motion
 
-## Что нашёл
+# Панель активных процессов на дашборде
 
-Для ролика `#11711 ... Orthodox` motion не добавился не потому, что UI не вызвал шаг, а потому что backend не нашёл подходящую сцену:
+## Что строим
 
-- в логах есть `No approved scene found for motion`
-- в базе для `playlist_id = 994a...` и `advisor_id = f9d... (Orthodox)` есть только `waiting` scene без `scene_url`
-- `prepareMotionStep` в `src/pages/Index.tsx` при отсутствии approved scene просто молча возвращает `true`
-- `generate-video-heygen` умеет делать last-resort motion только если есть `sceneId`, то есть без approved scene он всегда уходит в статичное фото
+Новый компонент `ActiveProcesses` на дашборде, показывающий все видео в активных состояниях (генерация, постобработка, озвучка, обложка) с пошаговой историей из `activity_log`. Каждый процесс раскрывается, показывая таймлайн шагов (motion, voiceover, heygen, resize, subtitles) с результатами и ошибками. Клик по видео переводит на вкладку "Ролики" с открытием боковой панели.
 
-Есть ещё 2 архитектурные проблемы:
-1. В двух функциях используются разные endpoints для add_motion:
-   - `add-avatar-motion` → `/v2/photo_avatar/add_motion`
-   - `generate-video-heygen` → `/v1/talking_photo.add_motion`
-2. Проверка текущего `motion_avatar_id` смотрит только “ID существует”, но не гарантирует, что motion уже готов к использованию, из-за чего возможен кейс с `missing image dimensions`.
+## Структура
 
-## Что нужно сделать
+### 1. Новый компонент `src/components/dashboard/ActiveProcesses.tsx`
 
-### 1. Убрать зависимость motion от approved scene
-Переделать подготовку motion так, чтобы она работала по цепочке источников:
+Карточка с заголовком "Активные процессы" и авто-обновлением каждые 10 секунд.
 
+**Данные**: запрос к `videos` где `generation_status IN ('generating', 'processing')` или `reel_status = 'generating'` или `voiceover_status = 'generating'` или `cover_status = 'generating'`. Плюс join с `activity_log` по `entity_id`.
+
+**UI каждого процесса**:
 ```text
-approved scene with scene_url
-→ advisor.scene_photo_id
-→ primary advisor photo
-→ video/main fallback
+┌─────────────────────────────────────────────────┐
+│ 🟡 Can I divorce... — Orthodox        [Перейти] │
+│ Статус: HeyGen генерация · Попытка #1           │
+│                                                  │
+│ ▼ История шагов                                  │
+│   ✅ 10:07 voiceover_generated  (6.9s)          │
+│   ✅ 10:07 add_avatar_motion    (скип)          │
+│   ⚠️ 10:07 motion_not_ready                     │
+│   🔄 10:07 heygen_video_started                  │
+│      └─ motion_used: false                       │
+│      └─ warning: Motion не применён              │
+└─────────────────────────────────────────────────┘
 ```
 
-То есть motion должен создаваться даже если сцена ещё не утверждена или вообще отсутствует.
+- Цветные иконки по статусу шага: ✅ success, ⚠️ warning/fallback, ❌ error, 🔄 in progress
+- Раскрытие деталей каждого шага (input/output JSON) — переиспользуем паттерн из `StepDebugger`
+- Кнопка "Перейти" → `setActiveTab('videos')` + `setViewingVideoId(id)` + `setShowSidePanel(true)`
 
-### 2. Сделать единый motion-resolver
-Вынести общую логику в один helper, который будут использовать и `add-avatar-motion`, и `generate-video-heygen`:
+### 2. Также показывать недавно завершённые (последние 5)
 
-- найти лучший источник изображения
-- проверить существующий `scene.motion_avatar_id`
-- если его нет — проверить `video.motion_avatar_id`
-- если валиден — переиспользовать
-- если невалиден — очистить и создать новый
-- если motion создаётся без scene — сохранять хотя бы в `videos.motion_avatar_id`
+Под активными — секция "Недавно завершённые" с последними 5 видео, у которых `generation_status = 'ready'` и есть записи в `activity_log` за последние 24 часа. Позволяет проверить, всё ли прошло штатно.
 
-Так мы перестанем тратить кредиты повторно на один и тот же ролик.
+### 3. Интеграция в дашборд (`Index.tsx`)
 
-### 3. Починить явный шаг в UI
-В `Index.tsx` изменить `prepareMotionStep`:
+Добавить `<ActiveProcesses />` после блока `StatsCard` на дашборде. Передать callback `onNavigateToVideo` для навигации.
 
-- не завершать шаг фразой “No approved scene found for motion”
-- вместо этого запускать motion по advisor photo fallback
-- показывать понятные статусы:
-  - `Шаг 0: Подготовка motion-аватара...`
-  - `Motion аватар найден ✓`
-  - `Motion аватар добавлен ✓`
-  - `Motion создан из фото духовника ✓`
+### 4. Хук `useActiveProcesses.ts`
 
-Если motion не удалось подготовить — оставлять текущий AlertDialog с выбором:
-- продолжить без motion
-- остановить генерацию
-
-### 4. Привести add_motion к одному рабочему API
-Использовать один и тот же endpoint и одинаковый формат запроса в обеих edge functions. Сейчас логика расходится, поэтому поведение “ручного” и “аварийного” создания motion отличается.
-
-### 5. Проверять готовность motion, а не только существование
-Усилить валидацию `motion_avatar_id`:
-
-- смотреть не только наличие ID в HeyGen list
-- проверять, что asset уже готов к использованию
-- если motion ещё не готов — делать короткий bounded retry / wait-check
-- если после короткой проверки не готов — не использовать его в генерации и показать осмысленную причину
-
-Это устранит ситуацию, когда motion “есть в HeyGen”, но видео всё равно собирается без него.
-
-### 6. Синхронизировать сохранение motion ID
-После успешного создания:
-- если есть scene → писать в `playlist_scenes.motion_avatar_id`
-- всегда писать в `videos.motion_avatar_id`
-
-Так повторная генерация сможет переиспользовать ранее созданный motion даже без сцены.
+- Запрос активных видео + их `activity_log` записей
+- Группировка логов по `entity_id` и сортировка по `created_at`
+- Авто-рефреш каждые 10 секунд (для активных)
+- Realtime подписка на `videos` для мгновенного обновления статусов
 
 ## Файлы
 
-- `src/pages/Index.tsx`
-- `supabase/functions/add-avatar-motion/index.ts`
-- `supabase/functions/generate-video-heygen/index.ts`
+- **Создать**: `src/components/dashboard/ActiveProcesses.tsx`, `src/hooks/useActiveProcesses.ts`
+- **Изменить**: `src/pages/Index.tsx` — добавить компонент на дашборд, передать навигацию
 
-## Результат
-
-После правки motion будет работать в двух случаях:
-- когда есть approved scene
-- когда сцены нет, но есть фото духовника
-
-Именно это сейчас ломает кейс `Orthodox`: система не находит approved scene и слишком рано сдается, вместо того чтобы создать/reuse motion по фото.
-
-## Технически коротко
-
-```text
-Сейчас:
-UI motion step -> ищет только approved scene
-нет approved scene -> skip
-backend last-resort motion -> требует sceneId
-нет sceneId -> static photo
-
-После исправления:
-UI motion step -> approved scene OR advisor photo fallback
-backend -> reuse valid motion from scene/video
-если нет -> create once and save
-```
