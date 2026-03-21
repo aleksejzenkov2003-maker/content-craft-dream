@@ -39,7 +39,7 @@ export function getPhaseLabel(phase: SubtitlePhase): string {
 // ── Font management ──
 
 let fontData: Uint8Array | null = null;
-const FONT_URL = 'https://cdn.jsdelivr.net/fontsource/fonts/montserrat@latest/latin-900-normal.ttf';
+const FONT_URL = 'https://cdn.jsdelivr.net/fontsource/fonts/montserrat@5.1.0/latin-900-normal.ttf';
 const FONT_PATH = 'Montserrat-Black.ttf';
 
 async function ensureFont(ff: FFmpeg): Promise<void> {
