@@ -532,12 +532,30 @@ export default function Index() {
         body: { advisorId: video.advisor_id, videoId: video.id },
       });
 
-      if (motionRes.data?.success) {
-        if (motionRes.data.motionAvatarId) {
-          await supabase.from('videos').update({ motion_avatar_id: motionRes.data.motionAvatarId }).eq('id', video.id);
+      const motionData2 = motionRes.data;
+      const motionFnError2 = motionRes.error;
+
+      if (motionFnError2) {
+        const errText = typeof motionFnError2 === 'object' && motionFnError2.message ? motionFnError2.message : String(motionFnError2);
+        console.warn('Motion function error (advisor):', errText);
+        const isCreditsError = errText.includes('insufficient_credit') || errText.toLowerCase().includes('кредит');
+        return new Promise<boolean>((resolve) => {
+          setMotionError({
+            message: isCreditsError
+              ? 'Недостаточно кредитов HeyGen для motion. Пополните баланс. Продолжить без motion?'
+              : `Ошибка motion: ${errText}`,
+            videoId: video.id,
+            resolve: (continueWithout) => { setMotionError(null); resolve(continueWithout); },
+          });
+        });
+      }
+
+      if (motionData2?.success) {
+        if (motionData2.motionAvatarId) {
+          await supabase.from('videos').update({ motion_avatar_id: motionData2.motionAvatarId }).eq('id', video.id);
         }
-        const reusedLabel = motionRes.data?.reused ? ' (переиспользован)' : '';
-        const waitLabel = motionRes.data?.waitedForReady ? ' (ожидание готовности)' : '';
+        const reusedLabel = motionData2?.reused ? ' (переиспользован)' : '';
+        const waitLabel = motionData2?.waitedForReady ? ' (ожидание готовности)' : '';
         toast.success(`Motion создан из фото духовника ✓${reusedLabel}${waitLabel}`);
         return true;
       }
