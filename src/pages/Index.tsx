@@ -19,6 +19,16 @@ import { ScenesMatrix } from '@/components/scenes/ScenesMatrix';
 import { BackgroundVideosGrid } from '@/components/backgrounds/BackgroundVideosGrid';
 import { QuestionsTable } from '@/components/questions/QuestionsTable';
 
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 
 import { useAdvisors } from '@/hooks/useAdvisors';
 import { usePlaylists } from '@/hooks/usePlaylists';

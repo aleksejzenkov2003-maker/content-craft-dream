@@ -277,14 +277,38 @@ serve(async (req) => {
       ? (sceneMotionAvatarId || (sceneUrl ? null : video.motion_avatar_id)) 
       : null;
 
+    // Validate existing motion_avatar_id via HeyGen API before using it
+    if (effectiveMotionAvatarId && heygenMode === 'v3') {
+      console.log('Validating motion_avatar_id:', effectiveMotionAvatarId);
+      try {
+        const listRes = await fetch('https://api.heygen.com/v1/talking_photo.list', {
+          headers: { 'X-Api-Key': heygenKey },
+        });
+        if (listRes.ok) {
+          const listData = await listRes.json();
+          const photos = listData?.data?.talking_photos || [];
+          const found = photos.find((p: any) => p.talking_photo_id === effectiveMotionAvatarId);
+          if (!found) {
+            console.warn('motion_avatar_id not found in HeyGen — clearing from DB');
+            effectiveMotionAvatarId = null;
+            if (sceneId) {
+              await supabase.from('playlist_scenes').update({ motion_avatar_id: null }).eq('id', sceneId);
+            }
+            await supabase.from('videos').update({ motion_avatar_id: null }).eq('id', videoId);
+          } else {
+            console.log('motion_avatar_id validated ✓');
+          }
+        }
+      } catch (valErr) {
+        console.warn('Motion validation failed, proceeding with ID:', valErr);
+      }
+    }
+
     // Last-resort: if motion is enabled but no motion_avatar_id exists, try to create one now
     if (motionEnabled && !effectiveMotionAvatarId && sceneId && heygenMode === 'v3') {
       console.log('Motion enabled but no motion_avatar_id — attempting last-resort creation...');
       try {
-        // Upload talking photo first
         const tempTalkingPhotoId = await uploadTalkingPhoto(imageUrl, heygenKey);
-        
-        // Call HeyGen add_motion API
         const motionPrompt = sceneMotionPrompt || video.motion_prompt || 'The person gestures naturally with their hands while explaining something';
         const addMotionRes = await fetch('https://api.heygen.com/v1/talking_photo.add_motion', {
           method: 'POST',
@@ -297,7 +321,6 @@ serve(async (req) => {
           const newMotionId = motionData?.data?.talking_photo_id;
           if (newMotionId) {
             effectiveMotionAvatarId = newMotionId;
-            // Save for future reuse
             await supabase.from('playlist_scenes').update({ motion_avatar_id: newMotionId }).eq('id', sceneId);
             await supabase.from('videos').update({ motion_avatar_id: newMotionId }).eq('id', videoId);
             console.log('Last-resort motion created:', newMotionId);
