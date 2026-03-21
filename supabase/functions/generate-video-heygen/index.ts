@@ -382,7 +382,7 @@ serve(async (req) => {
                 if (checkRes.ok) {
                   const checkData = await checkRes.json();
                   const st = checkData?.data?.status;
-                  if (st !== 'in_progress' && st !== 'processing') {
+                  if (st === 'completed' || st === 'active') {
                     motionReady = true;
                     break;
                   }

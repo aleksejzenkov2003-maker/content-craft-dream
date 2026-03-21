@@ -72,7 +72,7 @@ async function validateMotionIdV2(motionAvatarId: string, heygenKey: string): Pr
 }
 
 // ===== Wait for motion to become ready (bounded polling) =====
-async function waitForMotionReady(motionAvatarId: string, heygenKey: string, maxChecks = 6, intervalMs = 5000): Promise<boolean> {
+async function waitForMotionReady(motionAvatarId: string, heygenKey: string, maxChecks = 12, intervalMs = 5000): Promise<boolean> {
   for (let i = 0; i < maxChecks; i++) {
     console.log(`Polling motion readiness (${i + 1}/${maxChecks})...`);
     const { valid, status } = await validateMotionIdV2(motionAvatarId, heygenKey);
@@ -84,7 +84,7 @@ async function waitForMotionReady(motionAvatarId: string, heygenKey: string, max
       console.log('Motion not found — stop polling');
       return false;
     }
-    // status === 'processing' — wait and retry
+    // still processing — wait and retry
     if (i < maxChecks - 1) {
       await new Promise(r => setTimeout(r, intervalMs));
     }
