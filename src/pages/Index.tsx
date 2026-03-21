@@ -451,9 +451,8 @@ export default function Index() {
       return;
     }
     try {
-      // Step 1: Generate voiceover if missing (controlled by automation)
-      const buttonKey = video.voiceover_url ? '' : 'generate_video';
-      if (!video.voiceover_url && isEnabled('generate_video', 'voiceover')) {
+      // Step 1: Generate voiceover if missing
+      if (!video.voiceover_url) {
         toast.info('Шаг 1/2: Генерация озвучки...');
         await updateVideo(video.id, { voiceover_status: 'generating' } as any, { silent: true });
         refetchVideos();
@@ -470,9 +469,6 @@ export default function Index() {
         if (!voiceRes.ok) throw new Error('Voiceover generation failed');
         toast.success('Озвучка готова!');
         refetchVideos();
-      } else if (!video.voiceover_url && !isEnabled('generate_video', 'voiceover')) {
-        toast.error('Озвучка отсутствует, а автогенерация отключена в настройках');
-        return;
       }
 
       // Step 1.5: Pre-create motion avatar if enabled and missing (runs while voiceover was generating)
