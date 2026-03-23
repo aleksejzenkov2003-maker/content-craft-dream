@@ -722,6 +722,17 @@ export default function Index() {
       }
 
       toast.info('Запуск генерации видео...');
+      // Save current video as variant before clearing artifacts
+      if (video.heygen_video_url) {
+        await supabase.from('video_variants' as any).insert({
+          video_id: video.id,
+          heygen_video_id: video.heygen_video_id,
+          heygen_video_url: video.heygen_video_url,
+          reduced_video_url: (video as any).reduced_video_url,
+          video_path: video.video_path,
+          generation_number: (video as any).generation_count || 1,
+        } as any);
+      }
       // Clear old video artifacts so player shows fresh result
       await updateVideo(video.id, { 
         generation_status: 'generating',
