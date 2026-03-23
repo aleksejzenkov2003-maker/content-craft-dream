@@ -63,9 +63,11 @@ function ProcessCard({ video, onNavigate, ffmpeg }: { video: ActiveVideo; onNavi
             <span className="text-sm font-medium truncate">{title}</span>
             {advisorName && <Badge variant="outline" className="text-xs shrink-0">{advisorName}</Badge>}
           </div>
-          <div className="flex items-center gap-2 mt-1 text-xs text-muted-foreground">
+          <div className="flex items-center gap-2 mt-1 text-xs text-muted-foreground flex-wrap">
             <span className={status.color}>{status.label}</span>
             {video.generation_count ? <span>· Попытка #{video.generation_count}</span> : null}
+            {video.question_id != null && <span>· Q#{video.question_id}</span>}
+            <span className="font-mono text-[10px] opacity-60">· {video.id.slice(0, 8)}</span>
           </div>
           {ffmpeg && ffmpeg.phase !== 'done' && (
             <Progress value={ffmpeg.progress} className="h-1.5 mt-2" />
@@ -85,6 +87,54 @@ function ProcessCard({ video, onNavigate, ffmpeg }: { video: ActiveVideo; onNavi
           <CollapsibleContent>
             <div className="px-3 pb-3 space-y-1">
               {video.logs.map((log) => (
+                <LogEntry key={log.id} log={log} isExpanded={expandedLog === log.id} onToggle={() => setExpandedLog(expandedLog === log.id ? null : log.id)} />
+              ))}
+            </div>
+          </CollapsibleContent>
+        </Collapsible>
+      )}
+    </div>
+  );
+}
+
+function getPublicationStatusInfo(status: string | null): { label: string; color: string } {
+  switch (status) {
+    case 'publishing': return { label: 'Публикация...', color: 'text-amber-500' };
+    case 'generating_text': return { label: 'Генерация текста...', color: 'text-blue-500' };
+    case 'concatenating': return { label: 'Склейка видео...', color: 'text-cyan-500' };
+    case 'published': return { label: 'Опубликовано', color: 'text-emerald-500' };
+    case 'error': return { label: 'Ошибка', color: 'text-destructive' };
+    default: return { label: status || '—', color: 'text-muted-foreground' };
+  }
+}
+
+function PublicationCard({ pub }: { pub: ActivePublication }) {
+  const [expanded, setExpanded] = useState(false);
+  const [expandedLog, setExpandedLog] = useState<string | null>(null);
+  const status = getPublicationStatusInfo(pub.publication_status);
+
+  return (
+    <div className="border rounded-lg overflow-hidden">
+      <div className="p-3">
+        <div className="flex items-center gap-2">
+          <span className={`text-sm font-medium ${status.color}`}>●</span>
+          <span className="text-sm font-medium truncate">{pub.video_title || 'Без названия'}</span>
+          {pub.channel_name && <Badge variant="outline" className="text-xs shrink-0">{pub.channel_name}</Badge>}
+        </div>
+        <div className="flex items-center gap-2 mt-1 text-xs text-muted-foreground">
+          <span className={status.color}>{status.label}</span>
+          <span className="font-mono text-[10px] opacity-60">· {pub.id.slice(0, 8)}</span>
+        </div>
+      </div>
+      {pub.logs.length > 0 && (
+        <Collapsible open={expanded} onOpenChange={setExpanded}>
+          <CollapsibleTrigger className="w-full px-3 pb-2 flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors">
+            {expanded ? <ChevronDown className="h-3 w-3" /> : <ChevronRight className="h-3 w-3" />}
+            История шагов ({pub.logs.length})
+          </CollapsibleTrigger>
+          <CollapsibleContent>
+            <div className="px-3 pb-3 space-y-1">
+              {pub.logs.map((log) => (
                 <LogEntry key={log.id} log={log} isExpanded={expandedLog === log.id} onToggle={() => setExpandedLog(expandedLog === log.id ? null : log.id)} />
               ))}
             </div>
