@@ -714,7 +714,7 @@ const minuteOptions = [0, 5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55];
                         );
                       })()}
                     </TableHead>
-                    <TableHead className="w-[250px] py-1">Заголовок</TableHead>
+                    <TableHead className="w-[500px] py-1">Заголовок</TableHead>
                     <TableHead 
                       className="w-[60px] py-1 cursor-pointer hover:bg-accent/50"
                       onClick={() => handleSort('video_number')}
