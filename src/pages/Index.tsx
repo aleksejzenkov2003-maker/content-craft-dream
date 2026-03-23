@@ -743,11 +743,50 @@ export default function Index() {
     }
   };
 
+  // Validate overlay mode prerequisites for a video
+  const validateOverlayPrerequisites = async (video: Video): Promise<{ ok: boolean; missing: string[] }> => {
+    const { data: fmtRow } = await supabase.from('app_settings').select('value').eq('key', 'video_format_mode').single();
+    if (fmtRow?.value !== 'background_overlay') return { ok: true, missing: [] };
+
+    const missing: string[] = [];
+    // Check advisor has avatar_photo_id
+    const advisor = advisors.find(a => a.id === video.advisor_id);
+    if (!advisor) {
+      missing.push('Не назначен духовник');
+    } else if (!(advisor as any).avatar_photo_id) {
+      missing.push('У духовника не назначено аватар-фото (прозрачный вырез)');
+    }
+
+    // Check background_assignment exists for playlist+advisor pair
+    if (video.playlist_id && video.advisor_id) {
+      const { data: bgAssign } = await (supabase.from('background_assignments' as any) as any)
+        .select('id')
+        .eq('playlist_id', video.playlist_id)
+        .eq('advisor_id', video.advisor_id)
+        .limit(1);
+      if (!bgAssign || bgAssign.length === 0) {
+        missing.push('Не назначена фоновая подложка для пары плейлист+духовник');
+      }
+    } else {
+      if (!video.playlist_id) missing.push('Не назначен плейлист');
+    }
+
+    return { ok: missing.length === 0, missing };
+  };
+
   const handleGenerateVideo = async (video: Video) => {
     if (!video.voiceover_url) {
       toast.error('Сначала создайте озвучку');
       return;
     }
+
+    // Validate overlay mode prerequisites
+    const overlayCheck = await validateOverlayPrerequisites(video);
+    if (!overlayCheck.ok) {
+      toast.error(`Режим «Фоновая подложка» — не хватает:\n• ${overlayCheck.missing.join('\n• ')}`, { duration: 8000 });
+      return;
+    }
+
     // Confirm re-generation if video was already generated and nothing changed
     if ((video as any).generation_count >= 1 && video.heygen_video_url) {
       const confirmed = await new Promise<boolean>((resolve) => {
