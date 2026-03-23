@@ -34,6 +34,18 @@ interface CoverVariant {
   created_at: string;
 }
 
+interface VideoVariant {
+  id: string;
+  video_id: string;
+  heygen_video_id: string | null;
+  heygen_video_url: string | null;
+  reduced_video_url: string | null;
+  video_path: string | null;
+  is_active: boolean | null;
+  generation_number: number | null;
+  created_at: string;
+}
+
 interface VideoSidePanelProps {
   video: Video | null;
   open: boolean;
