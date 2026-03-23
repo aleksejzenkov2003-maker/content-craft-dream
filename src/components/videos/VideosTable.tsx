@@ -391,7 +391,7 @@ export function VideosTable({
     );
   }
 
-  const COL_GRID = 'grid-cols-[40px_140px_80px_80px_80px_56px_44px_48px_44px_80px_60px_66px_36px]';
+  const COL_GRID = 'grid-cols-[40px_56px_140px_80px_80px_80px_56px_44px_48px_44px_80px_60px_66px_36px]';
 
   return (
     <div className="flex flex-col h-full">
