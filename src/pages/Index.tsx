@@ -319,6 +319,22 @@ export default function Index() {
 
       // Update video_path with final URL and mark as ready
       await supabase.from('videos').update({ video_path: finalUrl, reel_status: 'ready', generation_status: 'ready' }).eq('id', videoId);
+      
+      // Save completed variant (mark as active, deactivate others)
+      const { data: freshVid } = await supabase.from('videos').select('heygen_video_id, heygen_video_url, reduced_video_url, generation_count').eq('id', videoId).single();
+      if (freshVid?.heygen_video_url) {
+        await (supabase.from('video_variants' as any) as any).update({ is_active: false }).eq('video_id', videoId);
+        await (supabase.from('video_variants' as any) as any).insert({
+          video_id: videoId,
+          heygen_video_id: freshVid.heygen_video_id,
+          heygen_video_url: freshVid.heygen_video_url,
+          reduced_video_url: freshVid.reduced_video_url,
+          video_path: finalUrl,
+          is_active: true,
+          generation_number: freshVid.generation_count || 1,
+        });
+      }
+      
       await logStep('postprocessing_complete');
       updateProgress('done', 100);
       refetchVideos();
