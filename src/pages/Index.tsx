@@ -227,10 +227,10 @@ export default function Index() {
       // Mark reel_status as processing
       await supabase.from('videos').update({ reel_status: 'generating' }).eq('id', videoId);
 
-      // Fetch fresh video data
+      // Fetch fresh video data (including overlay fields)
       const { data: vid } = await supabase
         .from('videos')
-        .select('heygen_video_url, video_path, word_timestamps')
+        .select('heygen_video_url, video_path, word_timestamps, overlay_mode, background_video_url')
         .eq('id', videoId)
         .single();
 
@@ -243,6 +243,39 @@ export default function Index() {
       }
 
       let finalUrl = sourceUrl;
+
+      // Phase 0: Overlay compositing (if overlay mode was used)
+      if ((vid as any)?.overlay_mode && (vid as any)?.background_video_url) {
+        updateProgress('overlay_compositing' as any, 2);
+        const overlayStart = Date.now();
+        await logStep('overlay_compositing_started');
+        toast.info('Шаг 0: Наложение аватара на фоновую подложку...');
+        try {
+          const { overlayAvatarOnBackground } = await import('@/lib/videoOverlay');
+          const overlayFile = await overlayAvatarOnBackground(
+            sourceUrl,
+            (vid as any).background_video_url,
+            (info) => updateProgress(info.phase as any, Math.round(info.progress * 0.2)),
+          );
+
+          // Upload overlaid video
+          const overlayFileName = `videos/${videoId}_overlay_${Date.now()}.mp4`;
+          const { error: uploadErr } = await supabase.storage
+            .from('media-files')
+            .upload(overlayFileName, overlayFile, { contentType: 'video/mp4', upsert: true });
+          if (uploadErr) throw uploadErr;
+          const { data: urlData } = supabase.storage.from('media-files').getPublicUrl(overlayFileName);
+          finalUrl = urlData.publicUrl;
+          // Update heygen_video_url so subsequent steps use the composited video
+          await supabase.from('videos').update({ heygen_video_url: finalUrl }).eq('id', videoId);
+          await logStep('overlay_compositing_complete', { duration_ms: Date.now() - overlayStart });
+          toast.success('✅ Наложение на подложку завершено!');
+        } catch (overlayErr) {
+          console.error('Overlay compositing failed:', overlayErr);
+          await logStep('overlay_compositing_failed', { details: { error: String(overlayErr) }, duration_ms: Date.now() - overlayStart });
+          toast.warning('Не удалось наложить на подложку, используется оригинал');
+        }
+      }
 
       // Phase 1: Bitrate reduction
       if (isEnabled('side_video', 'resize') || isEnabled('resize', 'resize')) {
