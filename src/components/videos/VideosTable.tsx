@@ -745,58 +745,90 @@ export function VideosTable({
                             const selectedNames = publishingChannels
                               .filter(c => video.selected_channels?.includes(c.id))
                               .map(c => c.name);
+                            
+                            const handleDirectPublish = (e: React.MouseEvent) => {
+                              e.stopPropagation();
+                              const channelIds = video.selected_channels?.length
+                                ? video.selected_channels
+                                : publishingChannels.filter(c => c.is_active).map(c => c.id);
+                              if (channelIds.length === 0) {
+                                toast.error('Не выбраны каналы публикации');
+                                return;
+                              }
+                              if (!video.is_ready) {
+                                setPublishConfirmVideo(video);
+                              } else {
+                                onPublish?.(video, channelIds);
+                              }
+                            };
+
                             return (
-                              <Tooltip>
-                                <TooltipTrigger asChild>
-                                  <Popover>
-                                    <PopoverTrigger asChild>
-                                      <Button size="xs" variant="ghost" className="h-6 px-1 gap-1" title="Каналы публикации">
-                                        <Send className="w-3 h-3" />
-                                        {selectedCount > 0 && (
-                                          <span className="text-xs font-medium">{selectedCount}</span>
-                                        )}
-                                      </Button>
-                                    </PopoverTrigger>
-                                    <PopoverContent className="w-48 p-2" side="left">
-                                      <div className="flex flex-wrap gap-1">
-                                        {publishingChannels.filter(c => c.is_active).map((channel) => {
-                                          const isSelected = video.selected_channels?.includes(channel.id) || false;
-                                          return (
-                                            <Badge
-                                              key={channel.id}
-                                              variant={isSelected ? "default" : "outline"}
-                                              className={`text-[10px] font-normal cursor-pointer transition-colors ${
-                                                isSelected 
-                                                  ? 'bg-primary text-primary-foreground hover:bg-primary/80' 
-                                                  : 'hover:bg-muted'
-                                              }`}
-                                              onClick={(e) => {
-                                                e.stopPropagation();
-                                                const currentChannels = video.selected_channels || [];
-                                                const newChannels = isSelected
-                                                  ? currentChannels.filter(id => id !== channel.id)
-                                                  : [...currentChannels, channel.id];
-                                                onUpdateVideo?.(video.id, { selected_channels: newChannels });
-                                              }}
-                                            >
-                                              {channel.name}
-                                            </Badge>
-                                          );
-                                        })}
+                              <div className="flex items-center gap-0.5">
+                                <Tooltip>
+                                  <TooltipTrigger asChild>
+                                    <Popover>
+                                      <PopoverTrigger asChild>
+                                        <Button size="xs" variant="ghost" className="h-6 px-1 gap-1" title="Каналы публикации">
+                                          <Settings2 className="w-3 h-3" />
+                                          {selectedCount > 0 && (
+                                            <span className="text-xs font-medium">{selectedCount}</span>
+                                          )}
+                                        </Button>
+                                      </PopoverTrigger>
+                                      <PopoverContent className="w-48 p-2" side="left">
+                                        <div className="flex flex-wrap gap-1">
+                                          {publishingChannels.filter(c => c.is_active).map((channel) => {
+                                            const isSelected = video.selected_channels?.includes(channel.id) || false;
+                                            return (
+                                              <Badge
+                                                key={channel.id}
+                                                variant={isSelected ? "default" : "outline"}
+                                                className={`text-[10px] font-normal cursor-pointer transition-colors ${
+                                                  isSelected 
+                                                    ? 'bg-primary text-primary-foreground hover:bg-primary/80' 
+                                                    : 'hover:bg-muted'
+                                                }`}
+                                                onClick={(e) => {
+                                                  e.stopPropagation();
+                                                  const currentChannels = video.selected_channels || [];
+                                                  const newChannels = isSelected
+                                                    ? currentChannels.filter(id => id !== channel.id)
+                                                    : [...currentChannels, channel.id];
+                                                  onUpdateVideo?.(video.id, { selected_channels: newChannels });
+                                                }}
+                                              >
+                                                {channel.name}
+                                              </Badge>
+                                            );
+                                          })}
+                                        </div>
+                                      </PopoverContent>
+                                    </Popover>
+                                  </TooltipTrigger>
+                                  {selectedCount > 0 && (
+                                    <TooltipContent side="left">
+                                      <div className="text-xs space-y-0.5">
+                                        {selectedNames.map(name => (
+                                          <div key={name}>{name}</div>
+                                        ))}
                                       </div>
-                                    </PopoverContent>
-                                  </Popover>
-                                </TooltipTrigger>
-                                {selectedCount > 0 && (
-                                  <TooltipContent side="left">
-                                    <div className="text-xs space-y-0.5">
-                                      {selectedNames.map(name => (
-                                        <div key={name}>{name}</div>
-                                      ))}
-                                    </div>
-                                  </TooltipContent>
-                                )}
-                              </Tooltip>
+                                    </TooltipContent>
+                                  )}
+                                </Tooltip>
+                                <Tooltip>
+                                  <TooltipTrigger asChild>
+                                    <Button
+                                      size="xs"
+                                      variant="ghost"
+                                      className="h-6 px-1"
+                                      onClick={handleDirectPublish}
+                                    >
+                                      <Send className="w-3 h-3" />
+                                    </Button>
+                                  </TooltipTrigger>
+                                  <TooltipContent side="left">Отправить на публикацию</TooltipContent>
+                                </Tooltip>
+                              </div>
                             );
                           })()}
                         </div>
