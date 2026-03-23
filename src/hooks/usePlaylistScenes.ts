@@ -70,6 +70,8 @@ export function usePlaylistScenes() {
   }, [fetchScenes]);
 
   useEffect(() => {
+    let debounceTimer: ReturnType<typeof setTimeout> | null = null;
+
     const channel = supabase
       .channel('playlist-senes-live')
       .on(
@@ -80,12 +82,16 @@ export function usePlaylistScenes() {
           table: 'playlist_scenes',
         },
         () => {
-          void fetchScenes(true);
+          if (debounceTimer) clearTimeout(debounceTimer);
+          debounceTimer = setTimeout(() => {
+            void fetchScenes(true);
+          }, 3000);
         }
       )
       .subscribe();
 
     return () => {
+      if (debounceTimer) clearTimeout(debounceTimer);
       void supabase.removeChannel(channel);
     };
   }, [fetchScenes]);
