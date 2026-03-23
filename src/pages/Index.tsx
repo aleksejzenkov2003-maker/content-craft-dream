@@ -1707,6 +1707,21 @@ export default function Index() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+      {/* Re-generation confirmation */}
+      <AlertDialog open={!!regenConfirm} onOpenChange={(open) => { if (!open && regenConfirm) regenConfirm.resolve(false); }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Повторная генерация</AlertDialogTitle>
+            <AlertDialogDescription>
+              Видео уже было сгенерировано ранее и изменений в составе не обнаружено. Уверены, что хотите перегенерировать?
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={() => regenConfirm?.resolve(false)}>Отмена</AlertDialogCancel>
+            <AlertDialogAction onClick={() => regenConfirm?.resolve(true)}>Да, перегенерировать</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
