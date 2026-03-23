@@ -777,7 +777,7 @@ onClick={() => setEditingPublicationId(pub.id)}
                       </TableCell>
                       {/* Заголовок */}
                       <TableCell className="py-1">
-                        <span className="truncate block max-w-[500px]" title={getPublicationTitle(pub)}>
+                        <span className="truncate block" title={getPublicationTitle(pub)}>
                           {getPublicationTitle(pub)}
                         </span>
                       </TableCell>
@@ -787,7 +787,7 @@ onClick={() => setEditingPublicationId(pub.id)}
                       </TableCell>
                       {/* Учетная запись */}
                       <TableCell className="py-1">
-                        <Badge variant="outline" className="text-[10px] px-1.5 py-0">{pub.channel?.name || '—'}</Badge>
+                        <Badge variant="outline" className="text-[10px] px-1.5 py-0 whitespace-nowrap">{pub.channel?.name || '—'}</Badge>
                       </TableCell>
                       {/* Дата */}
                       <TableCell className="py-1" onClick={(e) => e.stopPropagation()}>
