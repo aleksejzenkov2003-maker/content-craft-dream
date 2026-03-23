@@ -5,7 +5,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { Progress } from '@/components/ui/progress';
-import { useActiveProcesses, type ActiveVideo, type ProcessLog } from '@/hooks/useActiveProcesses';
+import { useActiveProcesses, type ActiveVideo, type ActivePublication, type ProcessLog } from '@/hooks/useActiveProcesses';
 
 interface FFmpegProgress {
   phase: string;
