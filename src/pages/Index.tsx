@@ -527,8 +527,21 @@ export default function Index() {
   // Helper: prepare motion with explicit UI feedback + AlertDialog on error
   // Works even without approved scene — falls back to advisor photo
   const prepareMotionStep = async (video: Video): Promise<boolean> => {
-    if (!isEnabled('side_video', 'motion') || !video.advisor_id) {
+    if (!video.advisor_id) {
       return true; // no motion needed, continue
+    }
+
+    // Check the global motion_enabled setting (the toggle in Video Format settings)
+    const { data: motionSetting } = await supabase
+      .from('app_settings')
+      .select('value')
+      .eq('key', 'motion_enabled')
+      .single();
+    const motionGlobalEnabled = motionSetting?.value === 'true';
+
+    if (!motionGlobalEnabled) {
+      console.log('Motion globally disabled — skipping');
+      return true;
     }
 
     try {
@@ -1220,7 +1233,13 @@ export default function Index() {
     }
 
     // Step c2) Pre-create motion avatars in parallel with atmosphere/voiceover
-    if (isEnabled('take_in_work', 'motion')) {
+    // Check global motion_enabled setting before pre-warming
+    const { data: motionSettingBulk } = await supabase
+      .from('app_settings')
+      .select('value')
+      .eq('key', 'motion_enabled')
+      .single();
+    if (motionSettingBulk?.value === 'true' && isEnabled('take_in_work', 'motion')) {
       for (const video of questionVideos) {
         if (video.playlist_id && video.advisor_id) {
           try {
