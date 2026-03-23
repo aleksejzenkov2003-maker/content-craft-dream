@@ -1,73 +1,36 @@
 
 
-## Problem Analysis
+## Фото-кружки на карточках духовников (1 уровень)
 
-The "Аватар на фоновой подложке" (background_overlay) video format mode has two critical issues:
+Добавить под портретным изображением каждой карточки в сетке ряд маленьких круглых превью фотографий духовника (как сейчас в диалоге), с метками С/М/А и кнопкой «+» для загрузки.
 
-1. **No overlay compositing step**: The backend correctly selects the transparent avatar photo and finds the background video URL, but after HeyGen generates the avatar video, there is **no FFmpeg step** that overlays the avatar onto the background video. The pipeline goes straight to bitrate reduction → subtitles, producing a video of just the avatar on whatever background HeyGen used (the original photo).
+### Изменения
 
-2. **No validation/popup**: When prerequisites are missing (no `avatar_photo_id` on the advisor, no background video assigned for the playlist+advisor pair), the system silently falls back to `full_photo` behavior instead of warning the user.
+**Файл: `src/components/advisors/AdvisorsGrid.tsx`**
 
-## Solution
+1. Под блоком портретного изображения (после `</div>` на строке 195) добавить секцию с кружками фотографий:
+   - Ряд `flex items-center gap-1.5 px-2 py-2 flex-wrap` с маленькими круглыми превью (w-8 h-8)
+   - Под каждым кружком — метки С/М/А (если фото назначено как scene/thumbnail/avatar)
+   - Кнопка «+» (w-8 h-8 dashed border) для загрузки нового фото
+   - Клик по «+» вызывает `triggerFileInput(advisor.id)` и останавливает propagation (чтобы не открывался диалог)
 
-### 1. Frontend validation popup before generation
+2. Остановить propagation на кликах по кружкам, чтобы клик по фото не открывал диалог редактирования.
 
-**Files: `src/pages/Index.tsx`**
+### Технические детали
 
-Before launching `generate-video-heygen` in both `handleGenerateVideo` and `handleFullVideoPipeline`:
-- Check `app_settings` for `video_format_mode === 'background_overlay'`
-- If overlay mode, verify prerequisites for the video's advisor+playlist:
-  - Advisor has `avatar_photo_id` set
-  - A `background_assignment` exists for this playlist+advisor pair
-- If anything is missing, show a toast.error popup explaining what's missing (e.g. "Для режима «Фоновая подложка» нужно: назначить аватар-фото духовнику / назначить подложку для пары плейлист+духовник") and **abort** generation
+```text
+Карточка духовника:
+┌─────────────┐
+│    Имя      │
+│             │
+│  Портрет    │
+│  9:16       │
+│             │
+├─────────────┤
+│ ○ ○ ○  [+]  │  ← новая секция с кружками
+│ С М         │
+└─────────────┘
+```
 
-Extract this into a helper function `validateOverlayPrerequisites(video)` that returns `{ ok: boolean; missing: string[] }`.
-
-### 2. Backend: pass green_screen option to HeyGen API
-
-**File: `supabase/functions/generate-video-heygen/index.ts`**
-
-When `isOverlayMode` is true, add `background: { type: "green_screen" }` (or equivalent HeyGen parameter) to the video generation request body so HeyGen outputs a green-screen/transparent-background video instead of using the photo as background.
-
-Update `buildHeygenBody` to accept an `isOverlay` flag and add the background config.
-
-### 3. Frontend: add overlay compositing step in post-processing
-
-**File: `src/pages/Index.tsx` → `postProcessVideo`**
-
-After HeyGen video is ready and before bitrate reduction:
-- Check if the video was generated in overlay mode (query `app_settings` or store `overlay_mode` + `background_video_url` on the video record)
-- If overlay mode: use FFmpeg to composite the avatar video onto the background video using `overlay` filter
-- Then proceed with normal bitrate reduction → subtitles pipeline
-
-### 4. Store overlay metadata on the video record
-
-**Migration**: Add two columns to `videos` table:
-- `overlay_mode` (boolean, default false) — whether this video was generated in overlay mode
-- `background_video_url` (text, nullable) — URL of the background video to composite onto
-
-**File: `supabase/functions/generate-video-heygen/index.ts`**: Save these fields when creating the video.
-
-### 5. FFmpeg overlay compositing utility
-
-**New file: `src/lib/videoOverlay.ts`**
-
-Create a function `overlayAvatarOnBackground(avatarVideoUrl, backgroundVideoUrl, onProgress?, signal?)`:
-- Download both videos
-- Use FFmpeg `filter_complex` with `chromakey` or `colorkey` filter to remove green screen, then `overlay` to composite onto background
-- Return the composited File
-
-## Implementation Order
-
-1. Database migration (add `overlay_mode`, `background_video_url` to videos)
-2. Backend: update `generate-video-heygen` to use green_screen background + save overlay metadata
-3. Frontend validation popup in `handleGenerateVideo` / `handleFullVideoPipeline`  
-4. New `videoOverlay.ts` utility for FFmpeg compositing
-5. Integrate overlay step into `postProcessVideo` pipeline
-
-## Technical Details
-
-- HeyGen API supports `background: { type: "green_screen" }` in video_inputs to generate a green-screen video
-- FFmpeg `colorkey` filter: `colorkey=color=0x00FF00:similarity=0.3:blend=0.1` removes green, then `overlay` composites
-- The background video may be shorter/longer than avatar video — need to loop or trim background to match avatar duration
+Кружки будут маленькие (w-8 h-8), с `object-cover` и `rounded-full`. Метки — `text-[8px]`.
 
