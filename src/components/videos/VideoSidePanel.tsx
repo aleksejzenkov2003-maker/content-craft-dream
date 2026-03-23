@@ -269,6 +269,29 @@ export function VideoSidePanel({
     } catch (e) { toast.error('Ошибка удаления'); }
   };
 
+  const handleSelectVideoVariant = async (variant: VideoVariant) => {
+    try {
+      await (supabase.from('video_variants' as any) as any).update({ is_active: false }).eq('video_id', video.id);
+      await (supabase.from('video_variants' as any) as any).update({ is_active: true }).eq('id', variant.id);
+      onUpdateVideo(video.id, {
+        heygen_video_url: variant.heygen_video_url,
+        heygen_video_id: variant.heygen_video_id,
+        reduced_video_url: variant.reduced_video_url,
+        video_path: variant.video_path,
+      } as any);
+      fetchVariants();
+      toast.success('Вариант видео выбран');
+    } catch (e) { toast.error('Ошибка выбора варианта'); }
+  };
+
+  const handleDeleteVideoVariant = async (variant: VideoVariant) => {
+    try {
+      await (supabase.from('video_variants' as any) as any).delete().eq('id', variant.id);
+      fetchVariants();
+      toast.success('Вариант удалён');
+    } catch (e) { toast.error('Ошибка удаления'); }
+  };
+
   const atmosphereUrl = (video as any).atmosphere_url;
   const normalizedCoverStatus = video.cover_status === 'generating' && !!video.front_cover_url ? 'ready' : video.cover_status || 'pending';
   const isGeneratingCover = normalizedCoverStatus === 'generating';
