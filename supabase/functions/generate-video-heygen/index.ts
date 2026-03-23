@@ -527,6 +527,8 @@ serve(async (req) => {
     await supabase.from('videos').update({ 
       heygen_video_id: heygenVideoId,
       generation_status: 'generating',
+      overlay_mode: isOverlayMode && !!backgroundVideoUrl,
+      background_video_url: (isOverlayMode && backgroundVideoUrl) ? backgroundVideoUrl : null,
     }).eq('id', videoId);
 
     const durationMs = Date.now() - startTime;
