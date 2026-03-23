@@ -123,13 +123,12 @@ export async function concatVideosClient(
 
   signal?.throwIfAborted();
 
-  // 5. Build concat list
-  const parts: string[] = [];
-  if (hasIntro) parts.push(`file '${introName}'`);
-  parts.push(`file '${mainName}'`);
-  parts.push(`file '${backName}'`);
+  // 5. Build filter_complex concat (always re-encode for consistent timestamps)
+  const files: string[] = [];
+  if (hasIntro) files.push(introName);
+  files.push(mainName);
+  files.push(backName);
 
-  await ff.writeFile('list.txt', parts.join('\n'));
   onProgress?.({ phase: 'concatenating', progress: 50 });
 
   const progressHandler = ({ progress }: { progress: number }) => {
@@ -142,24 +141,25 @@ export async function concatVideosClient(
   try {
     signal?.throwIfAborted();
 
-    // If we have an intro (re-encoded), we must re-encode the whole thing for compatibility
-    if (hasIntro) {
-      await ff.exec([
-        '-f', 'concat', '-safe', '0',
-        '-i', 'list.txt',
-        '-c:v', 'libx264', '-preset', 'ultrafast', '-crf', '23',
-        '-c:a', 'aac', '-ar', '48000', '-b:a', '128k',
-        '-y', outputName,
-      ]);
-    } else {
-      // No intro — try stream copy first (fast path)
-      await ff.exec([
-        '-f', 'concat', '-safe', '0',
-        '-i', 'list.txt',
-        '-c', 'copy',
-        '-y', outputName,
-      ]);
-    }
+    // Primary: filter_complex concat with re-encode
+    const inputs: string[] = [];
+    const filterParts: string[] = [];
+    files.forEach((f, idx) => {
+      inputs.push('-i', f);
+      filterParts.push(`[${idx}:v][${idx}:a]`);
+    });
+
+    await ff.exec([
+      ...inputs,
+      '-filter_complex', `${filterParts.join('')}concat=n=${files.length}:v=1:a=1[v][a]`,
+      '-map', '[v]', '-map', '[a]',
+      '-r', '30',
+      '-s', '1080x1920',
+      '-c:v', 'libx264', '-preset', 'ultrafast', '-crf', '23',
+      '-c:a', 'aac', '-ar', '48000', '-b:a', '128k',
+      '-pix_fmt', 'yuv420p',
+      '-y', outputName,
+    ]);
 
     let outputData: Uint8Array | null = null;
     try {
@@ -169,34 +169,22 @@ export async function concatVideosClient(
       outputData = null;
     }
 
-    // Fallback: full re-encode
+    // Fallback: concat demuxer with re-encode
     if (!outputData || outputData.length < 10000) {
-      console.warn('Primary concat failed, falling back to filter_complex re-encode...');
+      console.warn('filter_complex concat failed, falling back to concat demuxer re-encode...');
       await ff.deleteFile(outputName).catch(() => undefined);
 
-      // Build inputs and filter for all parts
-      const inputs: string[] = [];
-      const filterParts: string[] = [];
-      let idx = 0;
-
-      if (hasIntro) {
-        inputs.push('-i', introName);
-        filterParts.push(`[${idx}:v][${idx}:a]`);
-        idx++;
-      }
-      inputs.push('-i', mainName);
-      filterParts.push(`[${idx}:v][${idx}:a]`);
-      idx++;
-      inputs.push('-i', backName);
-      filterParts.push(`[${idx}:v][${idx}:a]`);
-      idx++;
+      const listParts: string[] = files.map(f => `file '${f}'`);
+      await ff.writeFile('list.txt', listParts.join('\n'));
 
       await ff.exec([
-        ...inputs,
-        '-filter_complex', `${filterParts.join('')}concat=n=${idx}:v=1:a=1[v][a]`,
-        '-map', '[v]', '-map', '[a]',
+        '-f', 'concat', '-safe', '0',
+        '-i', 'list.txt',
+        '-r', '30',
+        '-s', '1080x1920',
         '-c:v', 'libx264', '-preset', 'ultrafast', '-crf', '23',
         '-c:a', 'aac', '-ar', '48000', '-b:a', '128k',
+        '-pix_fmt', 'yuv420p',
         '-y', outputName,
       ]);
 
