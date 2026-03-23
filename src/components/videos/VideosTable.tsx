@@ -555,6 +555,7 @@ export function VideosTable({
                     <button onClick={() => handleSort('duration')} className="flex items-center gap-1 hover:text-foreground">
                       Длина {getSortIcon('duration')}
                     </button>
+                    <div className="text-xs">Дата</div>
                     <div className="text-base">🎬</div>
                     <div className="text-base">🖼</div>
                     <div className="text-base">🔊</div>
