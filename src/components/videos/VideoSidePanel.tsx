@@ -484,8 +484,45 @@ export function VideoSidePanel({
 
             {/* Video */}
             <div className="space-y-1">
-              <Label className="text-[10px] text-muted-foreground flex items-center gap-1"><Play className="w-3 h-3" />Видео ({videoVariants.length})</Label>
-              {videoUrl ? (
+              <Label className="text-[10px] text-muted-foreground flex items-center gap-1"><Play className="w-3 h-3" />Видео ({videoVariantsDb.length || videoVariants.length})</Label>
+              {videoVariantsDb.length > 0 ? (
+                <div className="relative">
+                  <div className="relative aspect-[9/16] rounded-md overflow-hidden bg-black">
+                    <video
+                      key={videoVariantsDb[vidVariantIndex]?.video_path || videoVariantsDb[vidVariantIndex]?.heygen_video_url || ''}
+                      src={videoVariantsDb[vidVariantIndex]?.video_path || videoVariantsDb[vidVariantIndex]?.heygen_video_url || ''}
+                      controls className="w-full h-full object-contain"
+                      poster={video.front_cover_url || undefined}
+                      onLoadedMetadata={handleVideoLoadedMetadata}
+                    />
+                    <span className="absolute top-1 right-1 bg-black/60 text-white text-[7px] px-1 py-0.5 rounded">
+                      #{videoVariantsDb[vidVariantIndex]?.generation_number || '?'}
+                    </span>
+                    <div className="absolute top-1 left-1 text-[7px] bg-black/60 text-white px-1 rounded">
+                      {new Date(videoVariantsDb[vidVariantIndex]?.created_at).toLocaleDateString('ru-RU', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}
+                    </div>
+                    {videoVariantsDb[vidVariantIndex]?.is_active && <div className="absolute top-6 right-1"><Badge className="text-[7px] px-1 py-0 bg-primary">Active</Badge></div>}
+                    <div className="absolute inset-0 bg-black/40 opacity-0 hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
+                      <Button size="icon" variant="ghost" className="h-6 w-6 text-white hover:text-white hover:bg-white/20"
+                        onClick={(e) => { e.stopPropagation(); handleSelectVideoVariant(videoVariantsDb[vidVariantIndex]); }}
+                        title="Выбрать этот вариант"
+                      ><Check className="w-4 h-4" /></Button>
+                      <Button size="icon" variant="ghost" className="h-6 w-6 text-white hover:text-white hover:bg-white/20"
+                        onClick={(e) => { e.stopPropagation(); handleDeleteVideoVariant(videoVariantsDb[vidVariantIndex]); }}
+                        title="Удалить вариант"
+                      ><Trash2 className="w-4 h-4" /></Button>
+                    </div>
+                    <div className={cn("absolute bottom-1 left-1 right-1 text-center text-[8px] font-medium py-0.5 rounded", videoStatus.colorClass)}>{videoStatus.label}</div>
+                  </div>
+                  {videoVariantsDb.length > 1 && (
+                    <div className="flex items-center justify-center gap-1 mt-0.5">
+                      <Button size="icon" variant="ghost" className="h-4 w-4" disabled={vidVariantIndex === 0} onClick={() => setVidVariantIndex(i => i - 1)}><ChevronLeft className="w-3 h-3" /></Button>
+                      <span className="text-[8px] text-muted-foreground">{vidVariantIndex + 1}/{videoVariantsDb.length}</span>
+                      <Button size="icon" variant="ghost" className="h-4 w-4" disabled={vidVariantIndex === videoVariantsDb.length - 1} onClick={() => setVidVariantIndex(i => i + 1)}><ChevronRight className="w-3 h-3" /></Button>
+                    </div>
+                  )}
+                </div>
+              ) : videoUrl ? (
                 <div className="relative">
                   <div className="relative aspect-[9/16] rounded-md overflow-hidden bg-black">
                     <video key={videoUrl} src={videoUrl} controls className="w-full h-full object-contain" poster={video.front_cover_url || undefined} onLoadedMetadata={handleVideoLoadedMetadata} />
