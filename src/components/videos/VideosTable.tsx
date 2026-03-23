@@ -77,6 +77,7 @@ interface VideosTableProps {
   onBulkGenerateVideos?: (videoIds: string[]) => Promise<void>;
   onBulkUpdateStatus?: (videoIds: string[], status: string) => Promise<void>;
   onBulkPublish?: (videoIds: string[]) => Promise<void>;
+  onPublish?: (video: Video, channelIds: string[]) => Promise<void>;
   filters: {
     advisorId?: string;
     playlistId?: string;
