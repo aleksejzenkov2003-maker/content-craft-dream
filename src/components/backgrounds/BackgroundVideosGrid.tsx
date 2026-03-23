@@ -182,14 +182,14 @@ export function BackgroundVideosGrid() {
 
       {/* Edit / Create dialog */}
       <Dialog open={showDialog} onOpenChange={(open) => { if (!open) { setEditingBg(null); setIsNew(false); } }}>
-        <DialogContent className="max-w-2xl">
+         <DialogContent className="max-w-2xl max-h-[90vh] flex flex-col">
           <DialogHeader>
             <DialogTitle>{isNew ? 'Новая подложка' : 'Редактировать подложку'}</DialogTitle>
           </DialogHeader>
 
-          <div className="grid grid-cols-2 gap-6">
+          <div className="grid grid-cols-2 gap-6 min-h-0 flex-1 overflow-hidden">
             {/* Left: media */}
-            <div className="space-y-4">
+            <div className="space-y-4 overflow-y-auto pr-1">
               <div className="space-y-2">
                 <Label>Название</Label>
                 <Input value={title} onChange={e => setTitle(e.target.value)} placeholder="Название подложки" />
@@ -198,11 +198,11 @@ export function BackgroundVideosGrid() {
                 <Label>Файл (видео или фото)</Label>
                 {mediaUrl ? (
                   <div className="space-y-2">
-                    <div className="aspect-[9/16] w-full rounded-lg overflow-hidden bg-muted border border-border/50">
+                    <div className="w-full rounded-lg overflow-hidden bg-muted border border-border/50">
                       {mediaType === 'image' ? (
-                        <img src={mediaUrl} alt={title || ''} className="w-full h-full object-cover" />
+                        <img src={mediaUrl} alt={title || ''} className="w-full h-auto object-contain max-h-[60vh]" />
                       ) : (
-                        <video src={mediaUrl} className="w-full h-full object-cover" controls muted preload="metadata" />
+                        <video src={mediaUrl} className="w-full h-auto max-h-[60vh]" controls muted preload="metadata" />
                       )}
                     </div>
                     <Button variant="outline" size="sm" className="w-full" onClick={() => setMediaUrl('')}>
@@ -222,9 +222,9 @@ export function BackgroundVideosGrid() {
             </div>
 
             {/* Right: assignments */}
-            <div className="space-y-2">
+            <div className="space-y-2 flex flex-col min-h-0">
               <Label>Назначения (плейлист → духовник)</Label>
-              <div className="max-h-[400px] overflow-y-auto border rounded-lg p-2 space-y-1">
+              <div className="flex-1 overflow-y-auto border rounded-lg p-2 space-y-1">
                 {playlists.map(p => {
                   const allKeys = advisors.map(a => `${p.id}-${a.id}`);
                   const allSelected = allKeys.length > 0 && allKeys.every(k => selectedPairs.has(k));
