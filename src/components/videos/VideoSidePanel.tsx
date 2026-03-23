@@ -177,11 +177,18 @@ export function VideoSidePanel({
   const videoVariants = (() => {
     if (!video) return [];
     const variants: { label: string; url: string }[] = [];
-    if (video.heygen_video_url) variants.push({ label: 'HeyGen видео', url: video.heygen_video_url });
-    if (video.video_path && video.video_path !== video.heygen_video_url) {
-      // Determine correct label: if video_path equals reduced_video_url or no word_timestamps → just compressed
-      const isJustReduced = video.video_path === video.reduced_video_url || !video.word_timestamps;
-      variants.push({ label: isJustReduced ? 'Сжатое видео' : 'С субтитрами', url: video.video_path });
+    const seen = new Set<string>();
+    const add = (label: string, url: string | null | undefined) => {
+      if (url && !seen.has(url)) { seen.add(url); variants.push({ label, url }); }
+    };
+    add('HeyGen видео', video.heygen_video_url);
+    add('Сжатое видео', video.reduced_video_url);
+    // video_path with subtitles (only if different from reduced)
+    if (video.video_path && video.word_timestamps && video.video_path !== video.reduced_video_url) {
+      add('С субтитрами', video.video_path);
+    } else if (video.video_path && !video.reduced_video_url && video.video_path !== video.heygen_video_url) {
+      // video_path exists but no reduced — it's the compressed or final version
+      add('Сжатое видео', video.video_path);
     }
     return variants;
   })();
