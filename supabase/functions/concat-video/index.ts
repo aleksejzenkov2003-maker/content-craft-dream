@@ -608,24 +608,25 @@ function concatMP4(buf1: Uint8Array, buf2: Uint8Array): Uint8Array {
   const vTkhd = buildTkhd(1, Math.round(totalVDur * mvhdTimescale / vt1.timescale), vt1.width || 1080, vt1.height || 1920, false);
   const vTrak = makeBox("trak", concat(vTkhd, vMdia));
 
-  // Audio trak (if exists)
+  // Audio trak (build if we have any audio samples — from files or silence padding)
+  const audioStsdRaw = at1?.stsdRaw || at2?.stsdRaw;
   let aTrak: Uint8Array | null = null;
-  if (at1 && mergedASizes.length > 0) {
+  if (audioStsdRaw && mergedASizes.length > 0) {
     const aSttsBox = buildStts(mergedAStts);
     const aStszBox = buildStsz(mergedASizes);
     const aStscBox = buildStsc(mergedASizes.length);
     const aStcoBox = buildStco(placeholderAOffsets);
-    const aStbl = buildStbl(at1.stsdRaw, aSttsBox, aStszBox, aStscBox, aStcoBox);
+    const aStbl = buildStbl(audioStsdRaw, aSttsBox, aStszBox, aStscBox, aStcoBox);
 
     const smhd = buildSmhd();
     const aDinf = buildDinf();
     const aMinf = makeBox("minf", concat(smhd, aDinf, aStbl));
 
-    const aMdhd = buildMdhd(at1.timescale, totalADur);
+    const aMdhd = buildMdhd(audioTimescale, totalADur);
     const aHdlr = buildHdlr("soun", "SoundHandler");
     const aMdia = makeBox("mdia", concat(aMdhd, aHdlr, aMinf));
 
-    const aTkhd = buildTkhd(2, Math.round(totalADur * mvhdTimescale / at1.timescale), 0, 0, true);
+    const aTkhd = buildTkhd(2, Math.round(totalADur * mvhdTimescale / audioTimescale), 0, 0, true);
     aTrak = makeBox("trak", concat(aTkhd, aMdia));
   }
 
@@ -637,43 +638,39 @@ function concatMP4(buf1: Uint8Array, buf2: Uint8Array): Uint8Array {
   const ftypData = ftyp1 ? buf1.slice(ftyp1.off, ftyp1.off + ftyp1.sz) : new Uint8Array(0);
   const mdatFileOffset = ftypData.length + moov.length;
 
-  // Compute real sample offsets
+  // Compute real sample offsets (video first, then merged audio)
   const realVOffsets: number[] = [];
   const realAOffsets: number[] = [];
   let pos = mdatFileOffset + 8; // +8 for mdat header
   for (const s of vSamples1) { realVOffsets.push(pos); pos += s.length; }
   for (const s of vSamples2) { realVOffsets.push(pos); pos += s.length; }
-  for (const s of aSamples1) { realAOffsets.push(pos); pos += s.length; }
-  for (const s of aSamples2) { realAOffsets.push(pos); pos += s.length; }
+  for (const s of mergedASamples) { realAOffsets.push(pos); pos += s.length; }
 
   // Rebuild moov with correct offsets
   const realVStco = buildStco(realVOffsets);
   const realAStco = mergedASizes.length > 0 ? buildStco(realAOffsets) : null;
 
-  // If stco sizes changed, moov size changes, offsets shift — iterate until stable
-  // For simplicity, just rebuild once more (stco size won't change between iterations
-  // since we always use the same number of entries)
   const vStbl2 = buildStbl(vt1.stsdRaw, vSttsBox, vStszBox, vStscBox, realVStco, vStssBox, vCttsBox);
   const vMinf2 = makeBox("minf", concat(vmhd, vDinf, vStbl2));
   const vMdia2 = makeBox("mdia", concat(vMdhd, vHdlr, vMinf2));
   const vTrak2 = makeBox("trak", concat(vTkhd, vMdia2));
 
   let aTrak2: Uint8Array | null = null;
-  if (at1 && mergedASizes.length > 0 && realAStco) {
+  if (audioStsdRaw && mergedASizes.length > 0 && realAStco) {
     const aSttsBox = buildStts(mergedAStts);
     const aStszBox = buildStsz(mergedASizes);
     const aStscBox = buildStsc(mergedASizes.length);
-    const aStbl2 = buildStbl(at1.stsdRaw, aSttsBox, aStszBox, aStscBox, realAStco);
+    const aStbl2 = buildStbl(audioStsdRaw, aSttsBox, aStszBox, aStscBox, realAStco);
 
     const smhd = buildSmhd();
     const aDinf = buildDinf();
     const aMinf2 = makeBox("minf", concat(smhd, aDinf, aStbl2));
 
-    const aMdhd = buildMdhd(at1.timescale, totalADur);
+    const aMdhd = buildMdhd(audioTimescale, totalADur);
     const aHdlr = buildHdlr("soun", "SoundHandler");
     const aMdia2 = makeBox("mdia", concat(aMdhd, aHdlr, aMinf2));
 
-    const aTkhd = buildTkhd(2, Math.round(totalADur * mvhdTimescale / at1.timescale), 0, 0, true);
+    const aTkhd = buildTkhd(2, Math.round(totalADur * mvhdTimescale / audioTimescale), 0, 0, true);
     aTrak2 = makeBox("trak", concat(aTkhd, aMdia2));
   }
 
