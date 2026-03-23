@@ -93,8 +93,10 @@ export function VideoSidePanel({
   const [detectedDuration, setDetectedDuration] = useState<number | null>(null);
   const [videoSizeBytes, setVideoSizeBytes] = useState<number | null>(null);
   const [heygenMode, setHeygenMode] = useState<string>('v3');
-  const [localBusy, setLocalBusy] = useState<'atmosphere' | 'cover' | 'video' | null>(null);
+   const [localBusy, setLocalBusy] = useState<'atmosphere' | 'cover' | 'video' | null>(null);
   const [bitrateProgress, setBitrateProgress] = useState<{ phase: string; progress: number } | null>(null);
+  const [videoVariantsDb, setVideoVariantsDb] = useState<VideoVariant[]>([]);
+  const [vidVariantIndex, setVidVariantIndex] = useState(0);
 
   const advisor = advisors.find((a) => a.id === video?.advisor_id);
   const advisorName = advisor?.display_name || advisor?.name || 'Духовник';
