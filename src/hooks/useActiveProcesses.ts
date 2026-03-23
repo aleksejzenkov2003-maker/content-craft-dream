@@ -56,7 +56,7 @@ export function useActiveProcesses() {
       // Fetch only truly active videos updated recently
       const { data: active, error: activeErr } = await supabase
         .from('videos')
-        .select('id, video_number, video_title, question, generation_status, reel_status, voiceover_status, cover_status, generation_count, updated_at, advisor:advisors(id, name, display_name)')
+        .select('id, video_number, video_title, question, question_id, generation_status, reel_status, voiceover_status, cover_status, generation_count, updated_at, advisor:advisors(id, name, display_name)')
         .or('generation_status.in.(generating,processing),reel_status.eq.generating,voiceover_status.eq.generating,cover_status.eq.generating')
         .gte('updated_at', activeSince)
         .order('updated_at', { ascending: false });
@@ -66,26 +66,47 @@ export function useActiveProcesses() {
       // Fetch video history regardless of the last 24h window
       const { data: recent, error: recentErr } = await supabase
         .from('videos')
-        .select('id, video_number, video_title, question, generation_status, reel_status, voiceover_status, cover_status, generation_count, updated_at, advisor:advisors(id, name, display_name)')
+        .select('id, video_number, video_title, question, question_id, generation_status, reel_status, voiceover_status, cover_status, generation_count, updated_at, advisor:advisors(id, name, display_name)')
         .in('generation_status', ['ready', 'error'])
         .order('updated_at', { ascending: false })
         .limit(HISTORY_LIMIT);
 
       if (recentErr) throw recentErr;
 
+      // Fetch active publications
+      const { data: activePubs } = await supabase
+        .from('publications')
+        .select('id, publication_status, updated_at, video:videos(video_title), channel:publishing_channels(name)')
+        .in('publication_status', ['publishing', 'generating_text', 'concatenating'])
+        .order('updated_at', { ascending: false })
+        .limit(20);
+
+      // Fetch recent publications
+      const { data: recentPubs } = await supabase
+        .from('publications')
+        .select('id, publication_status, updated_at, video:videos(video_title), channel:publishing_channels(name)')
+        .in('publication_status', ['published', 'error'])
+        .order('updated_at', { ascending: false })
+        .limit(HISTORY_LIMIT);
+
       const allVideoIds = [
         ...(active || []).map(v => v.id),
         ...(recent || []).map(v => v.id),
       ];
 
+      const allPubIds = [
+        ...(activePubs || []).map(p => p.id),
+        ...(recentPubs || []).map(p => p.id),
+      ];
+
       let logsMap: Record<string, ProcessLog[]> = {};
 
-      if (allVideoIds.length > 0) {
+      if (allVideoIds.length > 0 || allPubIds.length > 0) {
+        const allEntityIds = [...allVideoIds, ...allPubIds];
         const { data: logs } = await supabase
           .from('activity_log')
           .select('*')
-          .in('entity_id', allVideoIds)
-          .eq('entity_type', 'video')
+          .in('entity_id', allEntityIds)
           .order('created_at', { ascending: true })
           .limit(500);
 
@@ -104,8 +125,19 @@ export function useActiveProcesses() {
         logs: logsMap[v.id] || [],
       });
 
+      const mapPub = (p: any): ActivePublication => ({
+        id: p.id,
+        publication_status: p.publication_status,
+        video_title: Array.isArray(p.video) ? p.video[0]?.video_title : p.video?.video_title || null,
+        channel_name: Array.isArray(p.channel) ? p.channel[0]?.name : p.channel?.name || null,
+        updated_at: p.updated_at,
+        logs: logsMap[p.id] || [],
+      });
+
       setActiveVideos((active || []).map(mapVideo));
       setRecentVideos((recent || []).map(mapVideo));
+      setActivePublications((activePubs || []).map(mapPub));
+      setRecentPublications((recentPubs || []).map(mapPub));
     } catch (err) {
       console.error('Error fetching active processes:', err);
     } finally {
