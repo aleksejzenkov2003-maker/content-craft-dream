@@ -353,10 +353,10 @@ export function VideoSidePanel({
     >
       {/* === 1. TABS: Generation / Prompt / Answer === */}
       <Tabs defaultValue="generation">
-        <TabsList className="grid w-full grid-cols-3 h-7">
-          <TabsTrigger value="generation" className="text-[11px]">Генерация изображения</TabsTrigger>
-          <TabsTrigger value="prompt" className="text-[11px]">Промт</TabsTrigger>
-          <TabsTrigger value="answer" className="text-[11px] flex items-center gap-1"><MessageSquare className="w-3 h-3" />Ответ духовника</TabsTrigger>
+        <TabsList className="w-full h-7">
+          <TabsTrigger value="generation" className="text-[10px] px-2">Изображение</TabsTrigger>
+          <TabsTrigger value="prompt" className="text-[10px] px-2">Промт</TabsTrigger>
+          <TabsTrigger value="answer" className="text-[10px] px-2 flex items-center gap-1"><MessageSquare className="w-3 h-3" />Ответ</TabsTrigger>
         </TabsList>
 
         <TabsContent value="generation" className="space-y-2 mt-2">
