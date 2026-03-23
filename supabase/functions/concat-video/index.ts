@@ -450,15 +450,8 @@ function concatMP4(buf1: Uint8Array, buf2: Uint8Array): Uint8Array {
 
   // Build mdat: interleave video then audio
   // Each sample = one chunk (stsc = 1 sample/chunk)
-  const allSamples = [...vSamples1, ...vSamples2, ...aSamples1, ...aSamples2];
-  let mdatPayloadSize = 0;
-  for (const s of allSamples) mdatPayloadSize += s.length;
-  const mdatSize = 8 + mdatPayloadSize;
 
-  // We'll compute offsets after we know the moov size
-  // First, build all the moov components with placeholder stco
-
-  // Merge video sample tables
+  // ── Merge video sample tables ──
   const mergedVSizes = [...vt1.sizes, ...vt2.sizes];
   const mergedVStts: SttsEntry[] = [...vt1.stts, ...vt2.stts];
   const vDur1 = vt1.stts.reduce((s, e) => s + e.count * e.delta, 0);
@@ -480,12 +473,109 @@ function concatMP4(buf1: Uint8Array, buf2: Uint8Array): Uint8Array {
     mergedVCtts = [...(vt1.ctts || []), ...(vt2.ctts || [])];
   }
 
-  // Merge audio sample tables
-  const mergedASizes = [...(at1?.sizes || []), ...(at2?.sizes || [])];
-  const mergedAStts: SttsEntry[] = [...(at1?.stts || []), ...(at2?.stts || [])];
-  const aDur1 = at1 ? at1.stts.reduce((s, e) => s + e.count * e.delta, 0) : 0;
-  const aDur2 = at2 ? at2.stts.reduce((s, e) => s + e.count * e.delta, 0) : 0;
-  const totalADur = aDur1 + aDur2;
+  // ── Merge audio sample tables with sync correction ──
+  // Video file 1 duration in seconds
+  const vDur1Sec = vDur1 / vt1.timescale;
+  const vDur2Sec = vDur2 / vt2.timescale;
+
+  // Use at1's timescale as the base (or 48000 if no audio)
+  const audioTimescale = at1?.timescale || 48000;
+
+  // Calculate actual audio durations in seconds
+  const aDur1Ticks = at1 ? at1.stts.reduce((s, e) => s + e.count * e.delta, 0) : 0;
+  const aDur1Sec = at1 ? aDur1Ticks / at1.timescale : 0;
+
+  const aDur2Ticks = at2 ? at2.stts.reduce((s, e) => s + e.count * e.delta, 0) : 0;
+  const aDur2Sec = at2 ? aDur2Ticks / at2.timescale : 0;
+
+  console.log(`Durations: V1=${vDur1Sec.toFixed(3)}s, V2=${vDur2Sec.toFixed(3)}s, A1=${aDur1Sec.toFixed(3)}s, A2=${aDur2Sec.toFixed(3)}s`);
+
+  // AAC silent frame (1024 samples of silence, LC profile)
+  const AAC_SILENT_FRAME = new Uint8Array([
+    0x01, 0x40, 0x22, 0x80, 0x23, 0x00, 0x95, 0x75, 0x05, 0xa0, 0x00, 0x00
+  ]);
+  const AAC_FRAME_DURATION = 1024; // samples per AAC frame
+
+  // Build merged audio: rescale at2 stts to at1 timescale, pad gaps with silence
+  const mergedAStts: SttsEntry[] = [];
+  const mergedASizes: number[] = [];
+  const mergedASamples: Uint8Array[] = [];
+
+  // Add audio from file 1
+  if (at1) {
+    mergedAStts.push(...at1.stts);
+    mergedASizes.push(...at1.sizes);
+    mergedASamples.push(...aSamples1);
+  }
+
+  // Pad silence if audio from file 1 is shorter than video from file 1
+  const targetA1Ticks = Math.round(vDur1Sec * audioTimescale);
+  const actualA1Ticks = at1 ? Math.round(aDur1Sec * audioTimescale) : 0;
+  const gapTicks = targetA1Ticks - actualA1Ticks;
+
+  if (gapTicks > AAC_FRAME_DURATION) {
+    const silentFrames = Math.ceil(gapTicks / AAC_FRAME_DURATION);
+    console.log(`Padding ${silentFrames} silent frames (${(gapTicks / audioTimescale).toFixed(3)}s gap) to sync audio at splice point`);
+    mergedAStts.push({ count: silentFrames, delta: AAC_FRAME_DURATION });
+    for (let i = 0; i < silentFrames; i++) {
+      mergedASizes.push(AAC_SILENT_FRAME.length);
+      mergedASamples.push(AAC_SILENT_FRAME);
+    }
+  } else if (gapTicks < -AAC_FRAME_DURATION && at1) {
+    // Audio is longer than video — trim excess audio samples from end
+    const excessTicks = -gapTicks;
+    const excessFrames = Math.floor(excessTicks / AAC_FRAME_DURATION);
+    if (excessFrames > 0 && excessFrames < mergedASizes.length) {
+      console.log(`Trimming ${excessFrames} audio frames from file 1 (audio ${(aDur1Sec - vDur1Sec).toFixed(3)}s longer than video)`);
+      mergedASizes.splice(mergedASizes.length - excessFrames, excessFrames);
+      mergedASamples.splice(mergedASamples.length - excessFrames, excessFrames);
+      // Adjust stts: reduce last entry count
+      let framesToRemove = excessFrames;
+      while (framesToRemove > 0 && mergedAStts.length > 0) {
+        const last = mergedAStts[mergedAStts.length - 1];
+        if (last.count <= framesToRemove) {
+          framesToRemove -= last.count;
+          mergedAStts.pop();
+        } else {
+          last.count -= framesToRemove;
+          framesToRemove = 0;
+        }
+      }
+    }
+  }
+
+  // Add audio from file 2 (rescale stts if timescales differ)
+  if (at2 && aSamples2.length > 0) {
+    const tsRatio = at2.timescale !== audioTimescale ? audioTimescale / at2.timescale : 1;
+    if (tsRatio !== 1) {
+      console.log(`Rescaling at2 stts: ${at2.timescale} -> ${audioTimescale} (ratio=${tsRatio.toFixed(4)})`);
+      for (const entry of at2.stts) {
+        mergedAStts.push({ count: entry.count, delta: Math.round(entry.delta * tsRatio) });
+      }
+    } else {
+      mergedAStts.push(...at2.stts);
+    }
+    mergedASizes.push(...at2.sizes);
+    mergedASamples.push(...aSamples2);
+  } else if (vDur2Sec > 0) {
+    // File 2 has no audio — fill with silence for its video duration
+    const silentTicks = Math.round(vDur2Sec * audioTimescale);
+    const silentFrames = Math.ceil(silentTicks / AAC_FRAME_DURATION);
+    console.log(`File 2 has no audio, adding ${silentFrames} silent frames (${vDur2Sec.toFixed(3)}s)`);
+    mergedAStts.push({ count: silentFrames, delta: AAC_FRAME_DURATION });
+    for (let i = 0; i < silentFrames; i++) {
+      mergedASizes.push(AAC_SILENT_FRAME.length);
+      mergedASamples.push(AAC_SILENT_FRAME);
+    }
+  }
+
+  const totalADur = mergedAStts.reduce((s, e) => s + e.count * e.delta, 0);
+  console.log(`Merged audio: ${mergedASizes.length} samples, duration=${(totalADur / audioTimescale).toFixed(3)}s`);
+
+  const allSamples = [...vSamples1, ...vSamples2, ...mergedASamples];
+  let mdatPayloadSize = 0;
+  for (const s of allSamples) mdatPayloadSize += s.length;
+  const mdatSize = 8 + mdatPayloadSize;
 
   // Build moov with placeholder offsets (will fix after knowing moov size)
   const placeholderVOffsets = new Array(mergedVSizes.length).fill(0);
