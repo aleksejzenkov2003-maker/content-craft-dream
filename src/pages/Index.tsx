@@ -160,7 +160,7 @@ export default function Index() {
       // Get video URL
       const { data: video } = await supabase
         .from('videos')
-        .select('heygen_video_url, video_path')
+        .select('heygen_video_url, video_path, front_cover_url')
         .eq('id', videoId)
         .single();
 
@@ -181,7 +181,7 @@ export default function Index() {
         if (backCoverUrl) {
           toast.info(`Склейка видео для публикации...`);
           try {
-            await concatVideos(pub.id, videoUrl, backCoverUrl);
+            await concatVideos(pub.id, videoUrl, backCoverUrl, video?.front_cover_url);
           } catch (e) {
             console.error('Auto-concat failed for publication:', pub.id, e);
           }
