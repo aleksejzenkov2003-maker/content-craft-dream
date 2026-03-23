@@ -1233,7 +1233,13 @@ export default function Index() {
     }
 
     // Step c2) Pre-create motion avatars in parallel with atmosphere/voiceover
-    if (isEnabled('take_in_work', 'motion')) {
+    // Check global motion_enabled setting before pre-warming
+    const { data: motionSettingBulk } = await supabase
+      .from('app_settings')
+      .select('value')
+      .eq('key', 'motion_enabled')
+      .single();
+    if (motionSettingBulk?.value === 'true' && isEnabled('take_in_work', 'motion')) {
       for (const video of questionVideos) {
         if (video.playlist_id && video.advisor_id) {
           try {
