@@ -193,6 +193,32 @@ export function AdvisorsGrid({
                   </span>
                 </div>
               </div>
+              {/* Photo circles row */}
+              <div className="flex items-center gap-1.5 px-2 py-2 flex-wrap">
+                {advisor.photos?.map((photo) => {
+                  const isScene = photo.id === advisor.scene_photo_id;
+                  const isThumbnail = photo.id === advisor.thumbnail_photo_id;
+                  const isAvatar = photo.id === advisor.avatar_photo_id;
+                  return (
+                    <div key={photo.id} className="flex flex-col items-center" onClick={(e) => e.stopPropagation()}>
+                      <div className="w-8 h-8 rounded-full overflow-hidden border border-border">
+                        <img src={photo.photo_url} alt="" className="w-full h-full object-cover" />
+                      </div>
+                      <div className="flex gap-0.5 mt-0.5">
+                        {isScene && <span className="text-[8px] text-primary font-medium">С</span>}
+                        {isThumbnail && <span className="text-[8px] text-accent-foreground font-medium">М</span>}
+                        {isAvatar && <span className="text-[8px] text-secondary-foreground font-medium">А</span>}
+                      </div>
+                    </div>
+                  );
+                })}
+                <button
+                  onClick={(e) => { e.stopPropagation(); triggerFileInput(advisor.id); }}
+                  className="w-8 h-8 rounded-full border-2 border-dashed border-muted-foreground/30 flex items-center justify-center hover:border-primary/50 shrink-0"
+                >
+                  <Plus className="w-3 h-3 text-muted-foreground" />
+                </button>
+              </div>
             </div>
           );
         })}
