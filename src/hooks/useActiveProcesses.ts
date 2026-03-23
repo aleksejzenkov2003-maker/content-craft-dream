@@ -48,6 +48,8 @@ const HISTORY_LIMIT = 10;
 export function useActiveProcesses() {
   const [activeVideos, setActiveVideos] = useState<ActiveVideo[]>([]);
   const [recentVideos, setRecentVideos] = useState<ActiveVideo[]>([]);
+  const [activePublications, setActivePublications] = useState<ActivePublication[]>([]);
+  const [recentPublications, setRecentPublications] = useState<ActivePublication[]>([]);
   const [loading, setLoading] = useState(true);
 
   const fetchProcesses = useCallback(async () => {
