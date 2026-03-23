@@ -853,6 +853,14 @@ export default function Index() {
       toast.error('Сначала нужен ответ духовника');
       return;
     }
+
+    // Validate overlay mode prerequisites
+    const overlayCheck = await validateOverlayPrerequisites(video);
+    if (!overlayCheck.ok) {
+      toast.error(`Режим «Фоновая подложка» — не хватает:\n• ${overlayCheck.missing.join('\n• ')}`, { duration: 8000 });
+      return;
+    }
+
     // Confirm re-generation if video was already generated, voiceover exists, and nothing seems changed
     if ((video as any).generation_count >= 1 && video.heygen_video_url && video.voiceover_url) {
       const confirmed = await new Promise<boolean>((resolve) => {
