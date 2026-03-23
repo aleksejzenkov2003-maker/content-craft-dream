@@ -585,7 +585,8 @@ export function VideosTable({
                           />
                         </div>
 
-                        {/* Духовник */}
+                        {/* Video Number */}
+                        <div className="text-xs text-muted-foreground font-mono">{video.video_number ?? '—'}</div>
 
                         {/* Духовник */}
                         <div>
