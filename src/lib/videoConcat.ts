@@ -3,6 +3,7 @@ import { getSharedFFmpeg } from './ffmpegLoader';
 export type ConcatPhase =
   | 'loading_ffmpeg'
   | 'downloading'
+  | 'creating_intro'
   | 'concatenating'
   | 'done';
 
@@ -14,6 +15,7 @@ export interface ConcatProgressInfo {
 const PHASE_LABELS: Record<ConcatPhase, string> = {
   loading_ffmpeg: 'Загрузка FFmpeg',
   downloading: 'Скачивание видео',
+  creating_intro: 'Создание интро из обложки',
   concatenating: 'Склейка видео',
   done: 'Готово',
 };
@@ -23,50 +25,102 @@ export function getConcatPhaseLabel(phase: ConcatPhase): string {
 }
 
 /**
- * Concatenates two MP4 videos using ffmpeg.wasm concat filter.
- * Re-encodes both streams → guarantees codec compatibility.
+ * Concatenates videos: optional front cover intro (2s) + main video + back cover.
  */
 export async function concatVideosClient(
   mainVideoUrl: string,
   backCoverVideoUrl: string,
   onProgress?: (info: ConcatProgressInfo) => void,
   signal?: AbortSignal,
+  frontCoverImageUrl?: string | null,
 ): Promise<File> {
   const uid = Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
   const mainName = `main_${uid}.mp4`;
   const backName = `back_${uid}.mp4`;
+  const introName = `intro_${uid}.mp4`;
+  const introImgName = `cover_${uid}.png`;
   const outputName = `concat_${uid}.mp4`;
 
   signal?.throwIfAborted();
 
-  // 1. Load ffmpeg (0-20%)
+  // 1. Load ffmpeg (0-15%)
   onProgress?.({ phase: 'loading_ffmpeg', progress: 2 });
   const ff = await getSharedFFmpeg(
-    (pct) => onProgress?.({ phase: 'loading_ffmpeg', progress: Math.min(20, pct) }),
+    (pct) => onProgress?.({ phase: 'loading_ffmpeg', progress: Math.min(15, pct) }),
     signal,
   );
 
   signal?.throwIfAborted();
 
-  // 2. Download both videos (20-50%)
-  onProgress?.({ phase: 'downloading', progress: 22 });
+  // 2. Download all assets (15-40%)
+  onProgress?.({ phase: 'downloading', progress: 16 });
 
-  const [mainBuf, backBuf] = await Promise.all([
-    fetchVideo(mainVideoUrl, signal),
-    fetchVideo(backCoverVideoUrl, signal),
-  ]);
+  const downloads: Promise<ArrayBuffer>[] = [
+    fetchAsset(mainVideoUrl, signal),
+    fetchAsset(backCoverVideoUrl, signal),
+  ];
+  if (frontCoverImageUrl) {
+    downloads.push(fetchAsset(frontCoverImageUrl, signal));
+  }
 
-  onProgress?.({ phase: 'downloading', progress: 48 });
+  const results = await Promise.all(downloads);
+  const mainBuf = results[0];
+  const backBuf = results[1];
+  const frontImgBuf = results[2] || null;
+
+  onProgress?.({ phase: 'downloading', progress: 38 });
   signal?.throwIfAborted();
 
-  // 3. Write to virtual FS
+  // 3. Write main + back to virtual FS
   await ff.writeFile(mainName, new Uint8Array(mainBuf));
   await ff.writeFile(backName, new Uint8Array(backBuf));
-  onProgress?.({ phase: 'downloading', progress: 50 });
+  onProgress?.({ phase: 'downloading', progress: 40 });
 
-  // 4. Write concat list for demuxer
-  await ff.writeFile('list.txt', `file '${mainName}'\nfile '${backName}'`);
-  onProgress?.({ phase: 'concatenating', progress: 52 });
+  // 4. Create 2-second intro video from front cover image (if provided)
+  let hasIntro = false;
+  if (frontImgBuf) {
+    onProgress?.({ phase: 'creating_intro', progress: 42 });
+    await ff.writeFile(introImgName, new Uint8Array(frontImgBuf));
+
+    try {
+      await ff.exec([
+        '-loop', '1',
+        '-i', introImgName,
+        '-f', 'lavfi', '-i', 'anullsrc=r=48000:cl=mono',
+        '-t', '2',
+        '-c:v', 'libx264', '-preset', 'ultrafast', '-crf', '18',
+        '-pix_fmt', 'yuv420p',
+        '-c:a', 'aac', '-ar', '48000', '-b:a', '128k',
+        '-shortest',
+        '-y', introName,
+      ]);
+
+      // Verify intro was created
+      try {
+        const introData = await ff.readFile(introName);
+        const introBytes = introData instanceof Uint8Array ? introData : new TextEncoder().encode(introData as string);
+        if (introBytes.length > 1000) {
+          hasIntro = true;
+        }
+      } catch {
+        console.warn('Intro file not created, skipping front cover');
+      }
+    } catch (err) {
+      console.warn('Failed to create intro from front cover:', err);
+    }
+    onProgress?.({ phase: 'creating_intro', progress: 48 });
+  }
+
+  signal?.throwIfAborted();
+
+  // 5. Build concat list
+  const parts: string[] = [];
+  if (hasIntro) parts.push(`file '${introName}'`);
+  parts.push(`file '${mainName}'`);
+  parts.push(`file '${backName}'`);
+
+  await ff.writeFile('list.txt', parts.join('\n'));
+  onProgress?.({ phase: 'concatenating', progress: 50 });
 
   const progressHandler = ({ progress }: { progress: number }) => {
     const mapped = 50 + Math.round(progress * 45);
@@ -78,13 +132,24 @@ export async function concatVideosClient(
   try {
     signal?.throwIfAborted();
 
-    // Primary: stream copy via concat demuxer (instant, no re-encoding)
-    await ff.exec([
-      '-f', 'concat', '-safe', '0',
-      '-i', 'list.txt',
-      '-c', 'copy',
-      '-y', outputName,
-    ]);
+    // If we have an intro (re-encoded), we must re-encode the whole thing for compatibility
+    if (hasIntro) {
+      await ff.exec([
+        '-f', 'concat', '-safe', '0',
+        '-i', 'list.txt',
+        '-c:v', 'libx264', '-preset', 'ultrafast', '-crf', '23',
+        '-c:a', 'aac', '-ar', '48000', '-b:a', '128k',
+        '-y', outputName,
+      ]);
+    } else {
+      // No intro — try stream copy first (fast path)
+      await ff.exec([
+        '-f', 'concat', '-safe', '0',
+        '-i', 'list.txt',
+        '-c', 'copy',
+        '-y', outputName,
+      ]);
+    }
 
     let outputData: Uint8Array | null = null;
     try {
@@ -94,15 +159,31 @@ export async function concatVideosClient(
       outputData = null;
     }
 
-    // Fallback: re-encode with ultrafast preset if stream copy failed
+    // Fallback: full re-encode
     if (!outputData || outputData.length < 10000) {
-      console.warn('Stream copy failed, falling back to re-encode (ultrafast)...');
+      console.warn('Primary concat failed, falling back to filter_complex re-encode...');
       await ff.deleteFile(outputName).catch(() => undefined);
 
+      // Build inputs and filter for all parts
+      const inputs: string[] = [];
+      const filterParts: string[] = [];
+      let idx = 0;
+
+      if (hasIntro) {
+        inputs.push('-i', introName);
+        filterParts.push(`[${idx}:v][${idx}:a]`);
+        idx++;
+      }
+      inputs.push('-i', mainName);
+      filterParts.push(`[${idx}:v][${idx}:a]`);
+      idx++;
+      inputs.push('-i', backName);
+      filterParts.push(`[${idx}:v][${idx}:a]`);
+      idx++;
+
       await ff.exec([
-        '-i', mainName,
-        '-i', backName,
-        '-filter_complex', '[0:v][0:a][1:v][1:a]concat=n=2:v=1:a=1[v][a]',
+        ...inputs,
+        '-filter_complex', `${filterParts.join('')}concat=n=${idx}:v=1:a=1[v][a]`,
         '-map', '[v]', '-map', '[a]',
         '-c:v', 'libx264', '-preset', 'ultrafast', '-crf', '23',
         '-c:a', 'aac', '-ar', '48000', '-b:a', '128k',
@@ -131,12 +212,15 @@ export async function concatVideosClient(
     (ff as unknown as { off?: (event: string, cb: unknown) => void }).off?.('progress', progressHandler);
     await ff.deleteFile(mainName).catch(() => undefined);
     await ff.deleteFile(backName).catch(() => undefined);
+    await ff.deleteFile(introName).catch(() => undefined);
+    await ff.deleteFile(introImgName).catch(() => undefined);
     await ff.deleteFile(outputName).catch(() => undefined);
+    await ff.deleteFile('list.txt').catch(() => undefined);
   }
 }
 
-async function fetchVideo(url: string, signal?: AbortSignal): Promise<ArrayBuffer> {
+async function fetchAsset(url: string, signal?: AbortSignal): Promise<ArrayBuffer> {
   const resp = await fetch(url, { signal });
-  if (!resp.ok) throw new Error(`Не удалось скачать видео: HTTP ${resp.status}`);
+  if (!resp.ok) throw new Error(`Не удалось скачать: HTTP ${resp.status}`);
   return resp.arrayBuffer();
 }
