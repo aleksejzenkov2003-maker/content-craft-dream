@@ -53,10 +53,10 @@ export function useActiveProcesses() {
       const { data: recent, error: recentErr } = await supabase
         .from('videos')
         .select('id, video_number, video_title, question, generation_status, reel_status, voiceover_status, cover_status, generation_count, updated_at, advisor:advisors(id, name, display_name)')
-        .eq('generation_status', 'ready')
+        .in('generation_status', ['ready', 'error'])
         .gte('updated_at', since)
         .order('updated_at', { ascending: false })
-        .limit(5);
+        .limit(10);
 
       if (recentErr) throw recentErr;
 
