@@ -83,17 +83,26 @@ export async function concatVideosClient(
     await ff.writeFile(introImgName, new Uint8Array(frontImgBuf));
 
     try {
-      await ff.exec([
+      // Scale image down and encode with timeout to avoid hanging in WASM
+      const introPromise = ff.exec([
         '-loop', '1',
         '-i', introImgName,
         '-f', 'lavfi', '-i', 'anullsrc=r=48000:cl=mono',
         '-t', '2',
-        '-c:v', 'libx264', '-preset', 'ultrafast', '-crf', '18',
+        '-vf', 'scale=1080:1920:force_original_aspect_ratio=decrease,pad=1080:1920:(ow-iw)/2:(oh-ih)/2',
+        '-r', '15',
+        '-c:v', 'libx264', '-preset', 'ultrafast', '-crf', '28',
         '-pix_fmt', 'yuv420p',
         '-c:a', 'aac', '-ar', '48000', '-b:a', '128k',
         '-shortest',
         '-y', introName,
       ]);
+
+      const introTimeout = new Promise<void>((_, reject) =>
+        globalThis.setTimeout(() => reject(new Error('Intro creation timeout')), 45_000)
+      );
+
+      await Promise.race([introPromise, introTimeout]);
 
       // Verify intro was created
       try {
@@ -101,12 +110,13 @@ export async function concatVideosClient(
         const introBytes = introData instanceof Uint8Array ? introData : new TextEncoder().encode(introData as string);
         if (introBytes.length > 1000) {
           hasIntro = true;
+          console.log('[videoConcat] Intro created successfully:', introBytes.length, 'bytes');
         }
       } catch {
-        console.warn('Intro file not created, skipping front cover');
+        console.warn('[videoConcat] Intro file not created, skipping front cover');
       }
     } catch (err) {
-      console.warn('Failed to create intro from front cover:', err);
+      console.warn('[videoConcat] Failed to create intro from front cover:', err);
     }
     onProgress?.({ phase: 'creating_intro', progress: 48 });
   }
