@@ -103,14 +103,22 @@ export function VideoSidePanel({
 
   const fetchVariants = useCallback(async () => {
     if (!video?.id) return;
-    const { data } = await supabase.from('cover_thumbnails').select('*').eq('video_id', video.id).order('created_at', { ascending: false });
-    if (data) {
-      const atmos = data.filter((d: any) => d.variant_type === 'atmosphere');
-      const covers = data.filter((d: any) => d.variant_type === 'cover' || !d.variant_type);
+    const [coverRes, vidVarRes] = await Promise.all([
+      supabase.from('cover_thumbnails').select('*').eq('video_id', video.id).order('created_at', { ascending: false }),
+      (supabase.from('video_variants' as any) as any).select('*').eq('video_id', video.id).order('created_at', { ascending: false }),
+    ]);
+    if (coverRes.data) {
+      const atmos = coverRes.data.filter((d: any) => d.variant_type === 'atmosphere');
+      const covers = coverRes.data.filter((d: any) => d.variant_type === 'cover' || !d.variant_type);
       setAtmosphereVariants(atmos as CoverVariant[]);
       setCoverVariants(covers as CoverVariant[]);
       setAtmosIndex(atmos.findIndex((a: any) => a.is_active) >= 0 ? atmos.findIndex((a: any) => a.is_active) : 0);
       setCoverIndex(covers.findIndex((c: any) => c.is_active) >= 0 ? covers.findIndex((c: any) => c.is_active) : 0);
+    }
+    if (vidVarRes.data) {
+      setVideoVariantsDb(vidVarRes.data as VideoVariant[]);
+      const activeIdx = (vidVarRes.data as VideoVariant[]).findIndex((v: any) => v.is_active);
+      setVidVariantIndex(activeIdx >= 0 ? activeIdx : 0);
     }
   }, [video?.id]);
 
