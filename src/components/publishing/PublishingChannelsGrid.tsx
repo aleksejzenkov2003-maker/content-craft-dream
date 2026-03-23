@@ -165,7 +165,7 @@ export function PublishingChannelsGrid() {
         </Card>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {channels.map((channel) => (
+          {channels.filter(c => c.is_active).map((channel) => (
             <Card
               key={channel.id}
               className="cursor-pointer hover:border-primary/50 transition-colors"
