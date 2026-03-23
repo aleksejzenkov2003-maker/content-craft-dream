@@ -495,7 +495,7 @@ const minuteOptions = [0, 5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55];
 
   const getStatusBadge = (status: string) => {
     const config = statusLabels[status] || statusLabels.pending;
-    return <Badge variant={config.variant}>{config.label}</Badge>;
+    return <Badge variant={config.variant} className="whitespace-nowrap">{config.label}</Badge>;
   };
 
   const getPublicationTitle = (pub: Publication) => {
