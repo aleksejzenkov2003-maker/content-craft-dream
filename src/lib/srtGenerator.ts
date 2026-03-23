@@ -52,8 +52,8 @@ export function generateSmartBlocks(
   options: SmartSegmentOptions = {}
 ): SrtBlock[] {
   const {
-    maxChars = 24,
-    maxWords = 8,
+    maxChars = 20,
+    maxWords = 6,
     maxDuration = 2.4,
     gapSplit = 0.55,
   } = options;

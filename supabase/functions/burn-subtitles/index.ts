@@ -20,7 +20,7 @@ function normalizeSpaces(str: string): string {
 interface SrtBlock { startSec: number; endSec: number; text: string; }
 
 function generateSmartBlocks(words: WordTimestamp[]): SrtBlock[] {
-  const maxChars = 24, maxWords = 8, maxDuration = 2.4, gapSplit = 0.55;
+  const maxChars = 20, maxWords = 6, maxDuration = 2.4, gapSplit = 0.55;
   const blocks: SrtBlock[] = [];
   let cur: { start: number; end: number; text: string; words: number; lastEnd: number } | null = null;
 
