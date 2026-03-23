@@ -1,7 +1,7 @@
 import { useState, useCallback, useRef } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
-import { concatVideosClient, ConcatPhase } from '@/lib/videoConcat';
+import { concatVideosClient, type ConcatPhase } from '@/lib/videoConcat';
 import { terminateSharedFFmpeg } from '@/lib/ffmpegLoader';
 
 interface ConcatState {
