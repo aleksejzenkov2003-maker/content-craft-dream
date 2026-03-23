@@ -1083,6 +1083,7 @@ export type Database = {
           atmosphere_prompt: string | null
           atmosphere_url: string | null
           back_cover_url: string | null
+          background_video_url: string | null
           cover_prompt: string | null
           cover_status: string | null
           cover_url: string | null
@@ -1102,6 +1103,7 @@ export type Database = {
           motion_avatar_id: string | null
           motion_prompt: string | null
           motion_type: string | null
+          overlay_mode: boolean | null
           pinterest_url: string | null
           playlist_id: string | null
           publication_date: string | null
@@ -1135,6 +1137,7 @@ export type Database = {
           atmosphere_prompt?: string | null
           atmosphere_url?: string | null
           back_cover_url?: string | null
+          background_video_url?: string | null
           cover_prompt?: string | null
           cover_status?: string | null
           cover_url?: string | null
@@ -1154,6 +1157,7 @@ export type Database = {
           motion_avatar_id?: string | null
           motion_prompt?: string | null
           motion_type?: string | null
+          overlay_mode?: boolean | null
           pinterest_url?: string | null
           playlist_id?: string | null
           publication_date?: string | null
@@ -1187,6 +1191,7 @@ export type Database = {
           atmosphere_prompt?: string | null
           atmosphere_url?: string | null
           back_cover_url?: string | null
+          background_video_url?: string | null
           cover_prompt?: string | null
           cover_status?: string | null
           cover_url?: string | null
@@ -1206,6 +1211,7 @@ export type Database = {
           motion_avatar_id?: string | null
           motion_prompt?: string | null
           motion_type?: string | null
+          overlay_mode?: boolean | null
           pinterest_url?: string | null
           playlist_id?: string | null
           publication_date?: string | null

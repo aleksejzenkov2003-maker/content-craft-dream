@@ -227,10 +227,10 @@ export default function Index() {
       // Mark reel_status as processing
       await supabase.from('videos').update({ reel_status: 'generating' }).eq('id', videoId);
 
-      // Fetch fresh video data
+      // Fetch fresh video data (including overlay fields)
       const { data: vid } = await supabase
         .from('videos')
-        .select('heygen_video_url, video_path, word_timestamps')
+        .select('heygen_video_url, video_path, word_timestamps, overlay_mode, background_video_url')
         .eq('id', videoId)
         .single();
 
@@ -243,6 +243,39 @@ export default function Index() {
       }
 
       let finalUrl = sourceUrl;
+
+      // Phase 0: Overlay compositing (if overlay mode was used)
+      if ((vid as any)?.overlay_mode && (vid as any)?.background_video_url) {
+        updateProgress('overlay_compositing' as any, 2);
+        const overlayStart = Date.now();
+        await logStep('overlay_compositing_started');
+        toast.info('Шаг 0: Наложение аватара на фоновую подложку...');
+        try {
+          const { overlayAvatarOnBackground } = await import('@/lib/videoOverlay');
+          const overlayFile = await overlayAvatarOnBackground(
+            sourceUrl,
+            (vid as any).background_video_url,
+            (info) => updateProgress(info.phase as any, Math.round(info.progress * 0.2)),
+          );
+
+          // Upload overlaid video
+          const overlayFileName = `videos/${videoId}_overlay_${Date.now()}.mp4`;
+          const { error: uploadErr } = await supabase.storage
+            .from('media-files')
+            .upload(overlayFileName, overlayFile, { contentType: 'video/mp4', upsert: true });
+          if (uploadErr) throw uploadErr;
+          const { data: urlData } = supabase.storage.from('media-files').getPublicUrl(overlayFileName);
+          finalUrl = urlData.publicUrl;
+          // Update heygen_video_url so subsequent steps use the composited video
+          await supabase.from('videos').update({ heygen_video_url: finalUrl }).eq('id', videoId);
+          await logStep('overlay_compositing_complete', { duration_ms: Date.now() - overlayStart });
+          toast.success('✅ Наложение на подложку завершено!');
+        } catch (overlayErr) {
+          console.error('Overlay compositing failed:', overlayErr);
+          await logStep('overlay_compositing_failed', { details: { error: String(overlayErr) }, duration_ms: Date.now() - overlayStart });
+          toast.warning('Не удалось наложить на подложку, используется оригинал');
+        }
+      }
 
       // Phase 1: Bitrate reduction
       if (isEnabled('side_video', 'resize') || isEnabled('resize', 'resize')) {
@@ -743,11 +776,50 @@ export default function Index() {
     }
   };
 
+  // Validate overlay mode prerequisites for a video
+  const validateOverlayPrerequisites = async (video: Video): Promise<{ ok: boolean; missing: string[] }> => {
+    const { data: fmtRow } = await supabase.from('app_settings').select('value').eq('key', 'video_format_mode').single();
+    if (fmtRow?.value !== 'background_overlay') return { ok: true, missing: [] };
+
+    const missing: string[] = [];
+    // Check advisor has avatar_photo_id
+    const advisor = advisors.find(a => a.id === video.advisor_id);
+    if (!advisor) {
+      missing.push('Не назначен духовник');
+    } else if (!(advisor as any).avatar_photo_id) {
+      missing.push('У духовника не назначено аватар-фото (прозрачный вырез)');
+    }
+
+    // Check background_assignment exists for playlist+advisor pair
+    if (video.playlist_id && video.advisor_id) {
+      const { data: bgAssign } = await (supabase.from('background_assignments' as any) as any)
+        .select('id')
+        .eq('playlist_id', video.playlist_id)
+        .eq('advisor_id', video.advisor_id)
+        .limit(1);
+      if (!bgAssign || bgAssign.length === 0) {
+        missing.push('Не назначена фоновая подложка для пары плейлист+духовник');
+      }
+    } else {
+      if (!video.playlist_id) missing.push('Не назначен плейлист');
+    }
+
+    return { ok: missing.length === 0, missing };
+  };
+
   const handleGenerateVideo = async (video: Video) => {
     if (!video.voiceover_url) {
       toast.error('Сначала создайте озвучку');
       return;
     }
+
+    // Validate overlay mode prerequisites
+    const overlayCheck = await validateOverlayPrerequisites(video);
+    if (!overlayCheck.ok) {
+      toast.error(`Режим «Фоновая подложка» — не хватает:\n• ${overlayCheck.missing.join('\n• ')}`, { duration: 8000 });
+      return;
+    }
+
     // Confirm re-generation if video was already generated and nothing changed
     if ((video as any).generation_count >= 1 && video.heygen_video_url) {
       const confirmed = await new Promise<boolean>((resolve) => {
@@ -814,6 +886,14 @@ export default function Index() {
       toast.error('Сначала нужен ответ духовника');
       return;
     }
+
+    // Validate overlay mode prerequisites
+    const overlayCheck = await validateOverlayPrerequisites(video);
+    if (!overlayCheck.ok) {
+      toast.error(`Режим «Фоновая подложка» — не хватает:\n• ${overlayCheck.missing.join('\n• ')}`, { duration: 8000 });
+      return;
+    }
+
     // Confirm re-generation if video was already generated, voiceover exists, and nothing seems changed
     if ((video as any).generation_count >= 1 && video.heygen_video_url && video.voiceover_url) {
       const confirmed = await new Promise<boolean>((resolve) => {

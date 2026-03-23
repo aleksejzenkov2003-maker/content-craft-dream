@@ -439,9 +439,8 @@ serve(async (req) => {
     }
 
     // --- Call HeyGen API ---
-    const buildHeygenBody = (photoId: string, useExpressive: boolean) => JSON.stringify({
-      title: video.video_title || video.question || `Video ${videoId}`,
-      video_inputs: [{
+    const buildHeygenBody = (photoId: string, useExpressive: boolean) => {
+      const videoInput: Record<string, unknown> = {
         character: {
           type: 'talking_photo',
           talking_photo_id: photoId,
@@ -451,9 +450,18 @@ serve(async (req) => {
           type: 'audio',
           audio_url: voiceoverUrl,
         },
-      }],
-      dimension,
-    });
+      };
+      // In overlay mode, request green screen background from HeyGen
+      if (isOverlayMode && backgroundVideoUrl) {
+        videoInput.background = { type: 'green_screen' };
+        console.log('OVERLAY: requesting green_screen background from HeyGen');
+      }
+      return JSON.stringify({
+        title: video.video_title || video.question || `Video ${videoId}`,
+        video_inputs: [videoInput],
+        dimension,
+      });
+    };
 
     const useMotion = !!effectiveMotionAvatarId && heygenMode === 'v3';
     let heygenResponse: Response;
@@ -519,6 +527,8 @@ serve(async (req) => {
     await supabase.from('videos').update({ 
       heygen_video_id: heygenVideoId,
       generation_status: 'generating',
+      overlay_mode: isOverlayMode && !!backgroundVideoUrl,
+      background_video_url: (isOverlayMode && backgroundVideoUrl) ? backgroundVideoUrl : null,
     }).eq('id', videoId);
 
     const durationMs = Date.now() - startTime;
