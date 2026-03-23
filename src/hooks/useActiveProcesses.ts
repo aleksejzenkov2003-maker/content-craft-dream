@@ -21,6 +21,7 @@ export interface ActiveVideo {
   video_number: number | null;
   video_title: string | null;
   question: string | null;
+  question_id: number | null;
   generation_status: string | null;
   reel_status: string | null;
   voiceover_status: string | null;
@@ -28,6 +29,15 @@ export interface ActiveVideo {
   generation_count: number | null;
   updated_at: string;
   advisor?: { id: string; name: string; display_name: string | null } | null;
+  logs: ProcessLog[];
+}
+
+export interface ActivePublication {
+  id: string;
+  publication_status: string | null;
+  video_title: string | null;
+  channel_name: string | null;
+  updated_at: string;
   logs: ProcessLog[];
 }
 
