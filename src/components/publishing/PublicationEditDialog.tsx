@@ -173,7 +173,20 @@ export function PublicationEditDialog({
       {/* Info fields */}
       <div className="space-y-3">
         <PanelField label="Название" labelWidth="160px">
-          <span className="text-sm truncate min-w-0">{title || '—'}</span>
+          {publication.video_id ? (
+            <button
+              className="text-sm text-primary hover:underline truncate min-w-0 flex items-center gap-1 text-left"
+              onClick={() => {
+                window.dispatchEvent(new CustomEvent('navigate-to-video', { detail: { videoId: publication.video_id } }));
+                onClose();
+              }}
+            >
+              {title || '—'}
+              <ArrowUpRight className="w-3 h-3 flex-shrink-0" />
+            </button>
+          ) : (
+            <span className="text-sm truncate min-w-0">{title || '—'}</span>
+          )}
         </PanelField>
         <PanelField label="Хук" labelWidth="160px">
           <span className="text-sm truncate min-w-0">{hook || '—'}</span>
