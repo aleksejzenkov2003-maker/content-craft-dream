@@ -8,7 +8,7 @@ import { Badge } from '@/components/ui/badge';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import {
-  Loader2, Sparkles, ExternalLink, RefreshCw, Video as VideoIcon,
+  Loader2, Sparkles, ExternalLink, RefreshCw, Video as VideoIcon, ArrowUpRight,
 } from 'lucide-react';
 import { format } from 'date-fns';
 import { ru } from 'date-fns/locale';
