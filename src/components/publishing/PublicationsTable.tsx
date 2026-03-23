@@ -724,7 +724,7 @@ const minuteOptions = [0, 5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55];
                         );
                       })()}
                     </TableHead>
-                    <TableHead className="w-[500px] py-1">Заголовок</TableHead>
+                    <TableHead className="py-1">Заголовок</TableHead>
                     <TableHead 
                       className="w-[60px] py-1 cursor-pointer hover:bg-accent/50"
                       onClick={() => handleSort('video_number')}
@@ -733,7 +733,7 @@ const minuteOptions = [0, 5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55];
                         ID {getSortIcon('video_number')}
                       </div>
                     </TableHead>
-                    <TableHead className="w-[100px] py-1">Учетная запись</TableHead>
+                    <TableHead className="w-[120px] py-1 whitespace-nowrap">Учетная запись</TableHead>
                     <TableHead 
                       className="w-[110px] py-1 cursor-pointer hover:bg-accent/50"
                       onClick={() => handleSort('post_date')}
