@@ -32,6 +32,8 @@ export interface ActiveVideo {
 }
 
 const ACTIVE_STATUSES = ['generating', 'processing'];
+const ACTIVE_WINDOW_MINUTES = 30;
+const HISTORY_LIMIT = 10;
 
 export function useActiveProcesses() {
   const [activeVideos, setActiveVideos] = useState<ActiveVideo[]>([]);
@@ -40,23 +42,25 @@ export function useActiveProcesses() {
 
   const fetchProcesses = useCallback(async () => {
     try {
-      // Fetch active videos
+      const activeSince = new Date(Date.now() - ACTIVE_WINDOW_MINUTES * 60 * 1000).toISOString();
+
+      // Fetch only truly active videos updated recently
       const { data: active, error: activeErr } = await supabase
         .from('videos')
         .select('id, video_number, video_title, question, generation_status, reel_status, voiceover_status, cover_status, generation_count, updated_at, advisor:advisors(id, name, display_name)')
-        .or('generation_status.in.(generating,processing),reel_status.eq.generating,voiceover_status.eq.generating,cover_status.eq.generating');
+        .or('generation_status.in.(generating,processing),reel_status.eq.generating,voiceover_status.eq.generating,cover_status.eq.generating')
+        .gte('updated_at', activeSince)
+        .order('updated_at', { ascending: false });
 
       if (activeErr) throw activeErr;
 
-      // Fetch recent completed (last 24h)
-      const since = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+      // Fetch video history regardless of the last 24h window
       const { data: recent, error: recentErr } = await supabase
         .from('videos')
         .select('id, video_number, video_title, question, generation_status, reel_status, voiceover_status, cover_status, generation_count, updated_at, advisor:advisors(id, name, display_name)')
         .in('generation_status', ['ready', 'error'])
-        .gte('updated_at', since)
         .order('updated_at', { ascending: false })
-        .limit(10);
+        .limit(HISTORY_LIMIT);
 
       if (recentErr) throw recentErr;
 
