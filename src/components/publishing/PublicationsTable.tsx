@@ -767,7 +767,7 @@ onClick={() => setEditingPublicationId(pub.id)}
                       </TableCell>
                       {/* Заголовок */}
                       <TableCell className="py-1">
-                        <span className="truncate block max-w-[250px]" title={getPublicationTitle(pub)}>
+                        <span className="truncate block max-w-[500px]" title={getPublicationTitle(pub)}>
                           {getPublicationTitle(pub)}
                         </span>
                       </TableCell>
