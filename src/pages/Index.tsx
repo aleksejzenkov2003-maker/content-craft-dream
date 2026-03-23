@@ -760,6 +760,14 @@ export default function Index() {
       toast.error('Сначала нужен ответ духовника');
       return;
     }
+    // Confirm re-generation if video was already generated, voiceover exists, and nothing seems changed
+    if ((video as any).generation_count >= 1 && video.heygen_video_url && video.voiceover_url) {
+      const confirmed = await new Promise<boolean>((resolve) => {
+        setRegenConfirm({ videoId: video.id, resolve });
+      });
+      setRegenConfirm(null);
+      if (!confirmed) return;
+    }
     try {
       // Step 1: Generate voiceover if missing
       if (!video.voiceover_url) {
