@@ -1068,7 +1068,7 @@ export default function Index() {
       if (isEnabled('prepare_publish', 'concat')) {
         const { data: freshVideo } = await supabase
           .from('videos')
-          .select('heygen_video_url, video_path')
+          .select('heygen_video_url, video_path, front_cover_url')
           .eq('id', video.id)
           .single();
         
@@ -1078,7 +1078,7 @@ export default function Index() {
             if (channelsWithBackCover.has(pub.channel_id)) {
               const backCoverUrl = channelDetails?.find(c => c.id === pub.channel_id)?.back_cover_video_url;
               if (backCoverUrl) {
-                concatVideos(pub.id, videoUrl, backCoverUrl).then(() => {
+                concatVideos(pub.id, videoUrl, backCoverUrl, freshVideo?.front_cover_url).then(() => {
                   refetchPublications();
                 }).catch(console.error);
               }
