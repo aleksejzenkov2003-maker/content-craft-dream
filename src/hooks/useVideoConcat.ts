@@ -59,6 +59,7 @@ export function useVideoConcat() {
     publicationId: string,
     mainVideoUrl: string,
     backCoverVideoUrl: string,
+    frontCoverImageUrl?: string | null,
   ) => {
     const previousPublicationId = publicationIdRef.current;
 
@@ -89,6 +90,7 @@ export function useVideoConcat() {
           setState(prev => ({ ...prev, progress: info.progress, phase: info.phase }));
         },
         controller.signal,
+        frontCoverImageUrl,
       );
 
       controller.signal.throwIfAborted();

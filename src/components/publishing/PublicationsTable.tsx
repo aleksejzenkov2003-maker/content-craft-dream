@@ -376,13 +376,23 @@ const minuteOptions = [0, 5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55];
     
     // Try joined data first, then fetch from DB
     let mainVideoUrl = pub.video?.video_path || pub.video?.heygen_video_url;
+    let frontCoverUrl: string | null = null;
     if (!mainVideoUrl && pub.video_id) {
       const { data: video } = await supabase
         .from('videos')
-        .select('heygen_video_url, video_path')
+        .select('heygen_video_url, video_path, front_cover_url')
         .eq('id', pub.video_id)
         .single();
       mainVideoUrl = video?.video_path || video?.heygen_video_url || null;
+      frontCoverUrl = video?.front_cover_url || null;
+    } else if (pub.video_id) {
+      // We have mainVideoUrl from joined data but need front_cover_url
+      const { data: video } = await supabase
+        .from('videos')
+        .select('front_cover_url')
+        .eq('id', pub.video_id)
+        .single();
+      frontCoverUrl = video?.front_cover_url || null;
     }
     
     if (!mainVideoUrl) {
@@ -395,7 +405,7 @@ const minuteOptions = [0, 5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55];
     
     setConcatingId(pub.id);
     try {
-      await concatVideos(pub.id, mainVideoUrl, backCoverUrl);
+      await concatVideos(pub.id, mainVideoUrl, backCoverUrl, frontCoverUrl);
       await refetch();
     } catch {} finally {
       setConcatingId(null);
