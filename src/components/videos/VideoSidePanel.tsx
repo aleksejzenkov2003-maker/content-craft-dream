@@ -509,7 +509,7 @@ export function VideoSidePanel({
                       {new Date(videoVariantsDb[vidVariantIndex]?.created_at).toLocaleDateString('ru-RU', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}
                     </div>
                     {videoVariantsDb[vidVariantIndex]?.is_active && <div className="absolute top-6 right-1"><Badge className="text-[7px] px-1 py-0 bg-primary">Active</Badge></div>}
-                    <div className="absolute inset-0 bg-black/40 opacity-0 hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
+                    <div className="absolute top-0 left-0 right-0 h-2/3 bg-black/40 opacity-0 hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
                       <Button size="icon" variant="ghost" className="h-6 w-6 text-white hover:text-white hover:bg-white/20"
                         onClick={(e) => { e.stopPropagation(); handleSelectVideoVariant(videoVariantsDb[vidVariantIndex]); }}
                         title="Выбрать этот вариант"
