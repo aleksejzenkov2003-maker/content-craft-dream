@@ -137,6 +137,7 @@ export function VideosTable({
   onBulkGenerateVideos,
   onBulkUpdateStatus,
   onBulkPublish,
+  onPublish,
   filters,
   onFilterChange,
 }: VideosTableProps) {
