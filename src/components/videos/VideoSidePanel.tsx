@@ -34,6 +34,18 @@ interface CoverVariant {
   created_at: string;
 }
 
+interface VideoVariant {
+  id: string;
+  video_id: string;
+  heygen_video_id: string | null;
+  heygen_video_url: string | null;
+  reduced_video_url: string | null;
+  video_path: string | null;
+  is_active: boolean | null;
+  generation_number: number | null;
+  created_at: string;
+}
+
 interface VideoSidePanelProps {
   video: Video | null;
   open: boolean;
@@ -81,22 +93,32 @@ export function VideoSidePanel({
   const [detectedDuration, setDetectedDuration] = useState<number | null>(null);
   const [videoSizeBytes, setVideoSizeBytes] = useState<number | null>(null);
   const [heygenMode, setHeygenMode] = useState<string>('v3');
-  const [localBusy, setLocalBusy] = useState<'atmosphere' | 'cover' | 'video' | null>(null);
+   const [localBusy, setLocalBusy] = useState<'atmosphere' | 'cover' | 'video' | null>(null);
   const [bitrateProgress, setBitrateProgress] = useState<{ phase: string; progress: number } | null>(null);
+  const [videoVariantsDb, setVideoVariantsDb] = useState<VideoVariant[]>([]);
+  const [vidVariantIndex, setVidVariantIndex] = useState(0);
 
   const advisor = advisors.find((a) => a.id === video?.advisor_id);
   const advisorName = advisor?.display_name || advisor?.name || 'Духовник';
 
   const fetchVariants = useCallback(async () => {
     if (!video?.id) return;
-    const { data } = await supabase.from('cover_thumbnails').select('*').eq('video_id', video.id).order('created_at', { ascending: false });
-    if (data) {
-      const atmos = data.filter((d: any) => d.variant_type === 'atmosphere');
-      const covers = data.filter((d: any) => d.variant_type === 'cover' || !d.variant_type);
+    const [coverRes, vidVarRes] = await Promise.all([
+      supabase.from('cover_thumbnails').select('*').eq('video_id', video.id).order('created_at', { ascending: false }),
+      (supabase.from('video_variants' as any) as any).select('*').eq('video_id', video.id).order('created_at', { ascending: false }),
+    ]);
+    if (coverRes.data) {
+      const atmos = coverRes.data.filter((d: any) => d.variant_type === 'atmosphere');
+      const covers = coverRes.data.filter((d: any) => d.variant_type === 'cover' || !d.variant_type);
       setAtmosphereVariants(atmos as CoverVariant[]);
       setCoverVariants(covers as CoverVariant[]);
       setAtmosIndex(atmos.findIndex((a: any) => a.is_active) >= 0 ? atmos.findIndex((a: any) => a.is_active) : 0);
       setCoverIndex(covers.findIndex((c: any) => c.is_active) >= 0 ? covers.findIndex((c: any) => c.is_active) : 0);
+    }
+    if (vidVarRes.data) {
+      setVideoVariantsDb(vidVarRes.data as VideoVariant[]);
+      const activeIdx = (vidVarRes.data as VideoVariant[]).findIndex((v: any) => v.is_active);
+      setVidVariantIndex(activeIdx >= 0 ? activeIdx : 0);
     }
   }, [video?.id]);
 
@@ -106,7 +128,7 @@ export function VideoSidePanel({
     }
   }, [open, !!video?.word_timestamps]);
 
-  useEffect(() => { fetchVariants(); }, [fetchVariants, (video as any)?.atmosphere_url, video?.front_cover_url]);
+  useEffect(() => { fetchVariants(); }, [fetchVariants, (video as any)?.atmosphere_url, video?.front_cover_url, video?.heygen_video_url, video?.video_path]);
 
   // Reset local busy when server status changes
   useEffect(() => {
@@ -242,6 +264,29 @@ export function VideoSidePanel({
   const handleDeleteVariant = async (variant: CoverVariant, type: 'atmosphere' | 'cover') => {
     try {
       await supabase.from('cover_thumbnails').delete().eq('id', variant.id);
+      fetchVariants();
+      toast.success('Вариант удалён');
+    } catch (e) { toast.error('Ошибка удаления'); }
+  };
+
+  const handleSelectVideoVariant = async (variant: VideoVariant) => {
+    try {
+      await (supabase.from('video_variants' as any) as any).update({ is_active: false }).eq('video_id', video.id);
+      await (supabase.from('video_variants' as any) as any).update({ is_active: true }).eq('id', variant.id);
+      onUpdateVideo(video.id, {
+        heygen_video_url: variant.heygen_video_url,
+        heygen_video_id: variant.heygen_video_id,
+        reduced_video_url: variant.reduced_video_url,
+        video_path: variant.video_path,
+      } as any);
+      fetchVariants();
+      toast.success('Вариант видео выбран');
+    } catch (e) { toast.error('Ошибка выбора варианта'); }
+  };
+
+  const handleDeleteVideoVariant = async (variant: VideoVariant) => {
+    try {
+      await (supabase.from('video_variants' as any) as any).delete().eq('id', variant.id);
       fetchVariants();
       toast.success('Вариант удалён');
     } catch (e) { toast.error('Ошибка удаления'); }
@@ -439,8 +484,45 @@ export function VideoSidePanel({
 
             {/* Video */}
             <div className="space-y-1">
-              <Label className="text-[10px] text-muted-foreground flex items-center gap-1"><Play className="w-3 h-3" />Видео ({videoVariants.length})</Label>
-              {videoUrl ? (
+              <Label className="text-[10px] text-muted-foreground flex items-center gap-1"><Play className="w-3 h-3" />Видео ({videoVariantsDb.length || videoVariants.length})</Label>
+              {videoVariantsDb.length > 0 ? (
+                <div className="relative">
+                  <div className="relative aspect-[9/16] rounded-md overflow-hidden bg-black">
+                    <video
+                      key={videoVariantsDb[vidVariantIndex]?.video_path || videoVariantsDb[vidVariantIndex]?.heygen_video_url || ''}
+                      src={videoVariantsDb[vidVariantIndex]?.video_path || videoVariantsDb[vidVariantIndex]?.heygen_video_url || ''}
+                      controls className="w-full h-full object-contain"
+                      poster={video.front_cover_url || undefined}
+                      onLoadedMetadata={handleVideoLoadedMetadata}
+                    />
+                    <span className="absolute top-1 right-1 bg-black/60 text-white text-[7px] px-1 py-0.5 rounded">
+                      #{videoVariantsDb[vidVariantIndex]?.generation_number || '?'}
+                    </span>
+                    <div className="absolute top-1 left-1 text-[7px] bg-black/60 text-white px-1 rounded">
+                      {new Date(videoVariantsDb[vidVariantIndex]?.created_at).toLocaleDateString('ru-RU', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}
+                    </div>
+                    {videoVariantsDb[vidVariantIndex]?.is_active && <div className="absolute top-6 right-1"><Badge className="text-[7px] px-1 py-0 bg-primary">Active</Badge></div>}
+                    <div className="absolute inset-0 bg-black/40 opacity-0 hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
+                      <Button size="icon" variant="ghost" className="h-6 w-6 text-white hover:text-white hover:bg-white/20"
+                        onClick={(e) => { e.stopPropagation(); handleSelectVideoVariant(videoVariantsDb[vidVariantIndex]); }}
+                        title="Выбрать этот вариант"
+                      ><Check className="w-4 h-4" /></Button>
+                      <Button size="icon" variant="ghost" className="h-6 w-6 text-white hover:text-white hover:bg-white/20"
+                        onClick={(e) => { e.stopPropagation(); handleDeleteVideoVariant(videoVariantsDb[vidVariantIndex]); }}
+                        title="Удалить вариант"
+                      ><Trash2 className="w-4 h-4" /></Button>
+                    </div>
+                    <div className={cn("absolute bottom-1 left-1 right-1 text-center text-[8px] font-medium py-0.5 rounded", videoStatus.colorClass)}>{videoStatus.label}</div>
+                  </div>
+                  {videoVariantsDb.length > 1 && (
+                    <div className="flex items-center justify-center gap-1 mt-0.5">
+                      <Button size="icon" variant="ghost" className="h-4 w-4" disabled={vidVariantIndex === 0} onClick={() => setVidVariantIndex(i => i - 1)}><ChevronLeft className="w-3 h-3" /></Button>
+                      <span className="text-[8px] text-muted-foreground">{vidVariantIndex + 1}/{videoVariantsDb.length}</span>
+                      <Button size="icon" variant="ghost" className="h-4 w-4" disabled={vidVariantIndex === videoVariantsDb.length - 1} onClick={() => setVidVariantIndex(i => i + 1)}><ChevronRight className="w-3 h-3" /></Button>
+                    </div>
+                  )}
+                </div>
+              ) : videoUrl ? (
                 <div className="relative">
                   <div className="relative aspect-[9/16] rounded-md overflow-hidden bg-black">
                     <video key={videoUrl} src={videoUrl} controls className="w-full h-full object-contain" poster={video.front_cover_url || undefined} onLoadedMetadata={handleVideoLoadedMetadata} />

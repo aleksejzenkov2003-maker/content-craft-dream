@@ -1030,6 +1030,50 @@ export type Database = {
           },
         ]
       }
+      video_variants: {
+        Row: {
+          created_at: string
+          generation_number: number | null
+          heygen_video_id: string | null
+          heygen_video_url: string | null
+          id: string
+          is_active: boolean | null
+          reduced_video_url: string | null
+          video_id: string
+          video_path: string | null
+        }
+        Insert: {
+          created_at?: string
+          generation_number?: number | null
+          heygen_video_id?: string | null
+          heygen_video_url?: string | null
+          id?: string
+          is_active?: boolean | null
+          reduced_video_url?: string | null
+          video_id: string
+          video_path?: string | null
+        }
+        Update: {
+          created_at?: string
+          generation_number?: number | null
+          heygen_video_id?: string | null
+          heygen_video_url?: string | null
+          id?: string
+          is_active?: boolean | null
+          reduced_video_url?: string | null
+          video_id?: string
+          video_path?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "video_variants_video_id_fkey"
+            columns: ["video_id"]
+            isOneToOne: false
+            referencedRelation: "videos"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       videos: {
         Row: {
           advisor_answer: string | null

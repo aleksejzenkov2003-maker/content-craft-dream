@@ -319,6 +319,22 @@ export default function Index() {
 
       // Update video_path with final URL and mark as ready
       await supabase.from('videos').update({ video_path: finalUrl, reel_status: 'ready', generation_status: 'ready' }).eq('id', videoId);
+      
+      // Save completed variant (mark as active, deactivate others)
+      const { data: freshVid } = await supabase.from('videos').select('heygen_video_id, heygen_video_url, reduced_video_url, generation_count').eq('id', videoId).single();
+      if (freshVid?.heygen_video_url) {
+        await (supabase.from('video_variants' as any) as any).update({ is_active: false }).eq('video_id', videoId);
+        await (supabase.from('video_variants' as any) as any).insert({
+          video_id: videoId,
+          heygen_video_id: freshVid.heygen_video_id,
+          heygen_video_url: freshVid.heygen_video_url,
+          reduced_video_url: freshVid.reduced_video_url,
+          video_path: finalUrl,
+          is_active: true,
+          generation_number: freshVid.generation_count || 1,
+        });
+      }
+      
       await logStep('postprocessing_complete');
       updateProgress('done', 100);
       refetchVideos();
@@ -722,6 +738,17 @@ export default function Index() {
       }
 
       toast.info('Запуск генерации видео...');
+      // Save current video as variant before clearing artifacts
+      if (video.heygen_video_url) {
+        await supabase.from('video_variants' as any).insert({
+          video_id: video.id,
+          heygen_video_id: video.heygen_video_id,
+          heygen_video_url: video.heygen_video_url,
+          reduced_video_url: (video as any).reduced_video_url,
+          video_path: video.video_path,
+          generation_number: (video as any).generation_count || 1,
+        } as any);
+      }
       // Clear old video artifacts so player shows fresh result
       await updateVideo(video.id, { 
         generation_status: 'generating',
@@ -798,6 +825,17 @@ export default function Index() {
 
       // Step 2: Launch HeyGen video generation
       toast.info(video.voiceover_url ? 'Запуск генерации видео...' : 'Шаг 2/2: Запуск генерации видео...');
+      // Save current video as variant before clearing artifacts
+      if (video.heygen_video_url) {
+        await supabase.from('video_variants' as any).insert({
+          video_id: video.id,
+          heygen_video_id: video.heygen_video_id,
+          heygen_video_url: video.heygen_video_url,
+          reduced_video_url: (video as any).reduced_video_url,
+          video_path: video.video_path,
+          generation_number: (video as any).generation_count || 1,
+        } as any);
+      }
       await updateVideo(video.id, { 
         generation_status: 'generating',
         heygen_video_id: null,
