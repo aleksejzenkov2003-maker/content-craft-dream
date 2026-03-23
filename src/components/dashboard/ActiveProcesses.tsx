@@ -41,8 +41,8 @@ function getOverallStatus(v: ActiveVideo, ffmpeg?: FFmpegProgress): { label: str
 function getStepIcon(action: string) {
   if (action.includes('error') || action.includes('failed')) return <XCircle className="h-3.5 w-3.5 text-destructive shrink-0" />;
   if (action.includes('warning') || action.includes('fallback') || action.includes('not_ready')) return <AlertTriangle className="h-3.5 w-3.5 text-amber-500 shrink-0" />;
-  if (action.includes('complete') || action.includes('success') || action.includes('generated') || action.includes('created') || action.includes('uploaded') || action.includes('ready')) return <CheckCircle className="h-3.5 w-3.5 text-emerald-500 shrink-0" />;
-  if (action.includes('start') || action.includes('begin') || action.includes('request')) return <Loader2 className="h-3.5 w-3.5 text-blue-500 animate-spin shrink-0" />;
+  if (action.includes('complete') || action.includes('success') || action.includes('generated') || action.includes('created') || action.includes('uploaded') || action.includes('ready') || action.includes('started')) return <CheckCircle className="h-3.5 w-3.5 text-emerald-500 shrink-0" />;
+  if (action.includes('begin') || action.includes('request') || action.includes('processing')) return <Loader2 className="h-3.5 w-3.5 text-blue-500 animate-spin shrink-0" />;
   return <Activity className="h-3.5 w-3.5 text-muted-foreground shrink-0" />;
 }
 
