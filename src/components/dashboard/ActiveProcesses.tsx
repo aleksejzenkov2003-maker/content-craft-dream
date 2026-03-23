@@ -199,7 +199,7 @@ export function ActiveProcesses({ onNavigateToVideo, ffmpegProgress }: ActivePro
 
             {recentVideos.length > 0 && (
               <div className="space-y-2">
-                <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Недавно завершённые</p>
+                <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">История роликов</p>
                 {recentVideos.map(v => (
                   <ProcessCard key={v.id} video={v} onNavigate={() => onNavigateToVideo(v.id)} />
                 ))}
