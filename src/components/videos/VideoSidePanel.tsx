@@ -128,7 +128,7 @@ export function VideoSidePanel({
     }
   }, [open, !!video?.word_timestamps]);
 
-  useEffect(() => { fetchVariants(); }, [fetchVariants, (video as any)?.atmosphere_url, video?.front_cover_url]);
+  useEffect(() => { fetchVariants(); }, [fetchVariants, (video as any)?.atmosphere_url, video?.front_cover_url, video?.heygen_video_url, video?.video_path]);
 
   // Reset local busy when server status changes
   useEffect(() => {
