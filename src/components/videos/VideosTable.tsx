@@ -391,7 +391,7 @@ export function VideosTable({
     );
   }
 
-  const COL_GRID = 'grid-cols-[40px_56px_140px_80px_80px_80px_56px_44px_48px_44px_80px_60px_66px_36px]';
+  const COL_GRID = 'grid-cols-[40px_56px_140px_80px_80px_80px_56px_64px_44px_48px_44px_80px_60px_66px_36px]';
 
   return (
     <div className="flex flex-col h-full">
@@ -555,6 +555,7 @@ export function VideosTable({
                     <button onClick={() => handleSort('duration')} className="flex items-center gap-1 hover:text-foreground">
                       Длина {getSortIcon('duration')}
                     </button>
+                    <div className="text-xs">Дата</div>
                     <div className="text-base">🎬</div>
                     <div className="text-base">🖼</div>
                     <div className="text-base">🔊</div>
@@ -618,6 +619,10 @@ export function VideosTable({
                           {video.video_duration ? `${Math.floor(video.video_duration / 60)}:${String(Math.round(video.video_duration % 60)).padStart(2, '0')}` : '—'}
                         </div>
 
+                        {/* Final video date */}
+                        <div className="text-[10px] text-muted-foreground leading-tight">
+                          {video.video_path ? format(new Date(video.updated_at), 'dd.MM', { locale: ru }) : '—'}
+                        </div>
 
                         {/* Video preview */}
                         <div onClick={(e) => e.stopPropagation()}>
