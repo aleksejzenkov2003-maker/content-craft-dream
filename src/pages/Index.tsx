@@ -463,6 +463,20 @@ export default function Index() {
     };
   }, [stopVideoPolling]);
 
+  // Listen for navigate-to-video custom events (from PublicationEditDialog)
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const { videoId } = (e as CustomEvent).detail;
+      if (videoId) {
+        setActiveTab('videos');
+        setViewingVideoId(videoId);
+        setShowSidePanel(true);
+      }
+    };
+    window.addEventListener('navigate-to-video', handler);
+    return () => window.removeEventListener('navigate-to-video', handler);
+  }, []);
+
   // Poll motion status on frontend — visible in Active Processes via activity_log
   const pollMotionStatus = async (motionAvatarId: string, videoId: string, maxAttempts = 12, intervalMs = 15000): Promise<boolean> => {
     for (let i = 0; i < maxAttempts; i++) {
