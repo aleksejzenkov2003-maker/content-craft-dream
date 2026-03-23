@@ -495,20 +495,34 @@ export function VideoSidePanel({
               {videoVariantsDb.length > 0 ? (
                 <div className="relative">
                   <div className="relative aspect-[9/16] rounded-md overflow-hidden bg-black">
-                    <video
-                      key={videoVariantsDb[vidVariantIndex]?.video_path || videoVariantsDb[vidVariantIndex]?.heygen_video_url || ''}
-                      src={videoVariantsDb[vidVariantIndex]?.video_path || videoVariantsDb[vidVariantIndex]?.heygen_video_url || ''}
-                      controls className="w-full h-full object-contain"
-                      poster={video.front_cover_url || undefined}
-                      onLoadedMetadata={handleVideoLoadedMetadata}
-                    />
-                    <span className="absolute top-1 right-1 bg-black/60 text-white text-[7px] px-1 py-0.5 rounded">
-                      #{videoVariantsDb[vidVariantIndex]?.generation_number || '?'}
-                    </span>
-                    <div className="absolute top-1 left-1 text-[7px] bg-black/60 text-white px-1 rounded">
-                      {new Date(videoVariantsDb[vidVariantIndex]?.created_at).toLocaleDateString('ru-RU', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}
-                    </div>
-                    {videoVariantsDb[vidVariantIndex]?.is_active && <div className="absolute top-6 right-1"><Badge className="text-[7px] px-1 py-0 bg-primary">Active</Badge></div>}
+                    {(() => {
+                      const v = videoVariantsDb[vidVariantIndex];
+                      const currentUrl = v?.video_path || v?.heygen_video_url || '';
+                      const variantLabel = v?.video_path && v.video_path !== v.reduced_video_url && v.video_path !== v.heygen_video_url
+                        ? 'С субтитрами'
+                        : v?.reduced_video_url && (v.video_path === v.reduced_video_url || (!v.video_path && v.reduced_video_url))
+                        ? 'Сжатое видео'
+                        : 'HeyGen видео';
+                      return (
+                        <>
+                          <video
+                            key={currentUrl}
+                            src={currentUrl}
+                            controls className="w-full h-full object-contain"
+                            poster={video.front_cover_url || undefined}
+                            onLoadedMetadata={handleVideoLoadedMetadata}
+                          />
+                          <span className="absolute top-1 right-1 bg-black/60 text-white text-[7px] px-1 py-0.5 rounded">
+                            #{v?.generation_number || '?'}
+                          </span>
+                          <div className="absolute top-1 left-1 text-[7px] bg-black/60 text-white px-1 rounded">
+                            {new Date(v?.created_at).toLocaleDateString('ru-RU', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}
+                          </div>
+                          <div className="absolute top-6 left-1 text-[7px] bg-black/60 text-white px-1 rounded">{variantLabel}</div>
+                          {v?.is_active && <div className="absolute top-6 right-1"><Badge className="text-[7px] px-1 py-0 bg-primary">Active</Badge></div>}
+                        </>
+                      );
+                    })()}
                     <div className="absolute top-0 left-0 right-0 h-2/3 bg-black/40 opacity-0 hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
                       <Button size="icon" variant="ghost" className="h-6 w-6 text-white hover:text-white hover:bg-white/20"
                         onClick={(e) => { e.stopPropagation(); handleSelectVideoVariant(videoVariantsDb[vidVariantIndex]); }}
