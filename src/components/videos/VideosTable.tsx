@@ -847,6 +847,33 @@ export function VideosTable({
         {filteredVideos.length} из {videos.length} записей
       </div>
       </div>
+
+      {/* Confirm publish for unchecked video */}
+      <AlertDialog open={!!publishConfirmVideo} onOpenChange={(o) => !o && setPublishConfirmVideo(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Ролик ещё не проверен</AlertDialogTitle>
+          </AlertDialogHeader>
+          <p className="text-sm text-muted-foreground">
+            Ролик «{publishConfirmVideo?.video_title || publishConfirmVideo?.question || ''}» не отмечен как проверенный. Отметить и отправить на публикацию?
+          </p>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Отмена</AlertDialogCancel>
+            <AlertDialogAction onClick={async () => {
+              if (publishConfirmVideo) {
+                await onUpdateVideo?.(publishConfirmVideo.id, { is_ready: true });
+                const channelIds = publishConfirmVideo.selected_channels?.length
+                  ? publishConfirmVideo.selected_channels
+                  : publishingChannels.filter(c => c.is_active).map(c => c.id);
+                await onPublish?.(publishConfirmVideo, channelIds);
+              }
+              setPublishConfirmVideo(null);
+            }}>
+              Проверить и отправить
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
