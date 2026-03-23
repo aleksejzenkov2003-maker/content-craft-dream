@@ -495,7 +495,7 @@ const minuteOptions = [0, 5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55];
 
   const getStatusBadge = (status: string) => {
     const config = statusLabels[status] || statusLabels.pending;
-    return <Badge variant={config.variant}>{config.label}</Badge>;
+    return <Badge variant={config.variant} className="whitespace-nowrap">{config.label}</Badge>;
   };
 
   const getPublicationTitle = (pub: Publication) => {
@@ -724,7 +724,7 @@ const minuteOptions = [0, 5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55];
                         );
                       })()}
                     </TableHead>
-                    <TableHead className="w-[500px] py-1">Заголовок</TableHead>
+                    <TableHead className="py-1">Заголовок</TableHead>
                     <TableHead 
                       className="w-[60px] py-1 cursor-pointer hover:bg-accent/50"
                       onClick={() => handleSort('video_number')}
@@ -733,7 +733,7 @@ const minuteOptions = [0, 5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55];
                         ID {getSortIcon('video_number')}
                       </div>
                     </TableHead>
-                    <TableHead className="w-[100px] py-1">Учетная запись</TableHead>
+                    <TableHead className="w-[120px] py-1 whitespace-nowrap">Учетная запись</TableHead>
                     <TableHead 
                       className="w-[110px] py-1 cursor-pointer hover:bg-accent/50"
                       onClick={() => handleSort('post_date')}
@@ -748,7 +748,7 @@ const minuteOptions = [0, 5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55];
                     <TableHead className="w-[50px] py-1">Склейка</TableHead>
                     <TableHead className="w-[50px] py-1">Текст</TableHead>
                     <TableHead className="w-[70px] py-1">Проверка</TableHead>
-                    <TableHead className="w-[90px] py-1">Публикация</TableHead>
+                    <TableHead className="w-[110px] py-1">Публикация</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -777,7 +777,7 @@ onClick={() => setEditingPublicationId(pub.id)}
                       </TableCell>
                       {/* Заголовок */}
                       <TableCell className="py-1">
-                        <span className="truncate block max-w-[500px]" title={getPublicationTitle(pub)}>
+                        <span className="truncate block" title={getPublicationTitle(pub)}>
                           {getPublicationTitle(pub)}
                         </span>
                       </TableCell>
@@ -787,7 +787,7 @@ onClick={() => setEditingPublicationId(pub.id)}
                       </TableCell>
                       {/* Учетная запись */}
                       <TableCell className="py-1">
-                        <Badge variant="outline" className="text-[10px] px-1.5 py-0">{pub.channel?.name || '—'}</Badge>
+                        <Badge variant="outline" className="text-[10px] px-1.5 py-0 whitespace-nowrap">{pub.channel?.name || '—'}</Badge>
                       </TableCell>
                       {/* Дата */}
                       <TableCell className="py-1" onClick={(e) => e.stopPropagation()}>
