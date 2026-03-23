@@ -197,7 +197,7 @@ function DetailBlock({ label, data, color }: { label: string; data: unknown; col
 }
 
 export function ActiveProcesses({ onNavigateToVideo, ffmpegProgress }: ActiveProcessesProps) {
-  const { activeVideos, recentVideos, loading } = useActiveProcesses();
+  const { activeVideos, recentVideos, activePublications, recentPublications, loading } = useActiveProcesses();
 
   // Merge ffmpegProgress videos that might not be in activeVideos
   const ffmpegVideoIds = ffmpegProgress ? Object.keys(ffmpegProgress) : [];
