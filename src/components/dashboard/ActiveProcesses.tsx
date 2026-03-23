@@ -5,7 +5,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { Progress } from '@/components/ui/progress';
-import { useActiveProcesses, type ActiveVideo, type ProcessLog } from '@/hooks/useActiveProcesses';
+import { useActiveProcesses, type ActiveVideo, type ActivePublication, type ProcessLog } from '@/hooks/useActiveProcesses';
 
 interface FFmpegProgress {
   phase: string;
@@ -63,9 +63,11 @@ function ProcessCard({ video, onNavigate, ffmpeg }: { video: ActiveVideo; onNavi
             <span className="text-sm font-medium truncate">{title}</span>
             {advisorName && <Badge variant="outline" className="text-xs shrink-0">{advisorName}</Badge>}
           </div>
-          <div className="flex items-center gap-2 mt-1 text-xs text-muted-foreground">
+          <div className="flex items-center gap-2 mt-1 text-xs text-muted-foreground flex-wrap">
             <span className={status.color}>{status.label}</span>
             {video.generation_count ? <span>· Попытка #{video.generation_count}</span> : null}
+            {video.question_id != null && <span>· Q#{video.question_id}</span>}
+            <span className="font-mono text-[10px] opacity-60">· {video.id.slice(0, 8)}</span>
           </div>
           {ffmpeg && ffmpeg.phase !== 'done' && (
             <Progress value={ffmpeg.progress} className="h-1.5 mt-2" />
@@ -85,6 +87,54 @@ function ProcessCard({ video, onNavigate, ffmpeg }: { video: ActiveVideo; onNavi
           <CollapsibleContent>
             <div className="px-3 pb-3 space-y-1">
               {video.logs.map((log) => (
+                <LogEntry key={log.id} log={log} isExpanded={expandedLog === log.id} onToggle={() => setExpandedLog(expandedLog === log.id ? null : log.id)} />
+              ))}
+            </div>
+          </CollapsibleContent>
+        </Collapsible>
+      )}
+    </div>
+  );
+}
+
+function getPublicationStatusInfo(status: string | null): { label: string; color: string } {
+  switch (status) {
+    case 'publishing': return { label: 'Публикация...', color: 'text-amber-500' };
+    case 'generating_text': return { label: 'Генерация текста...', color: 'text-blue-500' };
+    case 'concatenating': return { label: 'Склейка видео...', color: 'text-cyan-500' };
+    case 'published': return { label: 'Опубликовано', color: 'text-emerald-500' };
+    case 'error': return { label: 'Ошибка', color: 'text-destructive' };
+    default: return { label: status || '—', color: 'text-muted-foreground' };
+  }
+}
+
+function PublicationCard({ pub }: { pub: ActivePublication }) {
+  const [expanded, setExpanded] = useState(false);
+  const [expandedLog, setExpandedLog] = useState<string | null>(null);
+  const status = getPublicationStatusInfo(pub.publication_status);
+
+  return (
+    <div className="border rounded-lg overflow-hidden">
+      <div className="p-3">
+        <div className="flex items-center gap-2">
+          <span className={`text-sm font-medium ${status.color}`}>●</span>
+          <span className="text-sm font-medium truncate">{pub.video_title || 'Без названия'}</span>
+          {pub.channel_name && <Badge variant="outline" className="text-xs shrink-0">{pub.channel_name}</Badge>}
+        </div>
+        <div className="flex items-center gap-2 mt-1 text-xs text-muted-foreground">
+          <span className={status.color}>{status.label}</span>
+          <span className="font-mono text-[10px] opacity-60">· {pub.id.slice(0, 8)}</span>
+        </div>
+      </div>
+      {pub.logs.length > 0 && (
+        <Collapsible open={expanded} onOpenChange={setExpanded}>
+          <CollapsibleTrigger className="w-full px-3 pb-2 flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors">
+            {expanded ? <ChevronDown className="h-3 w-3" /> : <ChevronRight className="h-3 w-3" />}
+            История шагов ({pub.logs.length})
+          </CollapsibleTrigger>
+          <CollapsibleContent>
+            <div className="px-3 pb-3 space-y-1">
+              {pub.logs.map((log) => (
                 <LogEntry key={log.id} log={log} isExpanded={expandedLog === log.id} onToggle={() => setExpandedLog(expandedLog === log.id ? null : log.id)} />
               ))}
             </div>
@@ -147,7 +197,7 @@ function DetailBlock({ label, data, color }: { label: string; data: unknown; col
 }
 
 export function ActiveProcesses({ onNavigateToVideo, ffmpegProgress }: ActiveProcessesProps) {
-  const { activeVideos, recentVideos, loading } = useActiveProcesses();
+  const { activeVideos, recentVideos, activePublications, recentPublications, loading } = useActiveProcesses();
 
   // Merge ffmpegProgress videos that might not be in activeVideos
   const ffmpegVideoIds = ffmpegProgress ? Object.keys(ffmpegProgress) : [];
@@ -171,7 +221,7 @@ export function ActiveProcesses({ onNavigateToVideo, ffmpegProgress }: ActivePro
     );
   }
 
-  const hasContent = activeVideos.length > 0 || recentVideos.length > 0 || ffmpegVideoIds.length > 0;
+  const hasContent = activeVideos.length > 0 || recentVideos.length > 0 || ffmpegVideoIds.length > 0 || activePublications.length > 0 || recentPublications.length > 0;
 
   return (
     <Card>
@@ -179,8 +229,8 @@ export function ActiveProcesses({ onNavigateToVideo, ffmpegProgress }: ActivePro
         <CardTitle className="text-lg flex items-center gap-2">
           <Activity className="h-5 w-5" />
           Активные процессы
-          {(activeVideos.length > 0 || ffmpegVideoIds.length > 0) && (
-            <Badge variant="default" className="ml-1">{Math.max(activeVideos.length, ffmpegVideoIds.length)}</Badge>
+          {(activeVideos.length > 0 || ffmpegVideoIds.length > 0 || activePublications.length > 0) && (
+            <Badge variant="default" className="ml-1">{Math.max(activeVideos.length, ffmpegVideoIds.length) + activePublications.length}</Badge>
           )}
         </CardTitle>
       </CardHeader>
@@ -197,11 +247,29 @@ export function ActiveProcesses({ onNavigateToVideo, ffmpegProgress }: ActivePro
               </div>
             )}
 
+            {activePublications.length > 0 && (
+              <div className="space-y-2">
+                <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Публикации</p>
+                {activePublications.map(p => (
+                  <PublicationCard key={p.id} pub={p} />
+                ))}
+              </div>
+            )}
+
             {recentVideos.length > 0 && (
               <div className="space-y-2">
                 <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">История роликов</p>
                 {recentVideos.map(v => (
                   <ProcessCard key={v.id} video={v} onNavigate={() => onNavigateToVideo(v.id)} />
+                ))}
+              </div>
+            )}
+
+            {recentPublications.length > 0 && (
+              <div className="space-y-2">
+                <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">История публикаций</p>
+                {recentPublications.map(p => (
+                  <PublicationCard key={p.id} pub={p} />
                 ))}
               </div>
             )}
