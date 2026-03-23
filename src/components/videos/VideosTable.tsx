@@ -619,6 +619,10 @@ export function VideosTable({
                           {video.video_duration ? `${Math.floor(video.video_duration / 60)}:${String(Math.round(video.video_duration % 60)).padStart(2, '0')}` : '—'}
                         </div>
 
+                        {/* Final video date */}
+                        <div className="text-[10px] text-muted-foreground leading-tight">
+                          {video.video_path ? format(new Date(video.updated_at), 'dd.MM', { locale: ru }) : '—'}
+                        </div>
 
                         {/* Video preview */}
                         <div onClick={(e) => e.stopPropagation()}>
