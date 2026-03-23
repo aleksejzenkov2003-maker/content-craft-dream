@@ -53,7 +53,6 @@ export function useActiveProcesses() {
   const fetchProcesses = useCallback(async () => {
     try {
       const activeSince = new Date(Date.now() - ACTIVE_WINDOW_MINUTES * 60 * 1000).toISOString();
-
       // Fetch only truly active videos updated recently
       const { data: active, error: activeErr } = await supabase
         .from('videos')
