@@ -77,6 +77,7 @@ export default function Index() {
   const [publicationsTab, setPublicationsTab] = useState('by-channel');
   const [autoSubtitleProgress, setAutoSubtitleProgress] = useState<Record<string, { phase: string; progress: number }>>({});
   const [motionError, setMotionError] = useState<{ message: string; videoId: string; resolve: (continueWithout: boolean) => void } | null>(null);
+  const [regenConfirm, setRegenConfirm] = useState<{ videoId: string; resolve: (confirmed: boolean) => void } | null>(null);
   const { advisors, loading: advisorsLoading, addAdvisor, updateAdvisor, deleteAdvisor, addPhoto, deletePhoto, setPrimaryPhoto, updatePhotoAssetId, bulkImport: bulkImportAdvisors } = useAdvisors();
   const { playlists, loading: playlistsLoading, addPlaylist, updatePlaylist, deletePlaylist } = usePlaylists();
   const { videos: allVideos, loading: allVideosLoading, refetch: refetchAllVideos, bulkUpdate: bulkUpdateAll } = useVideos();
@@ -704,6 +705,14 @@ export default function Index() {
       toast.error('Сначала создайте озвучку');
       return;
     }
+    // Confirm re-generation if video was already generated and nothing changed
+    if ((video as any).generation_count >= 1 && video.heygen_video_url) {
+      const confirmed = await new Promise<boolean>((resolve) => {
+        setRegenConfirm({ videoId: video.id, resolve });
+      });
+      setRegenConfirm(null);
+      if (!confirmed) return;
+    }
     try {
       // Explicit motion step before video generation
       const shouldContinue = await prepareMotionStep(video);
@@ -750,6 +759,14 @@ export default function Index() {
     if (!video.advisor_answer) {
       toast.error('Сначала нужен ответ духовника');
       return;
+    }
+    // Confirm re-generation if video was already generated, voiceover exists, and nothing seems changed
+    if ((video as any).generation_count >= 1 && video.heygen_video_url && video.voiceover_url) {
+      const confirmed = await new Promise<boolean>((resolve) => {
+        setRegenConfirm({ videoId: video.id, resolve });
+      });
+      setRegenConfirm(null);
+      if (!confirmed) return;
     }
     try {
       // Step 1: Generate voiceover if missing
@@ -1687,6 +1704,21 @@ export default function Index() {
           <AlertDialogFooter>
             <AlertDialogCancel onClick={() => motionError?.resolve(false)}>Нет, отменить</AlertDialogCancel>
             <AlertDialogAction onClick={() => motionError?.resolve(true)}>Да, продолжить</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+      {/* Re-generation confirmation */}
+      <AlertDialog open={!!regenConfirm} onOpenChange={(open) => { if (!open && regenConfirm) regenConfirm.resolve(false); }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Повторная генерация</AlertDialogTitle>
+            <AlertDialogDescription>
+              Видео уже было сгенерировано ранее и изменений в составе не обнаружено. Уверены, что хотите перегенерировать?
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={() => regenConfirm?.resolve(false)}>Отмена</AlertDialogCancel>
+            <AlertDialogAction onClick={() => regenConfirm?.resolve(true)}>Да, перегенерировать</AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
