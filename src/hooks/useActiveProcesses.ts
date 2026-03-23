@@ -164,5 +164,5 @@ export function useActiveProcesses() {
     return () => { supabase.removeChannel(channel); };
   }, [fetchProcesses]);
 
-  return { activeVideos, recentVideos, loading, refetch: fetchProcesses };
+  return { activeVideos, recentVideos, activePublications, recentPublications, loading, refetch: fetchProcesses };
 }
