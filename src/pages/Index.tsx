@@ -705,6 +705,14 @@ export default function Index() {
       toast.error('Сначала создайте озвучку');
       return;
     }
+    // Confirm re-generation if video was already generated and nothing changed
+    if ((video as any).generation_count >= 1 && video.heygen_video_url) {
+      const confirmed = await new Promise<boolean>((resolve) => {
+        setRegenConfirm({ videoId: video.id, resolve });
+      });
+      setRegenConfirm(null);
+      if (!confirmed) return;
+    }
     try {
       // Explicit motion step before video generation
       const shouldContinue = await prepareMotionStep(video);
