@@ -263,7 +263,7 @@ serve(async (req) => {
     (settingsRows || []).forEach((r: any) => { settingsMap[r.key] = r.value; });
     
     const heygenMode = settingsMap['heygen_mode'] || 'v3';
-    const motionEnabled = settingsMap['motion_enabled'] !== 'false'; // default true
+    const motionEnabled = settingsMap['motion_enabled'] === 'true'; // default false — only enable when explicitly set
     const videoFormatMode = settingsMap['video_format_mode'] || 'full_photo';
     const isOverlayMode = videoFormatMode === 'background_overlay';
     const heygenEndpoint = heygenMode === 'v4'
