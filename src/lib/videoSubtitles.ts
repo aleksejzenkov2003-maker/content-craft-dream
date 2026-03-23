@@ -125,8 +125,9 @@ function buildHighlightDrawtextFilter(
 
   for (const b of blocks) {
     const escaped = escapeDrawtext(b.text);
+    const marginX = 40;
     filters.push(
-      `drawtext=fontfile=${FONT_PATH}:text='${escaped}':fontsize=${fontSize}:fontcolor=white:borderw=3:bordercolor=black:x=(w-text_w)/2:y=(h*0.55):enable='between(t,${b.startSec.toFixed(3)},${b.endSec.toFixed(3)})'`
+      `drawtext=fontfile=${FONT_PATH}:text='${escaped}':fontsize=${fontSize}:fontcolor=white:borderw=3:bordercolor=black:x=if(gt(text_w\\,w-${marginX * 2})\\,${marginX}\\,(w-text_w)/2):y=(h*0.55):enable='between(t,${b.startSec.toFixed(3)},${b.endSec.toFixed(3)})'`
     );
   }
 
