@@ -221,7 +221,7 @@ export function ActiveProcesses({ onNavigateToVideo, ffmpegProgress }: ActivePro
     );
   }
 
-  const hasContent = activeVideos.length > 0 || recentVideos.length > 0 || ffmpegVideoIds.length > 0;
+  const hasContent = activeVideos.length > 0 || recentVideos.length > 0 || ffmpegVideoIds.length > 0 || activePublications.length > 0 || recentPublications.length > 0;
 
   return (
     <Card>
@@ -229,8 +229,8 @@ export function ActiveProcesses({ onNavigateToVideo, ffmpegProgress }: ActivePro
         <CardTitle className="text-lg flex items-center gap-2">
           <Activity className="h-5 w-5" />
           Активные процессы
-          {(activeVideos.length > 0 || ffmpegVideoIds.length > 0) && (
-            <Badge variant="default" className="ml-1">{Math.max(activeVideos.length, ffmpegVideoIds.length)}</Badge>
+          {(activeVideos.length > 0 || ffmpegVideoIds.length > 0 || activePublications.length > 0) && (
+            <Badge variant="default" className="ml-1">{Math.max(activeVideos.length, ffmpegVideoIds.length) + activePublications.length}</Badge>
           )}
         </CardTitle>
       </CardHeader>
@@ -247,11 +247,29 @@ export function ActiveProcesses({ onNavigateToVideo, ffmpegProgress }: ActivePro
               </div>
             )}
 
+            {activePublications.length > 0 && (
+              <div className="space-y-2">
+                <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Публикации</p>
+                {activePublications.map(p => (
+                  <PublicationCard key={p.id} pub={p} />
+                ))}
+              </div>
+            )}
+
             {recentVideos.length > 0 && (
               <div className="space-y-2">
                 <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">История роликов</p>
                 {recentVideos.map(v => (
                   <ProcessCard key={v.id} video={v} onNavigate={() => onNavigateToVideo(v.id)} />
+                ))}
+              </div>
+            )}
+
+            {recentPublications.length > 0 && (
+              <div className="space-y-2">
+                <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">История публикаций</p>
+                {recentPublications.map(p => (
+                  <PublicationCard key={p.id} pub={p} />
                 ))}
               </div>
             )}
