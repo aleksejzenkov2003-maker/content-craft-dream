@@ -1365,6 +1365,7 @@ export default function Index() {
                     toast.info('Нет каналов для публикации. Добавьте каналы в настройках.');
                   }
                 }}
+                onPublish={handlePublishVideo}
                 filters={videoFilters}
                 onFilterChange={setVideoFilters}
               />
