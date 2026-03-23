@@ -91,12 +91,17 @@ export function useBackgroundVideos() {
   const saveAssignments = async (backgroundId: string, pairs: { playlist_id: string; advisor_id: string }[]) => {
     try {
       // Delete existing assignments for this background
-      await (supabase.from('background_assignments' as any) as any).delete().eq('background_id', backgroundId);
-      // Insert new ones
+      const { error: deleteError } = await (supabase.from('background_assignments' as any) as any).delete().eq('background_id', backgroundId);
+      if (deleteError) throw deleteError;
+      // Insert new ones in chunks of 50 to avoid payload limits
       if (pairs.length > 0) {
         const rows = pairs.map(p => ({ background_id: backgroundId, playlist_id: p.playlist_id, advisor_id: p.advisor_id }));
-        const { error } = await (supabase.from('background_assignments' as any) as any).insert(rows);
-        if (error) throw error;
+        const CHUNK_SIZE = 50;
+        for (let i = 0; i < rows.length; i += CHUNK_SIZE) {
+          const chunk = rows.slice(i, i + CHUNK_SIZE);
+          const { error } = await (supabase.from('background_assignments' as any) as any).insert(chunk);
+          if (error) throw error;
+        }
       }
       await fetchBackgrounds();
       toast.success('Назначения сохранены');

@@ -198,12 +198,13 @@ export function BackgroundVideosGrid() {
                 <Label>Файл (видео или фото)</Label>
                 {mediaUrl ? (
                   <div className="space-y-2">
-                    <MediaPreview
-                      src={mediaUrl}
-                      type={mediaType === 'image' ? 'image' : 'video'}
-                      alt={title}
-                      className="aspect-[9/16] w-full rounded-lg overflow-hidden"
-                    />
+                    <div className="aspect-[9/16] w-full rounded-lg overflow-hidden bg-muted border border-border/50">
+                      {mediaType === 'image' ? (
+                        <img src={mediaUrl} alt={title || ''} className="w-full h-full object-cover" />
+                      ) : (
+                        <video src={mediaUrl} className="w-full h-full object-cover" controls muted preload="metadata" />
+                      )}
+                    </div>
                     <Button variant="outline" size="sm" className="w-full" onClick={() => setMediaUrl('')}>
                       Заменить файл
                     </Button>
