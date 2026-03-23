@@ -10,10 +10,17 @@ import { useBackgroundVideos, BackgroundVideo } from '@/hooks/useBackgroundVideo
 import { useAdvisors } from '@/hooks/useAdvisors';
 import { usePlaylists } from '@/hooks/usePlaylists';
 import { FileUploader } from '@/components/upload/FileUploader';
-import { MediaPreview } from '@/components/ui/media-preview';
+
+// Use :: as separator — it never appears in UUIDs
+const PAIR_SEP = '::';
+const makePairKey = (playlistId: string, advisorId: string) => `${playlistId}${PAIR_SEP}${advisorId}`;
+const parsePairKey = (key: string): [string, string] => {
+  const idx = key.indexOf(PAIR_SEP);
+  return [key.slice(0, idx), key.slice(idx + PAIR_SEP.length)];
+};
 
 export function BackgroundVideosGrid() {
-  const { backgrounds, assignments, loading, addBackground, updateBackground, deleteBackground, saveAssignments } = useBackgroundVideos();
+  const { backgrounds, assignments, loading, addBackground, updateBackground, deleteBackground, saveAssignments, refetch } = useBackgroundVideos();
   const { advisors, loading: advisorsLoading } = useAdvisors();
   const { playlists, loading: playlistsLoading } = usePlaylists();
 
@@ -28,7 +35,6 @@ export function BackgroundVideosGrid() {
 
   const isLoading = loading || advisorsLoading || playlistsLoading;
 
-  // Build assignment count per background
   const assignmentCounts = useMemo(() => {
     const map = new Map<string, number>();
     assignments.forEach(a => {
@@ -53,17 +59,16 @@ export function BackgroundVideosGrid() {
     setTitle(bg.title || '');
     setMediaUrl(bg.media_url);
     setMediaType(bg.media_type === 'image' ? 'image' : 'video');
-    // Load existing assignments
     const pairs = new Set<string>();
     assignments.filter(a => a.background_id === bg.id).forEach(a => {
-      if (a.playlist_id && a.advisor_id) pairs.add(`${a.playlist_id}-${a.advisor_id}`);
+      if (a.playlist_id && a.advisor_id) pairs.add(makePairKey(a.playlist_id, a.advisor_id));
     });
     setSelectedPairs(pairs);
     setExpandedPlaylists(new Set());
   };
 
   const togglePair = (playlistId: string, advisorId: string) => {
-    const key = `${playlistId}-${advisorId}`;
+    const key = makePairKey(playlistId, advisorId);
     setSelectedPairs(prev => {
       const next = new Set(prev);
       next.has(key) ? next.delete(key) : next.add(key);
@@ -72,7 +77,7 @@ export function BackgroundVideosGrid() {
   };
 
   const togglePlaylistAll = (playlistId: string) => {
-    const allKeys = advisors.map(a => `${playlistId}-${a.id}`);
+    const allKeys = advisors.map(a => makePairKey(playlistId, a.id));
     const allSelected = allKeys.every(k => selectedPairs.has(k));
     setSelectedPairs(prev => {
       const next = new Set(prev);
@@ -85,27 +90,17 @@ export function BackgroundVideosGrid() {
     if (!mediaUrl) return;
     setSaving(true);
     try {
-      let bgId: string;
+      let bgId: string | null;
       if (isNew) {
-        // Create background first, then fetch to get id
-        await addBackground({ media_url: mediaUrl, media_type: mediaType, title: title || undefined });
-        // Get the newly created background (latest one)
-        const { data } = await (await import('@/integrations/supabase/client')).supabase
-          .from('background_videos' as any)
-          .select('id')
-          .eq('media_url', mediaUrl)
-          .order('created_at', { ascending: false })
-          .limit(1) as any;
-        bgId = data?.[0]?.id;
+        bgId = await addBackground({ media_url: mediaUrl, media_type: mediaType, title: title || undefined });
       } else {
         bgId = editingBg!.id;
         await updateBackground(bgId, { title: title || undefined, media_url: mediaUrl, media_type: mediaType });
       }
 
-      // Save assignments
       if (bgId) {
         const pairs = Array.from(selectedPairs).map(key => {
-          const [pid, aid] = key.split('-');
+          const [pid, aid] = parsePairKey(key);
           return { playlist_id: pid, advisor_id: aid };
         });
         await saveAssignments(bgId, pairs);
@@ -113,6 +108,8 @@ export function BackgroundVideosGrid() {
 
       setEditingBg(null);
       setIsNew(false);
+    } catch {
+      // Don't close dialog on error so user can retry
     } finally {
       setSaving(false);
     }
@@ -147,7 +144,6 @@ export function BackgroundVideosGrid() {
         </Button>
       </div>
 
-      {/* Cards grid */}
       <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-4">
         {backgrounds.map(bg => (
           <div key={bg.id} className="rounded-lg border bg-card overflow-hidden group relative">
@@ -180,15 +176,13 @@ export function BackgroundVideosGrid() {
         ))}
       </div>
 
-      {/* Edit / Create dialog */}
       <Dialog open={showDialog} onOpenChange={(open) => { if (!open) { setEditingBg(null); setIsNew(false); } }}>
-         <DialogContent className="max-w-2xl max-h-[90vh] flex flex-col">
+        <DialogContent className="max-w-2xl max-h-[90vh] flex flex-col">
           <DialogHeader>
             <DialogTitle>{isNew ? 'Новая подложка' : 'Редактировать подложку'}</DialogTitle>
           </DialogHeader>
 
           <div className="grid grid-cols-2 gap-6 min-h-0 flex-1 overflow-hidden">
-            {/* Left: media */}
             <div className="space-y-4 overflow-y-auto pr-1">
               <div className="space-y-2">
                 <Label>Название</Label>
@@ -221,7 +215,6 @@ export function BackgroundVideosGrid() {
               </div>
             </div>
 
-            {/* Right: assignments */}
             <div className="space-y-2 flex flex-col min-h-0">
               <div className="flex items-center justify-between">
                 <Label>Назначения (плейлист → духовник)</Label>
@@ -230,19 +223,19 @@ export function BackgroundVideosGrid() {
                   size="sm"
                   className="text-xs h-6 px-2"
                   onClick={() => {
-                    const allKeys = playlists.flatMap(p => advisors.map(a => `${p.id}-${a.id}`));
+                    const allKeys = playlists.flatMap(p => advisors.map(a => makePairKey(p.id, a.id)));
                     const allSelected = allKeys.length > 0 && allKeys.every(k => selectedPairs.has(k));
                     setSelectedPairs(allSelected ? new Set() : new Set(allKeys));
                   }}
                 >
-                  {playlists.flatMap(p => advisors.map(a => `${p.id}-${a.id}`)).every(k => selectedPairs.has(k)) && playlists.length > 0
+                  {playlists.flatMap(p => advisors.map(a => makePairKey(p.id, a.id))).every(k => selectedPairs.has(k)) && playlists.length > 0
                     ? 'Снять все'
                     : 'Выбрать все'}
                 </Button>
               </div>
               <div className="flex-1 overflow-y-auto border rounded-lg p-2 space-y-1">
                 {playlists.map(p => {
-                  const allKeys = advisors.map(a => `${p.id}-${a.id}`);
+                  const allKeys = advisors.map(a => makePairKey(p.id, a.id));
                   const allSelected = allKeys.length > 0 && allKeys.every(k => selectedPairs.has(k));
                   const someSelected = allKeys.some(k => selectedPairs.has(k));
                   const isExpanded = expandedPlaylists.has(p.id);
@@ -274,7 +267,7 @@ export function BackgroundVideosGrid() {
                           {advisors.map(a => (
                             <label key={a.id} className="flex items-center gap-2 text-sm cursor-pointer hover:bg-muted/50 px-1 py-0.5 rounded">
                               <Checkbox
-                                checked={selectedPairs.has(`${p.id}-${a.id}`)}
+                                checked={selectedPairs.has(makePairKey(p.id, a.id))}
                                 onCheckedChange={() => togglePair(p.id, a.id)}
                               />
                               {a.display_name || a.name}

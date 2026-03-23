@@ -45,16 +45,16 @@ export function useBackgroundVideos() {
 
   useEffect(() => { fetchBackgrounds(); }, [fetchBackgrounds]);
 
-  const addBackground = async (data: { media_url: string; media_type?: string; title?: string }) => {
+  const addBackground = async (data: { media_url: string; media_type?: string; title?: string }): Promise<string | null> => {
     try {
-      const { error } = await (supabase.from('background_videos' as any) as any).insert({
+      const { data: inserted, error } = await (supabase.from('background_videos' as any) as any).insert({
         media_url: data.media_url,
         media_type: data.media_type || 'video',
         title: data.title || null,
-      });
+      }).select('id').single();
       if (error) throw error;
-      await fetchBackgrounds();
       toast.success('Подложка добавлена');
+      return inserted?.id || null;
     } catch (error: any) {
       console.error('Error adding background:', error);
       toast.error('Ошибка добавления подложки');
@@ -66,7 +66,6 @@ export function useBackgroundVideos() {
     try {
       const { error } = await (supabase.from('background_videos' as any) as any).update(data).eq('id', id);
       if (error) throw error;
-      await fetchBackgrounds();
       toast.success('Подложка обновлена');
     } catch (error: any) {
       console.error('Error updating background:', error);
