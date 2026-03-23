@@ -223,7 +223,23 @@ export function BackgroundVideosGrid() {
 
             {/* Right: assignments */}
             <div className="space-y-2 flex flex-col min-h-0">
-              <Label>Назначения (плейлист → духовник)</Label>
+              <div className="flex items-center justify-between">
+                <Label>Назначения (плейлист → духовник)</Label>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="text-xs h-6 px-2"
+                  onClick={() => {
+                    const allKeys = playlists.flatMap(p => advisors.map(a => `${p.id}-${a.id}`));
+                    const allSelected = allKeys.length > 0 && allKeys.every(k => selectedPairs.has(k));
+                    setSelectedPairs(allSelected ? new Set() : new Set(allKeys));
+                  }}
+                >
+                  {playlists.flatMap(p => advisors.map(a => `${p.id}-${a.id}`)).every(k => selectedPairs.has(k)) && playlists.length > 0
+                    ? 'Снять все'
+                    : 'Выбрать все'}
+                </Button>
+              </div>
               <div className="flex-1 overflow-y-auto border rounded-lg p-2 space-y-1">
                 {playlists.map(p => {
                   const allKeys = advisors.map(a => `${p.id}-${a.id}`);
