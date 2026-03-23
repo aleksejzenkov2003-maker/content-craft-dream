@@ -19,12 +19,13 @@ interface ActiveProcessesProps {
 
 function getOverallStatus(v: ActiveVideo, ffmpeg?: FFmpegProgress): { label: string; color: string } {
   if (ffmpeg) {
-    const phaseLabels: Record<string, string> = {
+  const phaseLabels: Record<string, string> = {
       reducing_bitrate: 'Сжатие битрейта...',
       burning_subtitles: 'Вшивка субтитров...',
       downloading: 'Скачивание видео...',
       uploading_result: 'Загрузка результата...',
       loading_ffmpeg: 'Загрузка FFmpeg...',
+      creating_intro: 'Создание интро из обложки...',
       done: 'Готово',
     };
     return { label: phaseLabels[ffmpeg.phase] || ffmpeg.phase, color: 'text-cyan-500' };
