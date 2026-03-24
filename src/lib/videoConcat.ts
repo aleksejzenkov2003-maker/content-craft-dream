@@ -63,19 +63,25 @@ async function normalizeSegment(
 ): Promise<void> {
   signal?.throwIfAborted();
 
-  // First try with existing audio
-  await ff.exec([
-    '-i', inputName,
-    '-f', 'lavfi', '-i', `anullsrc=r=${TARGET.audioRate}:cl=${TARGET.audioChannels}`,
-    '-filter_complex',
-    `[0:v]${VIDEO_FILTER}[vout];[0:a]${AUDIO_FILTER}[aout]`,
-    '-map', '[vout]', '-map', '[aout]',
-    '-c:v', 'libx264', '-preset', 'ultrafast', '-crf', '23',
-    '-c:a', 'aac', '-ar', String(TARGET.audioRate), '-b:a', TARGET.audioBitrate,
-    '-pix_fmt', TARGET.pixFmt,
-    '-shortest',
-    '-y', outputName,
-  ]);
+  let primarySucceeded = false;
+  try {
+    // First try with existing audio track
+    await ff.exec([
+      '-i', inputName,
+      '-f', 'lavfi', '-i', `anullsrc=r=${TARGET.audioRate}:cl=${TARGET.audioChannels}`,
+      '-filter_complex',
+      `[0:v]${VIDEO_FILTER}[vout];[0:a]${AUDIO_FILTER}[aout]`,
+      '-map', '[vout]', '-map', '[aout]',
+      '-c:v', 'libx264', '-preset', 'ultrafast', '-crf', '23',
+      '-c:a', 'aac', '-ar', String(TARGET.audioRate), '-b:a', TARGET.audioBitrate,
+      '-pix_fmt', TARGET.pixFmt,
+      '-shortest',
+      '-y', outputName,
+    ]);
+    primarySucceeded = true;
+  } catch {
+    primarySucceeded = false;
+  }
 
   // Check if output was created and has reasonable size
   let ok = false;
@@ -87,7 +93,7 @@ async function normalizeSegment(
     ok = false;
   }
 
-  if (!ok) {
+  if (!primarySucceeded || !ok) {
     // Fallback: segment has no audio track, use silent audio from anullsrc
     console.warn(`[videoConcat] Segment ${inputName} has no audio, injecting silence`);
     await ff.deleteFile(outputName).catch(() => undefined);

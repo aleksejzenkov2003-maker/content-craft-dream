@@ -124,11 +124,30 @@ function buildHighlightDrawtextFilter(
   const filters: string[] = [];
 
   for (const b of blocks) {
-    const escaped = escapeDrawtext(b.text);
+    const lineText = normalizeSpaces(b.text);
+    const escapedLine = escapeDrawtext(lineText);
     const marginX = 40;
+
+    // Base line (white) for the whole block interval.
     filters.push(
-      `drawtext=fontfile=${FONT_PATH}:text='${escaped}':fontsize=${fontSize}:fontcolor=white:borderw=3:bordercolor=black:x=if(gt(text_w\\,w-${marginX * 2})\\,${marginX}\\,(w-text_w)/2):y=(h*0.55):enable='between(t,${b.startSec.toFixed(3)},${b.endSec.toFixed(3)})'`
+      `drawtext=fontfile=${FONT_PATH}:text='${escapedLine}':fontsize=${fontSize}:fontcolor=white:borderw=3:bordercolor=black:x=if(gt(text_w\\,w-${marginX * 2})\\,${marginX}\\,(w-text_w)/2):y=(h*0.55):enable='between(t,${b.startSec.toFixed(3)},${b.endSec.toFixed(3)})'`
     );
+
+    // Karaoke-like highlight: word-by-word replacement on the same line.
+    if (b.words && b.words.length > 0) {
+      for (let i = 0; i < b.words.length; i++) {
+        const word = b.words[i];
+        const wordStart = word.start;
+        const wordEnd = i < b.words.length - 1 ? b.words[i + 1].start : word.end;
+        const highlighted = b.words
+          .map((w, idx) => (idx === i ? w.word.toUpperCase() : w.word))
+          .join(' ');
+        const escapedHighlighted = escapeDrawtext(highlighted);
+        filters.push(
+          `drawtext=fontfile=${FONT_PATH}:text='${escapedHighlighted}':fontsize=${fontSize}:fontcolor=yellow:borderw=3:bordercolor=black:x=if(gt(text_w\\,w-${marginX * 2})\\,${marginX}\\,(w-text_w)/2):y=(h*0.55):enable='between(t,${wordStart.toFixed(3)},${wordEnd.toFixed(3)})'`
+        );
+      }
+    }
   }
 
   return filters.join(',');
