@@ -86,6 +86,10 @@ function parseAssTime(str: string): number {
   return parseInt(m[1]) * 3600 + parseInt(m[2]) * 60 + parseInt(m[3]) + parseInt(m[4]) / 100;
 }
 
+function normalizeSpaces(text: string): string {
+  return text.replace(/\s+/g, ' ').trim();
+}
+
 function escapeDrawtext(text: string): string {
   return text
     .replace(/\\/g, '\\\\\\\\')
