@@ -68,15 +68,15 @@ export async function overlayAvatarOnBackground(
       '-i', avatarName,                          // avatar with green screen
       '-filter_complex',
       [
-        // Scale background to target resolution
-        '[0:v]scale=1080:1920:force_original_aspect_ratio=decrease,pad=1080:1920:(ow-iw)/2:(oh-ih)/2,setsar=1[bg]',
-        // Scale avatar and remove green screen
-        '[1:v]scale=1080:1920:force_original_aspect_ratio=decrease,pad=1080:1920:(ow-iw)/2:(oh-ih)/2,setsar=1,colorkey=color=0x00FF00:similarity=0.25:blend=0.08[avatar]',
+        // Background fills the full frame without black bars
+        '[0:v]scale=1080:1920:force_original_aspect_ratio=increase,crop=1080:1920:(iw-1080)/2:(ih-1920)/2,setsar=1[bg]',
+        // Avatar keyed with softer settings (closer to server-side renderer)
+        '[1:v]scale=1080:1920:force_original_aspect_ratio=decrease,pad=1080:1920:(ow-iw)/2:(oh-ih)/2,setsar=1,chromakey=0x00B140:0.30:0.08[avatar]',
         // Overlay avatar on background
         '[bg][avatar]overlay=0:0:shortest=1[v]',
       ].join(';'),
       '-map', '[v]',
-      '-map', '1:a',                            // use avatar's audio
+      '-map', '1:a?',                           // optional avatar audio track
       '-c:v', 'libx264', '-preset', 'ultrafast', '-crf', '23',
       '-c:a', 'aac', '-ar', '48000', '-b:a', '128k',
       '-pix_fmt', 'yuv420p',

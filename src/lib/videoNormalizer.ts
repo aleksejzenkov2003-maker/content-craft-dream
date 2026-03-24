@@ -145,7 +145,12 @@ export async function reduceVideoBitrate(
 
     const args = [
       '-i', inputName,
-      '-vf', `scale=${p.width}:${p.height}`,
+      '-vf',
+      [
+        `scale=${p.width}:${p.height}:force_original_aspect_ratio=decrease`,
+        `pad=${p.width}:${p.height}:(ow-iw)/2:(oh-ih)/2`,
+        'setsar=1',
+      ].join(','),
       '-c:v', 'libx264',
       '-preset', p.preset,
       '-crf', String(p.crf),

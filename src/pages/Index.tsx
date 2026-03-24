@@ -291,7 +291,7 @@ export default function Index() {
           const found = COMPRESSION_PRESETS.find(p => p.id === (presetSetting as any).value);
           if (found) selectedPreset = found;
         }
-        const reducedFile = await reduceVideoBitrate(sourceUrl, (pct) => {
+        const reducedFile = await reduceVideoBitrate(finalUrl, (pct) => {
           updateProgress('reducing_bitrate', Math.round(5 + pct * 40));
         }, undefined, selectedPreset);
 
