@@ -1,5 +1,4 @@
-import { fetchFile } from '@ffmpeg/util';
-import { getSharedFFmpeg } from './ffmpegLoader';
+import { callVpsFFmpeg } from './vpsClient';
 
 export interface CompressionPreset {
   id: string;
@@ -50,132 +49,52 @@ export const COMPRESSION_PRESETS: CompressionPreset[] = [
 export const DEFAULT_COMPRESSION_PRESET = COMPRESSION_PRESETS[1]; // balanced
 
 /**
- * Normalizes a video file's audio to AAC-LC 48kHz mono 128kbps.
- * Video stream is copied without re-encoding.
+ * Normalizes a video file's audio via VPS.
  */
 export async function normalizeVideoAudio(
-  file: File,
+  videoUrl: string,
   onProgress?: (progress: number) => void
-): Promise<File> {
-  const ff = await getSharedFFmpeg((pct) => {
-    onProgress?.(Math.round(pct * 0.1)); // 0-2% for loading
+): Promise<string> {
+  onProgress?.(10);
+
+  const result = await callVpsFFmpeg('normalize-audio', {
+    video_url: videoUrl,
   });
 
-  const progressHandler = ({ progress }: { progress: number }) => {
-    onProgress?.(2 + Math.round(progress * 98));
-  };
-
-  ff.on('progress', progressHandler);
-
-  const uid = Date.now().toString(36);
-  const inputName = `norm_in_${uid}.mp4`;
-  const outputName = `norm_out_${uid}.mp4`;
-
-  try {
-    await ff.writeFile(inputName, await fetchFile(file));
-
-    await ff.exec([
-      '-i', inputName,
-      '-c:v', 'copy',
-      '-c:a', 'aac',
-      '-ar', '48000',
-      '-ac', '1',
-      '-b:a', '128k',
-      '-y', outputName,
-    ]);
-
-    const data = await ff.readFile(outputName);
-    const uint8 = data instanceof Uint8Array ? data : new TextEncoder().encode(data as string);
-    const blob = new Blob([new Uint8Array(uint8)], { type: 'video/mp4' });
-
-    return new File([blob], file.name.replace(/\.[^.]+$/, '_normalized.mp4'), {
-      type: 'video/mp4',
-    });
-  } finally {
-    (ff as unknown as { off?: (event: string, cb: unknown) => void }).off?.('progress', progressHandler);
-    await ff.deleteFile(inputName).catch(() => undefined);
-    await ff.deleteFile(outputName).catch(() => undefined);
-  }
+  onProgress?.(100);
+  if (!result.url) throw new Error('VPS normalize-audio did not return a URL');
+  return result.url;
 }
 
 /**
- * Re-encodes a video from a URL using the given compression preset.
- * Falls back to DEFAULT_COMPRESSION_PRESET if none provided.
+ * Re-encodes a video from a URL using the given compression preset via VPS.
  */
 export async function reduceVideoBitrate(
   videoUrl: string,
   onProgress?: (progress: number) => void,
   signal?: AbortSignal,
   preset?: CompressionPreset,
-): Promise<File> {
+): Promise<string> {
   const p = preset ?? DEFAULT_COMPRESSION_PRESET;
-
   signal?.throwIfAborted();
 
-  const ff = await getSharedFFmpeg(
-    (pct) => onProgress?.(Math.min(15, pct)),
-    signal,
-  );
+  onProgress?.(10);
+
+  const result = await callVpsFFmpeg('reduce', {
+    video_url: videoUrl,
+    preset: {
+      width: p.width,
+      height: p.height,
+      crf: p.crf,
+      preset: p.preset,
+      fps: p.fps,
+      audioBitrate: p.audioBitrate,
+    },
+  });
 
   signal?.throwIfAborted();
+  onProgress?.(100);
 
-  // Download video
-  onProgress?.(16);
-  const resp = await fetch(videoUrl, { signal });
-  if (!resp.ok) throw new Error(`Failed to download video: HTTP ${resp.status}`);
-  const buf = await resp.arrayBuffer();
-  onProgress?.(35);
-
-  const uid = Date.now().toString(36) + Math.random().toString(36).slice(2, 5);
-  const inputName = `reduce_in_${uid}.mp4`;
-  const outputName = `reduce_out_${uid}.mp4`;
-
-  await ff.writeFile(inputName, new Uint8Array(buf));
-  onProgress?.(40);
-
-  const progressHandler = ({ progress }: { progress: number }) => {
-    const mapped = 40 + Math.round(progress * 55); // 40-95
-    onProgress?.(Math.max(40, Math.min(95, mapped)));
-  };
-
-  ff.on('progress', progressHandler);
-
-  try {
-    signal?.throwIfAborted();
-
-    const args = [
-      '-i', inputName,
-      '-vf',
-      [
-        `scale=${p.width}:${p.height}:force_original_aspect_ratio=decrease`,
-        `pad=${p.width}:${p.height}:(ow-iw)/2:(oh-ih)/2`,
-        'setsar=1',
-      ].join(','),
-      '-c:v', 'libx264',
-      '-preset', p.preset,
-      '-crf', String(p.crf),
-      '-r', String(p.fps),
-      '-c:a', 'aac',
-      '-ar', '48000',
-      '-ac', '1',
-      '-b:a', p.audioBitrate,
-      ...(p.faststart ? ['-movflags', '+faststart'] : []),
-      '-y', outputName,
-    ];
-
-    await ff.exec(args);
-
-    signal?.throwIfAborted();
-
-    const data = await ff.readFile(outputName);
-    const uint8 = data instanceof Uint8Array ? data : new TextEncoder().encode(data as string);
-    const blob = new Blob([new Uint8Array(uint8)], { type: 'video/mp4' });
-
-    onProgress?.(100);
-    return new File([blob], 'reduced.mp4', { type: 'video/mp4' });
-  } finally {
-    (ff as unknown as { off?: (event: string, cb: unknown) => void }).off?.('progress', progressHandler);
-    await ff.deleteFile(inputName).catch(() => undefined);
-    await ff.deleteFile(outputName).catch(() => undefined);
-  }
+  if (!result.url) throw new Error('VPS reduce did not return a URL');
+  return result.url;
 }
