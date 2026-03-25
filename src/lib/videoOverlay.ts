@@ -59,22 +59,18 @@ export async function overlayAvatarOnBackground(
   try {
     signal?.throwIfAborted();
 
-    // Filter: 
-    // - [0] = background video (looped via -stream_loop)
-    // - [1] = avatar video (green screen)
-    // Scale both to 1080x1920, chromakey the avatar, overlay centered
+    // Filter:
+    // - [0] = background video
+    // - [1] = avatar video with solid green background from HeyGen
+    // We keep the original HeyGen clip intact and composite a processed copy.
     await ff.exec([
-      '-i', bgName,                              // background (no infinite loop)
-      '-i', avatarName,                          // avatar with green screen
+      '-i', bgName,
+      '-i', avatarName,
       '-filter_complex',
       [
-        // Background fills the full frame without black bars
         '[0:v]scale=1080:1920:force_original_aspect_ratio=increase,crop=1080:1920:(iw-1080)/2:(ih-1920)/2,setsar=1[bg]',
-        // Avatar: scale to fit, pad to 1080x1920, then chromakey green
-        // Using colorkey instead of chromakey for better preservation of non-green areas
-        '[1:v]scale=1080:1920:force_original_aspect_ratio=decrease,pad=1080:1920:(ow-iw)/2:(oh-ih)/2:color=0x00B140,setsar=1,colorkey=0x00B140:0.20:0.15[avatar]',
-        // Overlay avatar on background
-        '[bg][avatar]overlay=0:0[v]',
+        '[1:v]scale=1080:1920:force_original_aspect_ratio=decrease,pad=1080:1920:(ow-iw)/2:(oh-ih)/2:color=0x00B140,setsar=1,format=rgba,chromakey=0x00B140:0.11:0.04[avatar]',
+        '[bg][avatar]overlay=0:0:format=auto[v]',
       ].join(';'),
       '-map', '[v]',
       '-map', '1:a?',                           // optional avatar audio track
