@@ -460,7 +460,7 @@ export default function Index() {
   const resumedRef = useRef<Set<string>>(new Set());
   useEffect(() => {
     if (!videos.length) return;
-    const STALE_THRESHOLD_MS = 5 * 60 * 1000; // 5 minutes
+    const STALE_THRESHOLD_MS = 20 * 60 * 1000; // 20 minutes — must exceed overlay timeout (15 min)
     const stuckVideos = videos.filter(
       v => v.reel_status === 'generating' && v.heygen_video_url && !resumedRef.current.has(v.id)
     );
