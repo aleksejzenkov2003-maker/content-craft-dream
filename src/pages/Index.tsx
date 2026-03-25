@@ -881,6 +881,13 @@ export default function Index() {
         } as any);
       }
       // Clear old video artifacts so player shows fresh result
+      // Also clear any stale post-processing guard so the new generation can trigger it
+      if (postProcessingRef.current.has(video.id)) {
+        autoProcessAbortRef.current[video.id]?.abort();
+        delete autoProcessAbortRef.current[video.id];
+        postProcessingRef.current.delete(video.id);
+      }
+      resumedRef.current.delete(video.id);
       await updateVideo(video.id, { 
         generation_status: 'generating',
         heygen_video_id: null,
