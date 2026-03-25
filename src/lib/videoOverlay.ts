@@ -64,21 +64,31 @@ export async function overlayAvatarOnBackground(
     // - [1] = avatar video with solid green background from HeyGen
     // We keep the original HeyGen clip intact and composite a processed copy.
     await ff.exec([
-      '-i', bgName,
+      '-stream_loop', '-1', '-i', bgName,
       '-i', avatarName,
       '-filter_complex',
       [
-        '[0:v]scale=1080:1920:force_original_aspect_ratio=increase,crop=1080:1920:(iw-1080)/2:(ih-1920)/2,setsar=1[bg]',
-        '[1:v]scale=1080:1920:force_original_aspect_ratio=decrease,pad=1080:1920:(ow-iw)/2:(oh-ih)/2:color=0x00B140,setsar=1,format=rgba,chromakey=0x00B140:0.11:0.04[avatar]',
-        '[bg][avatar]overlay=0:0:format=auto[v]',
+        // Background: fill frame (no letterbox)
+        '[0:v]scale=1080:1920:force_original_aspect_ratio=increase,' +
+          'crop=1080:1920:(iw-1080)/2:(ih-1920)/2,setsar=1[bg]',
+        // Avatar: key green + soften alpha edges
+        '[1:v]scale=1080:1920:force_original_aspect_ratio=decrease,' +
+          'pad=1080:1920:(ow-iw)/2:(oh-ih)/2,setsar=1,' +
+          'chromakey=0x00B140:0.30:0.08[fgk]',
+        // Refine alpha (feather edges to avoid harsh outlines)
+        '[fgk]split[fgc][fga]',
+        '[fga]alphaextract,erosion=1,boxblur=1:1[am]',
+        '[fgc][am]alphamerge[avatar]',
+        // Composite
+        '[bg][avatar]overlay=0:0:shortest=1[v]',
       ].join(';'),
       '-map', '[v]',
-      '-map', '1:a?',                           // optional avatar audio track
-      '-c:v', 'libx264', '-preset', 'ultrafast', '-crf', '23',
+      '-map', '1:a?',
+      '-c:v', 'libx264', '-preset', 'slow', '-crf', '20',
       '-c:a', 'aac', '-ar', '48000', '-b:a', '128k',
       '-pix_fmt', 'yuv420p',
       '-r', '30',
-      '-shortest',                               // stop at the shorter of the two inputs
+      '-shortest',
       '-y', outputName,
     ]);
 
