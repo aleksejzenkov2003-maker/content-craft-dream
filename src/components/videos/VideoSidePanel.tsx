@@ -821,123 +821,18 @@ export function VideoSidePanel({
           </div>
         )}
 
-        {/* === 5. Subtitles === */}
-        {/* Auto-processing progress (from postProcessVideo) */}
-        {autoSubtitleProgress && !subtitleProgress && (
-          <div className="space-y-1.5">
-            <div className="flex items-center gap-1.5">
-              <Loader2 className="w-3 h-3 animate-spin text-primary" />
-              <span className="text-[10px] font-medium">
-                {autoSubtitleProgress.phase === 'reducing_bitrate' ? 'Уменьшение битрейта...' :
-                 autoSubtitleProgress.phase === 'loading_ffmpeg' ? 'Загрузка FFmpeg...' :
-                 autoSubtitleProgress.phase === 'downloading_video' ? 'Скачивание видео...' :
-                 autoSubtitleProgress.phase === 'burning_subtitles' ? 'Вшивка субтитров...' :
-                 autoSubtitleProgress.phase === 'uploading_result' ? 'Загрузка результата...' :
-                 autoSubtitleProgress.phase === 'done' ? 'Готово!' :
-                 'Постобработка...'}
-              </span>
-              <span className="text-[9px] text-muted-foreground ml-auto">{autoSubtitleProgress.progress}%</span>
-            </div>
-            <Progress value={autoSubtitleProgress.progress} className="h-1" />
+        {/* === 5. Subtitles options === */}
+        {video.word_timestamps && (video.reduced_video_url || video.heygen_video_url) && (
+          <div className="flex items-center gap-2">
+            <Checkbox
+              id="highlight-mode"
+              checked={highlightMode}
+              onCheckedChange={(checked) => setHighlightMode(!!checked)}
+              disabled={processState?.type === 'subtitles'}
+            />
+            <Label htmlFor="highlight-mode" className="text-[10px] cursor-pointer">Highlight (караоке)</Label>
           </div>
         )}
-        {video.word_timestamps && (video.reduced_video_url || video.heygen_video_url) && !autoSubtitleProgress && (
-          <div className="space-y-1.5">
-            <div className="flex items-center gap-2 mb-1">
-              <Checkbox
-                id="highlight-mode"
-                checked={highlightMode}
-                onCheckedChange={(checked) => setHighlightMode(!!checked)}
-                disabled={subtitleProgress !== null}
-              />
-              <Label htmlFor="highlight-mode" className="text-[10px] cursor-pointer">Highlight (караоке)</Label>
-            </div>
-            <div className="flex gap-1">
-              <Button
-                size="xs"
-                variant={video.video_path ? 'ghost' : 'outline'}
-                className="flex-1"
-                disabled={subtitleProgress !== null}
-                onClick={async () => {
-                  // Always use clean source: reduced_video_url (no subtitles) or heygen_video_url
-                  const cleanSrc = (video as any).reduced_video_url || video.heygen_video_url;
-                  if (!cleanSrc) { toast.error('Нет исходного видео'); return; }
-                  const ac = new AbortController();
-                  setSubtitleAbort(ac);
-                  try {
-                    const { burnSubtitlesBrowser } = await import('@/lib/videoSubtitles');
-                    const { isBrowserFFmpegSupported: checkSupport } = await import('@/lib/ffmpegLoader');
-                    if (!checkSupport()) throw new Error('FFmpeg unavailable');
-                    setSubtitleProgress({ phase: 'loading_ffmpeg', progress: 3 });
-                    const watchdog = setTimeout(() => ac.abort(), 8 * 60 * 1000);
-                    const file = await burnSubtitlesBrowser(
-                      cleanSrc,
-                      video.word_timestamps as any,
-                      { fontSize: 56 },
-                      (info) => setSubtitleProgress({ phase: info.phase, progress: info.progress }),
-                      ac.signal,
-                      highlightMode,
-                    );
-                    clearTimeout(watchdog);
-                    setSubtitleProgress({ phase: 'uploading_result', progress: 95 });
-                    const fileName = `videos/${video.id}_subtitled_${Date.now()}.mp4`;
-                    const { error: uploadError } = await supabase.storage
-                      .from('media-files')
-                      .upload(fileName, file, { contentType: 'video/mp4', upsert: true });
-                    if (uploadError) throw uploadError;
-                    const { data: urlData } = supabase.storage.from('media-files').getPublicUrl(fileName);
-                    onUpdateVideo(video.id, { video_path: urlData.publicUrl } as any);
-                    toast.success(video.video_path ? 'Субтитры переналожены' : 'Субтитры вшиты');
-                  } catch (err) {
-                    if ((err as Error)?.name === 'AbortError') {
-                      toast.info('Операция отменена');
-                    } else {
-                      console.error('Subtitle error:', err);
-                      toast.error('Не удалось вшить субтитры. Скачиваем SRT…');
-                      try {
-                        const { downloadSubtitleFile } = await import('@/lib/videoSubtitles');
-                        downloadSubtitleFile(video.word_timestamps as any, 'srt');
-                      } catch (_) {}
-                    }
-                  } finally {
-                    setSubtitleProgress(null);
-                    setSubtitleAbort(null);
-                  }
-                }}
-              >
-                {subtitleProgress !== null ? (
-                  <><Loader2 className="w-3 h-3 mr-1 animate-spin" />{
-                    subtitleProgress.phase === 'server_processing' ? 'Обработка на сервере' :
-                    subtitleProgress.phase === 'loading_ffmpeg' ? 'Загрузка FFmpeg' :
-                    subtitleProgress.phase === 'downloading_video' ? 'Скачивание видео' :
-                    subtitleProgress.phase === 'burning_subtitles' ? 'Вшивка субтитров' :
-                    'Загрузка результата'
-                  } {subtitleProgress.progress}%</>
-                ) : video.video_path ? (
-                  <><Subtitles className="w-3 h-3 mr-1" />Переналожить субтитры</>
-                ) : (
-                  <><Subtitles className="w-3 h-3 mr-1" />Вшить субтитры</>
-                )}
-              </Button>
-              {subtitleProgress !== null && subtitleAbort && (
-                <Button size="xs" variant="ghost" className="w-7 p-0 text-destructive hover:text-destructive" onClick={() => subtitleAbort.abort()} title="Отменить">
-                  <X className="w-3.5 h-3.5" />
-                </Button>
-              )}
-            </div>
-            {subtitleProgress !== null && (
-              <div className="space-y-0.5">
-                <Progress value={subtitleProgress.progress} className="h-1" />
-                <p className="text-[9px] text-muted-foreground">
-                  {subtitleProgress.phase === 'server_processing' && 'Отправка на серверную обработку…'}
-                  {subtitleProgress.phase === 'loading_ffmpeg' && 'Загрузка FFmpeg в браузере…'}
-                  {subtitleProgress.phase === 'downloading_video' && 'Скачивание исходного видео…'}
-                  {subtitleProgress.phase === 'burning_subtitles' && 'Вшивка субтитров в видео…'}
-                  {subtitleProgress.phase === 'uploading_result' && 'Загрузка результата в хранилище…'}
-                </p>
-              </div>
-            )}
-          </div>
         )}
       </PanelSection>
 
