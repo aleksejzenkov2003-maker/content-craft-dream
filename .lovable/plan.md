@@ -1,66 +1,60 @@
 
 
-## Fix: Overlay Pipeline Failures and Missing Videos
+## Fix: Enforce Strict Sequential Pipeline Order
 
-### Root Cause Analysis (from DB logs)
+### Problem
 
-**Problem 1 — HeyGen URLs expire during download**
-Activity logs show `overlay_compositing_failed: TypeError: Failed to fetch` for video #9373. The HeyGen CDN URLs have `Expires=` parameters and become unreachable after some time. The overlay tries to download the avatar video but gets a network error.
+The post-processing pipeline has correct sequential code (overlay → bitrate → subtitles), but:
+1. **Toast messages are misleading** — overlay is labeled "Шаг 0", bitrate "Шаг 1/2", subtitles "Шаг 2/2". With overlay, it should be 3 steps total (1/3, 2/3, 3/3).
+2. **Auto-resume can re-trigger** while FFmpeg is still running the overlay, causing subtitles to start in parallel on a stale URL.
+3. **The overlay condition check** (`!sourceUrl.includes('_overlay_')`) is fragile — if the URL doesn't contain that substring pattern, overlay re-runs or gets skipped incorrectly.
 
-**Problem 2 — Manual "Фон" button doesn't update `video_path`**
-Line 675 in VideoSidePanel only saves to `reduced_video_url`. The video player displays `video_path`, so even when overlay succeeds, nothing appears. DB confirms: #9373 has `reduced_video_url` (overlay file) but `video_path: null`.
+### Solution
 
-**Problem 3 — Auto-pipeline re-triggers multiple times**
-Activity logs show 7+ `overlay_compositing_started` events for #9373. The `postProcessingRef` guard is being bypassed — likely because the video status change from the check-video-status polling triggers `postProcessVideo` again before the previous run finishes.
+**File: `src/pages/Index.tsx` — `postProcessVideo` function**
 
-**Problem 4 — Pipeline doesn't save partial progress**
-If overlay succeeds but bitrate/subtitles fail, `video_path` stays null. There is no fallback to save whatever was successfully produced.
+1. **Dynamic step labeling**: Detect upfront how many steps will run (overlay + bitrate + subtitles) and number toasts accordingly (e.g. "Шаг 1/3: Наложение фона", "Шаг 2/3: Битрейт", "Шаг 3/3: Субтитры").
 
-### Fixes
+2. **Atomic DB guard at start**: Before starting, check DB `reel_status` — if it's already `'generating'`, skip (not just in-memory Set). This prevents resume logic from launching a duplicate.
 
-**File: `src/components/videos/VideoSidePanel.tsx`**
+3. **Fix overlay skip condition**: Replace the fragile `!sourceUrl.includes('_overlay_')` check with a proper flag. After overlay completes, set a local variable `overlayDone = true` and also check `activity_log` for `overlay_compositing_complete` to avoid re-running on resume.
 
-| Issue | Fix |
-|---|---|
-| "Фон" button only updates `reduced_video_url` | Also update `video_path` with overlay URL and set `reel_status: 'ready'` |
-| No variant created for overlay result | Insert a variant record for the overlay file after upload |
-
-**File: `src/pages/Index.tsx`**
-
-| Issue | Fix |
-|---|---|
-| Pipeline re-triggers | After overlay completes, immediately save `video_path` as fallback (so if bitrate/subtitles fail, we still have something) |
-| HeyGen URL fetch fails silently | Add retry with timeout and better error logging; if fetch fails, try using `reduced_video_url` as fallback source |
-| Duplicate pipeline calls | Clear `reel_status` to `generating` atomically at the start; check DB status before starting (not just in-memory Set) |
-
-**File: `src/lib/videoOverlay.ts`**
-
-| Issue | Fix |
-|---|---|
-| No timeout on fetch | Add 60-second timeout on `fetchAsset` calls to prevent hanging forever |
+4. **Save `video_path` after each step**: Already partially done (overlay saves), extend to bitrate step too — so if subtitles fail, the reduced version is preserved as `video_path`.
 
 ### Specific Changes
 
-1. **VideoSidePanel "Фон" button (line 675)**: Change from:
-   ```typescript
-   onUpdateVideo(video.id, { reduced_video_url: urlData.publicUrl });
-   ```
-   To:
-   ```typescript
-   onUpdateVideo(video.id, { 
-     reduced_video_url: urlData.publicUrl,
-     video_path: urlData.publicUrl,
-     reel_status: 'ready'
-   });
-   ```
-   Then also insert a variant for the overlay result.
+| Location | Change |
+|---|---|
+| Line 233 | Add DB-level guard: fetch `reel_status` and skip if already `'generating'` |
+| Lines 252-301 | Update overlay toast from "Шаг 0" to dynamic "Шаг N/M" |
+| Lines 303-334 | Update bitrate toast from "Шаг 1/2" to dynamic label; save `video_path` after bitrate |
+| Lines 336-375 | Update subtitles toast from "Шаг 2/2" to dynamic label |
+| Line 253 | Replace `!sourceUrl.includes('_overlay_')` with a check against `activity_log` for the current `generation_count` |
 
-2. **Auto-pipeline overlay fallback (Index.tsx ~line 299)**: After overlay succeeds, immediately save `video_path = finalUrl` so even if subsequent steps fail, the overlay is preserved:
-   ```typescript
-   await supabase.from('videos').update({ video_path: finalUrl }).eq('id', videoId);
-   ```
+### Step Numbering Logic
 
-3. **fetchAsset timeout (videoOverlay.ts)**: Add `AbortSignal.timeout(60000)` combined with the user signal to prevent hanging downloads.
+```text
+totalSteps = 0
+if overlay_mode && background_video_url → totalSteps++
+if resize enabled → totalSteps++
+if subtitles enabled && word_timestamps → totalSteps++
 
-4. **DB recovery**: Fix #9373 and #9706 — set their `video_path` from existing overlay URLs and reset `reel_status`.
+currentStep = 0
+// Before each phase: currentStep++, toast "Шаг {currentStep}/{totalSteps}: ..."
+```
+
+### DB Guard Addition (top of postProcessVideo)
+
+```typescript
+// Check DB to prevent duplicate runs (not just in-memory)
+const { data: statusCheck } = await supabase
+  .from('videos')
+  .select('reel_status')
+  .eq('id', videoId)
+  .single();
+if (statusCheck?.reel_status === 'generating') {
+  console.log(`[postProcess] DB shows generating for ${videoId}, skipping`);
+  return;
+}
+```
 
