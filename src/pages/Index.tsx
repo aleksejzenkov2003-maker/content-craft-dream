@@ -135,6 +135,7 @@ export default function Index() {
 
   const videoPollingRef = useRef<Record<string, ReturnType<typeof setInterval>>>({});
   const pollingErrorsRef = useRef<Record<string, number>>({});
+  const autoProcessAbortRef = useRef<Record<string, AbortController>>({});
   const POLL_INTERVAL_MS = 12000;
   const MAX_POLL_ERRORS = 8;
 
