@@ -228,6 +228,7 @@ export default function Index() {
     };
 
     try {
+      autoAbort.signal.throwIfAborted();
       // Mark reel_status as processing
       await supabase.from('videos').update({ reel_status: 'generating' }).eq('id', videoId);
 
