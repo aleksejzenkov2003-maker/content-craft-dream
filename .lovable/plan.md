@@ -1,60 +1,48 @@
 
 
-## Fix: Unified Single Progress Bar for Video Processing
+## Refactor: Fix Video Processing Bugs in VideoSidePanel
 
-### Problem
+### Bugs Found
 
-The panel has **3 independent progress states** (`bitrateProgress`, `overlayProgress`, `subtitleProgress`) plus an **auto-processing progress** (`autoSubtitleProgress`) from `Index.tsx`. These can show simultaneously, display impossible values (645%), and compete for the shared FFmpeg instance.
+1. **Bitrate: AbortController created but never passed to FFmpeg** (line 599). `reduceVideoBitrate(src, callback)` accepts `signal` as 3rd param but it's not passed. Stop button does nothing for bitrate.
 
-### Root Cause
+2. **Auto-progress: no Stop button**. When `autoSubtitleProgress` is active and `processState` is null, the progress bar renders but the Stop button is guarded by `{processState && ...}` — so it never appears.
 
-Each button manages its own state with no mutual exclusion. The auto-pipeline in `Index.tsx` also pushes progress independently. FFmpeg WASM is a single instance — running two processes simultaneously corrupts both.
+3. **No cleanup on unmount or video switch**. If the user closes the panel or navigates to another video mid-process, the AbortController is not aborted and progress callbacks keep firing on stale state.
 
-### Solution
-
-Replace the 3 separate progress states with **one unified state** in `VideoSidePanel.tsx`.
-
-### Changes
+### Fixes
 
 **File: `src/components/videos/VideoSidePanel.tsx`**
 
-1. **Replace 3 progress states with 1:**
-   ```
-   // REMOVE:
-   bitrateProgress, overlayProgress, subtitleProgress, subtitleAbort, overlayAbort
-   
-   // ADD:
-   processState: { type: 'bitrate' | 'overlay' | 'subtitles', phase: string, progress: number } | null
-   processAbort: AbortController | null
-   ```
+| Bug | Fix |
+|---|---|
+| Bitrate missing signal | Pass `ac.signal` as 3rd argument to `reduceVideoBitrate(src, callback, ac.signal)` |
+| Auto-progress no Stop | Add `onCancelAutoProcess` callback prop. Show Stop button for auto-progress too, calling this callback. In `Index.tsx`, wire it to abort the auto-pipeline |
+| No cleanup on unmount | Add `useEffect` cleanup that aborts `processAbort` when panel closes or `video.id` changes |
 
-2. **Single progress bar** below the 3 buttons:
-   - Shows phase label (e.g., "Битрейт 45%", "Фон 41%", "Субтитры 72%")
-   - Capped at 100%
-   - Stop button always visible during processing
+**File: `src/pages/Index.tsx`**
 
-3. **Mutual exclusion**: All 3 buttons check `processState !== null` to disable. Only one process at a time.
+| Change | Detail |
+|---|---|
+| Add auto-process abort support | Store `AbortController` for each auto-processing video. Pass `onCancelAutoProcess` to `VideoSidePanel` that aborts the controller and clears progress |
 
-4. **AbortController for bitrate** (currently missing — bitrate can't be stopped). Add it like overlay/subtitles already have.
+### New prop on VideoSidePanel
 
-5. **Auto-processing progress** (`autoSubtitleProgress` from Index.tsx): Show it in the same unified bar when no manual process is active. Auto-progress takes lower priority — if user clicks a manual button, auto-progress is hidden.
-
-6. **Cap progress at 100%**: `Math.min(100, progress)` in all progress callbacks.
-
-### UI Layout (unchanged button positions)
-
-```text
-┌──────────┐ ┌──────────┐ ┌──────────┐
-│ Битрейт  │ │   Фон    │ │ Субтитры │
-└──────────┘ └──────────┘ └──────────┘
- ████████████░░░░░░░░  Фон 41%  [Стоп]
+```typescript
+onCancelAutoProcess?: () => void;
 ```
 
-One progress bar, one label, one stop button.
+### Cleanup effect
 
-### Files to Edit
+```typescript
+useEffect(() => {
+  return () => {
+    processAbort?.abort();
+  };
+}, [video?.id, open]);
+```
 
-| File | Change |
-|---|---|
-| `src/components/videos/VideoSidePanel.tsx` | Replace 3 progress states → 1 unified state; add AbortController to bitrate; cap progress; single progress bar |
+### Stop button logic (unified)
+
+The Stop button will appear whenever any progress is visible (manual OR auto), and will call the appropriate abort mechanism.
 
