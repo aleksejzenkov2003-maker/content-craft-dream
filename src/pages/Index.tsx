@@ -135,6 +135,7 @@ export default function Index() {
 
   const videoPollingRef = useRef<Record<string, ReturnType<typeof setInterval>>>({});
   const pollingErrorsRef = useRef<Record<string, number>>({});
+  const autoProcessAbortRef = useRef<Record<string, AbortController>>({});
   const POLL_INTERVAL_MS = 12000;
   const MAX_POLL_ERRORS = 8;
 
@@ -207,8 +208,11 @@ export default function Index() {
       return;
     }
     postProcessingRef.current.add(videoId);
+    const autoAbort = new AbortController();
+    autoProcessAbortRef.current[videoId] = autoAbort;
 
     const updateProgress = (phase: string, progress: number) => {
+      if (autoAbort.signal.aborted) return;
       setAutoSubtitleProgress(prev => ({ ...prev, [videoId]: { phase, progress } }));
     };
     const logStep = async (action: string, extra?: { details?: Record<string, unknown>; duration_ms?: number }) => {
@@ -224,6 +228,7 @@ export default function Index() {
     };
 
     try {
+      autoAbort.signal.throwIfAborted();
       // Mark reel_status as processing
       await supabase.from('videos').update({ reel_status: 'generating' }).eq('id', videoId);
 
@@ -274,6 +279,7 @@ export default function Index() {
             sourceUrl,
             (vid as any).background_video_url,
             (info) => updateProgress(info.phase as any, Math.round(info.progress * 0.2)),
+            autoAbort.signal,
           );
 
           const overlayFileName = `videos/${videoId}_overlay_${Date.now()}.mp4`;
@@ -308,7 +314,7 @@ export default function Index() {
         }
         const reducedFile = await reduceVideoBitrate(finalUrl, (pct) => {
           updateProgress('reducing_bitrate', Math.round(5 + pct * 40));
-        }, undefined, selectedPreset);
+        }, autoAbort.signal, selectedPreset);
 
         updateProgress('reducing_bitrate', 45);
         const reducedFileName = `videos/${videoId}_reduced_${Date.now()}.mp4`;
@@ -337,6 +343,7 @@ export default function Index() {
             vid.word_timestamps as any,
             { fontSize: 56 },
             (info) => updateProgress(info.phase, Math.round(50 + info.progress * 0.45)),
+            autoAbort.signal,
           );
           updateProgress('uploading_result', 95);
           const subtitledFileName = `videos/${videoId}_subtitled_${Date.now()}.mp4`;
@@ -387,12 +394,20 @@ export default function Index() {
       updateProgress('done', 100);
       refetchVideos();
     } catch (err) {
+      if ((err as Error)?.name === 'AbortError' || autoAbort.signal.aborted) {
+        console.info('Post-processing aborted:', videoId);
+        await logStep('postprocessing_aborted');
+        try { await supabase.from('videos').update({ reel_status: null }).eq('id', videoId); } catch (_) { /* ignore */ }
+        refetchVideos();
+        return;
+      }
       console.error('Post-processing error:', err);
       await logStep('postprocessing_error', { details: { error: String(err) } });
       try { await supabase.from('videos').update({ reel_status: 'error' }).eq('id', videoId); } catch (_) { /* ignore */ }
       refetchVideos();
       throw err;
     } finally {
+      delete autoProcessAbortRef.current[videoId];
       postProcessingRef.current.delete(videoId);
       // Clear progress after a brief delay so user sees 100%
       setTimeout(() => {
@@ -1684,6 +1699,9 @@ export default function Index() {
                 autoSubtitleProgress={viewingVideoId ? autoSubtitleProgress[viewingVideoId] || null : null}
                 onCancelAutoProcess={() => {
                   if (viewingVideoId) {
+                    autoProcessAbortRef.current[viewingVideoId]?.abort();
+                    delete autoProcessAbortRef.current[viewingVideoId];
+                    import('@/lib/ffmpegLoader').then(({ terminateSharedFFmpeg }) => terminateSharedFFmpeg()).catch(() => {});
                     setAutoSubtitleProgress(prev => {
                       const next = { ...prev };
                       delete next[viewingVideoId];
