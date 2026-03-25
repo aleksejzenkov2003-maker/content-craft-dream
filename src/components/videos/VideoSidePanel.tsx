@@ -147,6 +147,17 @@ export function VideoSidePanel({
     setIsReady((video as any)?.is_ready || false);
   }, [video?.id, video?.selected_channels, video?.advisor_answer, advisor]);
 
+  // Cleanup: abort running process on video switch or panel close
+  useEffect(() => {
+    return () => {
+      if (processAbort) {
+        processAbort.abort();
+        setProcessState(null);
+        setProcessAbort(null);
+      }
+    };
+  }, [video?.id, open]);
+
   // Fetch heygen_mode setting
   useEffect(() => {
     supabase.from('app_settings' as any).select('value').eq('key', 'heygen_mode').single()
