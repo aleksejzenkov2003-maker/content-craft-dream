@@ -92,7 +92,7 @@ export async function overlayAvatarOnBackground(
       ].join(';'),
       '-map', '[v]',
       '-map', '1:a?',
-      '-c:v', 'libx264', '-preset', 'medium', '-crf', '23',
+      '-c:v', 'libx264', '-preset', 'ultrafast', '-crf', '23',
       '-c:a', 'aac', '-ar', '48000', '-b:a', '128k',
       '-pix_fmt', 'yuv420p',
       '-r', '30',
@@ -142,7 +142,7 @@ export async function overlayAvatarOnBackground(
 }
 
 async function fetchAsset(url: string, signal?: AbortSignal): Promise<ArrayBuffer> {
-  const timeoutSignal = AbortSignal.timeout(60_000);
+  const timeoutSignal = AbortSignal.timeout(180_000); // 3 minutes for large videos
   const combinedSignal = signal
     ? AbortSignal.any([signal, timeoutSignal])
     : timeoutSignal;
