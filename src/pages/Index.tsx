@@ -1699,6 +1699,9 @@ export default function Index() {
                 autoSubtitleProgress={viewingVideoId ? autoSubtitleProgress[viewingVideoId] || null : null}
                 onCancelAutoProcess={() => {
                   if (viewingVideoId) {
+                    autoProcessAbortRef.current[viewingVideoId]?.abort();
+                    delete autoProcessAbortRef.current[viewingVideoId];
+                    import('@/lib/ffmpegLoader').then(({ terminateSharedFFmpeg }) => terminateSharedFFmpeg()).catch(() => {});
                     setAutoSubtitleProgress(prev => {
                       const next = { ...prev };
                       delete next[viewingVideoId];
