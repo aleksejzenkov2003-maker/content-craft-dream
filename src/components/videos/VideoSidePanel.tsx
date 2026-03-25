@@ -740,22 +740,24 @@ export function VideoSidePanel({
                     <Loader2 className="w-3 h-3 animate-spin text-primary shrink-0" />
                     <Progress value={pct} className="h-1.5 flex-1" />
                     <span className="text-[9px] text-muted-foreground whitespace-nowrap">{typeLabel} {pct}%</span>
-                    {processState && (
-                      <Button
-                        size="xs"
-                        variant="destructive"
-                        className="text-[10px] px-2 h-5 shrink-0"
-                        onClick={() => {
+                    <Button
+                      size="xs"
+                      variant="destructive"
+                      className="text-[10px] px-2 h-5 shrink-0"
+                      onClick={() => {
+                        if (processState) {
                           processAbort?.abort();
                           import('@/lib/ffmpegLoader').then(({ terminateSharedFFmpeg }) => terminateSharedFFmpeg()).catch(() => {});
                           setProcessState(null);
                           setProcessAbort(null);
-                          toast.info('Процесс остановлен');
-                        }}
-                      >
-                        <Square className="w-3 h-3 mr-1" />Стоп
-                      </Button>
-                    )}
+                        } else if (autoSubtitleProgress) {
+                          onCancelAutoProcess?.();
+                        }
+                        toast.info('Процесс остановлен');
+                      }}
+                    >
+                      <Square className="w-3 h-3 mr-1" />Стоп
+                    </Button>
                   </div>
                 );
               })()}
