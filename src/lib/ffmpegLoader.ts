@@ -18,6 +18,40 @@ const CLASS_WORKER_URLS = [
 const ATTEMPT_TIMEOUT_MS = 30_000;
 const TOTAL_TIMEOUT_MS = 120_000;
 
+function withTimeout<T>(
+  promise: Promise<T>,
+  timeoutMs: number,
+  message: string,
+  signal?: AbortSignal,
+): Promise<T> {
+  return new Promise<T>((resolve, reject) => {
+    const id = globalThis.setTimeout(() => reject(new Error(message)), timeoutMs);
+
+    const onAbort = () => {
+      clearTimeout(id);
+      reject(signal?.reason || new Error('Aborted'));
+    };
+
+    if (signal) {
+      signal.throwIfAborted();
+      signal.addEventListener('abort', onAbort, { once: true });
+    }
+
+    promise.then(
+      (value) => {
+        clearTimeout(id);
+        if (signal) signal.removeEventListener('abort', onAbort);
+        resolve(value);
+      },
+      (error) => {
+        clearTimeout(id);
+        if (signal) signal.removeEventListener('abort', onAbort);
+        reject(error);
+      },
+    );
+  });
+}
+
 function cleanup() {
   loadingPromise = null;
   ffmpeg = null;
@@ -59,20 +93,40 @@ async function tryLoadFromCDN(
   signal?.throwIfAborted();
   onProgress?.(2);
 
-  const coreURL = await toBlobURL(`${coreBaseURL}/ffmpeg-core.js`, 'text/javascript');
+  const coreURL = await withTimeout(
+    toBlobURL(`${coreBaseURL}/ffmpeg-core.js`, 'text/javascript'),
+    ATTEMPT_TIMEOUT_MS,
+    'FFmpeg core.js download timed out',
+    signal,
+  );
   onProgress?.(6);
   signal?.throwIfAborted();
 
-  const wasmURL = await toBlobURL(`${coreBaseURL}/ffmpeg-core.wasm`, 'application/wasm');
+  const wasmURL = await withTimeout(
+    toBlobURL(`${coreBaseURL}/ffmpeg-core.wasm`, 'application/wasm'),
+    ATTEMPT_TIMEOUT_MS,
+    'FFmpeg wasm download timed out',
+    signal,
+  );
   onProgress?.(12);
   signal?.throwIfAborted();
 
   // Fetch worker.js source, rewrite relative imports to absolute CDN URLs,
   // then create a blob URL (same-origin, no SecurityError).
   const workerBaseURL = classWorkerUrl.substring(0, classWorkerUrl.lastIndexOf('/'));
-  const workerResponse = await fetch(classWorkerUrl);
+  const workerResponse = await withTimeout(
+    fetch(classWorkerUrl, { signal }),
+    ATTEMPT_TIMEOUT_MS,
+    'FFmpeg worker.js download timed out',
+    signal,
+  );
   if (!workerResponse.ok) throw new Error(`Failed to fetch worker.js: ${workerResponse.status}`);
-  let workerSource = await workerResponse.text();
+  let workerSource = await withTimeout(
+    workerResponse.text(),
+    ATTEMPT_TIMEOUT_MS,
+    'FFmpeg worker.js read timed out',
+    signal,
+  );
 
   // Rewrite relative imports like './const.js' → absolute CDN URLs
   workerSource = workerSource.replace(
@@ -93,19 +147,12 @@ async function tryLoadFromCDN(
   console.log('[ffmpegLoader] Loading with ESM core + classWorkerURL…');
 
   // Wrap instance.load with a hard timeout
-  const loadPromise = instance.load({ coreURL, wasmURL, classWorkerURL });
-  const timeoutPromise = new Promise<never>((_, reject) => {
-    const id = globalThis.setTimeout(
-      () => reject(new Error('FFmpeg load() зависла — таймаут 30с')),
-      ATTEMPT_TIMEOUT_MS,
-    );
-    signal?.addEventListener('abort', () => {
-      clearTimeout(id);
-      reject(signal.reason || new Error('Aborted'));
-    }, { once: true });
-  });
-
-  await Promise.race([loadPromise, timeoutPromise]);
+  await withTimeout(
+    instance.load({ coreURL, wasmURL, classWorkerURL }),
+    ATTEMPT_TIMEOUT_MS,
+    'FFmpeg load() зависла — таймаут 30с',
+    signal,
+  );
   onProgress?.(20);
 }
 
@@ -123,10 +170,28 @@ export async function getSharedFFmpeg(
   }
 
   if (loadingPromise) {
-    await loadingPromise;
-    if (ffmpeg && ffmpeg.loaded) {
-      onProgress?.(20);
-      return ffmpeg;
+    const existingLoad = loadingPromise;
+    try {
+      await withTimeout(
+        existingLoad,
+        TOTAL_TIMEOUT_MS,
+        'FFmpeg existing load promise stalled',
+        signal,
+      );
+      if (ffmpeg && ffmpeg.loaded) {
+        onProgress?.(20);
+        return ffmpeg;
+      }
+    } catch (error) {
+      console.warn('[ffmpegLoader] Existing loading promise stalled, resetting loader:', error);
+      if (loadingPromise === existingLoad) {
+        try {
+          ffmpeg?.terminate();
+        } catch (terminateError) {
+          console.warn('[ffmpegLoader] Failed to terminate stalled FFmpeg instance:', terminateError);
+        }
+        cleanup();
+      }
     }
   }
 
@@ -161,17 +226,20 @@ export async function getSharedFFmpeg(
 
   loadingPromise = doLoad();
 
-  const timeout = new Promise<never>((_, reject) => {
-    globalThis.setTimeout(
-      () => reject(new Error('FFmpeg загрузка превысила 120 секунд')),
-      TOTAL_TIMEOUT_MS,
-    );
-  });
-
   try {
-    await Promise.race([loadingPromise, timeout]);
+    await withTimeout(
+      loadingPromise,
+      TOTAL_TIMEOUT_MS,
+      'FFmpeg загрузка превысила 120 секунд',
+      signal,
+    );
     return ffmpeg!;
   } catch (err) {
+    try {
+      ffmpeg?.terminate();
+    } catch (terminateError) {
+      console.warn('[ffmpegLoader] Failed to terminate FFmpeg after load error:', terminateError);
+    }
     cleanup();
     throw err;
   }
