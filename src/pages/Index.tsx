@@ -208,16 +208,8 @@ export default function Index() {
       return;
     }
 
-    // DB-level guard: prevent duplicate runs across tabs / auto-resume
-    const { data: statusCheck } = await supabase
-      .from('videos')
-      .select('reel_status')
-      .eq('id', videoId)
-      .single();
-    if (statusCheck?.reel_status === 'generating') {
-      console.log(`[postProcess] DB shows generating for ${videoId}, skipping`);
-      return;
-    }
+    // In-memory guard is sufficient; DB guard removed because it conflicts with auto-resume
+    // (auto-resume finds reel_status='generating' then postProcess would skip it)
 
     postProcessingRef.current.add(videoId);
     const autoAbort = new AbortController();
@@ -464,25 +456,64 @@ export default function Index() {
   }, [refetchVideos, isEnabled]);
 
   // Auto-resume post-processing for videos stuck in 'generating' reel_status after page refresh
+  // Checks activity_log age: if the last overlay step is older than 5 min, marks error instead of re-running
   const resumedRef = useRef<Set<string>>(new Set());
   useEffect(() => {
     if (!videos.length) return;
+    const STALE_THRESHOLD_MS = 5 * 60 * 1000; // 5 minutes
     const stuckVideos = videos.filter(
       v => v.reel_status === 'generating' && v.heygen_video_url && !resumedRef.current.has(v.id)
     );
-    for (const v of stuckVideos) {
-      resumedRef.current.add(v.id);
-      console.log(`[resume] Auto-resuming post-processing for video ${v.id}`);
-      toast.info('Возобновление постобработки видео...');
-      postProcessVideo(v.id).then(() => {
-        refetchPublications();
-        triggerAutoConcat(v.id);
-      }).catch(err => {
-        console.error('Resume post-processing failed:', err);
-        toast.error('Ошибка возобновления постобработки');
-      });
-    }
-  }, [videos, postProcessVideo, refetchPublications, triggerAutoConcat]);
+
+    const handleResume = async () => {
+      for (const v of stuckVideos) {
+        resumedRef.current.add(v.id);
+
+        // Check how long the last pipeline step has been running
+        const { data: lastLog } = await supabase
+          .from('activity_log')
+          .select('action, created_at')
+          .eq('entity_id', v.id)
+          .in('action', ['overlay_compositing_started', 'bitrate_reduction_started', 'subtitle_burn_started', 'postprocessing_complete', 'postprocessing_error', 'postprocessing_aborted'])
+          .order('created_at', { ascending: false })
+          .limit(1);
+
+        const lastEntry = lastLog?.[0];
+        const isStale = lastEntry &&
+          lastEntry.action.endsWith('_started') &&
+          (Date.now() - new Date(lastEntry.created_at).getTime()) > STALE_THRESHOLD_MS;
+
+        if (isStale) {
+          console.warn(`[resume] Video ${v.id} stuck on "${lastEntry.action}" for too long, marking error`);
+          await supabase.from('videos').update({ reel_status: 'error' }).eq('id', v.id);
+          await supabase.from('activity_log').insert([{
+            action: 'postprocessing_stale_timeout',
+            entity_type: 'video',
+            entity_id: v.id,
+            details: { stale_action: lastEntry.action, age_ms: Date.now() - new Date(lastEntry.created_at).getTime() } as any,
+          }]);
+          toast.error(`Постобработка зависла на шаге "${lastEntry.action}", сброшена в ошибку`);
+          refetchVideos();
+          continue;
+        }
+
+        // Reset reel_status so postProcessVideo won't see a conflict
+        await supabase.from('videos').update({ reel_status: null }).eq('id', v.id);
+        console.log(`[resume] Auto-resuming post-processing for video ${v.id}`);
+        toast.info('Возобновление постобработки видео...');
+        try {
+          await postProcessVideo(v.id);
+          refetchPublications();
+          triggerAutoConcat(v.id);
+        } catch (err) {
+          console.error('Resume post-processing failed:', err);
+          toast.error('Ошибка возобновления постобработки');
+        }
+      }
+    };
+
+    if (stuckVideos.length > 0) handleResume();
+  }, [videos, postProcessVideo, refetchPublications, triggerAutoConcat, refetchVideos]);
 
   const pollVideoStatus = useCallback(async (videoId: string) => {
     try {

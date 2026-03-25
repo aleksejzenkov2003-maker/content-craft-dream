@@ -1,4 +1,4 @@
-import { getSharedFFmpeg } from './ffmpegLoader';
+import { getSharedFFmpeg, terminateSharedFFmpeg } from './ffmpegLoader';
 
 export type OverlayPhase = 'loading_ffmpeg' | 'downloading' | 'compositing' | 'done';
 
@@ -6,6 +6,9 @@ export interface OverlayProgressInfo {
   phase: OverlayPhase;
   progress: number;
 }
+
+/** Hard timeout for the ff.exec compositing step (5 minutes) */
+const COMPOSITING_TIMEOUT_MS = 5 * 60 * 1000;
 
 /**
  * Overlays an avatar video (with green screen background) onto a background video.
@@ -50,6 +53,14 @@ export async function overlayAvatarOnBackground(
   // 4. Composite: loop background to match avatar duration, chromakey green, overlay
   onProgress?.({ phase: 'compositing', progress: 38 });
 
+  // Collect FFmpeg log lines for diagnostics
+  const ffmpegLogs: string[] = [];
+  const logHandler = ({ message }: { message: string }) => {
+    ffmpegLogs.push(message);
+    if (ffmpegLogs.length > 200) ffmpegLogs.shift();
+  };
+  ff.on('log', logHandler);
+
   const progressHandler = ({ progress }: { progress: number }) => {
     const mapped = 38 + Math.round(progress * 55);
     onProgress?.({ phase: 'compositing', progress: Math.max(38, Math.min(93, mapped)) });
@@ -59,11 +70,8 @@ export async function overlayAvatarOnBackground(
   try {
     signal?.throwIfAborted();
 
-    // Filter:
-    // - [0] = background video
-    // - [1] = avatar video with solid green background from HeyGen
-    // We keep the original HeyGen clip intact and composite a processed copy.
-    await ff.exec([
+    // Wrap ff.exec with a hard watchdog timeout
+    const execPromise = ff.exec([
       '-stream_loop', '-1', '-i', bgName,
       '-i', avatarName,
       '-filter_complex',
@@ -84,7 +92,7 @@ export async function overlayAvatarOnBackground(
       ].join(';'),
       '-map', '[v]',
       '-map', '1:a?',
-      '-c:v', 'libx264', '-preset', 'slow', '-crf', '20',
+      '-c:v', 'libx264', '-preset', 'medium', '-crf', '23',
       '-c:a', 'aac', '-ar', '48000', '-b:a', '128k',
       '-pix_fmt', 'yuv420p',
       '-r', '30',
@@ -92,12 +100,28 @@ export async function overlayAvatarOnBackground(
       '-y', outputName,
     ]);
 
+    const watchdog = new Promise<never>((_, reject) => {
+      const id = globalThis.setTimeout(() => {
+        const lastLines = ffmpegLogs.slice(-10).join('\n');
+        console.error('[videoOverlay] Watchdog timeout! Last FFmpeg logs:\n', lastLines);
+        terminateSharedFFmpeg();
+        reject(new Error(`Overlay compositing timeout (${COMPOSITING_TIMEOUT_MS / 1000}s). Last FFmpeg output:\n${lastLines}`));
+      }, COMPOSITING_TIMEOUT_MS);
+      signal?.addEventListener('abort', () => {
+        clearTimeout(id);
+        reject(signal.reason || new Error('Aborted'));
+      }, { once: true });
+    });
+
+    await Promise.race([execPromise, watchdog]);
+
     let outputData: Uint8Array;
     try {
       const raw = await ff.readFile(outputName);
       outputData = raw instanceof Uint8Array ? raw : new TextEncoder().encode(raw as string);
     } catch {
-      throw new Error('FFmpeg overlay не создал выходной файл');
+      const lastLines = ffmpegLogs.slice(-10).join('\n');
+      throw new Error(`FFmpeg overlay не создал выходной файл. Last logs:\n${lastLines}`);
     }
 
     if (outputData.length < 10000) {
@@ -110,6 +134,7 @@ export async function overlayAvatarOnBackground(
     return new File([blob], 'overlay_result.mp4', { type: 'video/mp4' });
   } finally {
     (ff as unknown as { off?: (event: string, cb: unknown) => void }).off?.('progress', progressHandler);
+    (ff as unknown as { off?: (event: string, cb: unknown) => void }).off?.('log', logHandler);
     await ff.deleteFile(avatarName).catch(() => undefined);
     await ff.deleteFile(bgName).catch(() => undefined);
     await ff.deleteFile(outputName).catch(() => undefined);
@@ -117,7 +142,6 @@ export async function overlayAvatarOnBackground(
 }
 
 async function fetchAsset(url: string, signal?: AbortSignal): Promise<ArrayBuffer> {
-  // Combine user signal with a 60-second timeout to prevent hanging on expired URLs
   const timeoutSignal = AbortSignal.timeout(60_000);
   const combinedSignal = signal
     ? AbortSignal.any([signal, timeoutSignal])
