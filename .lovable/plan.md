@@ -1,17 +1,60 @@
 
 
-## Completed: Overlay Watchdog + Stale Recovery
+## Проблема: Overlay таймаутится, хотя FFmpeg работает
 
-### Changes Made
+### Что происходит
 
-1. **`src/lib/videoOverlay.ts`** — Watchdog + performance fix:
-   - Wrapped `ff.exec()` in a 5-minute hard watchdog timeout
-   - On timeout: terminates FFmpeg, throws error with last 10 FFmpeg log lines
-   - Changed preset from `slow` → `medium`, CRF from `20` → `23` (2-3x faster)
-   - Added FFmpeg log collection (last 200 lines) for diagnostics on failure
+Из логов видно:
+```
+frame=926 fps=3.1 time=00:00:30.82 speed=0.103x
+```
 
-2. **`src/pages/Index.tsx`** — Fixed conflicting guards + stale recovery:
-   - Removed DB-level guard (`reel_status === 'generating' → skip`) that blocked auto-resume
-   - Auto-resume now checks `activity_log` age: if last `*_started` entry is >5 min old, marks video as `error` instead of re-triggering
-   - For non-stale stuck videos, resets `reel_status` to `null` before calling `postProcessVideo`
-   - Logs `postprocessing_stale_timeout` to activity_log with stale action name and age
+FFmpeg **не завис** — он обрабатывает видео, но со скоростью **0.1x** (1 секунда видео = 10 секунд реального времени). За 5 минут таймаута он успел обработать только ~30 секунд. Для ролика длиннее 30 секунд — таймаут убивает процесс до завершения.
+
+**Раньше работало**, потому что watchdog-таймаут был добавлен только сегодня. До этого процесс просто молча работал 10-20 минут и доходил до конца.
+
+### Причина медленности
+
+Текущая цепочка фильтров избыточно тяжёлая для браузерного WASM:
+- `scale 1080×1920` для обоих потоков  
+- `chromakey` → `split` → `alphaextract` → `erosion` → `boxblur` → `alphamerge` → `overlay`
+
+Это 7 фильтров на Full HD разрешении. В WASM это ~3 fps.
+
+### Решение: две меры
+
+**1. Увеличить таймаут динамически** (по длительности ролика)
+
+Вместо фиксированных 5 минут — считать таймаут от длительности аватар-видео. При speed=0.1x минутное видео займёт ~10 минут, поэтому:
+
+```
+timeout = max(10 минут, duration_seconds * 12)
+```
+
+Для этого перед `ff.exec` нужно узнать duration через `ffprobe` (или проанализировать логи первых кадров). Проще — просто поставить 15 минут как разумный максимум.
+
+**2. Упростить фильтры** для ускорения в 2-3 раза
+
+Убрать alpha-refinement (erosion + boxblur + alphamerge) — это красиво, но даёт ~30% overhead. Упрощённая цепочка:
+
+```
+[1:v]scale...,chromakey=0x00B140:0.30:0.08[avatar];
+[bg][avatar]overlay=0:0:shortest=1[v]
+```
+
+Вместо 7 фильтров — 3. Скорость вырастет с 0.1x до ~0.2-0.3x.
+
+### Конкретные изменения
+
+| Файл | Что меняем |
+|---|---|
+| `src/lib/videoOverlay.ts` строка 11 | Увеличить `COMPOSITING_TIMEOUT_MS` с 5 до 15 минут |
+| `src/lib/videoOverlay.ts` строки 83-89 | Убрать split/alphaextract/erosion/boxblur/alphamerge — оставить только chromakey напрямую |
+| `src/lib/videoOverlay.ts` строка 98 | Снизить fps с 30 до 25 для дополнительного ускорения |
+
+### Итог
+
+- Таймаут 15 минут покроет ролики до ~2.5 минут при speed=0.1x (и до 5 минут при ускоренных фильтрах)
+- Упрощение фильтров даст ускорение ~2x
+- Качество кеинга останется приемлемым (chromakey с текущими параметрами итак делает хороший результат, alpha-refinement давал косметическое улучшение краёв)
+
