@@ -1742,7 +1742,7 @@ export default function Index() {
                   if (viewingVideoId) {
                     autoProcessAbortRef.current[viewingVideoId]?.abort();
                     delete autoProcessAbortRef.current[viewingVideoId];
-                    import('@/lib/ffmpegLoader').then(({ terminateSharedFFmpeg }) => terminateSharedFFmpeg()).catch(() => {});
+                    // VPS-based processing — no local FFmpeg to terminate
                     setAutoSubtitleProgress(prev => {
                       const next = { ...prev };
                       delete next[viewingVideoId];
