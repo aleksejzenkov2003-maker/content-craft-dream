@@ -599,7 +599,7 @@ export function VideoSidePanel({
                       const { reduceVideoBitrate } = await import('@/lib/videoNormalizer');
                       const file = await reduceVideoBitrate(src, (pct) => {
                         setProcessState({ type: 'bitrate', phase: 'compressing', progress: Math.min(100, Math.round(5 + pct * 85)) });
-                      });
+                      }, ac.signal);
                       setProcessState({ type: 'bitrate', phase: 'uploading', progress: 92 });
                       const fileName = `videos/${video.id}_reduced_${Date.now()}.mp4`;
                       const { error: uploadErr } = await supabase.storage
