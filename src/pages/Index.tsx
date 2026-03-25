@@ -279,6 +279,7 @@ export default function Index() {
             sourceUrl,
             (vid as any).background_video_url,
             (info) => updateProgress(info.phase as any, Math.round(info.progress * 0.2)),
+            autoAbort.signal,
           );
 
           const overlayFileName = `videos/${videoId}_overlay_${Date.now()}.mp4`;
