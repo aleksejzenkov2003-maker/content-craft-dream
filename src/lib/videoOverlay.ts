@@ -8,7 +8,7 @@ export interface OverlayProgressInfo {
 }
 
 /** Hard timeout for the ff.exec compositing step (5 minutes) */
-const COMPOSITING_TIMEOUT_MS = 5 * 60 * 1000;
+const COMPOSITING_TIMEOUT_MS = 15 * 60 * 1000;
 
 /**
  * Overlays an avatar video (with green screen background) onto a background video.
@@ -76,18 +76,11 @@ export async function overlayAvatarOnBackground(
       '-i', avatarName,
       '-filter_complex',
       [
-        // Background: fill frame (no letterbox)
         '[0:v]scale=1080:1920:force_original_aspect_ratio=increase,' +
           'crop=1080:1920:(iw-1080)/2:(ih-1920)/2,setsar=1[bg]',
-        // Avatar: key green + soften alpha edges
         '[1:v]scale=1080:1920:force_original_aspect_ratio=decrease,' +
           'pad=1080:1920:(ow-iw)/2:(oh-ih)/2,setsar=1,' +
-          'chromakey=0x00B140:0.30:0.08[fgk]',
-        // Refine alpha (feather edges to avoid harsh outlines)
-        '[fgk]split[fgc][fga]',
-        '[fga]alphaextract,erosion=1,boxblur=1:1[am]',
-        '[fgc][am]alphamerge[avatar]',
-        // Composite
+          'chromakey=0x00B140:0.30:0.08[avatar]',
         '[bg][avatar]overlay=0:0:shortest=1[v]',
       ].join(';'),
       '-map', '[v]',
@@ -95,7 +88,7 @@ export async function overlayAvatarOnBackground(
       '-c:v', 'libx264', '-preset', 'ultrafast', '-crf', '23',
       '-c:a', 'aac', '-ar', '48000', '-b:a', '128k',
       '-pix_fmt', 'yuv420p',
-      '-r', '30',
+      '-r', '25',
       '-shortest',
       '-y', outputName,
     ]);
