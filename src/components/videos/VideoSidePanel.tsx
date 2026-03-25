@@ -78,7 +78,7 @@ export function VideoSidePanel({
   video, open, onOpenChange, advisors, publishingChannels,
   onGenerateAtmosphere, onGenerateCover, onGenerateVideo, onGenerateVoiceover,
   onUpdateVideo, onPublish, isGenerating, onPrev, onNext, autoSubtitleProgress,
-  onNavigateToScene,
+  onCancelAutoProcess, onNavigateToScene,
 }: VideoSidePanelProps) {
   const [selectedChannels, setSelectedChannels] = useState<string[]>([]);
   const [isReady, setIsReady] = useState(false);
