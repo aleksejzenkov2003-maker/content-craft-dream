@@ -1088,6 +1088,7 @@ export type Database = {
           cover_status: string | null
           cover_url: string | null
           created_at: string
+          error_message: string | null
           facebook_url: string | null
           front_cover_url: string | null
           generation_count: number | null
@@ -1142,6 +1143,7 @@ export type Database = {
           cover_status?: string | null
           cover_url?: string | null
           created_at?: string
+          error_message?: string | null
           facebook_url?: string | null
           front_cover_url?: string | null
           generation_count?: number | null
@@ -1196,6 +1198,7 @@ export type Database = {
           cover_status?: string | null
           cover_url?: string | null
           created_at?: string
+          error_message?: string | null
           facebook_url?: string | null
           front_cover_url?: string | null
           generation_count?: number | null
