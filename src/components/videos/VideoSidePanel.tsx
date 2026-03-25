@@ -62,6 +62,7 @@ interface VideoSidePanelProps {
   onPrev?: () => void;
   onNext?: () => void;
   autoSubtitleProgress?: { phase: string; progress: number } | null;
+  onCancelAutoProcess?: () => void;
   onNavigateToScene?: (playlistId: string, advisorId: string) => void;
 }
 
