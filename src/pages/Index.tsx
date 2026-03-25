@@ -208,8 +208,11 @@ export default function Index() {
       return;
     }
     postProcessingRef.current.add(videoId);
+    const autoAbort = new AbortController();
+    autoProcessAbortRef.current[videoId] = autoAbort;
 
     const updateProgress = (phase: string, progress: number) => {
+      if (autoAbort.signal.aborted) return;
       setAutoSubtitleProgress(prev => ({ ...prev, [videoId]: { phase, progress } }));
     };
     const logStep = async (action: string, extra?: { details?: Record<string, unknown>; duration_ms?: number }) => {
