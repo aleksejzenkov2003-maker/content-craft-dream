@@ -833,7 +833,6 @@ export function VideoSidePanel({
             <Label htmlFor="highlight-mode" className="text-[10px] cursor-pointer">Highlight (караоке)</Label>
           </div>
         )}
-        )}
       </PanelSection>
 
       <Separator />
