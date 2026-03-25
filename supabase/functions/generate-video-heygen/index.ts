@@ -262,14 +262,20 @@ serve(async (req) => {
     const settingsMap: Record<string, string> = {};
     (settingsRows || []).forEach((r: any) => { settingsMap[r.key] = r.value; });
     
-    const heygenMode = settingsMap['heygen_mode'] || 'v3';
+    const heygenModeSetting = settingsMap['heygen_mode'] || 'v3';
     const motionEnabled = settingsMap['motion_enabled'] === 'true'; // default false — only enable when explicitly set
     const videoFormatMode = settingsMap['video_format_mode'] || 'full_photo';
     const isOverlayMode = videoFormatMode === 'background_overlay';
+    // Avatar IV (av4) does NOT support audio_url — it requires script+voice_id.
+    // Since we always use pre-generated ElevenLabs voiceover (audio_url), force v3 endpoint.
+    const heygenMode = voiceoverUrl ? 'v3' : heygenModeSetting;
+    if (heygenModeSetting === 'v4' && voiceoverUrl) {
+      console.log('NOTICE: Forcing v3 endpoint because av4 does not support audio_url (pre-generated voiceover detected)');
+    }
     const heygenEndpoint = heygenMode === 'v4'
       ? 'https://api.heygen.com/v2/video/av4/generate'
       : 'https://api.heygen.com/v2/video/generate';
-    console.log(`Using HeyGen mode: ${heygenMode}, motion_enabled: ${motionEnabled}, video_format: ${videoFormatMode}, endpoint: ${heygenEndpoint}`);
+    console.log(`Using HeyGen mode: ${heygenMode} (setting: ${heygenModeSetting}), motion_enabled: ${motionEnabled}, video_format: ${videoFormatMode}, endpoint: ${heygenEndpoint}`);
 
     // Use scene's motion_avatar_id first, then video's, otherwise upload fresh
     let talkingPhotoIdFinal: string;
