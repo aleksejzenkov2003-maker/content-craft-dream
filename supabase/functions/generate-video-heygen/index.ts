@@ -91,6 +91,33 @@ serve(async (req) => {
 
     console.log(`Generating HeyGen video for video ${videoId}`);
 
+    // =============================================
+    // Fail-fast: check HeyGen credit balance
+    // =============================================
+    try {
+      const quotaRes = await fetch('https://api.heygen.com/v2/user/remaining_quota', {
+        headers: { 'X-Api-Key': heygenKey },
+      });
+      if (quotaRes.ok) {
+        const quotaData = await quotaRes.json();
+        const remainingSeconds = quotaData?.data?.remaining_quota ?? 0;
+        console.log(`HeyGen remaining quota: ${remainingSeconds}s`);
+        if (remainingSeconds < 10) {
+          const errMsg = `Недостаточно кредитов HeyGen (осталось ${Math.floor(remainingSeconds)}с). Пополните баланс.`;
+          await supabase.from('videos').update({
+            generation_status: 'error',
+            error_message: errMsg,
+          }).eq('id', videoId);
+          return new Response(
+            JSON.stringify({ success: false, error: errMsg }),
+            { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          );
+        }
+      }
+    } catch (quotaErr) {
+      console.warn('Failed to check HeyGen quota, proceeding anyway:', quotaErr);
+    }
+
     // Get video with advisor and playlist info
     const { data: video, error: videoError } = await supabase
       .from('videos')
@@ -103,7 +130,7 @@ serve(async (req) => {
 
     if (videoError || !video) throw new Error('Video not found');
 
-    await supabase.from('videos').update({ generation_status: 'generating' }).eq('id', videoId);
+    await supabase.from('videos').update({ generation_status: 'generating', error_message: null }).eq('id', videoId);
 
     const scriptText = script || video.advisor_answer;
     if (!scriptText) throw new Error('No script/answer text available for video generation');

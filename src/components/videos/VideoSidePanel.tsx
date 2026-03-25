@@ -386,7 +386,7 @@ export function VideoSidePanel({
                 )}>
                   {hasError ? '❌' : <Loader2 className="w-3 h-3 animate-spin" />}
                   <span>
-                    {hasError ? 'Ошибка генерации' :
+                    {hasError ? (video.error_message ? `Ошибка: ${video.error_message}` : 'Ошибка генерации') :
                      genBusy ? 'Генерация видео HeyGen...' :
                      reelBusy ? 'Постобработка (битрейт/субтитры)...' : ''}
                   </span>

@@ -58,6 +58,8 @@ export interface Video {
   motion_avatar_id: string | null;
   // Generation tracking
   generation_count: number | null;
+  // Error details
+  error_message: string | null;
   // Joined data
   advisor?: {
     id: string;

@@ -172,12 +172,22 @@ serve(async (req) => {
 
     } else if (status === 'failed') {
       newStatus = 'error';
+      const errMsg = errorMessage || 'HeyGen generation failed';
       await supabase
         .from('videos')
         .update({ 
           generation_status: 'error',
+          error_message: errMsg,
         })
         .eq('id', videoId);
+
+      // Log failure event
+      await supabase.from('activity_log').insert({
+        action: 'video_generation_failed',
+        entity_type: 'video',
+        entity_id: videoId,
+        details: { error: errMsg, heygen_status: status },
+      });
     }
 
     return new Response(
