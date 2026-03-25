@@ -1667,6 +1667,16 @@ export default function Index() {
                 onPublish={handlePublishVideo}
                 isGenerating={isGenerating}
                 autoSubtitleProgress={viewingVideoId ? autoSubtitleProgress[viewingVideoId] || null : null}
+                onCancelAutoProcess={() => {
+                  if (viewingVideoId) {
+                    setAutoSubtitleProgress(prev => {
+                      const next = { ...prev };
+                      delete next[viewingVideoId];
+                      return next;
+                    });
+                    toast.info('Авто-процесс отменён');
+                  }
+                }}
                 onNavigateToScene={(playlistId, advisorId) => {
                   setShowSidePanel(false);
                   setViewingVideoId(null);

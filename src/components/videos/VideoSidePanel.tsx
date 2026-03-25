@@ -62,6 +62,7 @@ interface VideoSidePanelProps {
   onPrev?: () => void;
   onNext?: () => void;
   autoSubtitleProgress?: { phase: string; progress: number } | null;
+  onCancelAutoProcess?: () => void;
   onNavigateToScene?: (playlistId: string, advisorId: string) => void;
 }
 
@@ -77,7 +78,7 @@ export function VideoSidePanel({
   video, open, onOpenChange, advisors, publishingChannels,
   onGenerateAtmosphere, onGenerateCover, onGenerateVideo, onGenerateVoiceover,
   onUpdateVideo, onPublish, isGenerating, onPrev, onNext, autoSubtitleProgress,
-  onNavigateToScene,
+  onCancelAutoProcess, onNavigateToScene,
 }: VideoSidePanelProps) {
   const [selectedChannels, setSelectedChannels] = useState<string[]>([]);
   const [isReady, setIsReady] = useState(false);
@@ -145,6 +146,17 @@ export function VideoSidePanel({
     setAdvisorAnswer(video?.advisor_answer || '');
     setIsReady((video as any)?.is_ready || false);
   }, [video?.id, video?.selected_channels, video?.advisor_answer, advisor]);
+
+  // Cleanup: abort running process on video switch or panel close
+  useEffect(() => {
+    return () => {
+      if (processAbort) {
+        processAbort.abort();
+        setProcessState(null);
+        setProcessAbort(null);
+      }
+    };
+  }, [video?.id, open]);
 
   // Fetch heygen_mode setting
   useEffect(() => {
@@ -598,7 +610,7 @@ export function VideoSidePanel({
                       const { reduceVideoBitrate } = await import('@/lib/videoNormalizer');
                       const file = await reduceVideoBitrate(src, (pct) => {
                         setProcessState({ type: 'bitrate', phase: 'compressing', progress: Math.min(100, Math.round(5 + pct * 85)) });
-                      });
+                      }, ac.signal);
                       setProcessState({ type: 'bitrate', phase: 'uploading', progress: 92 });
                       const fileName = `videos/${video.id}_reduced_${Date.now()}.mp4`;
                       const { error: uploadErr } = await supabase.storage
@@ -739,22 +751,24 @@ export function VideoSidePanel({
                     <Loader2 className="w-3 h-3 animate-spin text-primary shrink-0" />
                     <Progress value={pct} className="h-1.5 flex-1" />
                     <span className="text-[9px] text-muted-foreground whitespace-nowrap">{typeLabel} {pct}%</span>
-                    {processState && (
-                      <Button
-                        size="xs"
-                        variant="destructive"
-                        className="text-[10px] px-2 h-5 shrink-0"
-                        onClick={() => {
+                    <Button
+                      size="xs"
+                      variant="destructive"
+                      className="text-[10px] px-2 h-5 shrink-0"
+                      onClick={() => {
+                        if (processState) {
                           processAbort?.abort();
                           import('@/lib/ffmpegLoader').then(({ terminateSharedFFmpeg }) => terminateSharedFFmpeg()).catch(() => {});
                           setProcessState(null);
                           setProcessAbort(null);
-                          toast.info('Процесс остановлен');
-                        }}
-                      >
-                        <Square className="w-3 h-3 mr-1" />Стоп
-                      </Button>
-                    )}
+                        } else if (autoSubtitleProgress) {
+                          onCancelAutoProcess?.();
+                        }
+                        toast.info('Процесс остановлен');
+                      }}
+                    >
+                      <Square className="w-3 h-3 mr-1" />Стоп
+                    </Button>
                   </div>
                 );
               })()}
