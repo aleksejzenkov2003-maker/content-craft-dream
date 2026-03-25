@@ -87,16 +87,13 @@ export function VideoSidePanel({
   const [atmosIndex, setAtmosIndex] = useState(0);
   const [coverIndex, setCoverIndex] = useState(0);
   const [atmospherePromptText, setAtmospherePromptText] = useState('');
-  const [subtitleProgress, setSubtitleProgress] = useState<{ phase: string; progress: number } | null>(null);
-  const [subtitleAbort, setSubtitleAbort] = useState<AbortController | null>(null);
+  const [processState, setProcessState] = useState<{ type: 'bitrate' | 'overlay' | 'subtitles'; phase: string; progress: number } | null>(null);
+  const [processAbort, setProcessAbort] = useState<AbortController | null>(null);
   const [highlightMode, setHighlightMode] = useState(true);
   const [detectedDuration, setDetectedDuration] = useState<number | null>(null);
   const [videoSizeBytes, setVideoSizeBytes] = useState<number | null>(null);
   const [heygenMode, setHeygenMode] = useState<string>('v3');
-   const [localBusy, setLocalBusy] = useState<'atmosphere' | 'cover' | 'video' | null>(null);
-  const [bitrateProgress, setBitrateProgress] = useState<{ phase: string; progress: number } | null>(null);
-  const [overlayProgress, setOverlayProgress] = useState<{ phase: string; progress: number } | null>(null);
-  const [overlayAbort, setOverlayAbort] = useState<AbortController | null>(null);
+  const [localBusy, setLocalBusy] = useState<'atmosphere' | 'cover' | 'video' | null>(null);
   const [videoVariantsDb, setVideoVariantsDb] = useState<VideoVariant[]>([]);
   const [vidVariantIndex, setVidVariantIndex] = useState(0);
 
