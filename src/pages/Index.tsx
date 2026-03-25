@@ -87,27 +87,7 @@ export default function Index() {
   const { concatVideos } = useVideoConcat();
   const { isEnabled } = useAutomationSettings();
 
-  // Preload FFmpeg only on videos tab and only when browser is idle
-  useEffect(() => {
-    if (activeTab !== 'videos') return;
-
-    let idleId: number | null = null;
-    const preload = () => {
-      import('@/lib/ffmpegLoader').then(({ preloadFFmpeg }) => preloadFFmpeg()).catch(() => {});
-    };
-
-    if ('requestIdleCallback' in window) {
-      idleId = (window as Window & { requestIdleCallback: (cb: IdleRequestCallback) => number }).requestIdleCallback(preload);
-    } else {
-      preload();
-    }
-
-    return () => {
-      if (idleId !== null && 'cancelIdleCallback' in window) {
-        (window as Window & { cancelIdleCallback: (id: number) => void }).cancelIdleCallback(idleId);
-      }
-    };
-  }, [activeTab]);
+  // FFmpeg preloading removed — processing now happens on VPS
 
   // Derive live objects from arrays instead of storing snapshots
   const editingVideo = editingVideoId ? (videos.find(v => v.id === editingVideoId) ?? allVideos.find(v => v.id === editingVideoId) ?? null) : null;
