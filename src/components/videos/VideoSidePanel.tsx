@@ -600,7 +600,7 @@ export function VideoSidePanel({
                   size="xs"
                   variant="outline"
                   className="flex-1 text-[10px]"
-                  disabled={!!processState}
+                  disabled={isProcessLocked}
                   onClick={async () => {
                     const src = video.heygen_video_url;
                     if (!src) return;
@@ -636,7 +636,7 @@ export function VideoSidePanel({
                   size="xs"
                   variant="outline"
                   className="flex-1 text-[10px]"
-                  disabled={!!processState || !video.heygen_video_url || !(video as any).background_video_url}
+                  disabled={isProcessLocked || !video.heygen_video_url || !(video as any).background_video_url}
                   title={!(video as any).background_video_url ? 'Нет назначенной подложки' : 'Наложить аватар на фон'}
                   onClick={async () => {
                     const avatarUrl = video.heygen_video_url;
@@ -645,7 +645,6 @@ export function VideoSidePanel({
                     const ac = new AbortController();
                     setProcessAbort(ac);
                     try {
-                      // Snapshot current video to gallery before overlay
                       const existingVariant = await (supabase.from('video_variants' as any) as any)
                         .select('id').eq('video_id', video.id).eq('heygen_video_url', video.heygen_video_url).limit(1);
                       if (!existingVariant.data?.length) {
@@ -655,7 +654,7 @@ export function VideoSidePanel({
                           heygen_video_url: video.heygen_video_url,
                           reduced_video_url: video.reduced_video_url,
                           video_path: video.video_path,
-                          is_active: true,
+                          is_active: false,
                           generation_number: (video as any).generation_count || 1,
                         });
                       }
@@ -695,7 +694,7 @@ export function VideoSidePanel({
                   size="xs"
                   variant="outline"
                   className="flex-1 text-[10px]"
-                  disabled={!!processState || !video.word_timestamps}
+                  disabled={isProcessLocked || !video.word_timestamps}
                   onClick={async () => {
                     const cleanSrc = (video as any).reduced_video_url || video.heygen_video_url;
                     if (!cleanSrc) { toast.error('Нет исходного видео'); return; }
