@@ -672,7 +672,17 @@ export function VideoSidePanel({
                         .upload(fileName, file, { contentType: 'video/mp4', upsert: true });
                       if (uploadErr) throw uploadErr;
                       const { data: urlData } = supabase.storage.from('media-files').getPublicUrl(fileName);
-                      onUpdateVideo(video.id, { reduced_video_url: urlData.publicUrl } as any);
+                      await onUpdateVideo(video.id, { reduced_video_url: urlData.publicUrl, video_path: urlData.publicUrl, reel_status: 'ready' } as any);
+                      // Insert overlay as a new variant
+                      await (supabase.from('video_variants' as any) as any).insert({
+                        video_id: video.id,
+                        heygen_video_id: video.heygen_video_id,
+                        heygen_video_url: video.heygen_video_url,
+                        reduced_video_url: urlData.publicUrl,
+                        video_path: urlData.publicUrl,
+                        is_active: true,
+                        generation_number: (video as any).generation_count || 1,
+                      });
                       fetchVariants();
                       toast.success('Фон наложен');
                     } catch (err) {

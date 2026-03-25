@@ -107,7 +107,12 @@ export async function overlayAvatarOnBackground(
 }
 
 async function fetchAsset(url: string, signal?: AbortSignal): Promise<ArrayBuffer> {
-  const resp = await fetch(url, { signal });
+  // Combine user signal with a 60-second timeout to prevent hanging on expired URLs
+  const timeoutSignal = AbortSignal.timeout(60_000);
+  const combinedSignal = signal
+    ? AbortSignal.any([signal, timeoutSignal])
+    : timeoutSignal;
+  const resp = await fetch(url, { signal: combinedSignal });
   if (!resp.ok) throw new Error(`Не удалось скачать: HTTP ${resp.status}`);
   return resp.arrayBuffer();
 }

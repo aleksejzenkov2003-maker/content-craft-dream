@@ -289,6 +289,8 @@ export default function Index() {
           if (uploadErr) throw uploadErr;
           const { data: urlData } = supabase.storage.from('media-files').getPublicUrl(overlayFileName);
           finalUrl = urlData.publicUrl;
+          // Save overlay result immediately as fallback in case downstream steps fail
+          await supabase.from('videos').update({ reduced_video_url: finalUrl, video_path: finalUrl }).eq('id', videoId);
           await logStep('overlay_compositing_complete', { duration_ms: Date.now() - overlayStart });
           toast.success('✅ Наложение на подложку завершено!');
         } catch (overlayErr) {
