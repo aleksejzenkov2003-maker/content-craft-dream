@@ -1,60 +1,81 @@
 
+Проблема сейчас уже не в порядке шагов, а в том, что шаг фона может зависнуть навсегда.
 
-## Fix: Enforce Strict Sequential Pipeline Order
+Что я проверил:
+- По видео `b7362907-84e8-474e-b177-db09af2a7f37` в базе есть только `overlay_compositing_started`, дальше нет ни `overlay_compositing_complete`, ни `overlay_compositing_failed`.
+- В `videos` запись зависла в `reel_status = 'generating'`, а `video_path` и `reduced_video_url` пустые.
+- В `src/lib/videoOverlay.ts` у `fetch` уже есть таймаут 60с, но у самого `ff.exec(...)` на шаге композита таймаута нет вообще.
+- Наложение сейчас идет в браузере в высоком качестве: 1080x1920, chromakey, alphaextract/erosion/boxblur/alphamerge, `libx264`, `preset slow`, `crf 20`. Это очень тяжелая операция и на слабой машине/в превью может идти очень долго или зависать без завершения.
+- В `src/pages/Index.tsx` пайплайн считает шаг запущенным, ставит `reel_status='generating'`, но если overlay завис, дальше уже ничего не произойдет и система не восстановится сама.
 
-### Problem
+Вывод:
+- Сейчас главный баг: нет watchdog/таймаута и нет механизма восстановления именно для шага overlay.
+- Дополнительно текущая “строгая последовательность” визуально есть, но не хватает явной фиксации текущего этапа и причины зависания.
 
-The post-processing pipeline has correct sequential code (overlay → bitrate → subtitles), but:
-1. **Toast messages are misleading** — overlay is labeled "Шаг 0", bitrate "Шаг 1/2", subtitles "Шаг 2/2". With overlay, it should be 3 steps total (1/3, 2/3, 3/3).
-2. **Auto-resume can re-trigger** while FFmpeg is still running the overlay, causing subtitles to start in parallel on a stale URL.
-3. **The overlay condition check** (`!sourceUrl.includes('_overlay_')`) is fragile — if the URL doesn't contain that substring pattern, overlay re-runs or gets skipped incorrectly.
+План исправления
 
-### Solution
+1. Усилить шаг наложения фона
+- В `src/lib/videoOverlay.ts` обернуть `ff.exec(...)` в жесткий watchdog-таймаут.
+- Если таймаут превышен:
+  - прерывать процесс,
+  - вызывать `terminateSharedFFmpeg()`,
+  - бросать понятную ошибку вроде `Overlay compositing timeout`.
+- Добавить сбор последних FFmpeg логов, чтобы в `activity_log` писать не просто “failed”, а причину зависания/последние строки FFmpeg.
 
-**File: `src/pages/Index.tsx` — `postProcessVideo` function**
+2. Сделать overlay отдельным контролируемым этапом
+- В `src/pages/Index.tsx` логировать не только `overlay_compositing_started`, но и:
+  - `overlay_download_started/complete`,
+  - `overlay_ffmpeg_started`,
+  - `overlay_upload_started/complete`.
+- Так станет видно, где именно зависание: скачивание, сам FFmpeg или загрузка результата.
 
-1. **Dynamic step labeling**: Detect upfront how many steps will run (overlay + bitrate + subtitles) and number toasts accordingly (e.g. "Шаг 1/3: Наложение фона", "Шаг 2/3: Битрейт", "Шаг 3/3: Субтитры").
+3. Зафиксировать строгий порядок пайплайна по этапам
+- Оставить только последовательность:
+  1. HeyGen без фона
+  2. Наложение на фон
+  3. Битрейт
+  4. Субтитры
+- В `postProcessVideo` явно хранить текущий этап в локальной переменной и в логах, чтобы следующий шаг не стартовал, пока предыдущий не завершился записью результата.
+- Сохранение промежуточного результата оставить после overlay и после bitrate, чтобы при падении следующего шага видео не исчезало.
 
-2. **Atomic DB guard at start**: Before starting, check DB `reel_status` — if it's already `'generating'`, skip (not just in-memory Set). This prevents resume logic from launching a duplicate.
+4. Починить восстановление после зависания
+- В auto-resume логике не просто смотреть на `reel_status='generating'`, а учитывать последний action из `activity_log`.
+- Если видео висит слишком долго на `overlay_compositing_started` без `complete/failed`, считать шаг сломанным:
+  - сбрасывать зависший процесс,
+  - либо перезапускать overlay,
+  - либо переводить запись в `error` с понятной причиной.
+- Это не даст ролику висеть по 23 минуты без конца.
 
-3. **Fix overlay skip condition**: Replace the fragile `!sourceUrl.includes('_overlay_')` check with a proper flag. After overlay completes, set a local variable `overlayDone = true` and also check `activity_log` for `overlay_compositing_complete` to avoid re-running on resume.
+5. Добавить защиту от “вечного generating”
+- В `Index.tsx` перед resume проверять возраст последнего шага.
+- Если этап фона длится дольше допустимого окна, не держать бесконечно `reel_status='generating'`.
+- Обновлять статус на `error` и показывать пользователю понятное уведомление: завис шаг фона, можно перезапустить.
 
-4. **Save `video_path` after each step**: Already partially done (overlay saves), extend to bitrate step too — so if subtitles fail, the reduced version is preserved as `video_path`.
+6. Улучшить пользовательскую диагностику
+- В UI прогресса показывать не просто “FFmpeg обработка…”, а конкретный этап:
+  - Шаг 1/3: наложение фона
+  - Скачивание исходников / композитинг / загрузка результата
+- Если сработал watchdog, показывать отдельное уведомление, что завис именно шаг наложения, а не субтитры или битрейт.
 
-### Specific Changes
+Технические изменения
+- `src/lib/videoOverlay.ts`
+  - добавить timeout/watcher вокруг `ff.exec`
+  - лог-сбор FFmpeg
+  - аварийное завершение через `terminateSharedFFmpeg()`
+- `src/pages/Index.tsx`
+  - расширить step logging
+  - добавить recovery для “overlay started too long ago”
+  - сохранить строгую блокировку запуска следующего шага только после успешного завершения предыдущего
+- при необходимости использовать уже существующий паттерн таймаута из `videoConcat.ts` как основу для overlay watchdog
 
-| Location | Change |
-|---|---|
-| Line 233 | Add DB-level guard: fetch `reel_status` and skip if already `'generating'` |
-| Lines 252-301 | Update overlay toast from "Шаг 0" to dynamic "Шаг N/M" |
-| Lines 303-334 | Update bitrate toast from "Шаг 1/2" to dynamic label; save `video_path` after bitrate |
-| Lines 336-375 | Update subtitles toast from "Шаг 2/2" to dynamic label |
-| Line 253 | Replace `!sourceUrl.includes('_overlay_')` with a check against `activity_log` for the current `generation_count` |
+Ожидаемый результат после реализации
+- Если overlay реально работает — он завершится и только потом пойдут bitrate и subtitles.
+- Если overlay завис — процесс не будет висеть бесконечно 23 минуты, а завершится с явной ошибкой и возможностью перезапуска.
+- В логах и в интерфейсе будет сразу видно, на каком подшаге сломалось: скачивание, композитинг или upload.
 
-### Step Numbering Logic
-
-```text
-totalSteps = 0
-if overlay_mode && background_video_url → totalSteps++
-if resize enabled → totalSteps++
-if subtitles enabled && word_timestamps → totalSteps++
-
-currentStep = 0
-// Before each phase: currentStep++, toast "Шаг {currentStep}/{totalSteps}: ..."
-```
-
-### DB Guard Addition (top of postProcessVideo)
-
-```typescript
-// Check DB to prevent duplicate runs (not just in-memory)
-const { data: statusCheck } = await supabase
-  .from('videos')
-  .select('reel_status')
-  .eq('id', videoId)
-  .single();
-if (statusCheck?.reel_status === 'generating') {
-  console.log(`[postProcess] DB shows generating for ${videoId}, skipping`);
-  return;
-}
-```
-
+<lov-actions>
+<lov-suggestion message="Test the full video pipeline end-to-end and confirm the steps run strictly in order: HeyGen without background, overlay, bitrate, then subtitles.">Verify that it works</lov-suggestion>
+<lov-suggestion message="Implement a watchdog timeout and recovery flow for the overlay step so stuck background compositing is aborted and marked as an error instead of hanging forever.">Add overlay watchdog</lov-suggestion>
+<lov-suggestion message="Add detailed per-step activity logs for overlay download, FFmpeg compositing, and upload so it is clear exactly where the pipeline hangs.">Improve pipeline logging</lov-suggestion>
+<lov-suggestion message="Show the current pipeline phase and subphase in the UI progress banner, including overlay download/compositing/upload states.">Improve progress UI</lov-suggestion>
+</lov-actions>
