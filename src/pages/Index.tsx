@@ -343,6 +343,7 @@ export default function Index() {
             vid.word_timestamps as any,
             { fontSize: 56 },
             (info) => updateProgress(info.phase, Math.round(50 + info.progress * 0.45)),
+            autoAbort.signal,
           );
           updateProgress('uploading_result', 95);
           const subtitledFileName = `videos/${videoId}_subtitled_${Date.now()}.mp4`;
