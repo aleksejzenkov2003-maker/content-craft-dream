@@ -87,27 +87,7 @@ export default function Index() {
   const { concatVideos } = useVideoConcat();
   const { isEnabled } = useAutomationSettings();
 
-  // Preload FFmpeg only on videos tab and only when browser is idle
-  useEffect(() => {
-    if (activeTab !== 'videos') return;
-
-    let idleId: number | null = null;
-    const preload = () => {
-      import('@/lib/ffmpegLoader').then(({ preloadFFmpeg }) => preloadFFmpeg()).catch(() => {});
-    };
-
-    if ('requestIdleCallback' in window) {
-      idleId = (window as Window & { requestIdleCallback: (cb: IdleRequestCallback) => number }).requestIdleCallback(preload);
-    } else {
-      preload();
-    }
-
-    return () => {
-      if (idleId !== null && 'cancelIdleCallback' in window) {
-        (window as Window & { cancelIdleCallback: (id: number) => void }).cancelIdleCallback(idleId);
-      }
-    };
-  }, [activeTab]);
+  // FFmpeg preloading removed — processing now happens on VPS
 
   // Derive live objects from arrays instead of storing snapshots
   const editingVideo = editingVideoId ? (videos.find(v => v.id === editingVideoId) ?? allVideos.find(v => v.id === editingVideoId) ?? null) : null;
@@ -306,20 +286,14 @@ export default function Index() {
           }
 
           const { overlayAvatarOnBackground } = await import('@/lib/videoOverlay');
-          const overlayFile = await overlayAvatarOnBackground(
+          const overlayUrl = await overlayAvatarOnBackground(
             sourceUrl,
             (vid as any).background_video_url,
             (info) => updateProgress(info.phase as any, Math.round(info.progress * 0.2)),
             autoAbort.signal,
           );
 
-          const overlayFileName = `videos/${videoId}_overlay_${Date.now()}.mp4`;
-          const { error: uploadErr } = await supabase.storage
-            .from('media-files')
-            .upload(overlayFileName, overlayFile, { contentType: 'video/mp4', upsert: true });
-          if (uploadErr) throw uploadErr;
-          const { data: urlData } = supabase.storage.from('media-files').getPublicUrl(overlayFileName);
-          finalUrl = urlData.publicUrl;
+          finalUrl = overlayUrl;
           // Save overlay result immediately as fallback in case downstream steps fail
           await supabase.from('videos').update({ reduced_video_url: finalUrl, video_path: finalUrl }).eq('id', videoId);
           await logStep('overlay_compositing_complete', { duration_ms: Date.now() - overlayStart });
@@ -346,19 +320,11 @@ export default function Index() {
           const found = COMPRESSION_PRESETS.find(p => p.id === (presetSetting as any).value);
           if (found) selectedPreset = found;
         }
-        const reducedFile = await reduceVideoBitrate(finalUrl, (pct) => {
+        const reducedUrl = await reduceVideoBitrate(finalUrl, (pct) => {
           updateProgress('reducing_bitrate', Math.round(5 + pct * 40));
         }, autoAbort.signal, selectedPreset);
 
-        updateProgress('reducing_bitrate', 45);
-        const reducedFileName = `videos/${videoId}_reduced_${Date.now()}.mp4`;
-        const { error: uploadErr } = await supabase.storage
-          .from('media-files')
-          .upload(reducedFileName, reducedFile, { contentType: 'video/mp4', upsert: true });
-        if (uploadErr) throw uploadErr;
-
-        const { data: urlData } = supabase.storage.from('media-files').getPublicUrl(reducedFileName);
-        finalUrl = urlData.publicUrl;
+        finalUrl = reducedUrl;
         // Save reduced URL as clean source + video_path fallback
         await supabase.from('videos').update({ reduced_video_url: finalUrl, video_path: finalUrl }).eq('id', videoId);
         await logStep('bitrate_reduction_complete', { duration_ms: Date.now() - bitrateStart, details: { preset: selectedPreset.id } });
@@ -373,7 +339,7 @@ export default function Index() {
         await logStep('subtitle_burn_started');
         try {
           const { burnSubtitlesBrowser } = await import('@/lib/videoSubtitles');
-          const subtitledFile = await burnSubtitlesBrowser(
+          const subtitledUrl = await burnSubtitlesBrowser(
             finalUrl,
             vid.word_timestamps as any,
             { fontSize: 56 },
@@ -381,13 +347,7 @@ export default function Index() {
             autoAbort.signal,
           );
           updateProgress('uploading_result', 95);
-          const subtitledFileName = `videos/${videoId}_subtitled_${Date.now()}.mp4`;
-          const { error: subUpErr } = await supabase.storage
-            .from('media-files')
-            .upload(subtitledFileName, subtitledFile, { contentType: 'video/mp4', upsert: true });
-          if (subUpErr) throw subUpErr;
-          const { data: subUrlData } = supabase.storage.from('media-files').getPublicUrl(subtitledFileName);
-          finalUrl = subUrlData.publicUrl;
+          finalUrl = subtitledUrl;
           await logStep('subtitle_burn_complete', { duration_ms: Date.now() - subStart });
           toast.success(`✅ ${stepLabel('Субтитры вшиты! Видео полностью готово.')}`);
         } catch (subErr) {
@@ -1782,7 +1742,7 @@ export default function Index() {
                   if (viewingVideoId) {
                     autoProcessAbortRef.current[viewingVideoId]?.abort();
                     delete autoProcessAbortRef.current[viewingVideoId];
-                    import('@/lib/ffmpegLoader').then(({ terminateSharedFFmpeg }) => terminateSharedFFmpeg()).catch(() => {});
+                    // VPS-based processing — no local FFmpeg to terminate
                     setAutoSubtitleProgress(prev => {
                       const next = { ...prev };
                       delete next[viewingVideoId];

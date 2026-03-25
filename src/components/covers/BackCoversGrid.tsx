@@ -246,17 +246,8 @@ export function BackCoversGrid() {
                       setNormalizing(true);
                       setNormalizeProgress(0);
                       toast.info('Нормализация аудио обложки...');
-                      const normalizedFile = await normalizeVideoAudio(file, (p) => setNormalizeProgress(p));
-                      // Upload normalized file to storage, replacing original
-                      const normalizedPath = `back-covers/normalized_${Date.now()}_${normalizedFile.name}`;
-                      const { error: upErr } = await supabase.storage
-                        .from('media-files')
-                        .upload(normalizedPath, normalizedFile, { contentType: 'video/mp4', upsert: true });
-                      if (upErr) throw upErr;
-                      const { data: urlData } = supabase.storage
-                        .from('media-files')
-                        .getPublicUrl(normalizedPath);
-                      setBackCoverVideoUrl(urlData.publicUrl);
+                      const normalizedUrl = await normalizeVideoAudio(url, (p) => setNormalizeProgress(p));
+                      setBackCoverVideoUrl(normalizedUrl);
                       toast.success('Аудио нормализовано');
                     } catch (err: any) {
                       console.error('Normalization error:', err);

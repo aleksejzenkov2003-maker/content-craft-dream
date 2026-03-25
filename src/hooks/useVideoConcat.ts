@@ -2,7 +2,6 @@ import { useState, useCallback, useRef } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { concatVideosClient, type ConcatPhase } from '@/lib/videoConcat';
-import { terminateSharedFFmpeg } from '@/lib/ffmpegLoader';
 
 interface ConcatState {
   loading: boolean;
@@ -43,7 +42,6 @@ export function useVideoConcat() {
     const targetPublicationId = publicationId ?? publicationIdRef.current;
 
     abortRef.current?.abort();
-    terminateSharedFFmpeg();
     abortRef.current = null;
     publicationIdRef.current = null;
     setState({ loading: false, progress: 0, phase: null, error: null });
@@ -65,7 +63,6 @@ export function useVideoConcat() {
 
     if (abortRef.current) {
       abortRef.current.abort();
-      terminateSharedFFmpeg();
       if (previousPublicationId && previousPublicationId !== publicationId) {
         void restorePublicationAfterCancel(previousPublicationId);
       }
@@ -75,7 +72,7 @@ export function useVideoConcat() {
     abortRef.current = controller;
     publicationIdRef.current = publicationId;
 
-    setState({ loading: true, progress: 0, phase: 'loading_ffmpeg', error: null });
+    setState({ loading: true, progress: 0, phase: 'concatenating', error: null });
 
     try {
       await supabase
@@ -83,7 +80,7 @@ export function useVideoConcat() {
         .update({ publication_status: 'concatenating', error_message: null })
         .eq('id', publicationId);
 
-      const file = await concatVideosClient(
+      const finalUrl = await concatVideosClient(
         mainVideoUrl,
         backCoverVideoUrl,
         (info) => {
@@ -94,22 +91,6 @@ export function useVideoConcat() {
       );
 
       controller.signal.throwIfAborted();
-
-      setState(prev => ({ ...prev, phase: 'done', progress: 96 }));
-      const fileName = `concat/${publicationId}_${Date.now()}.mp4`;
-      const { error: uploadError } = await supabase.storage
-        .from('media-files')
-        .upload(fileName, file, { contentType: 'video/mp4', upsert: true });
-
-      if (uploadError) throw new Error(`Ошибка загрузки: ${uploadError.message}`);
-
-      controller.signal.throwIfAborted();
-
-      const { data: urlData } = supabase.storage
-        .from('media-files')
-        .getPublicUrl(fileName);
-
-      const finalUrl = urlData.publicUrl;
 
       await supabase
         .from('publications')
@@ -159,4 +140,3 @@ export function useVideoConcat() {
     ...state,
   };
 }
-
