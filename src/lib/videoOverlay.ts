@@ -70,9 +70,10 @@ export async function overlayAvatarOnBackground(
       [
         // Background fills the full frame without black bars
         '[0:v]scale=1080:1920:force_original_aspect_ratio=increase,crop=1080:1920:(iw-1080)/2:(ih-1920)/2,setsar=1[bg]',
-        // Avatar keyed with softer settings (closer to server-side renderer)
-        '[1:v]scale=1080:1920:force_original_aspect_ratio=decrease,pad=1080:1920:(ow-iw)/2:(oh-ih)/2,setsar=1,chromakey=0x00B140:0.30:0.08[avatar]',
-        // Overlay avatar on background, stop when shortest input ends
+        // Avatar: scale to fit, pad to 1080x1920, then chromakey green
+        // Using colorkey instead of chromakey for better preservation of non-green areas
+        '[1:v]scale=1080:1920:force_original_aspect_ratio=decrease,pad=1080:1920:(ow-iw)/2:(oh-ih)/2:color=0x00B140,setsar=1,colorkey=0x00B140:0.20:0.15[avatar]',
+        // Overlay avatar on background
         '[bg][avatar]overlay=0:0[v]',
       ].join(';'),
       '-map', '[v]',

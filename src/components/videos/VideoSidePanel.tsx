@@ -632,6 +632,20 @@ export function VideoSidePanel({
                     const ac = new AbortController();
                     setProcessAbort(ac);
                     try {
+                      // Snapshot current video to gallery before overlay
+                      const existingVariant = await (supabase.from('video_variants' as any) as any)
+                        .select('id').eq('video_id', video.id).eq('heygen_video_url', video.heygen_video_url).limit(1);
+                      if (!existingVariant.data?.length) {
+                        await (supabase.from('video_variants' as any) as any).insert({
+                          video_id: video.id,
+                          heygen_video_id: video.heygen_video_id,
+                          heygen_video_url: video.heygen_video_url,
+                          reduced_video_url: video.reduced_video_url,
+                          video_path: video.video_path,
+                          is_active: true,
+                          generation_number: (video as any).generation_count || 1,
+                        });
+                      }
                       const { overlayAvatarOnBackground } = await import('@/lib/videoOverlay');
                       setProcessState({ type: 'overlay', phase: 'loading_ffmpeg', progress: 3 });
                       const file = await overlayAvatarOnBackground(
@@ -647,6 +661,7 @@ export function VideoSidePanel({
                       if (uploadErr) throw uploadErr;
                       const { data: urlData } = supabase.storage.from('media-files').getPublicUrl(fileName);
                       onUpdateVideo(video.id, { reduced_video_url: urlData.publicUrl } as any);
+                      fetchVariants();
                       toast.success('Фон наложен');
                     } catch (err) {
                       if ((err as Error)?.name === 'AbortError' || ac.signal.aborted) {
