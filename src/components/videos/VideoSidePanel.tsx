@@ -95,6 +95,8 @@ export function VideoSidePanel({
   const [heygenMode, setHeygenMode] = useState<string>('v3');
    const [localBusy, setLocalBusy] = useState<'atmosphere' | 'cover' | 'video' | null>(null);
   const [bitrateProgress, setBitrateProgress] = useState<{ phase: string; progress: number } | null>(null);
+  const [overlayProgress, setOverlayProgress] = useState<{ phase: string; progress: number } | null>(null);
+  const [overlayAbort, setOverlayAbort] = useState<AbortController | null>(null);
   const [videoVariantsDb, setVideoVariantsDb] = useState<VideoVariant[]>([]);
   const [vidVariantIndex, setVidVariantIndex] = useState(0);
 
