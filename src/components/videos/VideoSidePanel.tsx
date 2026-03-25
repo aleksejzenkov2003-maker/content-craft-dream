@@ -605,17 +605,10 @@ export function VideoSidePanel({
                     try {
                       setProcessState({ type: 'bitrate', phase: 'loading', progress: 5 });
                       const { reduceVideoBitrate } = await import('@/lib/videoNormalizer');
-                      const file = await reduceVideoBitrate(src, (pct) => {
+                      const resultUrl = await reduceVideoBitrate(src, (pct) => {
                         setProcessState({ type: 'bitrate', phase: 'compressing', progress: Math.min(100, Math.round(5 + pct * 85)) });
                       }, ac.signal);
-                      setProcessState({ type: 'bitrate', phase: 'uploading', progress: 92 });
-                      const fileName = `videos/${video.id}_reduced_${Date.now()}.mp4`;
-                      const { error: uploadErr } = await supabase.storage
-                        .from('media-files')
-                        .upload(fileName, file, { contentType: 'video/mp4', upsert: true });
-                      if (uploadErr) throw uploadErr;
-                      const { data: urlData } = supabase.storage.from('media-files').getPublicUrl(fileName);
-                      onUpdateVideo(video.id, { reduced_video_url: urlData.publicUrl, video_path: urlData.publicUrl } as any);
+                      onUpdateVideo(video.id, { reduced_video_url: resultUrl, video_path: resultUrl } as any);
                       toast.success('Битрейт уменьшен');
                     } catch (err) {
                       if (ac.signal.aborted) { toast.info('Операция отменена'); }
@@ -655,27 +648,20 @@ export function VideoSidePanel({
                         });
                       }
                       const { overlayAvatarOnBackground } = await import('@/lib/videoOverlay');
-                      setProcessState({ type: 'overlay', phase: 'loading_ffmpeg', progress: 3 });
-                      const file = await overlayAvatarOnBackground(
+                      setProcessState({ type: 'overlay', phase: 'compositing', progress: 3 });
+                      const resultUrl = await overlayAvatarOnBackground(
                         avatarUrl, bgUrl,
                         (info) => setProcessState({ type: 'overlay', phase: info.phase, progress: Math.min(100, info.progress) }),
                         ac.signal,
                       );
-                      setProcessState({ type: 'overlay', phase: 'uploading', progress: 95 });
-                      const fileName = `videos/${video.id}_overlay_${Date.now()}.mp4`;
-                      const { error: uploadErr } = await supabase.storage
-                        .from('media-files')
-                        .upload(fileName, file, { contentType: 'video/mp4', upsert: true });
-                      if (uploadErr) throw uploadErr;
-                      const { data: urlData } = supabase.storage.from('media-files').getPublicUrl(fileName);
-                      await onUpdateVideo(video.id, { reduced_video_url: urlData.publicUrl, video_path: urlData.publicUrl, reel_status: 'ready' } as any);
+                      await onUpdateVideo(video.id, { reduced_video_url: resultUrl, video_path: resultUrl, reel_status: 'ready' } as any);
                       // Insert overlay as a new variant
                       await (supabase.from('video_variants' as any) as any).insert({
                         video_id: video.id,
                         heygen_video_id: video.heygen_video_id,
                         heygen_video_url: video.heygen_video_url,
-                        reduced_video_url: urlData.publicUrl,
-                        video_path: urlData.publicUrl,
+                        reduced_video_url: resultUrl,
+                        video_path: resultUrl,
                         is_active: true,
                         generation_number: (video as any).generation_count || 1,
                       });
