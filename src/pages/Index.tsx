@@ -230,7 +230,7 @@ export default function Index() {
       // Fetch fresh video data (including overlay fields)
       const { data: vid } = await supabase
         .from('videos')
-        .select('heygen_video_url, video_path, word_timestamps, overlay_mode, background_video_url')
+        .select('heygen_video_url, heygen_video_id, reduced_video_url, video_path, word_timestamps, overlay_mode, background_video_url, generation_count')
         .eq('id', videoId)
         .single();
 
@@ -245,12 +245,30 @@ export default function Index() {
       let finalUrl = sourceUrl;
 
       // Phase 0: Overlay compositing (if overlay mode was used)
-      if ((vid as any)?.overlay_mode && (vid as any)?.background_video_url) {
+      if ((vid as any)?.overlay_mode && (vid as any)?.background_video_url && !sourceUrl.includes('_overlay_')) {
         updateProgress('overlay_compositing' as any, 2);
         const overlayStart = Date.now();
         await logStep('overlay_compositing_started');
         toast.info('Шаг 0: Наложение аватара на фоновую подложку...');
         try {
+          const existingSourceVariant = await (supabase.from('video_variants' as any) as any)
+            .select('id')
+            .eq('video_id', videoId)
+            .eq('heygen_video_url', sourceUrl)
+            .limit(1);
+
+          if (!existingSourceVariant.data?.length) {
+            await (supabase.from('video_variants' as any) as any).insert({
+              video_id: videoId,
+              heygen_video_id: (vid as any).heygen_video_id,
+              heygen_video_url: sourceUrl,
+              reduced_video_url: (vid as any).reduced_video_url,
+              video_path: (vid as any).video_path,
+              is_active: false,
+              generation_number: (vid as any).generation_count || 1,
+            });
+          }
+
           const { overlayAvatarOnBackground } = await import('@/lib/videoOverlay');
           const overlayFile = await overlayAvatarOnBackground(
             sourceUrl,
@@ -258,7 +276,6 @@ export default function Index() {
             (info) => updateProgress(info.phase as any, Math.round(info.progress * 0.2)),
           );
 
-          // Upload overlaid video
           const overlayFileName = `videos/${videoId}_overlay_${Date.now()}.mp4`;
           const { error: uploadErr } = await supabase.storage
             .from('media-files')
@@ -266,8 +283,6 @@ export default function Index() {
           if (uploadErr) throw uploadErr;
           const { data: urlData } = supabase.storage.from('media-files').getPublicUrl(overlayFileName);
           finalUrl = urlData.publicUrl;
-          // Update heygen_video_url so subsequent steps use the composited video
-          await supabase.from('videos').update({ heygen_video_url: finalUrl }).eq('id', videoId);
           await logStep('overlay_compositing_complete', { duration_ms: Date.now() - overlayStart });
           toast.success('✅ Наложение на подложку завершено!');
         } catch (overlayErr) {

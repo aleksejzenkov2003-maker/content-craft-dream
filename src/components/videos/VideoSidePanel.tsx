@@ -316,6 +316,7 @@ export function VideoSidePanel({
   const hasGeneratedVideo = !!(video.video_path || video.heygen_video_url);
   const effectiveGenerationStatus = video.generation_status === 'generating' && hasGeneratedVideo ? 'ready' : video.generation_status;
   const effectiveReelStatus = video.reel_status === 'generating' && !!video.video_path ? 'ready' : video.reel_status;
+  const isProcessLocked = !!processState || !!autoSubtitleProgress;
 
   const atmosStatus = resolveAssetStatus(atmosphereUrl, video.cover_status);
   const coverStatus = resolveAssetStatus(video.front_cover_url, video.cover_status);
