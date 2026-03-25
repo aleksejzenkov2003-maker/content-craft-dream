@@ -582,103 +582,176 @@ export function VideoSidePanel({
             </div>
           </div>
 
-          {/* Bitrate + Subtitle buttons under media grid */}
+          {/* Bitrate + Overlay + Subtitle buttons under media grid */}
           {video.heygen_video_url && (
-            <div className="flex gap-2 mt-1">
-              <Button
-                size="xs"
-                variant="outline"
-                className="flex-1 text-[10px]"
-                disabled={!!bitrateProgress || !!subtitleProgress}
-                onClick={async () => {
-                  const src = video.heygen_video_url;
-                  if (!src) return;
-                  try {
-                    setBitrateProgress({ phase: 'loading', progress: 5 });
-                    const { reduceVideoBitrate } = await import('@/lib/videoNormalizer');
-                    const file = await reduceVideoBitrate(src, (pct) => {
-                      setBitrateProgress({ phase: 'compressing', progress: Math.round(5 + pct * 85) });
-                    });
-                    setBitrateProgress({ phase: 'uploading', progress: 92 });
-                    const fileName = `videos/${video.id}_reduced_${Date.now()}.mp4`;
-                    const { error: uploadErr } = await supabase.storage
-                      .from('media-files')
-                      .upload(fileName, file, { contentType: 'video/mp4', upsert: true });
-                    if (uploadErr) throw uploadErr;
-                    const { data: urlData } = supabase.storage.from('media-files').getPublicUrl(fileName);
-                    onUpdateVideo(video.id, { reduced_video_url: urlData.publicUrl, video_path: urlData.publicUrl } as any);
-                    toast.success('Битрейт уменьшен');
-                  } catch (err) {
-                    console.error('Bitrate reduction error:', err);
-                    toast.error('Ошибка сжатия видео');
-                  } finally {
-                    setBitrateProgress(null);
-                  }
-                }}
-              >
-                {bitrateProgress ? (
-                  <><Loader2 className="w-3 h-3 mr-1 animate-spin" />{bitrateProgress.progress}%</>
-                ) : (
-                  <><Minimize2 className="w-3 h-3 mr-1" />Сжать битрейт</>
-                )}
-              </Button>
-              <Button
-                size="xs"
-                variant="outline"
-                className="flex-1 text-[10px]"
-                disabled={!!subtitleProgress || !!bitrateProgress || !video.word_timestamps}
-                onClick={async () => {
-                  const cleanSrc = (video as any).reduced_video_url || video.heygen_video_url;
-                  if (!cleanSrc) { toast.error('Нет исходного видео'); return; }
-                  const ac = new AbortController();
-                  setSubtitleAbort(ac);
-                  try {
-                    const { burnSubtitlesBrowser } = await import('@/lib/videoSubtitles');
-                    const { isBrowserFFmpegSupported: checkSupport } = await import('@/lib/ffmpegLoader');
-                    if (!checkSupport()) throw new Error('FFmpeg unavailable');
-                    setSubtitleProgress({ phase: 'loading_ffmpeg', progress: 3 });
-                    const watchdog = setTimeout(() => ac.abort(), 8 * 60 * 1000);
-                    const file = await burnSubtitlesBrowser(
-                      cleanSrc,
-                      video.word_timestamps as any,
-                      { fontSize: 56 },
-                      (info) => setSubtitleProgress({ phase: info.phase, progress: info.progress }),
-                      ac.signal,
-                      highlightMode,
-                    );
-                    clearTimeout(watchdog);
-                    setSubtitleProgress({ phase: 'uploading_result', progress: 95 });
-                    const fileName = `videos/${video.id}_subtitled_${Date.now()}.mp4`;
-                    const { error: uploadError } = await supabase.storage
-                      .from('media-files')
-                      .upload(fileName, file, { contentType: 'video/mp4', upsert: true });
-                    if (uploadError) throw uploadError;
-                    const { data: urlData } = supabase.storage.from('media-files').getPublicUrl(fileName);
-                    onUpdateVideo(video.id, { video_path: urlData.publicUrl } as any);
-                    toast.success('Субтитры вшиты');
-                  } catch (err) {
-                    if ((err as Error)?.name === 'AbortError') {
-                      toast.info('Операция отменена');
-                    } else {
-                      console.error('Subtitle error:', err);
-                      toast.error('Ошибка вшивки субтитров');
+            <>
+              <div className="flex gap-2 mt-1">
+                <Button
+                  size="xs"
+                  variant="outline"
+                  className="flex-1 text-[10px]"
+                  disabled={!!bitrateProgress || !!subtitleProgress || !!overlayProgress}
+                  onClick={async () => {
+                    const src = video.heygen_video_url;
+                    if (!src) return;
+                    try {
+                      setBitrateProgress({ phase: 'loading', progress: 5 });
+                      const { reduceVideoBitrate } = await import('@/lib/videoNormalizer');
+                      const file = await reduceVideoBitrate(src, (pct) => {
+                        setBitrateProgress({ phase: 'compressing', progress: Math.round(5 + pct * 85) });
+                      });
+                      setBitrateProgress({ phase: 'uploading', progress: 92 });
+                      const fileName = `videos/${video.id}_reduced_${Date.now()}.mp4`;
+                      const { error: uploadErr } = await supabase.storage
+                        .from('media-files')
+                        .upload(fileName, file, { contentType: 'video/mp4', upsert: true });
+                      if (uploadErr) throw uploadErr;
+                      const { data: urlData } = supabase.storage.from('media-files').getPublicUrl(fileName);
+                      onUpdateVideo(video.id, { reduced_video_url: urlData.publicUrl, video_path: urlData.publicUrl } as any);
+                      toast.success('Битрейт уменьшен');
+                    } catch (err) {
+                      console.error('Bitrate reduction error:', err);
+                      toast.error('Ошибка сжатия видео');
+                    } finally {
+                      setBitrateProgress(null);
                     }
-                  } finally {
-                    setSubtitleProgress(null);
-                    setSubtitleAbort(null);
-                  }
-                }}
-              >
-                {subtitleProgress ? (
-                  <><Loader2 className="w-3 h-3 mr-1 animate-spin" />{subtitleProgress.progress}%</>
-                ) : (
-                  <><Subtitles className="w-3 h-3 mr-1" />Субтитры</>
-                )}
-              </Button>
-            </div>
-          )}
-          {(bitrateProgress || subtitleProgress) && (
-            <Progress value={(bitrateProgress || subtitleProgress)!.progress} className="h-1 mt-1" />
+                  }}
+                >
+                  {bitrateProgress ? (
+                    <><Loader2 className="w-3 h-3 mr-1 animate-spin" />{bitrateProgress.progress}%</>
+                  ) : (
+                    <><Minimize2 className="w-3 h-3 mr-1" />Битрейт</>
+                  )}
+                </Button>
+                <Button
+                  size="xs"
+                  variant="outline"
+                  className="flex-1 text-[10px]"
+                  disabled={!!overlayProgress || !!bitrateProgress || !!subtitleProgress || !video.heygen_video_url || !(video as any).background_video_url}
+                  title={!(video as any).background_video_url ? 'Нет назначенной подложки' : 'Наложить аватар на фон'}
+                  onClick={async () => {
+                    const avatarUrl = video.heygen_video_url;
+                    const bgUrl = (video as any).background_video_url;
+                    if (!avatarUrl || !bgUrl) { toast.error('Нет видео или подложки'); return; }
+                    const ac = new AbortController();
+                    setOverlayAbort(ac);
+                    try {
+                      const { overlayAvatarOnBackground } = await import('@/lib/videoOverlay');
+                      setOverlayProgress({ phase: 'loading_ffmpeg', progress: 3 });
+                      const file = await overlayAvatarOnBackground(
+                        avatarUrl, bgUrl,
+                        (info) => setOverlayProgress({ phase: info.phase, progress: info.progress }),
+                        ac.signal,
+                      );
+                      setOverlayProgress({ phase: 'uploading', progress: 95 });
+                      const fileName = `videos/${video.id}_overlay_${Date.now()}.mp4`;
+                      const { error: uploadErr } = await supabase.storage
+                        .from('media-files')
+                        .upload(fileName, file, { contentType: 'video/mp4', upsert: true });
+                      if (uploadErr) throw uploadErr;
+                      const { data: urlData } = supabase.storage.from('media-files').getPublicUrl(fileName);
+                      onUpdateVideo(video.id, { reduced_video_url: urlData.publicUrl } as any);
+                      toast.success('Фон наложен');
+                    } catch (err) {
+                      if ((err as Error)?.name === 'AbortError') {
+                        toast.info('Операция отменена');
+                      } else {
+                        console.error('Overlay error:', err);
+                        toast.error('Ошибка наложения фона');
+                      }
+                    } finally {
+                      setOverlayProgress(null);
+                      setOverlayAbort(null);
+                    }
+                  }}
+                >
+                  {overlayProgress ? (
+                    <><Loader2 className="w-3 h-3 mr-1 animate-spin" />{overlayProgress.progress}%</>
+                  ) : (
+                    <><MonitorPlay className="w-3 h-3 mr-1" />Фон</>
+                  )}
+                </Button>
+                <Button
+                  size="xs"
+                  variant="outline"
+                  className="flex-1 text-[10px]"
+                  disabled={!!subtitleProgress || !!bitrateProgress || !!overlayProgress || !video.word_timestamps}
+                  onClick={async () => {
+                    const cleanSrc = (video as any).reduced_video_url || video.heygen_video_url;
+                    if (!cleanSrc) { toast.error('Нет исходного видео'); return; }
+                    const ac = new AbortController();
+                    setSubtitleAbort(ac);
+                    try {
+                      const { burnSubtitlesBrowser } = await import('@/lib/videoSubtitles');
+                      const { isBrowserFFmpegSupported: checkSupport } = await import('@/lib/ffmpegLoader');
+                      if (!checkSupport()) throw new Error('FFmpeg unavailable');
+                      setSubtitleProgress({ phase: 'loading_ffmpeg', progress: 3 });
+                      const watchdog = setTimeout(() => ac.abort(), 8 * 60 * 1000);
+                      const file = await burnSubtitlesBrowser(
+                        cleanSrc,
+                        video.word_timestamps as any,
+                        { fontSize: 56 },
+                        (info) => setSubtitleProgress({ phase: info.phase, progress: info.progress }),
+                        ac.signal,
+                        highlightMode,
+                      );
+                      clearTimeout(watchdog);
+                      setSubtitleProgress({ phase: 'uploading_result', progress: 95 });
+                      const fileName = `videos/${video.id}_subtitled_${Date.now()}.mp4`;
+                      const { error: uploadError } = await supabase.storage
+                        .from('media-files')
+                        .upload(fileName, file, { contentType: 'video/mp4', upsert: true });
+                      if (uploadError) throw uploadError;
+                      const { data: urlData } = supabase.storage.from('media-files').getPublicUrl(fileName);
+                      onUpdateVideo(video.id, { video_path: urlData.publicUrl } as any);
+                      toast.success('Субтитры вшиты');
+                    } catch (err) {
+                      if ((err as Error)?.name === 'AbortError') {
+                        toast.info('Операция отменена');
+                      } else {
+                        console.error('Subtitle error:', err);
+                        toast.error('Ошибка вшивки субтитров');
+                      }
+                    } finally {
+                      setSubtitleProgress(null);
+                      setSubtitleAbort(null);
+                    }
+                  }}
+                >
+                  {subtitleProgress ? (
+                    <><Loader2 className="w-3 h-3 mr-1 animate-spin" />{subtitleProgress.progress}%</>
+                  ) : (
+                    <><Subtitles className="w-3 h-3 mr-1" />Субтитры</>
+                  )}
+                </Button>
+              </div>
+              {/* Stop button — visible when any process is running */}
+              {(bitrateProgress || subtitleProgress || overlayProgress) && (
+                <div className="flex gap-2 mt-1">
+                  <Progress value={(overlayProgress || bitrateProgress || subtitleProgress)!.progress} className="h-1 flex-1 my-auto" />
+                  <Button
+                    size="xs"
+                    variant="destructive"
+                    className="text-[10px] px-2"
+                    onClick={() => {
+                      // Abort any running operation
+                      subtitleAbort?.abort();
+                      overlayAbort?.abort();
+                      // Terminate FFmpeg entirely to force-stop
+                      import('@/lib/ffmpegLoader').then(({ terminateSharedFFmpeg }) => terminateSharedFFmpeg()).catch(() => {});
+                      setBitrateProgress(null);
+                      setSubtitleProgress(null);
+                      setOverlayProgress(null);
+                      setSubtitleAbort(null);
+                      setOverlayAbort(null);
+                      toast.info('Процесс остановлен');
+                    }}
+                  >
+                    <Square className="w-3 h-3 mr-1" />Стоп
+                  </Button>
+                </div>
+              )}
+            </>
           )}
         </TabsContent>
 
