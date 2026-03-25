@@ -44,7 +44,7 @@ serve(async (req) => {
         .eq('id', videoId)
         .single();
       
-      if ((video?.advisor as any)?.elevenlabs_voice_id) {
+      if (video && (video.advisor as any)?.elevenlabs_voice_id) {
         selectedVoiceId = (video.advisor as any).elevenlabs_voice_id;
       }
     }
