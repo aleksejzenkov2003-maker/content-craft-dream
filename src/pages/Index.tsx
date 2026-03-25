@@ -314,7 +314,7 @@ export default function Index() {
         }
         const reducedFile = await reduceVideoBitrate(finalUrl, (pct) => {
           updateProgress('reducing_bitrate', Math.round(5 + pct * 40));
-        }, undefined, selectedPreset);
+        }, autoAbort.signal, selectedPreset);
 
         updateProgress('reducing_bitrate', 45);
         const reducedFileName = `videos/${videoId}_reduced_${Date.now()}.mp4`;
