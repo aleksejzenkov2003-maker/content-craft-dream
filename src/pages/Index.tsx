@@ -202,11 +202,23 @@ export default function Index() {
    */
   const postProcessingRef = useRef<Set<string>>(new Set());
   const postProcessVideo = useCallback(async (videoId: string) => {
-    // Guard against duplicate calls for the same video
+    // Guard against duplicate calls for the same video (in-memory)
     if (postProcessingRef.current.has(videoId)) {
       console.log(`[postProcess] Already running for ${videoId}, skipping duplicate`);
       return;
     }
+
+    // DB-level guard: prevent duplicate runs across tabs / auto-resume
+    const { data: statusCheck } = await supabase
+      .from('videos')
+      .select('reel_status')
+      .eq('id', videoId)
+      .single();
+    if (statusCheck?.reel_status === 'generating') {
+      console.log(`[postProcess] DB shows generating for ${videoId}, skipping`);
+      return;
+    }
+
     postProcessingRef.current.add(videoId);
     const autoAbort = new AbortController();
     autoProcessAbortRef.current[videoId] = autoAbort;
@@ -247,14 +259,41 @@ export default function Index() {
         return;
       }
 
+      // --- Determine which steps will run & compute dynamic labels ---
+      const needsOverlay = !!(vid as any)?.overlay_mode && !!(vid as any)?.background_video_url;
+      const needsResize = isEnabled('side_video', 'resize') || isEnabled('resize', 'resize');
+      const needsSubtitles = (isEnabled('side_video', 'subtitles') || isEnabled('burn_subtitles', 'subtitles')) && !!vid?.word_timestamps;
+
+      // Check if overlay was already done for this generation (activity_log)
+      let overlayAlreadyDone = false;
+      if (needsOverlay) {
+        const { data: overlayLogs } = await supabase
+          .from('activity_log')
+          .select('id')
+          .eq('entity_id', videoId)
+          .eq('action', 'overlay_compositing_complete')
+          .order('created_at', { ascending: false })
+          .limit(1);
+        overlayAlreadyDone = !!(overlayLogs && overlayLogs.length > 0);
+      }
+
+      const runOverlay = needsOverlay && !overlayAlreadyDone;
+      let totalSteps = 0;
+      if (runOverlay) totalSteps++;
+      if (needsResize) totalSteps++;
+      if (needsSubtitles) totalSteps++;
+      let currentStep = 0;
+      const stepLabel = (name: string) => `Шаг ${currentStep}/${totalSteps}: ${name}`;
+
       let finalUrl = sourceUrl;
 
-      // Phase 0: Overlay compositing (if overlay mode was used)
-      if ((vid as any)?.overlay_mode && (vid as any)?.background_video_url && !sourceUrl.includes('_overlay_')) {
+      // Phase 1: Overlay compositing (if overlay mode was used and not yet done)
+      if (runOverlay) {
+        currentStep++;
         updateProgress('overlay_compositing' as any, 2);
         const overlayStart = Date.now();
         await logStep('overlay_compositing_started');
-        toast.info('Шаг 0: Наложение аватара на фоновую подложку...');
+        toast.info(stepLabel('Наложение аватара на фоновую подложку...'));
         try {
           const existingSourceVariant = await (supabase.from('video_variants' as any) as any)
             .select('id')
@@ -292,7 +331,7 @@ export default function Index() {
           // Save overlay result immediately as fallback in case downstream steps fail
           await supabase.from('videos').update({ reduced_video_url: finalUrl, video_path: finalUrl }).eq('id', videoId);
           await logStep('overlay_compositing_complete', { duration_ms: Date.now() - overlayStart });
-          toast.success('✅ Наложение на подложку завершено!');
+          toast.success(`✅ ${stepLabel('Наложение на подложку завершено!')}`);
         } catch (overlayErr) {
           console.error('Overlay compositing failed:', overlayErr);
           await logStep('overlay_compositing_failed', { details: { error: String(overlayErr) }, duration_ms: Date.now() - overlayStart });
@@ -300,12 +339,13 @@ export default function Index() {
         }
       }
 
-      // Phase 1: Bitrate reduction
-      if (isEnabled('side_video', 'resize') || isEnabled('resize', 'resize')) {
+      // Phase 2: Bitrate reduction
+      if (needsResize) {
+        currentStep++;
         updateProgress('reducing_bitrate', 5);
         const bitrateStart = Date.now();
         await logStep('bitrate_reduction_started');
-        toast.info('Шаг 1/2: Уменьшение битрейта видео...');
+        toast.info(stepLabel('Уменьшение битрейта видео...'));
         const { reduceVideoBitrate, COMPRESSION_PRESETS, DEFAULT_COMPRESSION_PRESET } = await import('@/lib/videoNormalizer');
         // Load selected compression preset from settings
         let selectedPreset = DEFAULT_COMPRESSION_PRESET;
@@ -327,15 +367,16 @@ export default function Index() {
 
         const { data: urlData } = supabase.storage.from('media-files').getPublicUrl(reducedFileName);
         finalUrl = urlData.publicUrl;
-        // Save reduced URL as clean source (no subtitles) for future re-burns
-        await supabase.from('videos').update({ reduced_video_url: finalUrl }).eq('id', videoId);
+        // Save reduced URL as clean source + video_path fallback
+        await supabase.from('videos').update({ reduced_video_url: finalUrl, video_path: finalUrl }).eq('id', videoId);
         await logStep('bitrate_reduction_complete', { duration_ms: Date.now() - bitrateStart, details: { preset: selectedPreset.id } });
-        toast.success('✅ Шаг 1/2: Битрейт уменьшен!');
+        toast.success(`✅ ${stepLabel('Битрейт уменьшен!')}`);
       }
 
-      // Phase 2: Burn subtitles if word_timestamps exist
-      if ((isEnabled('side_video', 'subtitles') || isEnabled('burn_subtitles', 'subtitles')) && vid?.word_timestamps) {
-        toast.info('Шаг 2/2: Начинаем вшивку субтитров...');
+      // Phase 3: Burn subtitles if word_timestamps exist
+      if (needsSubtitles) {
+        currentStep++;
+        toast.info(stepLabel('Начинаем вшивку субтитров...'));
         const subStart = Date.now();
         await logStep('subtitle_burn_started');
         try {
@@ -356,7 +397,7 @@ export default function Index() {
           const { data: subUrlData } = supabase.storage.from('media-files').getPublicUrl(subtitledFileName);
           finalUrl = subUrlData.publicUrl;
           await logStep('subtitle_burn_complete', { duration_ms: Date.now() - subStart });
-          toast.success('✅ Шаг 2/2: Субтитры вшиты! Видео полностью готово.');
+          toast.success(`✅ ${stepLabel('Субтитры вшиты! Видео полностью готово.')}`);
         } catch (subErr) {
           console.error('Subtitle burn failed, using reduced video:', subErr);
           await logStep('subtitle_burn_failed', { details: { error: String(subErr) }, duration_ms: Date.now() - subStart });
@@ -370,7 +411,7 @@ export default function Index() {
           refetchVideos();
           return;
         }
-      } else if (!vid?.word_timestamps) {
+      } else if (totalSteps === 0 || !vid?.word_timestamps) {
         toast.success('✅ Постобработка завершена (субтитры не требуются)');
       }
 
