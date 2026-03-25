@@ -394,12 +394,20 @@ export default function Index() {
       updateProgress('done', 100);
       refetchVideos();
     } catch (err) {
+      if ((err as Error)?.name === 'AbortError' || autoAbort.signal.aborted) {
+        console.info('Post-processing aborted:', videoId);
+        await logStep('postprocessing_aborted');
+        try { await supabase.from('videos').update({ reel_status: null }).eq('id', videoId); } catch (_) { /* ignore */ }
+        refetchVideos();
+        return;
+      }
       console.error('Post-processing error:', err);
       await logStep('postprocessing_error', { details: { error: String(err) } });
       try { await supabase.from('videos').update({ reel_status: 'error' }).eq('id', videoId); } catch (_) { /* ignore */ }
       refetchVideos();
       throw err;
     } finally {
+      delete autoProcessAbortRef.current[videoId];
       postProcessingRef.current.delete(videoId);
       // Clear progress after a brief delay so user sees 100%
       setTimeout(() => {
