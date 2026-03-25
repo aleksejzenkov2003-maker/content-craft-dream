@@ -64,7 +64,7 @@ export async function overlayAvatarOnBackground(
     // - [1] = avatar video (green screen)
     // Scale both to 1080x1920, chromakey the avatar, overlay centered
     await ff.exec([
-      '-stream_loop', '-1', '-i', bgName,      // background loops infinitely
+      '-i', bgName,                              // background (no infinite loop)
       '-i', avatarName,                          // avatar with green screen
       '-filter_complex',
       [
@@ -72,8 +72,8 @@ export async function overlayAvatarOnBackground(
         '[0:v]scale=1080:1920:force_original_aspect_ratio=increase,crop=1080:1920:(iw-1080)/2:(ih-1920)/2,setsar=1[bg]',
         // Avatar keyed with softer settings (closer to server-side renderer)
         '[1:v]scale=1080:1920:force_original_aspect_ratio=decrease,pad=1080:1920:(ow-iw)/2:(oh-ih)/2,setsar=1,chromakey=0x00B140:0.30:0.08[avatar]',
-        // Overlay avatar on background
-        '[bg][avatar]overlay=0:0:shortest=1[v]',
+        // Overlay avatar on background, stop when shortest input ends
+        '[bg][avatar]overlay=0:0[v]',
       ].join(';'),
       '-map', '[v]',
       '-map', '1:a?',                           // optional avatar audio track
@@ -81,7 +81,7 @@ export async function overlayAvatarOnBackground(
       '-c:a', 'aac', '-ar', '48000', '-b:a', '128k',
       '-pix_fmt', 'yuv420p',
       '-r', '30',
-      '-shortest',
+      '-shortest',                               // stop at the shorter of the two inputs
       '-y', outputName,
     ]);
 
