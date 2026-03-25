@@ -451,10 +451,10 @@ serve(async (req) => {
           audio_url: voiceoverUrl,
         },
       };
-      // In overlay mode, request green screen background from HeyGen
+      // In overlay mode, use a solid green background so client-side chromakey can remove it
       if (isOverlayMode && backgroundVideoUrl) {
-        videoInput.background = { type: 'green_screen' };
-        console.log('OVERLAY: requesting green_screen background from HeyGen');
+        videoInput.background = { type: 'color', value: '#00B140' };
+        console.log('OVERLAY: requesting solid green (#00B140) background from HeyGen for chromakey');
       }
       return JSON.stringify({
         title: video.video_title || video.question || `Video ${videoId}`,
